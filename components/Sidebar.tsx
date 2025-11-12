@@ -1,0 +1,330 @@
+
+
+import React, { useMemo } from 'react';
+import type { OrderItem, Table } from '../types';
+import { OrderListItem } from './OrderListItem';
+import Swal from 'sweetalert2';
+
+interface SidebarProps {
+    currentOrderItems: OrderItem[];
+    onQuantityChange: (cartItemId: string, newQuantity: number) => void;
+    onRemoveItem: (cartItemId: string) => void;
+    onToggleTakeaway: (cartItemId: string) => void;
+    onClearOrder: () => void;
+    onPlaceOrder: () => void;
+    isPlacingOrder: boolean;
+    tables: Table[];
+    selectedTable: Table | null;
+    onSelectTable: (tableId: number | null) => void;
+    customerCount: number;
+    onCustomerCountChange: (count: number) => void;
+    isEditMode: boolean;
+    onAddNewTable: (floor: 'lower' | 'upper') => void;
+    onRemoveLastTable: (floor: 'lower' | 'upper') => void;
+    selectedFloor: 'lower' | 'upper';
+    onFloorChange: (floor: 'lower' | 'upper') => void;
+    isTaxEnabled: boolean;
+    onTaxEnabledChange: (enabled: boolean) => void;
+    taxRate: number;
+    onTaxRateChange: (rate: number) => void;
+    sendToKitchen: boolean;
+    onSendToKitchenChange: (enabled: boolean, details: { reason: string; notes: string } | null) => void;
+}
+
+export const Sidebar: React.FC<SidebarProps> = ({
+    currentOrderItems,
+    onQuantityChange,
+    onRemoveItem,
+    onToggleTakeaway,
+    onClearOrder,
+    onPlaceOrder,
+    isPlacingOrder,
+    tables,
+    selectedTable,
+    onSelectTable,
+    customerCount,
+    onCustomerCountChange,
+    isEditMode,
+    onAddNewTable,
+    onRemoveLastTable,
+    selectedFloor,
+    onFloorChange,
+    isTaxEnabled,
+    onTaxEnabledChange,
+    taxRate,
+    onTaxRateChange,
+    sendToKitchen,
+    onSendToKitchenChange,
+}) => {
+    const { subtotal, taxAmount, total } = useMemo(() => {
+        const sub = currentOrderItems.reduce((sum, item) => sum + item.finalPrice * item.quantity, 0);
+        const tax = isTaxEnabled ? sub * (taxRate / 100) : 0;
+        return { subtotal: sub, taxAmount: tax, total: sub + tax };
+    }, [currentOrderItems, isTaxEnabled, taxRate]);
+
+    const canPlaceOrder = currentOrderItems.length > 0 && selectedTable !== null;
+    
+    const availableTables = useMemo(() => {
+        return tables.filter(t => t.floor === selectedFloor);
+    }, [tables, selectedFloor]);
+
+    const handleConfirmPlaceOrder = () => {
+        if (selectedTable === null) {
+            Swal.fire('กรุณาเลือกโต๊ะ', 'ต้องเลือกโต๊ะสำหรับออเดอร์', 'warning');
+            return;
+        }
+        if (!canPlaceOrder) return;
+        
+        onPlaceOrder();
+    };
+    
+    const handleFloorChange = (floor: 'lower' | 'upper') => {
+        if (selectedFloor !== floor) {
+            onFloorChange(floor);
+            onSelectTable(null); // Clear the table selection when floor changes
+        }
+    };
+
+    const handleSendToKitchenToggle = async (enabled: boolean) => {
+        if (enabled) {
+            onSendToKitchenChange(true, null);
+        } else {
+            // User is unchecking, show the modal
+            const { value: formValues, isConfirmed } = await Swal.fire({
+                title: 'ระบุเหตุผลที่ไม่ส่งเข้าครัว',
+                width: '500px',
+                html: `
+                    <select id="swal-reason" class="swal2-select">
+                        <option value="" disabled selected>-- เลือกเหตุผล --</option>
+                        <option value="ลูกค้าสั่งกลับบ้าน">ลูกค้าสั่งกลับบ้าน</option>
+                        <option value="ลูกค้าสั่งอาหารที่เคาน์เตอร์">ลูกค้าสั่งอาหารที่เคาน์เตอร์</option>
+                        <option value="เป็นรายการที่ทำเสร็จแล้ว (เช่น เครื่องดื่ม)">เป็นรายการที่ทำเสร็จแล้ว (เช่น เครื่องดื่ม)</option>
+                        <option value="ทำออร์เดอร์ผิด">ทำออร์เดอร์ผิด</option>
+                        <option value="อื่นๆ">อื่นๆ (ระบุ)</option>
+                    </select>
+                    <input id="swal-notes" class="swal2-input" placeholder="ระบุเหตุผล..." style="display:none; margin-top: 1em;">
+                `,
+                confirmButtonText: 'ยืนยัน',
+                cancelButtonText: 'ยกเลิก',
+                showCancelButton: true,
+                focusConfirm: false,
+                didOpen: () => {
+                    const popup = Swal.getPopup();
+                    if (!popup) return;
+                    const reasonSelect = popup.querySelector('#swal-reason') as HTMLSelectElement;
+                    const notesInput = popup.querySelector('#swal-notes') as HTMLInputElement;
+                    if (!reasonSelect || !notesInput) return;
+    
+                    reasonSelect.addEventListener('change', () => {
+                        notesInput.style.display = reasonSelect.value === 'อื่นๆ' ? 'block' : 'none';
+                        if (reasonSelect.value === 'อื่นๆ') {
+                           notesInput.focus();
+                        }
+                    });
+                },
+                preConfirm: () => {
+                    const popup = Swal.getPopup();
+                    if (!popup) return false;
+                    const reason = (popup.querySelector('#swal-reason') as HTMLSelectElement).value;
+                    const notes = (popup.querySelector('#swal-notes') as HTMLInputElement).value;
+                    if (!reason) {
+                        Swal.showValidationMessage('กรุณาเลือกเหตุผล');
+                        return false;
+                    }
+                    if (reason === 'อื่นๆ' && !notes.trim()) {
+                        Swal.showValidationMessage('กรุณาระบุเหตุผลในช่อง "อื่นๆ"');
+                        return false;
+                    }
+                    return { reason, notes };
+                }
+            });
+    
+            if (isConfirmed && formValues) {
+                // User confirmed, so we can uncheck the box.
+                onSendToKitchenChange(false, { reason: formValues.reason, notes: formValues.notes });
+            }
+            // If not confirmed, do nothing, the checkbox remains checked visually.
+        }
+    };
+
+    return (
+        <aside className="w-full md:w-[420px] flex-shrink-0 bg-gray-800 text-white p-4 flex flex-col h-auto md:h-full shadow-2xl">
+            {/* Header */}
+            <div className="pb-3 border-b border-gray-700">
+                <h2 className="text-2xl font-bold">ข้อมูลออเดอร์</h2>
+            </div>
+
+            {/* Order Configuration */}
+            <div className="py-3 space-y-3">
+                 <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">เลือกชั้น:</label>
+                    <div className="grid grid-cols-2 gap-2">
+                        <button 
+                            onClick={() => handleFloorChange('lower')} 
+                            className={`py-2 px-4 rounded-md font-semibold transition-colors ${selectedFloor === 'lower' ? 'bg-blue-600 text-white' : 'bg-gray-700 hover:bg-gray-600'}`}
+                        >
+                            ชั้นล่าง
+                        </button>
+                        <button 
+                            onClick={() => handleFloorChange('upper')} 
+                            className={`py-2 px-4 rounded-md font-semibold transition-colors ${selectedFloor === 'upper' ? 'bg-blue-600 text-white' : 'bg-gray-700 hover:bg-gray-600'}`}
+                        >
+                            ชั้นบน
+                        </button>
+                    </div>
+                </div>
+
+                <div>
+                    <label htmlFor="table-select" className="block text-sm font-medium text-gray-300 mb-1">เลือกโต๊ะ:</label>
+                    <select
+                        id="table-select"
+                        value={selectedTable?.id ?? ''}
+                        onChange={(e) => onSelectTable(e.target.value ? Number(e.target.value) : null)}
+                        className="w-full p-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                        <option value="">-- กรุณาเลือกโต๊ะ --</option>
+                        {availableTables.map(table => (
+                            <option key={table.id} value={table.id}>{table.name}</option>
+                        ))}
+                    </select>
+                </div>
+                 <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">ลูกค้า:</label>
+                     <div className="flex items-center">
+                        <button 
+                            onClick={() => onCustomerCountChange(customerCount - 1)} 
+                            className="px-4 py-2 bg-gray-700 rounded-l-md hover:bg-gray-600 font-bold text-lg disabled:opacity-50"
+                            disabled={selectedTable === null}
+                        >
+                            -
+                        </button>
+                        <input
+                            type="number"
+                            value={customerCount}
+                            onChange={(e) => onCustomerCountChange(Math.max(1, Number(e.target.value)))}
+                            min="1"
+                            className="w-full p-2 text-center bg-gray-900 border-y border-gray-600 text-lg font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                            disabled={selectedTable === null}
+                        />
+                         <button 
+                            onClick={() => onCustomerCountChange(customerCount + 1)} 
+                            className="px-4 py-2 bg-gray-700 rounded-r-md hover:bg-gray-600 font-bold text-lg disabled:opacity-50"
+                            disabled={selectedTable === null}
+                        >
+                            +
+                         </button>
+                    </div>
+                </div>
+            </div>
+
+            {/* Table Management (Edit Mode) */}
+            {isEditMode && (
+                <div className="py-3 border-t border-b border-gray-700 space-y-2">
+                    <h3 className="text-sm font-medium text-gray-300 px-1">จัดการโต๊ะ ({selectedFloor === 'lower' ? 'ชั้นล่าง' : 'ชั้นบน'})</h3>
+                    <div className="grid grid-cols-2 gap-2">
+                        <button
+                            onClick={() => onAddNewTable(selectedFloor)}
+                            className="w-full px-4 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-colors text-sm flex items-center justify-center gap-2"
+                        >
+                             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" /></svg>
+                            <span>เพิ่มโต๊ะ</span>
+                        </button>
+                        <button
+                            onClick={() => onRemoveLastTable(selectedFloor)}
+                            className="w-full px-4 py-2 bg-red-800/80 text-white font-semibold rounded-lg hover:bg-red-700 transition-colors text-sm flex items-center justify-center gap-2"
+                        >
+                           <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5 10a1 1 0 011-1h8a1 1 0 110 2H6a1 1 0 01-1-1z" clipRule="evenodd" /></svg>
+                           <span>ลบโต๊ะล่าสุด</span>
+                        </button>
+                    </div>
+                </div>
+            )}
+
+
+            {/* Order Items List */}
+            <div className="flex-1 min-h-0 bg-gray-900 rounded-lg p-2 flex flex-col">
+                {currentOrderItems.length === 0 ? (
+                    <div className="flex-1 flex flex-col items-center justify-center text-gray-500 text-center">
+                        <svg className="w-16 h-16" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+                        <p className="mt-2">ยังไม่มีรายการอาหาร</p>
+                    </div>
+                ) : (
+                    <div className="flex-1 overflow-y-auto space-y-2">
+                        {currentOrderItems.map((item) => (
+                             <OrderListItem
+                                key={item.cartItemId}
+                                item={item}
+                                onQuantityChange={onQuantityChange}
+                                onRemoveItem={onRemoveItem}
+                                onToggleTakeaway={onToggleTakeaway}
+                            />
+                        ))}
+                    </div>
+                )}
+            </div>
+
+            {/* Totals and Actions */}
+            <div className="pt-3 mt-2 border-t border-gray-700 space-y-3">
+                 <div className="space-y-1 text-base">
+                    <div className="flex justify-between">
+                        <span className="text-gray-400">ยอดรวม (ก่อนภาษี)</span>
+                        <span>{subtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })} ฿</span>
+                    </div>
+                     <div className="flex justify-between items-center">
+                        <label className="flex items-center gap-2 text-gray-400 cursor-pointer">
+                            <input type="checkbox" checked={isTaxEnabled} onChange={e => onTaxEnabledChange(e.target.checked)} className="h-4 w-4 bg-gray-700 border-gray-600 rounded text-blue-500 focus:ring-blue-500"/>
+                            ภาษี
+                        </label>
+                        <div className="flex items-center gap-2">
+                            {isTaxEnabled && (
+                                <input type="number" value={taxRate} onChange={e => onTaxRateChange(Number(e.target.value))} className="w-14 bg-gray-700 text-white text-right rounded-md p-1 border border-gray-600"/>
+                            )}
+                            <span>{taxAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} ฿</span>
+                        </div>
+                    </div>
+                    <div className="flex justify-between items-center">
+                        <label className="flex items-center gap-2 text-gray-400 cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={sendToKitchen}
+                                onChange={(e) => handleSendToKitchenToggle(e.target.checked)}
+                                className="h-4 w-4 bg-gray-700 border-gray-600 rounded text-blue-500 focus:ring-blue-500"
+                            />
+                            <span>ส่งไปที่ห้องครัว</span>
+                        </label>
+                    </div>
+                </div>
+                <div className="flex justify-between items-center text-2xl font-bold border-t border-gray-600 pt-2">
+                    <span className="text-yellow-400">ยอดสุทธิ</span>
+                    <span className="text-yellow-400">{total.toLocaleString(undefined, { minimumFractionDigits: 2 })} ฿</span>
+                </div>
+                 <div className="grid grid-cols-2 gap-2">
+                    <button
+                        onClick={onClearOrder}
+                        disabled={currentOrderItems.length === 0}
+                        className="w-full px-4 py-3 bg-red-800/80 text-white font-semibold rounded-lg hover:bg-red-700 disabled:bg-gray-600 disabled:text-gray-400 transition-colors"
+                    >
+                        ล้างออเดอร์
+                    </button>
+                     <button
+                        onClick={handleConfirmPlaceOrder}
+                        disabled={!canPlaceOrder || isPlacingOrder}
+                        className="w-full px-4 py-3 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
+                    >
+                        {isPlacingOrder ? (
+                           <>
+                                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                กำลังยืนยัน...
+                           </>
+                        ) : (
+                            'ยืนยันออเดอร์'
+                        )}
+                    </button>
+                </div>
+            </div>
+        </aside>
+    );
+};

@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ระบบจัดการร้านอาหาร (POS)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/heroicons/2.1.3/24/outline/heroicons.min.css" rel="stylesheet">
+    <!-- SweetAlert2 -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <!-- XLSX (SheetJS) for Excel Import/Export -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+    <!-- html2canvas for printing support -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script type="importmap">
+{
+  "imports": {
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "sweetalert2": "https://aistudiocdn.com/sweetalert2@^11.26.3",
+    "firebase/app": "https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js",
+    "firebase/firestore": "https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore.js",
+    "firebase/functions": "https://www.gstatic.com/firebasejs/9.22.1/firebase-functions.js",
+    "firebase/": "https://aistudiocdn.com/firebase@^12.5.0/"
+  }
+}
+</script>
+<style>
+    @media print {
+      @page {
+        size: auto; /* Changed from A4 to auto for thermal printers */
+        margin: 0mm;
+      }
+
+      /* Hide everything by default */
+      body * {
+        visibility: hidden;
+      }
+
+      /* Make only the printable area and its children visible */
+      .printable-area, .printable-area * {
+        visibility: visible;
+      }
+      
+      /* Take the printable area out of flow and position it for printing.
+         'absolute' is used instead of 'fixed' to avoid issues with parent
+         elements that have a 'transform' property (common in modals). */
+      .printable-area {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+      }
+      
+      /* Ensure no elements outside the bill are printed */
+      .no-print {
+        display: none !important;
+      }
+    }
+    /* Hide number input arrows */
+    input[type=number]::-webkit-inner-spin-button,
+    input[type=number]::-webkit-outer-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+    input[type=number] {
+      -moz-appearance: textfield; /* Firefox */
+    }
+</style>
+<link rel="stylesheet" href="/index.css">
+</head>
+<body class="bg-gray-100">
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+</body>
+</html>
