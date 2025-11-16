@@ -291,6 +291,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
                                                <img src={user.profilePictureUrl || "https://img.icons8.com/fluency/48/user-male-circle.png"} alt={user.username} className="w-12 h-12 rounded-full object-cover flex-shrink-0" />
                                                <div className="flex-1">
                                                     <p className="font-semibold text-gray-800">{user.username}</p>
+<<<<<<< HEAD
                                                     <p className="text-sm text-gray-500">
                                                         <span className={`font-semibold ${
                                                             user.role === 'admin' ? 'text-red-600' :
@@ -305,6 +306,12 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
                                                             </>
                                                         )}
                                                     </p>
+=======
+                                                    <span className={`text-xs px-2 py-0.5 rounded-full ${user.role === 'admin' ? 'bg-red-100 text-red-800' : user.role === 'branch-admin' ? 'bg-purple-100 text-purple-800' : user.role === 'kitchen' ? 'bg-yellow-100 text-yellow-800' : 'bg-blue-100 text-blue-800'}`}>{roleText(user.role)}</span>
+                                                    {user.role !== 'admin' && (
+                                                        <p className="text-sm text-gray-500 mt-1">สาขา: {getBranchNames(user.allowedBranchIds)}</p>
+                                                    )}
+>>>>>>> a369329bfa48ca580f363bc1e166410fe1144c05
                                                </div>
                                                <div className="flex gap-2">
                                                     <button

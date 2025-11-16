@@ -1,5 +1,8 @@
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> a369329bfa48ca580f363bc1e166410fe1144c05
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 
 import { 
@@ -24,8 +27,12 @@ import type {
     Branch,
     StockItem,
     View,
+<<<<<<< HEAD
     NavItem,
     PrintHistoryEntry
+=======
+    NavItem
+>>>>>>> a369329bfa48ca580f363bc1e166410fe1144c05
 } from './types';
 import { useFirestoreSync } from './hooks/useFirestoreSync';
 import { functionsService } from './services/firebaseFunctionsService';
@@ -89,7 +96,10 @@ const App: React.FC = () => {
     const [stockItems, setStockItems] = useFirestoreSync<StockItem[]>(branchId, 'stockItems', DEFAULT_STOCK_ITEMS);
     const [stockCategories, setStockCategories] = useFirestoreSync<string[]>(branchId, 'stockCategories', DEFAULT_STOCK_CATEGORIES);
     const [stockUnits, setStockUnits] = useFirestoreSync<string[]>(branchId, 'stockUnits', DEFAULT_STOCK_UNITS);
+<<<<<<< HEAD
     const [printHistory, setPrintHistory] = useFirestoreSync<PrintHistoryEntry[]>(branchId, 'printHistory', []);
+=======
+>>>>>>> a369329bfa48ca580f363bc1e166410fe1144c05
 
     // --- POS-SPECIFIC LOCAL STATE ---
     const [currentOrderItems, setCurrentOrderItems] = useState<OrderItem[]>([]);
@@ -305,6 +315,7 @@ const App: React.FC = () => {
             };
             setActiveOrders(prev => [...prev, newOrder]);
             
+<<<<<<< HEAD
             // Send to Kitchen Printer if configured and log the event
             if (printerConfig?.kitchen) {
                 const logEntry: PrintHistoryEntry = {
@@ -337,6 +348,13 @@ const App: React.FC = () => {
                         timer: 4000
                     });
                 }
+=======
+            // Send to Kitchen Printer if configured
+            if (printerConfig?.kitchen) {
+                printerService.printKitchenOrder(newOrder, printerConfig.kitchen).catch(err => {
+                    console.error("Failed to print to kitchen:", err);
+                });
+>>>>>>> a369329bfa48ca580f363bc1e166410fe1144c05
             }
             
             setLastPlacedOrderId(newOrderNumber);
@@ -520,6 +538,7 @@ const App: React.FC = () => {
             return ['ทั้งหมด', ...sorted];
         });
     };
+<<<<<<< HEAD
 
     const handleReprint = async (orderNumber: number) => {
         if (!printerConfig?.kitchen) {
@@ -571,6 +590,8 @@ const App: React.FC = () => {
             Swal.fire('พิมพ์ไม่สำเร็จ', `เกิดข้อผิดพลาด: ${error.message}`, 'error');
         }
     };
+=======
+>>>>>>> a369329bfa48ca580f363bc1e166410fe1144c05
     
 
     // --- UI & MODAL HANDLERS ---
@@ -776,7 +797,11 @@ const App: React.FC = () => {
                     {currentView === 'kitchen' && <KitchenView activeOrders={activeOrders} onStartCooking={(id) => setActiveOrders(p => p.map(o => o.id === id ? {...o, status: 'cooking', cookingStartTime: Date.now()} : o))} onCompleteOrder={(id) => setActiveOrders(p => p.map(o => o.id === id ? {...o, status: 'served'} : o))} />}
                     {currentView === 'tables' && <TableLayout tables={tables} activeOrders={activeOrders} onTableSelect={(id) => { setSelectedTableId(id); setCurrentView('pos'); }} onShowBill={(id) => { setOrderForModal(activeOrders.find(o => o.id === id) ?? null); setModalState(p=>({...p, isTableBill: true})); }} />}
                     {currentView === 'dashboard' && <Dashboard completedOrders={completedOrders} cancelledOrders={cancelledOrders} openingTime={String(openingTime)} closingTime={String(closingTime)} />}
+<<<<<<< HEAD
                     {currentView === 'history' && <SalesHistory completedOrders={completedOrders} cancelledOrders={cancelledOrders} printHistory={printHistory} onReprint={handleReprint} isEditMode={isEditMode} onSplitOrder={(order) => { setOrderForModal(order); setModalState(p=>({...p, isSplitCompleted: true}));}} onEditOrder={(order) => { setOrderForModal(order); setModalState(p=>({...p, isEditCompleted: true})); }} onInitiateCashBill={(order) => { setOrderForModal(order); setModalState(p=>({...p, isCashBill: true}));}} onDeleteHistory={(c, ca, p) => { setCompletedOrders(prev => prev.filter(o => !c.includes(o.id))); setCancelledOrders(prev => prev.filter(o => !ca.includes(o.id))); setPrintHistory(prev => prev.filter(entry => !p.includes(entry.id))); }} />}
+=======
+                    {currentView === 'history' && <SalesHistory completedOrders={completedOrders} cancelledOrders={cancelledOrders} isEditMode={isEditMode} onSplitOrder={(order) => { setOrderForModal(order); setModalState(p=>({...p, isSplitCompleted: true}));}} onEditOrder={(order) => { setOrderForModal(order); setModalState(p=>({...p, isEditCompleted: true})); }} onInitiateCashBill={(order) => { setOrderForModal(order); setModalState(p=>({...p, isCashBill: true}));}} onDeleteHistory={(c, ca) => { setCompletedOrders(p => p.filter(o => !c.includes(o.id))); setCancelledOrders(p => p.filter(o => !ca.includes(o.id))); }} />}
+>>>>>>> a369329bfa48ca580f363bc1e166410fe1144c05
                     {currentView === 'stock' && <StockManagement stockItems={stockItems} setStockItems={setStockItems} stockCategories={stockCategories} setStockCategories={setStockCategories} stockUnits={stockUnits} setStockUnits={setStockUnits} />}
                 </main>
 
@@ -808,4 +833,8 @@ const App: React.FC = () => {
     );
 }
 
+<<<<<<< HEAD
 export default App;
+=======
+export default App;
+>>>>>>> a369329bfa48ca580f363bc1e166410fe1144c05

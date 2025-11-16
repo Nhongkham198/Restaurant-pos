@@ -1,8 +1,14 @@
 import React, { useState, useMemo, useEffect } from 'react';
+<<<<<<< HEAD
 import type { CompletedOrder, CancelledOrder, PrintHistoryEntry } from '../types';
 import { CompletedOrderCard } from './CompletedOrderCard';
 import { CancelledOrderCard } from './CancelledOrderCard';
 import { PrintHistoryCard } from './PrintHistoryCard';
+=======
+import type { CompletedOrder, CancelledOrder } from '../types';
+import { CompletedOrderCard } from './CompletedOrderCard';
+import { CancelledOrderCard } from './CancelledOrderCard';
+>>>>>>> a369329bfa48ca580f363bc1e166410fe1144c05
 import Swal from 'sweetalert2';
 
 // Helper function to convert array of arrays to a CSV string
@@ -34,13 +40,20 @@ const downloadCSV = (csvContent: string, fileName: string) => {
 interface SalesHistoryProps {
     completedOrders: CompletedOrder[];
     cancelledOrders: CancelledOrder[];
+<<<<<<< HEAD
     printHistory: PrintHistoryEntry[];
     onReprint: (orderNumber: number) => void;
+=======
+>>>>>>> a369329bfa48ca580f363bc1e166410fe1144c05
     onSplitOrder: (order: CompletedOrder) => void;
     isEditMode: boolean;
     onEditOrder: (order: CompletedOrder) => void;
     onInitiateCashBill: (order: CompletedOrder) => void;
+<<<<<<< HEAD
     onDeleteHistory: (completedIdsToDelete: number[], cancelledIdsToDelete: number[], printIdsToDelete: number[]) => void;
+=======
+    onDeleteHistory: (completedIdsToDelete: number[], cancelledIdsToDelete: number[]) => void;
+>>>>>>> a369329bfa48ca580f363bc1e166410fe1144c05
 }
 
 // Helper to format date to YYYY-MM-DD for input[type=date]
@@ -65,14 +78,22 @@ const isSameDay = (d1: Date, d2: Date) => {
 };
 
 
+<<<<<<< HEAD
 export const SalesHistory: React.FC<SalesHistoryProps> = ({ completedOrders, cancelledOrders, printHistory, onReprint, onSplitOrder, isEditMode, onEditOrder, onInitiateCashBill, onDeleteHistory }) => {
     const [activeTab, setActiveTab] = useState<'completed' | 'cancelled' | 'print'>('completed');
+=======
+export const SalesHistory: React.FC<SalesHistoryProps> = ({ completedOrders, cancelledOrders, onSplitOrder, isEditMode, onEditOrder, onInitiateCashBill, onDeleteHistory }) => {
+    const [activeTab, setActiveTab] = useState<'completed' | 'cancelled'>('completed');
+>>>>>>> a369329bfa48ca580f363bc1e166410fe1144c05
     const [searchTerm, setSearchTerm] = useState('');
     const [filterType, setFilterType] = useState<'all' | 'date' | 'month' | 'year'>('all');
     const [selectedDate, setSelectedDate] = useState(new Date());
     const [selectedCompletedIds, setSelectedCompletedIds] = useState<Set<number>>(new Set());
     const [selectedCancelledIds, setSelectedCancelledIds] = useState<Set<number>>(new Set());
+<<<<<<< HEAD
     const [selectedPrintIds, setSelectedPrintIds] = useState<Set<number>>(new Set());
+=======
+>>>>>>> a369329bfa48ca580f363bc1e166410fe1144c05
     
     const today = useMemo(() => new Date(), []);
 
@@ -80,7 +101,10 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({ completedOrders, can
     useEffect(() => {
         setSelectedCompletedIds(new Set());
         setSelectedCancelledIds(new Set());
+<<<<<<< HEAD
         setSelectedPrintIds(new Set());
+=======
+>>>>>>> a369329bfa48ca580f363bc1e166410fe1144c05
     }, [filterType, selectedDate, activeTab, searchTerm]);
 
 
@@ -138,6 +162,7 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({ completedOrders, can
         );
     }, [cancelledOrders, searchTerm, filterType, selectedDate, today]);
 
+<<<<<<< HEAD
     const filteredPrintHistory = useMemo(() => {
         const dateFiltered = printHistory.filter(entry => {
             const entryDate = new Date(entry.timestamp);
@@ -159,6 +184,9 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({ completedOrders, can
 
 
     const handleToggleSelection = (id: number, type: 'completed' | 'cancelled' | 'print') => {
+=======
+    const handleToggleSelection = (id: number, type: 'completed' | 'cancelled') => {
+>>>>>>> a369329bfa48ca580f363bc1e166410fe1144c05
         if (type === 'completed') {
             setSelectedCompletedIds(prev => {
                 const newSet = new Set(prev);
@@ -169,7 +197,11 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({ completedOrders, can
                 }
                 return newSet;
             });
+<<<<<<< HEAD
         } else if (type === 'cancelled') {
+=======
+        } else {
+>>>>>>> a369329bfa48ca580f363bc1e166410fe1144c05
             setSelectedCancelledIds(prev => {
                 const newSet = new Set(prev);
                 if (newSet.has(id)) {
@@ -179,12 +211,15 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({ completedOrders, can
                 }
                 return newSet;
             });
+<<<<<<< HEAD
         } else if (type === 'print') {
             setSelectedPrintIds(prev => {
                 const newSet = new Set(prev);
                 if (newSet.has(id)) newSet.delete(id); else newSet.add(id);
                 return newSet;
             });
+=======
+>>>>>>> a369329bfa48ca580f363bc1e166410fe1144c05
         }
     };
 
@@ -192,19 +227,28 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({ completedOrders, can
         if (activeTab === 'completed') {
             const allVisibleIds = new Set(filteredCompletedOrders.map(o => o.id));
             setSelectedCompletedIds(allVisibleIds);
+<<<<<<< HEAD
         } else if (activeTab === 'cancelled') {
             const allVisibleIds = new Set(filteredCancelledOrders.map(o => o.id));
             setSelectedCancelledIds(allVisibleIds);
         } else {
             const allVisibleIds = new Set(filteredPrintHistory.map(p => p.id));
             setSelectedPrintIds(allVisibleIds);
+=======
+        } else {
+            const allVisibleIds = new Set(filteredCancelledOrders.map(o => o.id));
+            setSelectedCancelledIds(allVisibleIds);
+>>>>>>> a369329bfa48ca580f363bc1e166410fe1144c05
         }
     };
 
     const handleDeselectAll = () => {
         setSelectedCompletedIds(new Set());
         setSelectedCancelledIds(new Set());
+<<<<<<< HEAD
         setSelectedPrintIds(new Set());
+=======
+>>>>>>> a369329bfa48ca580f363bc1e166410fe1144c05
     };
 
 
@@ -302,7 +346,11 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({ completedOrders, can
         downloadCSV(csvContent, fileName);
     };
     
+<<<<<<< HEAD
     const totalSelected = selectedCompletedIds.size + selectedCancelledIds.size + selectedPrintIds.size;
+=======
+    const totalSelected = selectedCompletedIds.size + selectedCancelledIds.size;
+>>>>>>> a369329bfa48ca580f363bc1e166410fe1144c05
 
     const handleDeleteClick = () => {
         if (totalSelected === 0) {
@@ -321,7 +369,11 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({ completedOrders, can
             cancelButtonText: 'ยกเลิก'
         }).then((result) => {
             if (result.isConfirmed) {
+<<<<<<< HEAD
                 onDeleteHistory(Array.from(selectedCompletedIds), Array.from(selectedCancelledIds), Array.from(selectedPrintIds));
+=======
+                onDeleteHistory(Array.from(selectedCompletedIds), Array.from(selectedCancelledIds));
+>>>>>>> a369329bfa48ca580f363bc1e166410fe1144c05
                 // Clear selection after deletion
                 handleDeselectAll();
             }
@@ -343,16 +395,23 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({ completedOrders, can
     return (
         <div className="p-4 md:p-6 space-y-6 h-full flex flex-col w-full">
             <div className="sticky top-0 bg-gray-100/95 backdrop-blur-sm py-4 z-10 space-y-4 rounded-b-lg flex-shrink-0">
+<<<<<<< HEAD
                 <div className="flex justify-center bg-gray-200 rounded-full p-1 max-w-xl mx-auto">
+=======
+                <div className="flex justify-center bg-gray-200 rounded-full p-1 max-w-md mx-auto">
+>>>>>>> a369329bfa48ca580f363bc1e166410fe1144c05
                     <button onClick={() => setActiveTab('completed')} className={`w-full py-2 px-4 rounded-full font-semibold transition-colors ${activeTab === 'completed' ? 'bg-white text-teal-600 shadow' : 'text-gray-600'}`}>
                         ประวัติการขาย ({completedOrders.length})
                     </button>
                     <button onClick={() => setActiveTab('cancelled')} className={`w-full py-2 px-4 rounded-full font-semibold transition-colors ${activeTab === 'cancelled' ? 'bg-white text-red-600 shadow' : 'text-gray-600'}`}>
                         ประวัติการยกเลิก ({cancelledOrders.length})
                     </button>
+<<<<<<< HEAD
                     <button onClick={() => setActiveTab('print')} className={`w-full py-2 px-4 rounded-full font-semibold transition-colors ${activeTab === 'print' ? 'bg-white text-blue-600 shadow' : 'text-gray-600'}`}>
                         ประวัติการพิมพ์ ({printHistory.length})
                     </button>
+=======
+>>>>>>> a369329bfa48ca580f363bc1e166410fe1144c05
                 </div>
                 
                  <div className="flex flex-col sm:flex-row gap-4 items-center flex-wrap">
@@ -479,6 +538,7 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({ completedOrders, can
                         </div>
                     )
                 )}
+<<<<<<< HEAD
                 
                 {activeTab === 'print' && (
                     filteredPrintHistory.length > 0 ? (
@@ -498,6 +558,8 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({ completedOrders, can
                         </div>
                     )
                 )}
+=======
+>>>>>>> a369329bfa48ca580f363bc1e166410fe1144c05
             </div>
         </div>
     );

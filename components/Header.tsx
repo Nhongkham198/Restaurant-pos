@@ -75,7 +75,10 @@ export const Header: React.FC<HeaderProps> = ({
         if (!currentUser) return '';
         switch (currentUser.role) {
             case 'admin': return 'ผู้ดูแลระบบ';
+<<<<<<< HEAD
             case 'branch-admin': return 'ผู้ดูแลสาขา';
+=======
+>>>>>>> a369329bfa48ca580f363bc1e166410fe1144c05
             case 'pos': return 'พนักงาน POS';
             case 'kitchen': return 'พนักงานครัว';
             default: return '';
@@ -125,6 +128,7 @@ export const Header: React.FC<HeaderProps> = ({
                 <div className="flex items-center gap-2">
                     <div className="text-right">
                         <p className="text-base font-semibold text-gray-700">{currentUser?.username}</p>
+<<<<<<< HEAD
                         <p className="text-sm text-gray-500 capitalize">
                              <span className={`font-semibold ${
                                 currentUser?.role === 'admin' ? 'text-red-600' :
@@ -133,6 +137,9 @@ export const Header: React.FC<HeaderProps> = ({
                                 'text-blue-600'
                             }`}>{roleText}</span>
                         </p>
+=======
+                        <p className="text-sm text-gray-500 capitalize">{roleText}</p>
+>>>>>>> a369329bfa48ca580f363bc1e166410fe1144c05
                     </div>
                     
                     <button onClick={onChangeBranch} className="p-2 rounded-full hover:bg-gray-200 transition-colors" title="เปลี่ยนสาขา">
@@ -156,7 +163,11 @@ export const Header: React.FC<HeaderProps> = ({
                                 <span className="hidden md:inline">{isEditMode ? 'ปิดโหมดแก้ไข' : 'โหมดแก้ไข'}</span>
                             </button>
                              <button onClick={onOpenSettings} className="p-2 rounded-full hover:bg-gray-200 transition-colors" title="ตั้งค่า">
+<<<<<<< HEAD
                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924-1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+=======
+                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+>>>>>>> a369329bfa48ca580f363bc1e166410fe1144c05
                             </button>
                         </>
                     )}
@@ -168,4 +179,8 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
         </header>
     );
+<<<<<<< HEAD
 };
+=======
+};
+>>>>>>> a369329bfa48ca580f363bc1e166410fe1144c05
