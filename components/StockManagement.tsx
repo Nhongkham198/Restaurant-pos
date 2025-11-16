@@ -280,7 +280,6 @@ export const StockManagement: React.FC<StockManagementProps> = ({
 
                                     {/* Desktop Table Row Layout */}
                                     <div className="hidden md:block md:col-span-3 md:py-4 md:font-medium md:text-gray-900 md:whitespace-nowrap">{item.name}</div>
-<<<<<<< HEAD
                                     <div className="hidden md:block md:col-span-2 md:py-4">
                                         <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-gray-200 text-gray-800">
                                             {item.category}
@@ -290,10 +289,6 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                         <span className="text-base font-bold text-gray-900">{item.quantity.toLocaleString()}</span>
                                         <span className="text-sm text-gray-600 ml-1">{item.unit}</span>
                                     </div>
-=======
-                                    <div className="hidden md:block md:col-span-2 md:py-4">{item.category}</div>
-                                    <div className="hidden md:block md:col-span-2 md:py-4 md:text-right">{item.quantity.toLocaleString()} {item.unit}</div>
->>>>>>> a369329bfa48ca580f363bc1e166410fe1144c05
                                     <div className="hidden md:block md:col-span-2 md:py-4 md:text-right">{item.reorderPoint.toLocaleString()} {item.unit}</div>
                                     <div className="hidden md:flex md:col-span-1 md:py-4 md:justify-center">
                                         <span className={`px-2 py-1 text-xs font-semibold rounded-full ${status.color}`}>{status.text}</span>
@@ -336,8 +331,4 @@ export const StockManagement: React.FC<StockManagementProps> = ({
             />
         </>
     );
-<<<<<<< HEAD
 };
-=======
-};
->>>>>>> a369329bfa48ca580f363bc1e166410fe1144c05

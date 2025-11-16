@@ -1,5 +1,5 @@
-=======
->>>>>>> a369329bfa48ca580f363bc1e166410fe1144c05
+
+
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 
 import { 
@@ -24,10 +24,8 @@ import type {
     Branch,
     StockItem,
     View,
-
-=======
-    NavItem
->>>>>>> a369329bfa48ca580f363bc1e166410fe1144c05
+    NavItem,
+    PrintHistoryEntry
 } from './types';
 import { useFirestoreSync } from './hooks/useFirestoreSync';
 import { functionsService } from './services/firebaseFunctionsService';
@@ -91,9 +89,7 @@ const App: React.FC = () => {
     const [stockItems, setStockItems] = useFirestoreSync<StockItem[]>(branchId, 'stockItems', DEFAULT_STOCK_ITEMS);
     const [stockCategories, setStockCategories] = useFirestoreSync<string[]>(branchId, 'stockCategories', DEFAULT_STOCK_CATEGORIES);
     const [stockUnits, setStockUnits] = useFirestoreSync<string[]>(branchId, 'stockUnits', DEFAULT_STOCK_UNITS);
-
-=======
->>>>>>> a369329bfa48ca580f363bc1e166410fe1144c05
+    const [printHistory, setPrintHistory] = useFirestoreSync<PrintHistoryEntry[]>(branchId, 'printHistory', []);
 
     // --- POS-SPECIFIC LOCAL STATE ---
     const [currentOrderItems, setCurrentOrderItems] = useState<OrderItem[]>([]);
@@ -309,14 +305,38 @@ const App: React.FC = () => {
             };
             setActiveOrders(prev => [...prev, newOrder]);
             
-
-=======
-            // Send to Kitchen Printer if configured
+            // Send to Kitchen Printer if configured and log the event
             if (printerConfig?.kitchen) {
-                printerService.printKitchenOrder(newOrder, printerConfig.kitchen).catch(err => {
-                    console.error("Failed to print to kitchen:", err);
-                });
->>>>>>> a369329bfa48ca580f363bc1e166410fe1144c05
+                const logEntry: PrintHistoryEntry = {
+                    id: Date.now(),
+                    timestamp: Date.now(),
+                    orderNumber: newOrder.orderNumber,
+                    tableName: newOrder.tableName,
+                    printedBy: newOrder.placedBy,
+                    printerType: 'kitchen',
+                    status: 'success',
+                    errorMessage: null,
+                    orderItemsPreview: newOrder.items.map(i => {
+                        const optionsText = i.selectedOptions.map(opt => opt.name).join(', ');
+                        return `${i.name}${optionsText ? ` (${optionsText})` : ''} x${i.quantity}`;
+                    }),
+                    isReprint: false,
+                };
+                try {
+                    await printerService.printKitchenOrder(newOrder, printerConfig.kitchen);
+                    setPrintHistory(prev => [logEntry, ...prev.slice(0, 99)]); // Keep last 100 entries
+                } catch (err: any) {
+                    logEntry.status = 'failed';
+                    logEntry.errorMessage = err.message;
+                    setPrintHistory(prev => [logEntry, ...prev.slice(0, 99)]);
+                    // The main order success modal will still show, this is an additional warning
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'พิมพ์เข้าครัวไม่สำเร็จ',
+                        text: 'ออเดอร์ถูกบันทึกแล้ว แต่ส่งไปพิมพ์ไม่สำเร็จ กรุณาตรวจสอบการเชื่อมต่อเครื่องพิมพ์',
+                        timer: 4000
+                    });
+                }
             }
             
             setLastPlacedOrderId(newOrderNumber);
@@ -501,8 +521,56 @@ const App: React.FC = () => {
         });
     };
 
-=======
->>>>>>> a369329bfa48ca580f363bc1e166410fe1144c05
+    const handleReprint = async (orderNumber: number) => {
+        if (!printerConfig?.kitchen) {
+            Swal.fire('ไม่ได้ตั้งค่า', 'กรุณาตั้งค่าเครื่องพิมพ์ครัวก่อน', 'warning');
+            return;
+        }
+    
+        const allOrders = [...activeOrders, ...completedOrders, ...cancelledOrders];
+        const orderToReprint = allOrders.find(o => o.orderNumber === orderNumber);
+    
+        if (!orderToReprint) {
+            Swal.fire('ไม่พบออเดอร์', `ไม่พบข้อมูลออเดอร์ #${orderNumber}`, 'error');
+            return;
+        }
+    
+        const orderAsActive = orderToReprint as ActiveOrder; // Cast for compatibility
+        
+        const logEntry: PrintHistoryEntry = {
+            id: Date.now(),
+            timestamp: Date.now(),
+            orderNumber: orderToReprint.orderNumber,
+            tableName: orderToReprint.tableName,
+            printedBy: currentUser?.username ?? 'N/A',
+            printerType: 'kitchen',
+            status: 'success',
+            errorMessage: null,
+            orderItemsPreview: orderToReprint.items.map(i => {
+                const optionsText = i.selectedOptions.map(opt => opt.name).join(', ');
+                return `${i.name}${optionsText ? ` (${optionsText})` : ''} x${i.quantity}`;
+            }),
+            isReprint: true,
+        };
+    
+        try {
+            await printerService.printKitchenOrder(orderAsActive, printerConfig.kitchen);
+            setPrintHistory(prev => [logEntry, ...prev.slice(0, 99)]);
+            Swal.fire({
+                toast: true,
+                position: 'top-end',
+                icon: 'success',
+                title: `ส่งคำสั่งพิมพ์ซ้ำ #${orderToReprint.orderNumber} แล้ว`,
+                showConfirmButton: false,
+                timer: 2500
+            });
+        } catch (error: any) {
+            logEntry.status = 'failed';
+            logEntry.errorMessage = error.message;
+            setPrintHistory(prev => [logEntry, ...prev.slice(0, 99)]);
+            Swal.fire('พิมพ์ไม่สำเร็จ', `เกิดข้อผิดพลาด: ${error.message}`, 'error');
+        }
+    };
     
 
     // --- UI & MODAL HANDLERS ---
@@ -740,7 +808,4 @@ const App: React.FC = () => {
     );
 }
 
-
-=======
 export default App;
->>>>>>> a369329bfa48ca580f363bc1e166410fe1144c05

@@ -161,7 +161,6 @@ export interface NavItem {
     disabled?: boolean;
     badge?: number;
     subItems?: NavItem[];
-<<<<<<< HEAD
 }
 
 export interface PrintHistoryEntry {
@@ -175,6 +174,4 @@ export interface PrintHistoryEntry {
     errorMessage: string | null;
     orderItemsPreview: string[];
     isReprint: boolean;
-=======
->>>>>>> a369329bfa48ca580f363bc1e166410fe1144c05
 }
