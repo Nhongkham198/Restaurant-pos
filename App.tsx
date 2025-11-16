@@ -1,6 +1,3 @@
-
-<<<<<<< HEAD
-
 =======
 >>>>>>> a369329bfa48ca580f363bc1e166410fe1144c05
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
@@ -27,9 +24,7 @@ import type {
     Branch,
     StockItem,
     View,
-<<<<<<< HEAD
-    NavItem,
-    PrintHistoryEntry
+
 =======
     NavItem
 >>>>>>> a369329bfa48ca580f363bc1e166410fe1144c05
@@ -96,8 +91,7 @@ const App: React.FC = () => {
     const [stockItems, setStockItems] = useFirestoreSync<StockItem[]>(branchId, 'stockItems', DEFAULT_STOCK_ITEMS);
     const [stockCategories, setStockCategories] = useFirestoreSync<string[]>(branchId, 'stockCategories', DEFAULT_STOCK_CATEGORIES);
     const [stockUnits, setStockUnits] = useFirestoreSync<string[]>(branchId, 'stockUnits', DEFAULT_STOCK_UNITS);
-<<<<<<< HEAD
-    const [printHistory, setPrintHistory] = useFirestoreSync<PrintHistoryEntry[]>(branchId, 'printHistory', []);
+
 =======
 >>>>>>> a369329bfa48ca580f363bc1e166410fe1144c05
 
@@ -315,39 +309,7 @@ const App: React.FC = () => {
             };
             setActiveOrders(prev => [...prev, newOrder]);
             
-<<<<<<< HEAD
-            // Send to Kitchen Printer if configured and log the event
-            if (printerConfig?.kitchen) {
-                const logEntry: PrintHistoryEntry = {
-                    id: Date.now(),
-                    timestamp: Date.now(),
-                    orderNumber: newOrder.orderNumber,
-                    tableName: newOrder.tableName,
-                    printedBy: newOrder.placedBy,
-                    printerType: 'kitchen',
-                    status: 'success',
-                    errorMessage: null,
-                    orderItemsPreview: newOrder.items.map(i => {
-                        const optionsText = i.selectedOptions.map(opt => opt.name).join(', ');
-                        return `${i.name}${optionsText ? ` (${optionsText})` : ''} x${i.quantity}`;
-                    }),
-                    isReprint: false,
-                };
-                try {
-                    await printerService.printKitchenOrder(newOrder, printerConfig.kitchen);
-                    setPrintHistory(prev => [logEntry, ...prev.slice(0, 99)]); // Keep last 100 entries
-                } catch (err: any) {
-                    logEntry.status = 'failed';
-                    logEntry.errorMessage = err.message;
-                    setPrintHistory(prev => [logEntry, ...prev.slice(0, 99)]);
-                    // The main order success modal will still show, this is an additional warning
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'พิมพ์เข้าครัวไม่สำเร็จ',
-                        text: 'ออเดอร์ถูกบันทึกแล้ว แต่ส่งไปพิมพ์ไม่สำเร็จ กรุณาตรวจสอบการเชื่อมต่อเครื่องพิมพ์',
-                        timer: 4000
-                    });
-                }
+
 =======
             // Send to Kitchen Printer if configured
             if (printerConfig?.kitchen) {
@@ -538,58 +500,7 @@ const App: React.FC = () => {
             return ['ทั้งหมด', ...sorted];
         });
     };
-<<<<<<< HEAD
 
-    const handleReprint = async (orderNumber: number) => {
-        if (!printerConfig?.kitchen) {
-            Swal.fire('ไม่ได้ตั้งค่า', 'กรุณาตั้งค่าเครื่องพิมพ์ครัวก่อน', 'warning');
-            return;
-        }
-    
-        const allOrders = [...activeOrders, ...completedOrders, ...cancelledOrders];
-        const orderToReprint = allOrders.find(o => o.orderNumber === orderNumber);
-    
-        if (!orderToReprint) {
-            Swal.fire('ไม่พบออเดอร์', `ไม่พบข้อมูลออเดอร์ #${orderNumber}`, 'error');
-            return;
-        }
-    
-        const orderAsActive = orderToReprint as ActiveOrder; // Cast for compatibility
-        
-        const logEntry: PrintHistoryEntry = {
-            id: Date.now(),
-            timestamp: Date.now(),
-            orderNumber: orderToReprint.orderNumber,
-            tableName: orderToReprint.tableName,
-            printedBy: currentUser?.username ?? 'N/A',
-            printerType: 'kitchen',
-            status: 'success',
-            errorMessage: null,
-            orderItemsPreview: orderToReprint.items.map(i => {
-                const optionsText = i.selectedOptions.map(opt => opt.name).join(', ');
-                return `${i.name}${optionsText ? ` (${optionsText})` : ''} x${i.quantity}`;
-            }),
-            isReprint: true,
-        };
-    
-        try {
-            await printerService.printKitchenOrder(orderAsActive, printerConfig.kitchen);
-            setPrintHistory(prev => [logEntry, ...prev.slice(0, 99)]);
-            Swal.fire({
-                toast: true,
-                position: 'top-end',
-                icon: 'success',
-                title: `ส่งคำสั่งพิมพ์ซ้ำ #${orderToReprint.orderNumber} แล้ว`,
-                showConfirmButton: false,
-                timer: 2500
-            });
-        } catch (error: any) {
-            logEntry.status = 'failed';
-            logEntry.errorMessage = error.message;
-            setPrintHistory(prev => [logEntry, ...prev.slice(0, 99)]);
-            Swal.fire('พิมพ์ไม่สำเร็จ', `เกิดข้อผิดพลาด: ${error.message}`, 'error');
-        }
-    };
 =======
 >>>>>>> a369329bfa48ca580f363bc1e166410fe1144c05
     
@@ -797,11 +708,7 @@ const App: React.FC = () => {
                     {currentView === 'kitchen' && <KitchenView activeOrders={activeOrders} onStartCooking={(id) => setActiveOrders(p => p.map(o => o.id === id ? {...o, status: 'cooking', cookingStartTime: Date.now()} : o))} onCompleteOrder={(id) => setActiveOrders(p => p.map(o => o.id === id ? {...o, status: 'served'} : o))} />}
                     {currentView === 'tables' && <TableLayout tables={tables} activeOrders={activeOrders} onTableSelect={(id) => { setSelectedTableId(id); setCurrentView('pos'); }} onShowBill={(id) => { setOrderForModal(activeOrders.find(o => o.id === id) ?? null); setModalState(p=>({...p, isTableBill: true})); }} />}
                     {currentView === 'dashboard' && <Dashboard completedOrders={completedOrders} cancelledOrders={cancelledOrders} openingTime={String(openingTime)} closingTime={String(closingTime)} />}
-<<<<<<< HEAD
                     {currentView === 'history' && <SalesHistory completedOrders={completedOrders} cancelledOrders={cancelledOrders} printHistory={printHistory} onReprint={handleReprint} isEditMode={isEditMode} onSplitOrder={(order) => { setOrderForModal(order); setModalState(p=>({...p, isSplitCompleted: true}));}} onEditOrder={(order) => { setOrderForModal(order); setModalState(p=>({...p, isEditCompleted: true})); }} onInitiateCashBill={(order) => { setOrderForModal(order); setModalState(p=>({...p, isCashBill: true}));}} onDeleteHistory={(c, ca, p) => { setCompletedOrders(prev => prev.filter(o => !c.includes(o.id))); setCancelledOrders(prev => prev.filter(o => !ca.includes(o.id))); setPrintHistory(prev => prev.filter(entry => !p.includes(entry.id))); }} />}
-=======
-                    {currentView === 'history' && <SalesHistory completedOrders={completedOrders} cancelledOrders={cancelledOrders} isEditMode={isEditMode} onSplitOrder={(order) => { setOrderForModal(order); setModalState(p=>({...p, isSplitCompleted: true}));}} onEditOrder={(order) => { setOrderForModal(order); setModalState(p=>({...p, isEditCompleted: true})); }} onInitiateCashBill={(order) => { setOrderForModal(order); setModalState(p=>({...p, isCashBill: true}));}} onDeleteHistory={(c, ca) => { setCompletedOrders(p => p.filter(o => !c.includes(o.id))); setCancelledOrders(p => p.filter(o => !ca.includes(o.id))); }} />}
->>>>>>> a369329bfa48ca580f363bc1e166410fe1144c05
                     {currentView === 'stock' && <StockManagement stockItems={stockItems} setStockItems={setStockItems} stockCategories={stockCategories} setStockCategories={setStockCategories} stockUnits={stockUnits} setStockUnits={setStockUnits} />}
                 </main>
 
@@ -833,8 +740,7 @@ const App: React.FC = () => {
     );
 }
 
-<<<<<<< HEAD
-export default App;
+
 =======
 export default App;
 >>>>>>> a369329bfa48ca580f363bc1e166410fe1144c05
