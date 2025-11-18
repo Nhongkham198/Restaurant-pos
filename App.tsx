@@ -1,5 +1,6 @@
 
 
+
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 
 import { 
@@ -64,6 +65,12 @@ import { CashBillModal } from './components/CashBillModal';
 import { ItemCustomizationModal } from './components/ItemCustomizationModal';
 
 import Swal from 'sweetalert2';
+
+const isSameDay = (d1: Date, d2: Date) => {
+    return d1.getFullYear() === d2.getFullYear() &&
+           d1.getMonth() === d2.getMonth() &&
+           d1.getDate() === d2.getDate();
+};
 
 const App: React.FC = () => {
     // --- AUTH & BRANCH STATE ---
@@ -283,7 +290,17 @@ const App: React.FC = () => {
         if (!selectedTable || currentOrderItems.length === 0 || !currentUser || !branchId) return;
 
         setIsPlacingOrder(true);
-        const newOrderNumber = Math.max(0, ...[...activeOrders, ...completedOrders, ...cancelledOrders].map(o => o.orderNumber)) + 1;
+        
+        const allOrders = [...activeOrders, ...completedOrders, ...cancelledOrders];
+        const todayDate = new Date();
+        let newOrderNumber = 1;
+
+        const todayOrders = allOrders.filter(o => isSameDay(new Date(o.orderTime), todayDate));
+
+        if (todayOrders.length > 0) {
+            newOrderNumber = Math.max(0, ...todayOrders.map(o => o.orderNumber)) + 1;
+        }
+        
         const subtotal = currentOrderItems.reduce((sum, item) => sum + item.finalPrice * item.quantity, 0);
         const taxAmount = isTaxEnabled ? subtotal * (taxRate / 100) : 0;
         

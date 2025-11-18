@@ -385,7 +385,7 @@ export const Menu: React.FC<MenuProps> = ({
                 {isEditMode && (
                     <div
                         onClick={onAddNewItem}
-                        className="relative group bg-gray-50 rounded-lg border-2 border-dashed border-gray-300 flex flex-col items-center justify-center cursor-pointer hover:bg-gray-100 hover:border-blue-400 transition-all aspect-square"
+                        className="relative group bg-gray-50 rounded-lg border-2 border-dashed border-gray-300 flex flex-col items-center justify-center cursor-pointer hover:bg-gray-100 hover:border-blue-400 transition-all h-64"
                     >
                         <div className="text-gray-400 group-hover:text-blue-500 transition-colors">
                              <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">

@@ -18,10 +18,10 @@ export const MenuItemCard: React.FC<MenuItemCardProps> = ({ item, onSelectItem, 
     
     return (
         <div 
-            className={`relative group bg-white rounded-lg shadow-md overflow-hidden flex flex-col border border-gray-200 ${!isEditMode ? 'cursor-pointer hover:shadow-lg hover:border-blue-400 transition-all' : ''}`}
+            className={`relative group bg-white rounded-lg shadow-md overflow-hidden flex flex-col border border-gray-200 h-64 ${!isEditMode ? 'cursor-pointer hover:shadow-lg hover:border-blue-400 transition-all' : ''}`}
             onClick={handleCardClick}
         >
-            <div className="aspect-square bg-gray-200">
+            <div className="h-36 bg-gray-200">
                 <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" />
             </div>
             <div className="p-2 flex flex-col flex-auto justify-between">
