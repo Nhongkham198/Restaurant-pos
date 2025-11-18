@@ -4,6 +4,12 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>ระบบจัดการร้านอาหาร (POS)</title>
+
+    <!-- Google Fonts: Sarabun -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
+
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/heroicons/2.1.3/24/outline/heroicons.min.css" rel="stylesheet">
     <!-- SweetAlert2 -->
@@ -17,6 +23,12 @@
     <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#ffffff">
 
+    <style>
+      body {
+        font-family: 'Sarabun', sans-serif;
+      }
+    </style>
+
 <script type="importmap">
 {
   "imports": {
@@ -27,69 +39,17 @@
     "firebase/app": "https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js",
     "firebase/firestore": "https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore.js",
     "firebase/functions": "https://www.gstatic.com/firebasejs/9.22.1/firebase-functions.js",
-    "firebase/": "https://aistudiocdn.com/firebase@^12.5.0/"
+    "@google/generative-ai": "https://esm.run/@google/generative-ai",
+    "mqtt": "https://unpkg.com/mqtt@5.3.4/dist/mqtt.min.js",
+    "firebase/": "https://aistudiocdn.com/firebase@^12.6.0/"
   }
 }
 </script>
-<style>
-    @media print {
-      @page {
-        size: auto; /* Changed from A4 to auto for thermal printers */
-        margin: 0mm;
-      }
-
-      /* Hide everything by default */
-      body * {
-        visibility: hidden;
-      }
-
-      /* Make only the printable area and its children visible */
-      .printable-area, .printable-area * {
-        visibility: visible;
-      }
-      
-      /* Take the printable area out of flow and position it for printing.
-         'absolute' is used instead of 'fixed' to avoid issues with parent
-         elements that have a 'transform' property (common in modals). */
-      .printable-area {
-        position: absolute;
-        left: 0;
-        top: 0;
-        width: 100%;
-      }
-      
-      /* Ensure no elements outside the bill are printed */
-      .no-print {
-        display: none !important;
-      }
-    }
-    /* Hide number input arrows */
-    input[type=number]::-webkit-inner-spin-button,
-    input[type=number]::-webkit-outer-spin-button {
-      -webkit-appearance: none;
-      margin: 0;
-    }
-    input[type=number] {
-      -moz-appearance: textfield; /* Firefox */
-    }
-</style>
+<script type="module" src="index.tsx"></script>
 <link rel="stylesheet" href="/index.css">
 </head>
 <body class="bg-gray-100">
     <div id="root"></div>
-    <script type="module" src="/index.tsx"></script>
-    <script>
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/sw.js')
-                    .then(registration => {
-                        console.log('ServiceWorker registration successful with scope: ', registration.scope);
-                    })
-                    .catch(error => {
-                        console.log('ServiceWorker registration failed: ', error);
-                    });
-            });
-        }
-    </script>
+<script type="module" src="/index.tsx"></script>
 </body>
 </html>

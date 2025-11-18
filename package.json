@@ -12,7 +12,9 @@
     "react-dom": "^19.2.0",
     "react": "^19.2.0",
     "sweetalert2": "^11.26.3",
-    "firebase": "^12.5.0"
+    "@google/generative-ai": "latest",
+    "mqtt": "5.3.4",
+    "firebase": "^12.6.0"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
