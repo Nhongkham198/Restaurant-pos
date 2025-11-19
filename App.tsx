@@ -514,6 +514,14 @@ const App: React.FC = () => {
         setCompletedOrders(prev => [...prev, completedOrder]);
         setActiveOrders(prev => prev.filter(o => o.id !== orderId));
 
+        // Reset the PIN for this table to prevent previous customers from accessing/ordering again
+        setTables(prevTables => prevTables.map(t => {
+            if (t.name === orderToComplete.tableName && t.floor === orderToComplete.floor) {
+                return { ...t, activePin: undefined }; // Clear the PIN
+            }
+            return t;
+        }));
+
         setNotifiedOverdueOrders(prevSet => {
             const newSet = new Set(prevSet);
             newSet.delete(orderId);
