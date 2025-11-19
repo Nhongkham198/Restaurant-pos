@@ -32,7 +32,7 @@ export const OrderSuccessModal: React.FC<OrderSuccessModalProps> = ({ isOpen, on
                     <p className="text-lg text-gray-600">
                         หมายเลขออเดอร์ของคุณคือ:
                     </p>
-                    <p className="text-4xl font-extrabold text-blue-600 my-2">#{String(orderId).padStart(4, '0')}</p>
+                    <p className="text-4xl font-extrabold text-blue-600 my-2">#{String(orderId).padStart(3, '0')}</p>
                     <p className="text-md text-gray-500">
                         กำลังเตรียมอาหารให้คุณ...
                     </p>

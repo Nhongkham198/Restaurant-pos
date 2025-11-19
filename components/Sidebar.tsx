@@ -1,7 +1,5 @@
-
-
 import React, { useMemo } from 'react';
-import type { OrderItem, Table } from '../types';
+import type { OrderItem, Table, TakeawayCutleryOption } from '../types';
 import { OrderListItem } from './OrderListItem';
 import Swal from 'sweetalert2';
 
@@ -11,11 +9,13 @@ interface SidebarProps {
     onRemoveItem: (cartItemId: string) => void;
     onToggleTakeaway: (cartItemId: string) => void;
     onClearOrder: () => void;
-    onPlaceOrder: () => void;
+    onPlaceOrder: (cutleryInfo?: { cutlery: TakeawayCutleryOption[]; notes: string }) => void;
     isPlacingOrder: boolean;
     tables: Table[];
     selectedTable: Table | null;
     onSelectTable: (tableId: number | null) => void;
+    customerName: string;
+    onCustomerNameChange: (name: string) => void;
     customerCount: number;
     onCustomerCountChange: (count: number) => void;
     isEditMode: boolean;
@@ -42,6 +42,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
     tables,
     selectedTable,
     onSelectTable,
+    customerName,
+    onCustomerNameChange,
     customerCount,
     onCustomerCountChange,
     isEditMode,
@@ -68,14 +70,108 @@ export const Sidebar: React.FC<SidebarProps> = ({
         return tables.filter(t => t.floor === selectedFloor);
     }, [tables, selectedFloor]);
 
-    const handleConfirmPlaceOrder = () => {
+    const hasTakeaway = useMemo(() => currentOrderItems.some(item => item.isTakeaway), [currentOrderItems]);
+
+    const handleConfirmPlaceOrder = async () => {
         if (selectedTable === null) {
             Swal.fire('กรุณาเลือกโต๊ะ', 'ต้องเลือกโต๊ะสำหรับออเดอร์', 'warning');
             return;
         }
         if (!canPlaceOrder) return;
-        
-        onPlaceOrder();
+
+        if (hasTakeaway) {
+            const { value: cutleryData, isConfirmed } = await Swal.fire({
+                title: 'ท่านต้องการรับ (สำหรับกลับบ้าน)',
+                html: `
+                    <div class="swal-cutlery-container text-left space-y-1">
+                        <label class="flex items-center gap-3 p-2 rounded-md hover:bg-gray-100 cursor-pointer">
+                            <input type="checkbox" id="swal-cutlery-spoon" class="swal-cutlery-checkbox h-5 w-5 rounded text-blue-500 border-gray-300 focus:ring-blue-500" value="spoon-fork">
+                            <span>ช้อนส้อม</span>
+                        </label>
+                        <label class="flex items-center gap-3 p-2 rounded-md hover:bg-gray-100 cursor-pointer">
+                            <input type="checkbox" id="swal-cutlery-chopsticks" class="swal-cutlery-checkbox h-5 w-5 rounded text-blue-500 border-gray-300 focus:ring-blue-500" value="chopsticks">
+                            <span>ตะเกียบ</span>
+                        </label>
+                        <div class="p-2 rounded-md hover:bg-gray-100">
+                            <label class="flex items-center gap-3 cursor-pointer">
+                                <input type="checkbox" id="swal-cutlery-other" class="swal-cutlery-checkbox h-5 w-5 rounded text-blue-500 border-gray-300 focus:ring-blue-500" value="other">
+                                <span>อื่นๆ (ระบุ)</span>
+                            </label>
+                            <input type="text" id="swal-cutlery-other-notes" placeholder="ระบุ..." class="w-full mt-2 p-2 bg-gray-50 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm" style="display:none;">
+                        </div>
+                        <label class="flex items-center gap-3 p-2 rounded-md hover:bg-gray-100 cursor-pointer">
+                            <input type="checkbox" id="swal-cutlery-none" class="h-5 w-5 rounded text-blue-500 border-gray-300 focus:ring-blue-500" value="none">
+                            <span>ไม่รับ</span>
+                        </label>
+                    </div>`,
+                focusConfirm: false,
+                showCancelButton: true,
+                confirmButtonText: 'ยืนยัน',
+                cancelButtonText: 'ยกเลิก',
+                didOpen: () => {
+                    const popup = Swal.getPopup();
+                    if (!popup) return;
+                    const otherCheckbox = popup.querySelector('#swal-cutlery-other') as HTMLInputElement;
+                    const otherNotesInput = popup.querySelector('#swal-cutlery-other-notes') as HTMLInputElement;
+                    const noneCheckbox = popup.querySelector('#swal-cutlery-none') as HTMLInputElement;
+                    const normalCheckboxes = Array.from(popup.querySelectorAll('.swal-cutlery-checkbox')) as HTMLInputElement[];
+
+                    otherCheckbox.addEventListener('change', () => {
+                        otherNotesInput.style.display = otherCheckbox.checked ? 'block' : 'none';
+                        if (otherCheckbox.checked) otherNotesInput.focus();
+                    });
+
+                    noneCheckbox.addEventListener('change', () => {
+                        if (noneCheckbox.checked) {
+                            normalCheckboxes.forEach(cb => cb.checked = false);
+                        }
+                    });
+
+                    normalCheckboxes.forEach(cb => {
+                        cb.addEventListener('change', () => {
+                            if (cb.checked) {
+                                noneCheckbox.checked = false;
+                            }
+                        });
+                    });
+                },
+                preConfirm: () => {
+                    const popup = Swal.getPopup();
+                    if (!popup) return;
+                    const cutlery: TakeawayCutleryOption[] = [];
+                    const none = (popup.querySelector('#swal-cutlery-none') as HTMLInputElement).checked;
+                    const otherNotes = (popup.querySelector('#swal-cutlery-other-notes') as HTMLInputElement).value;
+
+                    if (none) {
+                        cutlery.push('none');
+                    } else {
+                        const spoon = (popup.querySelector('#swal-cutlery-spoon') as HTMLInputElement).checked;
+                        const chopsticks = (popup.querySelector('#swal-cutlery-chopsticks') as HTMLInputElement).checked;
+                        const other = (popup.querySelector('#swal-cutlery-other') as HTMLInputElement).checked;
+                        if (spoon) cutlery.push('spoon-fork');
+                        if (chopsticks) cutlery.push('chopsticks');
+                        if (other) cutlery.push('other');
+                    }
+
+                    const isOtherChecked = (popup.querySelector('#swal-cutlery-other') as HTMLInputElement).checked;
+                    if (isOtherChecked && !otherNotes.trim()) {
+                        Swal.showValidationMessage('กรุณาระบุรายละเอียดในช่อง "อื่นๆ"');
+                        return false;
+                    }
+                    
+                    return {
+                        cutlery: cutlery,
+                        notes: isOtherChecked ? otherNotes.trim() : ''
+                    };
+                }
+            });
+
+            if (isConfirmed && cutleryData) {
+                onPlaceOrder(cutleryData);
+            }
+        } else {
+            onPlaceOrder();
+        }
     };
     
     const handleFloorChange = (floor: 'lower' | 'upper') => {
@@ -156,6 +252,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
             {/* Order Configuration */}
             <div className="py-3 space-y-3">
+                 <div>
+                    <label htmlFor="customer-name" className="block text-sm font-medium text-gray-300 mb-1">ชื่อลูกค้า (ถ้ามี):</label>
+                    <input
+                        id="customer-name"
+                        type="text"
+                        value={customerName}
+                        onChange={(e) => onCustomerNameChange(e.target.value)}
+                        placeholder="เช่น คุณสมชาย"
+                        className="w-full p-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                </div>
                  <div>
                     <label className="block text-sm font-medium text-gray-300 mb-1">เลือกชั้น:</label>
                     <div className="grid grid-cols-2 gap-2">

@@ -1,4 +1,5 @@
 
+
 import React from 'react';
 import type { OrderItem } from '../types';
 
@@ -20,6 +21,7 @@ export const OrderListItem: React.FC<OrderListItemProps> = ({ item, onQuantityCh
             <div className="flex-grow">
                 <p className="font-semibold text-white">{item.name}</p>
                 {optionsText && <p className="text-xs text-gray-400 pl-1">{optionsText}</p>}
+                {item.notes && <p className="text-xs text-yellow-300 pl-1 mt-1">** {item.notes}</p>}
                 <p className="text-sm text-gray-400">{item.finalPrice.toLocaleString()} ฿</p>
             </div>
             <div className="flex items-center gap-2 text-white">

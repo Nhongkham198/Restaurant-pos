@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useMemo } from 'react';
 import type { ActiveOrder, OrderItem, User } from '../types';
 
@@ -75,8 +76,13 @@ export const TableBillModal: React.FC<TableBillModalProps> = ({
                     <h3 className="text-2xl font-bold text-gray-800 text-center">
                         บิลโต๊ะ {order.tableName} ({floorText})
                     </h3>
+                    {order.customerName && (
+                        <p className="text-lg text-gray-600 text-center font-semibold mt-1">
+                            ลูกค้า: {order.customerName}
+                        </p>
+                    )}
                     <p className="text-base text-gray-500 text-center">
-                        ออเดอร์ #{order.orderNumber}
+                        ออเดอร์ #{String(order.orderNumber).padStart(3, '0')}
                     </p>
                 </header>
 
@@ -110,6 +116,11 @@ export const TableBillModal: React.FC<TableBillModalProps> = ({
                                         {item.selectedOptions.map(o => o.name).join(', ')}
                                     </p>
                                 )}
+                                {item.notes && (
+                                    <p className="text-xs text-blue-600 pl-1">
+                                        หมายเหตุ: {item.notes}
+                                    </p>
+                                )}
                                 {isEditMode && <p className="text-sm text-gray-500">{item.finalPrice.toLocaleString()} ฿</p>}
                             </div>
                              {isEditMode ? (
@@ -122,6 +133,17 @@ export const TableBillModal: React.FC<TableBillModalProps> = ({
                             )}
                         </div>
                     ))}
+                    {order.takeawayCutlery && order.takeawayCutlery.length > 0 && order.items.some(i => i.isTakeaway) && (
+                        <div className="pt-3 mt-2 border-t">
+                            <h4 className="font-semibold text-gray-700">สำหรับกลับบ้าน:</h4>
+                            <ul className="list-disc list-inside text-sm text-gray-600 pl-4">
+                                {order.takeawayCutlery.includes('spoon-fork') && <li>ช้อนส้อม</li>}
+                                {order.takeawayCutlery.includes('chopsticks') && <li>ตะเกียบ</li>}
+                                {order.takeawayCutlery.includes('other') && order.takeawayCutleryNotes && <li>อื่นๆ: {order.takeawayCutleryNotes}</li>}
+                                {order.takeawayCutlery.includes('none') && <li>ไม่รับ</li>}
+                            </ul>
+                        </div>
+                    )}
                 </main>
 
                 <footer className="p-4 border-t bg-gray-50 rounded-b-lg space-y-3">

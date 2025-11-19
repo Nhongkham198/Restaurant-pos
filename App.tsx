@@ -1,6 +1,3 @@
-
-
-
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 
 import { 
@@ -26,7 +23,8 @@ import type {
     StockItem,
     View,
     NavItem,
-    PrintHistoryEntry
+    PrintHistoryEntry,
+    TakeawayCutleryOption
 } from './types';
 import { useFirestoreSync } from './hooks/useFirestoreSync';
 import { functionsService } from './services/firebaseFunctionsService';
@@ -101,6 +99,7 @@ const App: React.FC = () => {
     // --- POS-SPECIFIC LOCAL STATE ---
     const [currentOrderItems, setCurrentOrderItems] = useState<OrderItem[]>([]);
     const [selectedTableId, setSelectedTableId] = useState<number | null>(null);
+    const [customerName, setCustomerName] = useState('');
     const [customerCount, setCustomerCount] = useState(1);
     const [selectedSidebarFloor, setSelectedSidebarFloor] = useState<'lower' | 'upper'>('lower');
     const [notSentToKitchenDetails, setNotSentToKitchenDetails] = useState<{ reason: string; notes: string } | null>(null);
@@ -281,11 +280,12 @@ const App: React.FC = () => {
     const clearPosState = useCallback(() => {
         setCurrentOrderItems([]);
         setSelectedTableId(null);
+        setCustomerName('');
         setCustomerCount(1);
         setNotSentToKitchenDetails(null);
     }, []);
 
-    const handlePlaceOrder = async () => {
+    const handlePlaceOrder = async (cutleryInfo?: { cutlery: TakeawayCutleryOption[]; notes: string }) => {
         const selectedTable = tables.find(t => t.id === selectedTableId);
         if (!selectedTable || currentOrderItems.length === 0 || !currentUser || !branchId) return;
 
@@ -310,6 +310,7 @@ const App: React.FC = () => {
                 id: Date.now(),
                 orderNumber: newOrderNumber,
                 tableName: selectedTable.name,
+                customerName: customerName,
                 floor: selectedTable.floor,
                 customerCount: customerCount,
                 items: currentOrderItems,
@@ -319,6 +320,8 @@ const App: React.FC = () => {
                 taxAmount,
                 status: 'waiting',
                 orderTime: Date.now(),
+                takeawayCutlery: cutleryInfo?.cutlery,
+                takeawayCutleryNotes: cutleryInfo?.notes,
             };
             setActiveOrders(prev => [...prev, newOrder]);
             
@@ -335,7 +338,8 @@ const App: React.FC = () => {
                     errorMessage: null,
                     orderItemsPreview: newOrder.items.map(i => {
                         const optionsText = i.selectedOptions.map(opt => opt.name).join(', ');
-                        return `${i.name}${optionsText ? ` (${optionsText})` : ''} x${i.quantity}`;
+                        const notesText = i.notes ? ` [**${i.notes}**]` : '';
+                        return `${i.name}${optionsText ? ` (${optionsText})` : ''} x${i.quantity}${notesText}`;
                     }),
                     isReprint: false,
                 };
@@ -376,6 +380,7 @@ const App: React.FC = () => {
                 id: now,
                 orderNumber: newOrderNumber,
                 tableName: selectedTable.name,
+                customerName: customerName,
                 floor: selectedTable.floor,
                 customerCount: customerCount,
                 items: currentOrderItems,
@@ -389,6 +394,8 @@ const App: React.FC = () => {
                 cancelledBy: currentUser.username,
                 cancellationReason: 'อื่นๆ',
                 cancellationNotes: fullReason,
+                takeawayCutlery: cutleryInfo?.cutlery,
+                takeawayCutleryNotes: cutleryInfo?.notes,
             };
 
             setCancelledOrders(prev => [...prev, cancelledOrder]);
@@ -475,7 +482,7 @@ const App: React.FC = () => {
     
         setModalState(p => ({ ...p, isSplitBill: false }));
         setOrderForModal(null);
-        Swal.fire('แยกบิลสำเร็จ!', `สร้างบิลใหม่ #${newOrderNumber} เรียบร้อยแล้ว`, 'success');
+        Swal.fire('แยกบิลสำเร็จ!', `สร้างบิลใหม่ #${String(newOrderNumber).padStart(3, '0')} เรียบร้อยแล้ว`, 'success');
     };
 
     const handleSaveCompletedOrder = ({ id, items }: { id: number; items: OrderItem[] }) => {
@@ -493,20 +500,8 @@ const App: React.FC = () => {
     };
 
     const handleSelectItem = (item: MenuItem) => {
-        if (item.optionGroups && item.optionGroups.length > 0) {
-            setItemToCustomize(item);
-            setModalState(prev => ({...prev, isCustomization: true}));
-        } else {
-            const simpleOrderItem: OrderItem = {
-                ...item,
-                quantity: 1,
-                isTakeaway: false,
-                cartItemId: item.id.toString(),
-                finalPrice: item.price,
-                selectedOptions: []
-            };
-            handleConfirmCustomization(simpleOrderItem);
-        }
+        setItemToCustomize(item);
+        setModalState(prev => ({...prev, isCustomization: true}));
     };
 
     const handleConfirmCustomization = (itemToAdd: OrderItem) => {
@@ -565,7 +560,8 @@ const App: React.FC = () => {
             errorMessage: null,
             orderItemsPreview: orderToReprint.items.map(i => {
                 const optionsText = i.selectedOptions.map(opt => opt.name).join(', ');
-                return `${i.name}${optionsText ? ` (${optionsText})` : ''} x${i.quantity}`;
+                const notesText = i.notes ? ` [**${i.notes}**]` : '';
+                return `${i.name}${optionsText ? ` (${optionsText})` : ''} x${i.quantity}${notesText}`;
             }),
             isReprint: true,
         };
@@ -577,7 +573,7 @@ const App: React.FC = () => {
                 toast: true,
                 position: 'top-end',
                 icon: 'success',
-                title: `ส่งคำสั่งพิมพ์ซ้ำ #${orderToReprint.orderNumber} แล้ว`,
+                title: `ส่งคำสั่งพิมพ์ซ้ำ #${String(orderToReprint.orderNumber).padStart(3, '0')} แล้ว`,
                 showConfirmButton: false,
                 timer: 2500
             });
@@ -715,6 +711,7 @@ const App: React.FC = () => {
                             <div className="flex-1 h-full"> {/* Menu Wrapper */}
                                 <Menu
                                     menuItems={menuItems}
+                                    setMenuItems={setMenuItems}
                                     categories={categories}
                                     onSelectItem={handleSelectItem}
                                     isEditMode={isEditMode}
@@ -746,6 +743,8 @@ const App: React.FC = () => {
                                             tables={tables}
                                             selectedTable={tables.find(t => t.id === selectedTableId) ?? null}
                                             onSelectTable={(id) => setSelectedTableId(id)}
+                                            customerName={customerName}
+                                            onCustomerNameChange={setCustomerName}
                                             customerCount={customerCount}
                                             onCustomerCountChange={setCustomerCount}
                                             isEditMode={isEditMode}

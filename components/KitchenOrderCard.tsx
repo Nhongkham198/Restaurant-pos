@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useMemo } from 'react';
 import type { ActiveOrder } from '../types';
 
@@ -66,10 +67,16 @@ export const KitchenOrderCard: React.FC<KitchenOrderCardProps> = ({ order, onCom
             <div className="flex justify-between items-start mb-3 gap-2">
                 <div>
                     <h4 className={`font-bold text-2xl ${isOverdue ? 'text-red-300' : 'text-white'}`}>
-                        ออเดอร์ #{order.orderNumber}
+                        ออเดอร์ #{String(order.orderNumber).padStart(3, '0')}
                     </h4>
-                    <div className="flex items-center gap-2 text-base text-gray-300 mt-1">
+                    <div className="flex items-center gap-2 text-base text-gray-300 mt-1 flex-wrap">
                         <span className="font-semibold text-cyan-300">{floorText} / โต๊ะ: {order.tableName}</span>
+                        {order.customerName && (
+                            <>
+                                <span className="text-gray-500">|</span>
+                                <span className="font-semibold text-yellow-300">{order.customerName}</span>
+                            </>
+                        )}
                         <span className="text-gray-500">|</span>
                         <span>ลูกค้า: {order.customerCount} คน</span>
                     </div>
@@ -117,9 +124,26 @@ export const KitchenOrderCard: React.FC<KitchenOrderCardProps> = ({ order, onCom
                                 {item.selectedOptions.map(opt => ` - ${opt.name}`).join('\n')}
                             </div>
                         )}
+                        {item.notes && (
+                            <div className="text-sm text-yellow-300 font-semibold pl-4 bg-yellow-500/10 rounded py-1 mt-1">
+                               หมายเหตุ: {item.notes}
+                            </div>
+                        )}
                     </li>
                 ))}
             </ul>
+
+            {order.takeawayCutlery && order.takeawayCutlery.length > 0 && order.items.some(i => i.isTakeaway) && (
+                <div className="mb-4 p-2 bg-purple-900/40 border border-purple-700 rounded-md text-sm">
+                    <h5 className="font-semibold text-purple-300">สำหรับกลับบ้าน:</h5>
+                    <ul className="list-disc list-inside text-purple-200 pl-2">
+                        {order.takeawayCutlery.includes('spoon-fork') && <li>ช้อนส้อม</li>}
+                        {order.takeawayCutlery.includes('chopsticks') && <li>ตะเกียบ</li>}
+                        {order.takeawayCutlery.includes('other') && order.takeawayCutleryNotes && <li>อื่นๆ: {order.takeawayCutleryNotes}</li>}
+                        {order.takeawayCutlery.includes('none') && <li>ไม่รับ</li>}
+                    </ul>
+                </div>
+            )}
 
             {isCooking ? (
                 <button

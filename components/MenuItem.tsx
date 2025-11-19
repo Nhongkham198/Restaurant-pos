@@ -7,9 +7,12 @@ interface MenuItemCardProps {
     isEditMode: boolean;
     onEdit: (item: MenuItem) => void;
     onDelete: (id: number) => void;
+    onDragStart: () => void;
+    onDragEnter: () => void;
+    onDragEnd: () => void;
 }
 
-export const MenuItemCard: React.FC<MenuItemCardProps> = ({ item, onSelectItem, isEditMode, onEdit, onDelete }) => {
+export const MenuItemCard: React.FC<MenuItemCardProps> = ({ item, onSelectItem, isEditMode, onEdit, onDelete, onDragStart, onDragEnter, onDragEnd }) => {
     const handleCardClick = () => {
         if (!isEditMode) {
             onSelectItem(item);
@@ -18,8 +21,13 @@ export const MenuItemCard: React.FC<MenuItemCardProps> = ({ item, onSelectItem, 
     
     return (
         <div 
-            className={`relative group bg-white rounded-lg shadow-md overflow-hidden flex flex-col border border-gray-200 h-64 ${!isEditMode ? 'cursor-pointer hover:shadow-lg hover:border-blue-400 transition-all' : ''}`}
+            className={`relative group bg-white rounded-lg shadow-md overflow-hidden flex flex-col border border-gray-200 h-64 ${!isEditMode ? 'cursor-pointer hover:shadow-lg hover:border-blue-400 transition-all' : ''} ${isEditMode ? 'cursor-grab' : ''}`}
             onClick={handleCardClick}
+            draggable={isEditMode}
+            onDragStart={isEditMode ? onDragStart : undefined}
+            onDragEnter={isEditMode ? onDragEnter : undefined}
+            onDragEnd={isEditMode ? onDragEnd : undefined}
+            onDragOver={isEditMode ? (e) => e.preventDefault() : undefined}
         >
             <div className="h-36 bg-gray-200">
                 <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" />

@@ -7,6 +7,7 @@ declare var XLSX: any;
 
 interface MenuProps {
     menuItems: MenuItem[];
+    setMenuItems: (items: MenuItem[]) => void;
     categories: string[];
     onSelectItem: (item: MenuItem) => void;
     isEditMode: boolean;
@@ -21,6 +22,7 @@ interface MenuProps {
 
 export const Menu: React.FC<MenuProps> = ({ 
     menuItems, 
+    setMenuItems,
     categories, 
     onSelectItem, 
     isEditMode, 
@@ -35,6 +37,36 @@ export const Menu: React.FC<MenuProps> = ({
     const [selectedCategory, setSelectedCategory] = useState('ทั้งหมด');
     const [searchTerm, setSearchTerm] = useState('');
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const dragItem = useRef<number | null>(null);
+    const dragOverItem = useRef<number | null>(null);
+
+    const handleDragSort = () => {
+        if (dragItem.current === null || dragOverItem.current === null || dragItem.current === dragOverItem.current) {
+            return;
+        }
+
+        const dragItemId = dragItem.current;
+        const dragOverItemId = dragOverItem.current;
+
+        // Perform the sort on the original menuItems array
+        const _menuItems = [...menuItems];
+
+        const dragItemIndex = _menuItems.findIndex(item => item.id === dragItemId);
+        const dragOverItemIndex = _menuItems.findIndex(item => item.id === dragOverItemId);
+
+        if (dragItemIndex === -1 || dragOverItemIndex === -1) {
+            return;
+        }
+
+        const draggedItemContent = _menuItems.splice(dragItemIndex, 1)[0];
+        _menuItems.splice(dragOverItemIndex, 0, draggedItemContent);
+
+        dragItem.current = null;
+        dragOverItem.current = null;
+
+        setMenuItems(_menuItems);
+    };
+
 
     const filteredItems = useMemo(() => {
         // If there's a search term, filter all items regardless of category.
@@ -403,6 +435,9 @@ export const Menu: React.FC<MenuProps> = ({
                         isEditMode={isEditMode}
                         onEdit={onEditItem}
                         onDelete={onDeleteItem}
+                        onDragStart={() => (dragItem.current = item.id)}
+                        onDragEnter={() => (dragOverItem.current = item.id)}
+                        onDragEnd={handleDragSort}
                     />
                 ))}
             </div>

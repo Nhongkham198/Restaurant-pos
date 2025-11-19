@@ -12,7 +12,7 @@ export const CancelledOrderCard: React.FC<CancelledOrderCardProps> = ({ order, i
     const [isExpanded, setIsExpanded] = useState(false);
 
     const totalValue = useMemo(() => {
-        const subtotal = order.items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+        const subtotal = order.items.reduce((sum, item) => sum + item.finalPrice * item.quantity, 0);
         return subtotal + order.taxAmount;
     }, [order.items, order.taxAmount]);
 
@@ -46,10 +46,13 @@ export const CancelledOrderCard: React.FC<CancelledOrderCardProps> = ({ order, i
                     <div className="flex-1 cursor-pointer" onClick={() => setIsExpanded(!isExpanded)}>
                         <div className="flex items-baseline gap-2">
                             <p className="font-bold text-xl text-red-700">
-                                <span className="text-gray-500">#</span>{order.orderNumber ?? String(order.id).slice(-4)}
+                                <span className="text-gray-500">#</span>{String(order.orderNumber).padStart(3, '0')}
                             </p>
                             <p className="font-semibold text-lg text-gray-800 truncate">โต๊ะ {order.tableName} ({floorText})</p>
                         </div>
+                        {order.customerName && (
+                            <p className="text-base text-blue-700 font-semibold">{order.customerName}</p>
+                        )}
                         <p className="text-sm text-gray-500 mt-1">{cancellationDate}</p>
                     </div>
                 </div>
@@ -69,12 +72,32 @@ export const CancelledOrderCard: React.FC<CancelledOrderCardProps> = ({ order, i
                         <p className="text-red-800 mt-1"><strong>ยกเลิกโดย:</strong> {order.cancelledBy}</p>
                     </div>
 
+                    {order.takeawayCutlery && order.takeawayCutlery.length > 0 && order.items.some(i => i.isTakeaway) && (
+                        <div className="mb-4 text-base">
+                            <p className="font-semibold text-gray-700">สำหรับกลับบ้าน:</p>
+                            <ul className="list-disc list-inside text-sm text-gray-600 pl-4">
+                                {order.takeawayCutlery.includes('spoon-fork') && <li>ช้อนส้อม</li>}
+                                {order.takeawayCutlery.includes('chopsticks') && <li>ตะเกียบ</li>}
+                                {order.takeawayCutlery.includes('other') && order.takeawayCutleryNotes && <li>อื่นๆ: {order.takeawayCutleryNotes}</li>}
+                                {order.takeawayCutlery.includes('none') && <li>ไม่รับ</li>}
+                            </ul>
+                        </div>
+                    )}
+
                      <div className="space-y-2">
                         <h4 className="font-semibold text-gray-700 mb-2">รายการอาหารที่ถูกยกเลิก</h4>
                         {order.items.map(item => (
-                            <div key={item.id} className="flex justify-between items-center text-base text-gray-700">
-                                <span>{item.quantity} x {item.name}</span>
-                                <span>{(item.price * item.quantity).toLocaleString()} ฿</span>
+                            <div key={item.cartItemId} className="text-base text-gray-700 py-1">
+                                <div className="flex justify-between">
+                                    <span>{item.quantity} x {item.name} {item.isTakeaway && '(กลับบ้าน)'}</span>
+                                    <span>{(item.finalPrice * item.quantity).toLocaleString()} ฿</span>
+                                </div>
+                                { (item.selectedOptions.length > 0 || item.notes) &&
+                                    <div className="pl-5 text-sm text-gray-500">
+                                        {item.selectedOptions.length > 0 && <div>{item.selectedOptions.map(o => o.name).join(', ')}</div>}
+                                        {item.notes && <div className="text-blue-600">** {item.notes}</div>}
+                                    </div>
+                                }
                             </div>
                         ))}
                     </div>

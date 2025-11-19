@@ -13,6 +13,9 @@ const formatOrderForBackend = (order: ActiveOrder): string[] => {
     lines.push(`โต๊ะ: ${order.tableName} (${floorText})`);
     lines.push(`เวลา: ${timeString}`);
     lines.push(`พนักงาน: ${order.placedBy}`);
+    if (order.customerName) {
+        lines.push(`ลูกค้า: ${order.customerName}`);
+    }
     lines.push(''); // blank line
 
     // Add items
@@ -23,7 +26,28 @@ const formatOrderForBackend = (order: ActiveOrder): string[] => {
                 lines.push(`   + ${opt.name}`);
             });
         }
+        if (item.notes) {
+            lines.push(`   ** หมายเหตุ: ${item.notes}`);
+        }
     });
+
+    if (order.takeawayCutlery && order.takeawayCutlery.length > 0 && order.items.some(i => i.isTakeaway)) {
+        lines.push(''); // blank line
+        lines.push('--- สำหรับกลับบ้าน ---');
+        if (order.takeawayCutlery.includes('spoon-fork')) {
+            lines.push('* ขอช้อนส้อม');
+        }
+        if (order.takeawayCutlery.includes('chopsticks')) {
+            lines.push('* ขอตะเกียบ');
+        }
+        if (order.takeawayCutlery.includes('other') && order.takeawayCutleryNotes) {
+            lines.push(`* อื่นๆ: ${order.takeawayCutleryNotes}`);
+        }
+        if (order.takeawayCutlery.includes('none')) {
+            lines.push('* ไม่รับช้อนส้อม/ตะเกียบ');
+        }
+    }
+
 
     return lines;
 };

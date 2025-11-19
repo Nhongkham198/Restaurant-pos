@@ -12,12 +12,14 @@ interface ItemCustomizationModalProps {
 export const ItemCustomizationModal: React.FC<ItemCustomizationModalProps> = ({ isOpen, onClose, item, onConfirm }) => {
     const [selections, setSelections] = useState<Record<string, MenuOption[]>>({});
     const [quantity, setQuantity] = useState(1);
+    const [notes, setNotes] = useState('');
 
     useEffect(() => {
         if (item) {
             // Per user request, always start with a clean slate, no default options selected.
             setSelections({});
             setQuantity(1);
+            setNotes('');
         }
     }, [item]);
 
@@ -79,7 +81,7 @@ export const ItemCustomizationModal: React.FC<ItemCustomizationModalProps> = ({ 
         }
         
         const sortedOptionIds = selectedOptions.map(opt => opt.id).sort();
-        const cartItemId = `${item.id}-${sortedOptionIds.join('-')}`;
+        const cartItemId = `${item.id}-${sortedOptionIds.join('-')}-${notes.trim()}`;
 
         const displayNameParts = [item.name];
         const meatOption = selectedOptions.find(opt => item.optionGroups?.find(g => g.id ==='meat')?.options.includes(opt));
@@ -95,6 +97,7 @@ export const ItemCustomizationModal: React.FC<ItemCustomizationModalProps> = ({ 
             cartItemId: cartItemId,
             finalPrice: finalPrice,
             selectedOptions: selectedOptions,
+            notes: notes.trim(),
         };
         
         onConfirm(itemToAdd);
@@ -143,6 +146,19 @@ export const ItemCustomizationModal: React.FC<ItemCustomizationModalProps> = ({ 
                             </div>
                         </div>
                     ))}
+                    <div className="pt-4 border-t">
+                        <label htmlFor="item-notes" className="block text-lg font-semibold text-gray-800 mb-2">
+                            หมายเหตุ (ถ้ามี):
+                        </label>
+                        <textarea
+                            id="item-notes"
+                            rows={2}
+                            value={notes}
+                            onChange={(e) => setNotes(e.target.value)}
+                            placeholder="เช่น ไม่ใส่น้ำตาล, น้ำมันน้อย"
+                            className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        ></textarea>
+                    </div>
                 </main>
 
                 <footer className="bg-gray-50 px-6 py-4 flex justify-between items-center rounded-b-lg border-t">

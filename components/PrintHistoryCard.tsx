@@ -40,7 +40,7 @@ export const PrintHistoryCard: React.FC<PrintHistoryCardProps> = ({ entry, isEdi
                     <div className="flex-1 cursor-pointer" onClick={() => setIsExpanded(!isExpanded)}>
                         <div className="flex items-baseline gap-2">
                             <p className="font-bold text-xl text-blue-700">
-                                <span className="text-gray-500">#</span>{entry.orderNumber}
+                                <span className="text-gray-500">#</span>{String(entry.orderNumber).padStart(3, '0')}
                             </p>
                             <p className="font-semibold text-lg text-gray-800 truncate">โต๊ะ {entry.tableName}</p>
                             {entry.isReprint && <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 font-semibold">พิมพ์ซ้ำ</span>}

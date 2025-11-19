@@ -11,6 +11,7 @@ interface TableCardProps {
 const TableCard: React.FC<TableCardProps> = ({ table, orders, onTableSelect, onShowBill }) => {
     const isOccupied = orders.length > 0;
     const hasSplitBill = orders.length > 1;
+    const mainOrder = orders[0];
 
     const combinedTotal = useMemo(() => {
         return orders.reduce((tableSum, order) => {
@@ -72,9 +73,12 @@ const TableCard: React.FC<TableCardProps> = ({ table, orders, onTableSelect, onS
                         )}
                     </div>
                 </div>
+                {isOccupied && mainOrder?.customerName && (
+                    <p className="mt-2 font-semibold text-lg text-blue-700 truncate">{mainOrder.customerName}</p>
+                )}
                 {isOccupied && (
                     <div className="mt-2 text-base text-gray-700 space-y-1">
-                        {hasSplitBill ? <p><strong>ออเดอร์:</strong> {orders.length} บิล</p> : <p><strong>ออเดอร์:</strong> #{orders[0]?.orderNumber}</p>}
+                        {hasSplitBill ? <p><strong>ออเดอร์:</strong> {orders.length} บิล</p> : <p><strong>ออเดอร์:</strong> #{String(orders[0]?.orderNumber).padStart(3, '0')}</p>}
                         <p><strong>ลูกค้า:</strong> {totalCustomers} คน</p>
                         <p><strong>รายการ:</strong> {totalItems} รายการ</p>
                         <p className={`font-bold text-xl text-red-700 mt-2`}>

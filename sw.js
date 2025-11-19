@@ -2,8 +2,9 @@ const CACHE_NAME = 'restaurant-pos-cache-v1';
 const urlsToCache = [
   '/',
   '/index.html',
-  '/index.tsx',
+  '/manifest.json',
   '/icon.svg',
+  'https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap',
   'https://cdn.tailwindcss.com',
   'https://cdnjs.cloudflare.com/ajax/libs/heroicons/2.1.3/24/outline/heroicons.min.css',
   'https://cdn.jsdelivr.net/npm/sweetalert2@11',

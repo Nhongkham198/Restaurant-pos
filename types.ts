@@ -48,6 +48,7 @@ export interface OrderItem extends MenuItem {
     cartItemId: string;
     finalPrice: number;
     selectedOptions: MenuOption[];
+    notes?: string;
 }
 
 export interface PaymentDetails {
@@ -56,10 +57,13 @@ export interface PaymentDetails {
     changeGiven?: number;
 }
 
+export type TakeawayCutleryOption = 'spoon-fork' | 'chopsticks' | 'other' | 'none';
+
 interface BaseOrder {
     id: number;
     orderNumber: number;
     tableName: string;
+    customerName?: string;
     floor: 'lower' | 'upper';
     customerCount: number;
     items: OrderItem[];
@@ -68,6 +72,8 @@ interface BaseOrder {
     taxAmount: number;
     placedBy: string;
     parentOrderId?: number | null;
+    takeawayCutlery?: TakeawayCutleryOption[];
+    takeawayCutleryNotes?: string;
 }
 
 export interface ActiveOrder extends BaseOrder {
