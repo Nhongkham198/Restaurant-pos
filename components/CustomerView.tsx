@@ -27,6 +27,29 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     const [isCartOpen, setIsCartOpen] = useState(false);
     const [itemToCustomize, setItemToCustomize] = useState<MenuItem | null>(null);
     
+    // --- Session Persistence Logic ---
+    useEffect(() => {
+        const sessionKey = `customer_session_${table.id}`;
+        const savedSession = localStorage.getItem(sessionKey);
+        
+        if (savedSession) {
+            try {
+                const { name, pin } = JSON.parse(savedSession);
+                // Only auto-login if the PIN matches the current active PIN of the table.
+                // This ensures that if the table is cleared/reset by staff, the old session is invalid.
+                if (pin === table.activePin && table.activePin) {
+                    setCustomerName(name);
+                    setIsAuthenticated(true);
+                } else {
+                    // PIN changed or invalid, clear session
+                    localStorage.removeItem(sessionKey);
+                }
+            } catch (e) {
+                localStorage.removeItem(sessionKey);
+            }
+        }
+    }, [table.id, table.activePin]);
+
     // Login Handler
     const handleLogin = (e: React.FormEvent) => {
         e.preventDefault();
@@ -38,6 +61,13 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
             Swal.fire('รหัสไม่ถูกต้อง', 'กรุณาตรวจสอบรหัส PIN กับพนักงาน', 'error');
             return;
         }
+        
+        // Save session
+        localStorage.setItem(`customer_session_${table.id}`, JSON.stringify({
+            name: customerName.trim(),
+            pin: pinInput
+        }));
+
         setIsAuthenticated(true);
     };
 
@@ -88,8 +118,38 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         });
     };
 
-    const totalAmount = useMemo(() => cartItems.reduce((sum, i) => sum + (i.finalPrice * i.quantity), 0), [cartItems]);
-    const totalItemsCount = useMemo(() => cartItems.reduce((sum, i) => sum + i.quantity, 0), [cartItems]);
+    // Calculate Cart Totals
+    const cartTotalAmount = useMemo(() => cartItems.reduce((sum, i) => sum + (i.finalPrice * i.quantity), 0), [cartItems]);
+    const totalCartItemsCount = useMemo(() => cartItems.reduce((sum, i) => sum + i.quantity, 0), [cartItems]);
+
+    // Calculate Confirmed Bill Total (Active Orders)
+    const billTotal = useMemo(() => {
+        return activeOrders.reduce((sum, order) => {
+            const subtotal = order.items.reduce((s, i) => s + (i.finalPrice * i.quantity), 0);
+            return sum + subtotal + order.taxAmount;
+        }, 0);
+    }, [activeOrders]);
+
+    // --- Dynamic Order Status Logic ---
+    const orderStatus = useMemo(() => {
+        if (activeOrders.length === 0) return null;
+
+        // Check if any order is currently cooking
+        const isCooking = activeOrders.some(o => o.status === 'cooking');
+        // Check if all orders are served
+        const allServed = activeOrders.every(o => o.status === 'served');
+        
+        if (isCooking) {
+            return { text: 'กำลังปรุง... 🍳', color: 'bg-orange-100 text-orange-700 border-orange-200' };
+        }
+        if (allServed) {
+            return { text: 'เสิร์ฟครบแล้ว 😋', color: 'bg-green-100 text-green-700 border-green-200' };
+        }
+        
+        // Default: Waiting in queue (status = 'waiting')
+        return { text: 'รอคิว... ⏳', color: 'bg-blue-100 text-blue-700 border-blue-200' };
+    }, [activeOrders]);
+
 
     // --- LOGIN SCREEN ---
     if (!isAuthenticated) {
@@ -143,13 +203,27 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     return (
         <div className="h-screen flex flex-col bg-gray-50 overflow-hidden">
             {/* Header */}
-            <header className="bg-white shadow-sm px-4 py-3 flex justify-between items-center z-10">
-                <div>
-                    <h1 className="font-bold text-gray-800 text-lg">เมนูอาหาร 🍽️</h1>
-                    <p className="text-xs text-gray-500">โต๊ะ {table.name} • คุณ{customerName}</p>
-                </div>
-                <div className="text-sm font-medium text-blue-600 bg-blue-50 px-2 py-1 rounded-md">
-                    {activeOrders.length > 0 ? 'รออาหาร...' : 'กำลังสั่ง'}
+            <header className="bg-white shadow-sm px-4 py-3 z-10">
+                <div className="flex justify-between items-start mb-1">
+                    <div>
+                        <h1 className="font-bold text-gray-800 text-lg flex items-center gap-2">
+                            เมนูอาหาร 🍽️ 
+                            <span className="text-xs font-normal text-gray-500 bg-gray-100 px-2 py-1 rounded-full">โต๊ะ {table.name}</span>
+                        </h1>
+                        <p className="text-xs text-gray-500 mt-1">คุณ{customerName}</p>
+                    </div>
+                     {/* Right Side: Status & Bill */}
+                    <div className="flex flex-col items-end gap-1.5">
+                         {orderStatus && (
+                            <span className={`text-xs font-bold px-2 py-1 rounded-full border shadow-sm ${orderStatus.color} animate-pulse`}>
+                                {orderStatus.text}
+                            </span>
+                        )}
+                        <div className="text-right">
+                            <span className="text-[10px] text-gray-400 block">ยอดที่ต้องชำระ</span>
+                            <span className="text-base font-bold text-blue-600 leading-none">{billTotal.toLocaleString()} ฿</span>
+                        </div>
+                    </div>
                 </div>
             </header>
 
@@ -172,7 +246,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
             </div>
 
             {/* Float Cart Button */}
-            {totalItemsCount > 0 && (
+            {totalCartItemsCount > 0 && (
                 <div className="absolute bottom-6 left-4 right-4 z-20">
                     <button 
                         onClick={() => setIsCartOpen(true)}
@@ -180,11 +254,14 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                     >
                         <div className="flex items-center gap-3">
                             <span className="bg-white text-blue-600 font-bold w-8 h-8 rounded-full flex items-center justify-center">
-                                {totalItemsCount}
+                                {totalCartItemsCount}
                             </span>
-                            <span className="font-semibold text-lg">ดูตะกร้า</span>
+                            <div className="text-left leading-tight">
+                                <span className="font-bold text-lg block">ดูตะกร้า</span>
+                                <span className="text-xs font-light text-blue-100">ยังไม่รวมกับยอดบิล</span>
+                            </div>
                         </div>
-                        <span className="font-bold text-lg">{totalAmount.toLocaleString()} ฿</span>
+                        <span className="font-bold text-lg">{cartTotalAmount.toLocaleString()} ฿</span>
                     </button>
                 </div>
             )}
@@ -230,8 +307,8 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
 
                         <div className="p-4 border-t bg-gray-50">
                             <div className="flex justify-between mb-4 text-lg font-bold">
-                                <span>ยอดรวม</span>
-                                <span>{totalAmount.toLocaleString()} ฿</span>
+                                <span>ยอดในตะกร้า</span>
+                                <span>{cartTotalAmount.toLocaleString()} ฿</span>
                             </div>
                             <button 
                                 onClick={handleSubmitOrder}
