@@ -1,5 +1,5 @@
 
-import type { ActiveOrder, KitchenPrinterSettings } from '../types';
+import type { ActiveOrder, KitchenPrinterSettings, Table } from '../types';
 
 /**
  * Formats an order's details into an array of strings, ready to be sent
@@ -95,6 +95,60 @@ export const printerService = {
         } catch (error) {
             console.error("Print error:", error);
             // Re-throw so the UI can show an error
+            throw error;
+        }
+    },
+
+    /**
+     * Sends a request to print a QR Code (as text/link) to the kitchen printer.
+     */
+    printTableQRCode: async (table: Table, qrUrl: string, config: KitchenPrinterSettings): Promise<void> => {
+        if (!config.ipAddress) {
+            throw new Error("ไม่ได้ตั้งค่า IP เครื่องพิมพ์ครัว");
+        }
+
+        const url = `http://${config.ipAddress}:${config.port || 3001}/print`;
+        const floorText = table.floor === 'lower' ? 'ชั้นล่าง' : 'ชั้นบน';
+
+        // Construct a simple "ticket" for the QR Code
+        // Ideally the backend would support printing actual QR images, but text is safer for now.
+        const itemsAsStrings = [
+            `*** QR CODE สำหรับโต๊ะ ***`,
+            `โต๊ะ: ${table.name} (${floorText})`,
+            ``,
+            `URL สำหรับสั่งอาหาร:`,
+            `${qrUrl}`,
+            ``,
+            `(นำไปติดที่โต๊ะเพื่อให้ลูกค้าสแกน)`,
+            new Date().toLocaleString('th-TH')
+        ];
+
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+            const payload = {
+                order: {
+                    orderId: `QR-${table.name}`,
+                    items: itemsAsStrings,
+                },
+                paperSize: config.paperWidth,
+            };
+
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+                signal: controller.signal
+            });
+            
+            clearTimeout(timeoutId);
+
+            if (!response.ok) {
+                throw new Error(`Printer API responded with status ${response.status}`);
+            }
+        } catch (error) {
+            console.error("Print QR error:", error);
             throw error;
         }
     },

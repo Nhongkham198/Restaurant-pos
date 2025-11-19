@@ -1,5 +1,4 @@
 
-
 import type { ReactNode } from 'react';
 
 export interface Branch {
@@ -115,6 +114,7 @@ export interface Table {
     id: number;
     name: string;
     floor: 'lower' | 'upper';
+    activePin?: string; // PIN code for customer self-service verification
 }
 
 export interface ReceiptPrintSettings {

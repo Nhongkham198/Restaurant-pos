@@ -2,8 +2,8 @@
 import type { MenuItem, Table, Branch, User, StockItem } from './types';
 
 export const DEFAULT_BRANCHES: Branch[] = [
-    { id: 1, name: 'สาขาหลัก', location: 'กรุงเทพมหานคร' },
-    { id: 2, name: 'กาฬสินธุ์', location: 'กาฬสินธุ์' }
+    { id: 1, name: 'สาขากาฬสินธุ์', location: 'กาฬสินธุ์' },
+    { id: 2, name: 'สาขากรุงเทพ', location: 'กรุงเทพมหานคร' }
 ];
 
 export const DEFAULT_USERS: User[] = [
@@ -11,6 +11,7 @@ export const DEFAULT_USERS: User[] = [
     { id: 2, username: 'pos', password: 'password', role: 'pos', allowedBranchIds: [1] },
     { id: 3, username: 'kitchen', password: 'password', role: 'kitchen', allowedBranchIds: [1] },
     { id: 4, username: 'manager', password: 'password', role: 'branch-admin', allowedBranchIds: [1] },
+    { id: 5, username: 'Sam', password: '198', role: 'admin' },
 ];
 
 export const DEFAULT_MENU_ITEMS: MenuItem[] = [

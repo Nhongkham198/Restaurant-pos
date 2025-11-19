@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 
 import { 
@@ -8,8 +7,8 @@ import {
     DEFAULT_MENU_ITEMS, 
     DEFAULT_TABLES, 
     DEFAULT_USERS, 
-    DEFAULT_STOCK_CATEGORIES,
-    DEFAULT_STOCK_UNITS,
+    DEFAULT_STOCK_CATEGORIES, 
+    DEFAULT_STOCK_UNITS, 
     DEFAULT_STOCK_ITEMS
 } from './constants';
 import type { 
@@ -63,6 +62,7 @@ import { MoveTableModal } from './components/MoveTableModal';
 import { CancelOrderModal } from './components/CancelOrderModal';
 import { CashBillModal } from './components/CashBillModal';
 import { ItemCustomizationModal } from './components/ItemCustomizationModal';
+import { CustomerView } from './components/CustomerView';
 
 import Swal from 'sweetalert2';
 
@@ -84,6 +84,10 @@ const App: React.FC = () => {
     const [isEditMode, setIsEditMode] = useState(false);
     const [isAdminSidebarCollapsed, setIsAdminSidebarCollapsed] = useState(false);
     const [isOrderSidebarVisible, setIsOrderSidebarVisible] = useState(true);
+
+    // --- CUSTOMER MODE STATE ---
+    const [isCustomerMode, setIsCustomerMode] = useState(false);
+    const [customerTableId, setCustomerTableId] = useState<number | null>(null);
     
     // --- BRANCH-SPECIFIC STATE (SYNCED WITH FIRESTORE) ---
     const branchId = selectedBranch?.id.toString() ?? null;
@@ -138,6 +142,44 @@ const App: React.FC = () => {
 
     // --- KITCHEN NOTIFICATION REF ---
     const prevActiveOrdersRef = useRef<ActiveOrder[] | undefined>(undefined);
+
+    // --- CUSTOMER MODE INITIALIZATION ---
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('mode') === 'customer' && params.get('tableId')) {
+            setIsCustomerMode(true);
+            setCustomerTableId(Number(params.get('tableId')));
+            
+            // Auto-select branch for customer if not selected
+             if (!selectedBranch && branches.length > 0) {
+                setSelectedBranch(branches[0]);
+            }
+        }
+    }, [branches, selectedBranch]);
+
+    // --- USER SYNC EFFECT ---
+    // Sync currentUser state when the users array changes (e.g. profile pic updated)
+    useEffect(() => {
+        if (currentUser) {
+            const updatedUser = users.find(u => u.id === currentUser.id);
+            if (updatedUser) {
+                // Helper to safe-compare optional strings
+                const safeStr = (s?: string | null) => s || '';
+
+                const hasChanged = 
+                    updatedUser.username !== currentUser.username ||
+                    updatedUser.password !== currentUser.password ||
+                    updatedUser.role !== currentUser.role ||
+                    safeStr(updatedUser.profilePictureUrl) !== safeStr(currentUser.profilePictureUrl) ||
+                    JSON.stringify(updatedUser.allowedBranchIds) !== JSON.stringify(currentUser.allowedBranchIds);
+                
+                if (hasChanged) {
+                    setCurrentUser(updatedUser);
+                }
+            }
+        }
+    }, [users, currentUser]);
+
 
     // --- COMPUTED VALUES ---
     const kitchenBadgeCount = useMemo(() => activeOrders.filter(o => o.status === 'waiting').length, [activeOrders]);
@@ -228,6 +270,8 @@ const App: React.FC = () => {
     
             if (newlyOverdueOrders.length > 0) {
                 newlyOverdueOrders.forEach(order => {
+                    if (isCustomerMode) return; 
+
                     Swal.fire({
                         title: '🔔 ลูกค้ารอนานเกินไป!',
                         html: `ออเดอร์ <b>#${String(order.orderNumber).padStart(3, '0')}</b> (โต๊ะ ${order.tableName})<br/>รออาหารนานเกิน ${ORDER_TIMEOUT_MINUTES} นาทีแล้ว`,
@@ -247,12 +291,20 @@ const App: React.FC = () => {
         const intervalId = setInterval(checkOverdueOrders, 30 * 1000); // Check every 30 seconds
     
         return () => clearInterval(intervalId);
-    }, [activeOrders, notifiedOverdueOrders, setActiveOrders]);
+    }, [activeOrders, notifiedOverdueOrders, setActiveOrders, isCustomerMode]);
 
 
     // --- CORE LOGIC HANDLERS ---
     const handleLogin = (username: string, password: string) => {
-        const user = users.find(u => u.username === username && u.password === password);
+        // Try to find in loaded users state
+        let user = users.find(u => u.username === username && u.password === password);
+        
+        // Fallback: Check DEFAULT_USERS in case the database sync hasn't brought in the new hardcoded user yet
+        // This ensures that if we add a new user in constants.ts, they can login even if the old DB data persists.
+        if (!user) {
+             user = DEFAULT_USERS.find(u => u.username === username && u.password === password);
+        }
+
         if (user) {
             setCurrentUser(user);
             if (user.role === 'kitchen') {
@@ -289,12 +341,14 @@ const App: React.FC = () => {
         setNotSentToKitchenDetails(null);
     }, []);
 
-    const handlePlaceOrder = async () => {
-        const selectedTable = tables.find(t => t.id === selectedTableId);
-        if (!selectedTable || currentOrderItems.length === 0 || !currentUser || !branchId) return;
-
-        setIsPlacingOrder(true);
-        
+    const handlePlaceOrderLogic = async (
+        items: OrderItem[],
+        table: Table,
+        cName: string,
+        cCount: number,
+        placedBy: string,
+        shouldSendToKitchen: boolean
+    ) => {
         const allOrders = [...activeOrders, ...completedOrders, ...cancelledOrders];
         const todayDate = new Date();
         let newOrderNumber = 1;
@@ -305,31 +359,30 @@ const App: React.FC = () => {
             newOrderNumber = Math.max(0, ...todayOrders.map(o => o.orderNumber)) + 1;
         }
         
-        const subtotal = currentOrderItems.reduce((sum, item) => sum + item.finalPrice * item.quantity, 0);
+        const subtotal = items.reduce((sum, item) => sum + item.finalPrice * item.quantity, 0);
         const taxAmount = isTaxEnabled ? subtotal * (taxRate / 100) : 0;
         
-        if (sendToKitchen) {
-            // Fallback Logic for normal order
-            const newOrder: ActiveOrder = {
-                id: Date.now(),
-                orderNumber: newOrderNumber,
-                tableName: selectedTable.name,
-                customerName: customerName,
-                floor: selectedTable.floor,
-                customerCount: customerCount,
-                items: currentOrderItems,
-                orderType: 'dine-in' as const,
-                taxRate: isTaxEnabled ? taxRate : 0,
-                placedBy: currentUser.username,
-                taxAmount,
-                status: 'waiting',
-                orderTime: Date.now(),
-            };
+        const newOrder: ActiveOrder = {
+            id: Date.now(),
+            orderNumber: newOrderNumber,
+            tableName: table.name,
+            customerName: cName,
+            floor: table.floor,
+            customerCount: cCount,
+            items: items,
+            orderType: 'dine-in' as const,
+            taxRate: isTaxEnabled ? taxRate : 0,
+            placedBy: placedBy,
+            taxAmount,
+            status: 'waiting',
+            orderTime: Date.now(),
+        };
+
+        if (shouldSendToKitchen) {
             setActiveOrders(prev => [...prev, newOrder]);
             
-            // Send to Kitchen Printer if configured and log the event
             if (printerConfig?.kitchen) {
-                const logEntry: PrintHistoryEntry = {
+                 const logEntry: PrintHistoryEntry = {
                     id: Date.now(),
                     timestamp: Date.now(),
                     orderNumber: newOrder.orderNumber,
@@ -348,60 +401,62 @@ const App: React.FC = () => {
                 };
                 try {
                     await printerService.printKitchenOrder(newOrder, printerConfig.kitchen);
-                    setPrintHistory(prev => [logEntry, ...prev.slice(0, 99)]); // Keep last 100 entries
+                    setPrintHistory(prev => [logEntry, ...prev.slice(0, 99)]);
                 } catch (err: any) {
                     logEntry.status = 'failed';
                     logEntry.errorMessage = err.message;
                     setPrintHistory(prev => [logEntry, ...prev.slice(0, 99)]);
-                    // The main order success modal will still show, this is an additional warning
                     Swal.fire({
                         icon: 'error',
                         title: 'พิมพ์เข้าครัวไม่สำเร็จ',
-                        text: 'ออเดอร์ถูกบันทึกแล้ว แต่ส่งไปพิมพ์ไม่สำเร็จ กรุณาตรวจสอบการเชื่อมต่อเครื่องพิมพ์',
+                        text: 'ออเดอร์ถูกบันทึกแล้ว แต่ส่งไปพิมพ์ไม่สำเร็จ',
                         timer: 4000
                     });
                 }
             }
-            
-            setLastPlacedOrderId(newOrderNumber);
-            setModalState(prev => ({ ...prev, isOrderSuccess: true }));
+            return newOrderNumber;
         } else {
-            // Logic for NOT sending to kitchen -> create a cancelled order
-            if (!notSentToKitchenDetails) {
-                console.error("Attempted to place an order without sending to kitchen, but no reason was provided.");
-                Swal.fire('เกิดข้อผิดพลาด', 'ไม่พบเหตุผลที่ไม่ได้ส่งเข้าครัว กรุณาลองอีกครั้ง', 'error');
-                setIsPlacingOrder(false);
-                return;
-            }
-
-            const now = Date.now();
-            const fullReason = notSentToKitchenDetails.reason === 'อื่นๆ' 
-                ? `ไม่ได้ส่งเข้าครัว: ${notSentToKitchenDetails.notes}`
-                : `ไม่ได้ส่งเข้าครัว: ${notSentToKitchenDetails.reason}`;
+             // Logic for NOT sending to kitchen -> create a cancelled order (only applicable for staff mode usually)
+            const fullReason = notSentToKitchenDetails 
+                ? (notSentToKitchenDetails.reason === 'อื่นๆ' 
+                    ? `ไม่ได้ส่งเข้าครัว: ${notSentToKitchenDetails.notes}`
+                    : `ไม่ได้ส่งเข้าครัว: ${notSentToKitchenDetails.reason}`)
+                : "ไม่ได้ส่งเข้าครัว";
 
             const cancelledOrder: CancelledOrder = {
-                id: now,
-                orderNumber: newOrderNumber,
-                tableName: selectedTable.name,
-                customerName: customerName,
-                floor: selectedTable.floor,
-                customerCount: customerCount,
-                items: currentOrderItems,
-                orderType: 'dine-in' as const,
-                taxRate: isTaxEnabled ? taxRate : 0,
-                placedBy: currentUser.username,
-                taxAmount,
+                ...newOrder,
                 status: 'cancelled',
-                orderTime: now,
-                cancellationTime: now,
-                cancelledBy: currentUser.username,
+                cancellationTime: Date.now(),
+                cancelledBy: placedBy,
                 cancellationReason: 'อื่นๆ',
                 cancellationNotes: fullReason,
             };
 
             setCancelledOrders(prev => [...prev, cancelledOrder]);
-            
-            Swal.fire({
+             return newOrderNumber;
+        }
+    };
+
+    const handlePlaceOrder = async () => {
+        const selectedTable = tables.find(t => t.id === selectedTableId);
+        if (!selectedTable || currentOrderItems.length === 0 || !currentUser || !branchId) return;
+
+        setIsPlacingOrder(true);
+        
+        const newOrderNum = await handlePlaceOrderLogic(
+            currentOrderItems,
+            selectedTable,
+            customerName,
+            customerCount,
+            currentUser.username,
+            sendToKitchen
+        );
+
+        if (sendToKitchen) {
+             setLastPlacedOrderId(newOrderNum);
+             setModalState(prev => ({ ...prev, isOrderSuccess: true }));
+        } else {
+             Swal.fire({
                 toast: true,
                 position: 'top-end',
                 icon: 'success',
@@ -410,10 +465,38 @@ const App: React.FC = () => {
                 timer: 2500
             });
         }
-
+        
         setIsPlacingOrder(false);
         clearPosState();
-        setSendToKitchen(true); // Reset to default for the next order
+        setSendToKitchen(true); 
+    };
+
+    const handleCustomerPlaceOrder = async (items: OrderItem[], cName: string, cCount: number) => {
+        if (!customerTableId) return;
+        const table = tables.find(t => t.id === customerTableId);
+        if (!table) return;
+
+        const newOrderNum = await handlePlaceOrderLogic(
+            items,
+            table,
+            cName,
+            cCount,
+            'Customer (Self)',
+            true // Always send to kitchen for customers
+        );
+        
+        Swal.fire({
+            icon: 'success',
+            title: 'ส่งออเดอร์เรียบร้อย!',
+            text: `ออเดอร์ #${String(newOrderNum).padStart(3, '0')} กำลังถูกจัดเตรียม`,
+            timer: 3000,
+            showConfirmButton: false
+        });
+    };
+
+    const generateTablePin = (tableId: number) => {
+        const pin = Math.floor(Math.random() * 900 + 100).toString(); // 3 digits: 100-999
+        setTables(prev => prev.map(t => t.id === tableId ? { ...t, activePin: pin } : t));
     };
     
     const handleConfirmPayment = async (orderId: number, paymentDetails: any) => {
@@ -422,7 +505,6 @@ const App: React.FC = () => {
 
         setIsConfirmingPayment(true);
         
-        // Fallback Logic
         const completedOrder: CompletedOrder = {
             ...orderToComplete,
             status: 'completed',
@@ -614,7 +696,6 @@ const App: React.FC = () => {
     };
 
     const bottomNavItems = useMemo(() => {
-        // FIX: Explicitly type the 'items' array to allow for objects with the 'subItems' property.
         const items: NavItem[] = [
              { id: 'pos', label: 'POS', view: 'pos', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v.01" /></svg> },
              { id: 'kitchen', label: 'ครัว', view: 'kitchen', badge: kitchenBadgeCount, disabled: currentUser?.role === 'pos', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.653-.125-1.274-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.653.125-1.274.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg> },
@@ -628,11 +709,6 @@ const App: React.FC = () => {
                 { id: 'users', label: 'จัดการผู้ใช้', onClick: () => setModalState(p=>({...p, isUserManager: true})), icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zm-1.5 5.5a3 3 0 00-3 0V12a1 1 0 00-1 1v-1.5a.5.5 0 00-1 0V12a2 2 0 002 2h2.5a.5.5 0 00.5-.5V12a1 1 0 00-1-1h-.5zM17 6a3 3 0 11-6 0 3 3 0 016 0zm-1.5 5.5a3 3 0 00-3 0V12a1 1 0 00-1 1v-1.5a.5.5 0 00-1 0V12a2 2 0 002 2h2.5a.5.5 0 00.5-.5V12a1 1 0 00-1-1h-.5z" /></svg> },
                 ...(currentUser?.role === 'admin' ? [{ id: 'branches', label: 'จัดการสาขา', onClick: () => setModalState(p=>({...p, isBranchManager: true})), icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M2 4.5A1.5 1.5 0 013.5 3h13A1.5 1.5 0 0118 4.5v2.755a3 3 0 01-1.5 2.599V15.5A1.5 1.5 0 0115 17h-1.5a1.5 1.5 0 01-1.5-1.5v-2.348a3 3 0 01-1.5-2.599V7.255a3 3 0 01-1.5 2.599V15.5A1.5 1.5 0 017.5 17H6a1.5 1.5 0 01-1.5-1.5v-5.146A3 3 0 013 7.255V4.5z" /></svg> }] : []),
                 { id: 'settings', label: 'ตั้งค่า', onClick: () => setModalState(p=>({...p, isSettings: true})), icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924-1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg> },
-            ]});
-        } else {
-             items.push({ id: 'more', label: 'เพิ่มเติม', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>, subItems: [
-                { id: 'stock', label: 'สต็อก', view: 'stock', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>},
-                { id: 'settings', label: 'ตั้งค่า', onClick: () => setModalState(p=>({...p, isSettings: true})), icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924-1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg> },
              ]});
         }
 
@@ -642,6 +718,31 @@ const App: React.FC = () => {
 
 
     // --- RENDER LOGIC ---
+    
+    // 1. Customer Self-Service Mode
+    if (isCustomerMode && customerTableId && branches.length > 0) {
+        const customerTable = tables.find(t => t.id === customerTableId);
+        if (customerTable) {
+            return (
+                <CustomerView 
+                    table={customerTable}
+                    menuItems={menuItems}
+                    categories={categories}
+                    activeOrders={activeOrders.filter(o => o.tableName === customerTable.name)}
+                    onPlaceOrder={handleCustomerPlaceOrder}
+                />
+            );
+        } else {
+            // Fallback if table ID from URL is not found yet (data sync lag) or invalid
+             return (
+                <div className="min-h-screen flex items-center justify-center bg-gray-100">
+                    <p className="text-gray-500 animate-pulse">กำลังโหลดข้อมูลโต๊ะ...</p>
+                </div>
+             );
+        }
+    }
+
+    // 2. Staff/Admin Mode Authentication
     if (!currentUser) {
         return <LoginScreen onLogin={handleLogin} />;
     }
@@ -677,7 +778,10 @@ const App: React.FC = () => {
                     onLogout={handleLogout}
                     kitchenBadgeCount={kitchenBadgeCount}
                     tablesBadgeCount={tablesBadgeCount}
-                    onUpdateCurrentUser={(updates) => setUsers(prev => prev.map(u => u.id === currentUser.id ? {...u, ...updates} : u))}
+                    onUpdateCurrentUser={(updates) => {
+                        setUsers(prev => prev.map(u => u.id === currentUser.id ? {...u, ...updates} : u));
+                        setCurrentUser(prev => prev ? { ...prev, ...updates } : null);
+                    }}
                     onUpdateLogoUrl={setLogoUrl}
                     onUpdateRestaurantName={setRestaurantName}
                 />
@@ -803,7 +907,7 @@ const App: React.FC = () => {
                         </div>
                     )}
                     {currentView === 'kitchen' && <KitchenView activeOrders={activeOrders} onStartCooking={(id) => setActiveOrders(p => p.map(o => o.id === id ? {...o, status: 'cooking', cookingStartTime: Date.now()} : o))} onCompleteOrder={(id) => setActiveOrders(p => p.map(o => o.id === id ? {...o, status: 'served'} : o))} />}
-                    {currentView === 'tables' && <TableLayout tables={tables} activeOrders={activeOrders} onTableSelect={(id) => { setSelectedTableId(id); setCurrentView('pos'); }} onShowBill={(id) => { setOrderForModal(activeOrders.find(o => o.id === id) ?? null); setModalState(p=>({...p, isTableBill: true})); }} />}
+                    {currentView === 'tables' && <TableLayout tables={tables} activeOrders={activeOrders} onTableSelect={(id) => { setSelectedTableId(id); setCurrentView('pos'); }} onShowBill={(id) => { setOrderForModal(activeOrders.find(o => o.id === id) ?? null); setModalState(p=>({...p, isTableBill: true})); }} onGeneratePin={generateTablePin} currentUser={currentUser} printerConfig={printerConfig} />}
                     {currentView === 'dashboard' && <Dashboard completedOrders={completedOrders} cancelledOrders={cancelledOrders} openingTime={String(openingTime)} closingTime={String(closingTime)} />}
                     {currentView === 'history' && <SalesHistory completedOrders={completedOrders} cancelledOrders={cancelledOrders} printHistory={printHistory} onReprint={handleReprint} isEditMode={isEditMode} onSplitOrder={(order) => { setOrderForModal(order); setModalState(p=>({...p, isSplitCompleted: true}));}} onEditOrder={(order) => { setOrderForModal(order); setModalState(p=>({...p, isEditCompleted: true})); }} onInitiateCashBill={(order) => { setOrderForModal(order); setModalState(p=>({...p, isCashBill: true}));}} onDeleteHistory={(c, ca, p) => { setCompletedOrders(prev => prev.filter(o => !c.includes(o.id))); setCancelledOrders(prev => prev.filter(o => !ca.includes(o.id))); setPrintHistory(prev => prev.filter(entry => !p.includes(entry.id))); }} />}
                     {currentView === 'stock' && <StockManagement stockItems={stockItems} setStockItems={setStockItems} stockCategories={stockCategories} setStockCategories={setStockCategories} stockUnits={stockUnits} setStockUnits={setStockUnits} />}
