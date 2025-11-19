@@ -25,6 +25,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     const [pinInput, setPinInput] = useState('');
     const [cartItems, setCartItems] = useState<OrderItem[]>([]);
     const [isCartOpen, setIsCartOpen] = useState(false);
+    const [isActiveOrderListOpen, setIsActiveOrderListOpen] = useState(false);
     const [itemToCustomize, setItemToCustomize] = useState<MenuItem | null>(null);
     
     // --- Session Persistence Logic ---
@@ -203,7 +204,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     return (
         <div className="h-screen flex flex-col bg-gray-50 overflow-hidden">
             {/* Header */}
-            <header className="bg-white shadow-sm px-4 py-3 z-10">
+            <header className="bg-white shadow-sm px-4 py-3 z-10 relative">
                 <div className="flex justify-between items-start mb-1">
                     <div>
                         <h1 className="font-bold text-gray-800 text-lg flex items-center gap-2">
@@ -213,19 +214,34 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                         <p className="text-xs text-gray-500 mt-1">คุณ{customerName}</p>
                     </div>
                      {/* Right Side: Status & Bill */}
-                    <div className="flex flex-col items-end gap-1.5">
+                    <div 
+                        className="flex flex-col items-end gap-1.5 cursor-pointer hover:opacity-80 transition-opacity group"
+                        onClick={() => setIsActiveOrderListOpen(true)}
+                    >
                          {orderStatus && (
                             <span className={`text-xs font-bold px-2 py-1 rounded-full border shadow-sm ${orderStatus.color} animate-pulse`}>
                                 {orderStatus.text}
                             </span>
                         )}
                         <div className="text-right">
-                            <span className="text-[10px] text-gray-400 block">ยอดที่ต้องชำระ</span>
-                            <span className="text-base font-bold text-blue-600 leading-none">{billTotal.toLocaleString()} ฿</span>
+                            <div className="flex items-center justify-end gap-1 text-gray-400 text-[10px]">
+                                <span>ยอดที่ต้องชำระ</span>
+                            </div>
+                            <div className="flex items-center gap-1 justify-end">
+                                <span className="text-base font-bold text-blue-600 leading-none border-b border-dashed border-blue-300 group-hover:text-blue-700 transition-colors">{billTotal.toLocaleString()} ฿</span>
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                </svg>
+                            </div>
                         </div>
                     </div>
                 </div>
             </header>
+            
+            {/* Warning Banner */}
+            <div className="bg-red-100 text-red-700 text-xs px-4 py-2 text-center border-b border-red-200 shadow-inner z-10">
+                <strong>⚠️ ห้ามรีเฟรชหน้าจอ!</strong> หากหลุดให้เข้าใหม่โดยใช้ <u>ชื่อเดิม</u> และ <u>รหัสเดิม</u> เท่านั้น
+            </div>
 
             {/* Menu Content */}
             <div className="flex-1 overflow-hidden relative">
@@ -266,12 +282,72 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                 </div>
             )}
 
+            {/* Active Orders List Modal (History) */}
+            {isActiveOrderListOpen && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-end sm:items-center" onClick={() => setIsActiveOrderListOpen(false)}>
+                    <div className="bg-white w-full sm:max-w-md h-[80vh] sm:h-auto rounded-t-2xl sm:rounded-xl shadow-2xl flex flex-col overflow-hidden animate-slide-up" onClick={e => e.stopPropagation()}>
+                        <div className="p-4 border-b bg-gray-50 flex justify-between items-center sticky top-0">
+                            <h3 className="font-bold text-gray-800 text-lg">รายการที่สั่งไปแล้ว 🧾</h3>
+                            <button onClick={() => setIsActiveOrderListOpen(false)} className="p-1 rounded-full hover:bg-gray-200 text-gray-500">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+                        
+                        <div className="flex-1 overflow-y-auto p-4 space-y-6">
+                            {activeOrders.length === 0 ? (
+                                <div className="text-center text-gray-400 py-10">ยังไม่มีรายการที่สั่ง</div>
+                            ) : (
+                                activeOrders.map((order) => (
+                                    <div key={order.id} className="border-b last:border-0 pb-4 last:pb-0">
+                                        <div className="flex justify-between items-center mb-2">
+                                            <span className="text-xs font-semibold bg-gray-100 text-gray-600 px-2 py-0.5 rounded">
+                                                ออเดอร์ #{String(order.orderNumber).padStart(3, '0')}
+                                            </span>
+                                            <span className={`text-xs px-2 py-0.5 rounded-full ${
+                                                order.status === 'served' ? 'bg-green-100 text-green-700' :
+                                                order.status === 'cooking' ? 'bg-yellow-100 text-yellow-700' :
+                                                'bg-blue-100 text-blue-700'
+                                            }`}>
+                                                {order.status === 'served' ? 'เสิร์ฟแล้ว' : order.status === 'cooking' ? 'กำลังปรุง' : 'รอคิว'}
+                                            </span>
+                                        </div>
+                                        <ul className="space-y-2">
+                                            {order.items.map((item, idx) => (
+                                                <li key={idx} className="flex justify-between text-sm text-gray-700">
+                                                    <div>
+                                                        <span className="font-medium">{item.quantity}x {item.name}</span>
+                                                        {item.selectedOptions.length > 0 && (
+                                                            <span className="text-xs text-gray-500 ml-1">({item.selectedOptions.map(o=>o.name).join(', ')})</span>
+                                                        )}
+                                                    </div>
+                                                    <span className="font-mono text-gray-600">{(item.finalPrice * item.quantity).toLocaleString()}</span>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+
+                        <div className="p-4 bg-gray-50 border-t">
+                            <div className="flex justify-between items-center text-lg font-bold text-gray-800">
+                                <span>ยอดรวมทั้งหมด</span>
+                                <span className="text-blue-600">{billTotal.toLocaleString()} ฿</span>
+                            </div>
+                            <p className="text-xs text-gray-500 text-center mt-2">กรุณาชำระเงินที่เคาน์เตอร์เมื่อทานเสร็จ</p>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Cart Modal (Full Screen on Mobile) */}
             {isCartOpen && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-end sm:justify-center items-end sm:items-center">
                     <div className="bg-white w-full sm:max-w-md h-[90vh] sm:h-[80vh] rounded-t-2xl sm:rounded-2xl shadow-2xl flex flex-col animate-slide-up">
                         <div className="p-4 border-b flex justify-between items-center">
-                            <h2 className="text-xl font-bold text-gray-800">รายการที่เลือก</h2>
+                            <h2 className="text-xl font-bold text-gray-800">รายการในตะกร้า (ยังไม่สั่ง)</h2>
                             <button onClick={() => setIsCartOpen(false)} className="p-2 bg-gray-100 rounded-full hover:bg-gray-200">
                                 <svg className="w-6 h-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
