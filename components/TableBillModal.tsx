@@ -66,7 +66,8 @@ export const TableBillModal: React.FC<TableBillModalProps> = ({
 
     const floorText = order.floor === 'lower' ? 'ชั้นล่าง' : 'ชั้นบน';
     const canCancel = currentUser?.role === 'admin' || currentUser?.role === 'pos';
-    const isCancelableStatus = order.status === 'waiting' || order.status === 'cooking';
+    // Only allow cancellation if status is 'waiting' (matching "Start Cooking" button in kitchen)
+    const isCancelableStatus = order.status === 'waiting';
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4" onClick={onClose}>

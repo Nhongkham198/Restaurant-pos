@@ -740,8 +740,8 @@ const App: React.FC = () => {
                     table={customerTable}
                     menuItems={menuItems}
                     categories={categories}
-                    // FIX: Added logic to filter by BOTH table name AND floor to prevent order mix-ups
                     activeOrders={activeOrders.filter(o => o.tableName === customerTable.name && o.floor === customerTable.floor)}
+                    allBranchOrders={activeOrders}
                     onPlaceOrder={handleCustomerPlaceOrder}
                 />
             );

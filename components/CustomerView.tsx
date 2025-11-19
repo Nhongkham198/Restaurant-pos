@@ -10,6 +10,7 @@ interface CustomerViewProps {
     menuItems: MenuItem[];
     categories: string[];
     activeOrders: ActiveOrder[];
+    allBranchOrders: ActiveOrder[]; // Added to calculate global queue position
     onPlaceOrder: (items: OrderItem[], customerName: string, customerCount: number) => void;
 }
 
@@ -18,6 +19,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     menuItems,
     categories,
     activeOrders,
+    allBranchOrders,
     onPlaceOrder
 }) => {
     const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -40,6 +42,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                 // This ensures that if the table is cleared/reset by staff, the old session is invalid.
                 if (pin === table.activePin && table.activePin) {
                     setCustomerName(name);
+                    setPinInput(pin); // Ensure pinInput is set for comparison later
                     setIsAuthenticated(true);
                 } else {
                     // PIN changed or invalid, clear session
@@ -50,6 +53,37 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
             }
         }
     }, [table.id, table.activePin]);
+
+    // --- Auto-Logout Logic (Real-time Security) ---
+    useEffect(() => {
+        // If user is logged in, but the table's PIN is suddenly cleared (Payment Confirmed)
+        // or changed (Staff reset PIN), force logout immediately.
+        if (isAuthenticated) {
+            if (!table.activePin || table.activePin !== pinInput) {
+                // 1. Clear Session
+                const sessionKey = `customer_session_${table.id}`;
+                localStorage.removeItem(sessionKey);
+
+                // 2. Reset State
+                setIsAuthenticated(false);
+                setCustomerName('');
+                setPinInput('');
+                setCartItems([]);
+                setIsCartOpen(false);
+                setIsActiveOrderListOpen(false);
+
+                // 3. Notify User
+                Swal.fire({
+                    icon: 'success',
+                    title: 'ขอบคุณที่ใช้บริการ',
+                    text: 'การชำระเงินเสร็จสิ้น หรือเซสชั่นหมดอายุ',
+                    timer: 3000,
+                    showConfirmButton: false,
+                    allowOutsideClick: false
+                });
+            }
+        }
+    }, [table.activePin, isAuthenticated, pinInput, table.id]);
 
     // Login Handler
     const handleLogin = (e: React.FormEvent) => {
@@ -148,8 +182,18 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         }
         
         // Default: Waiting in queue (status = 'waiting')
-        return { text: 'รอคิว... ⏳', color: 'bg-blue-100 text-blue-700 border-blue-200' };
-    }, [activeOrders]);
+        // Calculate queue position
+        // Find the timestamp of the earliest waiting order for THIS table
+        const myEarliestOrderTime = Math.min(...activeOrders.filter(o => o.status === 'waiting').map(o => o.orderTime));
+        
+        // Count how many orders in the ENTIRE branch are ahead of this time (and are waiting or cooking)
+        const queueAhead = allBranchOrders.filter(o => 
+            (o.status === 'waiting' || o.status === 'cooking') && 
+            o.orderTime < myEarliestOrderTime
+        ).length;
+
+        return { text: `รอคิว... (${queueAhead} คิว) ⏳`, color: 'bg-blue-100 text-blue-700 border-blue-200' };
+    }, [activeOrders, allBranchOrders]);
 
 
     // --- LOGIN SCREEN ---
@@ -226,6 +270,9 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                         <div className="text-right">
                             <div className="flex items-center justify-end gap-1 text-gray-400 text-[10px]">
                                 <span>ยอดที่ต้องชำระ</span>
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
                             </div>
                             <div className="flex items-center gap-1 justify-end">
                                 <span className="text-base font-bold text-blue-600 leading-none border-b border-dashed border-blue-300 group-hover:text-blue-700 transition-colors">{billTotal.toLocaleString()} ฿</span>
