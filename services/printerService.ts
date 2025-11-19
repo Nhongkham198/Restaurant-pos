@@ -111,14 +111,13 @@ export const printerService = {
         const floorText = table.floor === 'lower' ? 'ชั้นล่าง' : 'ชั้นบน';
 
         // Construct a simple "ticket" for the QR Code
-        // Ideally the backend would support printing actual QR images, but text is safer for now.
         const itemsAsStrings = [
             `*** QR CODE สำหรับโต๊ะ ***`,
             `โต๊ะ: ${table.name} (${floorText})`,
-            ``,
-            `URL สำหรับสั่งอาหาร:`,
+            `--------------------------------`,
+            `สแกนเพื่อสั่งอาหาร:`,
             `${qrUrl}`,
-            ``,
+            `--------------------------------`,
             `(นำไปติดที่โต๊ะเพื่อให้ลูกค้าสแกน)`,
             new Date().toLocaleString('th-TH')
         ];

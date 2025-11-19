@@ -88,8 +88,9 @@ const TableCard: React.FC<TableCardProps> = ({ table, orders, onTableSelect, onS
             `,
             showCloseButton: true,
             showConfirmButton: false,
+            // Add Deny Button as "Print" Action
             showDenyButton: true,
-            denyButtonText: 'พิมพ์ QR Code',
+            denyButtonText: '🖨️ พิมพ์ QR Code',
             denyButtonColor: '#3b82f6', // Blue color to look like a primary action
         }).then(async (result) => {
             if (result.isDenied) {

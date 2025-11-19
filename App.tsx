@@ -161,20 +161,11 @@ const App: React.FC = () => {
     // Sync currentUser state when the users array changes (e.g. profile pic updated)
     useEffect(() => {
         if (currentUser) {
-            const updatedUser = users.find(u => u.id === currentUser.id);
-            if (updatedUser) {
-                // Helper to safe-compare optional strings
-                const safeStr = (s?: string | null) => s || '';
-
-                const hasChanged = 
-                    updatedUser.username !== currentUser.username ||
-                    updatedUser.password !== currentUser.password ||
-                    updatedUser.role !== currentUser.role ||
-                    safeStr(updatedUser.profilePictureUrl) !== safeStr(currentUser.profilePictureUrl) ||
-                    JSON.stringify(updatedUser.allowedBranchIds) !== JSON.stringify(currentUser.allowedBranchIds);
-                
-                if (hasChanged) {
-                    setCurrentUser(updatedUser);
+            const foundUser = users.find(u => u.id === currentUser.id);
+            if (foundUser) {
+                // Using JSON.stringify for deep comparison to catch ANY change including profilePictureUrl
+                if (JSON.stringify(foundUser) !== JSON.stringify(currentUser)) {
+                    setCurrentUser(foundUser);
                 }
             }
         }
@@ -517,7 +508,9 @@ const App: React.FC = () => {
         // Reset the PIN for this table to prevent previous customers from accessing/ordering again
         setTables(prevTables => prevTables.map(t => {
             if (t.name === orderToComplete.tableName && t.floor === orderToComplete.floor) {
-                return { ...t, activePin: undefined }; // Clear the PIN
+                const updatedTable = { ...t };
+                delete updatedTable.activePin; // Clear the PIN
+                return updatedTable;
             }
             return t;
         }));
@@ -529,6 +522,17 @@ const App: React.FC = () => {
         });
 
         setIsConfirmingPayment(false);
+
+        // Show success toast for clearing PIN and payment
+        Swal.fire({
+            toast: true,
+            position: 'top-end',
+            icon: 'success',
+            title: 'ชำระเงินสำเร็จ & ล้าง PIN โต๊ะแล้ว',
+            showConfirmButton: false,
+            timer: 2500
+        });
+
         setModalState(prev => ({ ...prev, isPayment: false, isPaymentSuccess: true }));
         setLastPlacedOrderId(orderToComplete.orderNumber);
     };
