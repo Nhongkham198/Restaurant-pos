@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useMemo } from 'react';
 import type { ActiveOrder } from '../types';
 
@@ -129,21 +128,21 @@ export const KitchenOrderCard: React.FC<KitchenOrderCardProps> = ({ order, onCom
                                หมายเหตุ: {item.notes}
                             </div>
                         )}
+                         {item.isTakeaway && item.takeawayCutlery && item.takeawayCutlery.length > 0 && (
+                            <div className="text-xs text-purple-200 pl-4 bg-purple-500/10 rounded py-1 mt-1">
+                                <span className="font-semibold">รับ: </span>
+                                {item.takeawayCutlery.map(c => {
+                                    if(c === 'spoon-fork') return 'ช้อนส้อม';
+                                    if(c === 'chopsticks') return 'ตะเกียบ';
+                                    if(c === 'other') return `อื่นๆ (${item.takeawayCutleryNotes})`;
+                                    if(c === 'none') return 'ไม่รับ';
+                                    return '';
+                                }).filter(Boolean).join(', ')}
+                            </div>
+                        )}
                     </li>
                 ))}
             </ul>
-
-            {order.takeawayCutlery && order.takeawayCutlery.length > 0 && order.items.some(i => i.isTakeaway) && (
-                <div className="mb-4 p-2 bg-purple-900/40 border border-purple-700 rounded-md text-sm">
-                    <h5 className="font-semibold text-purple-300">สำหรับกลับบ้าน:</h5>
-                    <ul className="list-disc list-inside text-purple-200 pl-2">
-                        {order.takeawayCutlery.includes('spoon-fork') && <li>ช้อนส้อม</li>}
-                        {order.takeawayCutlery.includes('chopsticks') && <li>ตะเกียบ</li>}
-                        {order.takeawayCutlery.includes('other') && order.takeawayCutleryNotes && <li>อื่นๆ: {order.takeawayCutleryNotes}</li>}
-                        {order.takeawayCutlery.includes('none') && <li>ไม่รับ</li>}
-                    </ul>
-                </div>
-            )}
 
             {isCooking ? (
                 <button

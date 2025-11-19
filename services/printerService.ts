@@ -1,3 +1,4 @@
+
 import type { ActiveOrder, KitchenPrinterSettings } from '../types';
 
 /**
@@ -29,25 +30,20 @@ const formatOrderForBackend = (order: ActiveOrder): string[] => {
         if (item.notes) {
             lines.push(`   ** หมายเหตุ: ${item.notes}`);
         }
+        
+        // Item-specific takeaway cutlery
+        if (item.isTakeaway && item.takeawayCutlery && item.takeawayCutlery.length > 0) {
+             const cutleryLines: string[] = [];
+             if (item.takeawayCutlery.includes('spoon-fork')) cutleryLines.push('ช้อนส้อม');
+             if (item.takeawayCutlery.includes('chopsticks')) cutleryLines.push('ตะเกียบ');
+             if (item.takeawayCutlery.includes('other') && item.takeawayCutleryNotes) cutleryLines.push(`อื่นๆ: ${item.takeawayCutleryNotes}`);
+             if (item.takeawayCutlery.includes('none')) cutleryLines.push('ไม่รับช้อนส้อม');
+             
+             if (cutleryLines.length > 0) {
+                 lines.push(`   [รับ: ${cutleryLines.join(', ')}]`);
+             }
+        }
     });
-
-    if (order.takeawayCutlery && order.takeawayCutlery.length > 0 && order.items.some(i => i.isTakeaway)) {
-        lines.push(''); // blank line
-        lines.push('--- สำหรับกลับบ้าน ---');
-        if (order.takeawayCutlery.includes('spoon-fork')) {
-            lines.push('* ขอช้อนส้อม');
-        }
-        if (order.takeawayCutlery.includes('chopsticks')) {
-            lines.push('* ขอตะเกียบ');
-        }
-        if (order.takeawayCutlery.includes('other') && order.takeawayCutleryNotes) {
-            lines.push(`* อื่นๆ: ${order.takeawayCutleryNotes}`);
-        }
-        if (order.takeawayCutlery.includes('none')) {
-            lines.push('* ไม่รับช้อนส้อม/ตะเกียบ');
-        }
-    }
-
 
     return lines;
 };

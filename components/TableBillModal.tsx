@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useMemo } from 'react';
 import type { ActiveOrder, OrderItem, User } from '../types';
 
@@ -121,6 +120,17 @@ export const TableBillModal: React.FC<TableBillModalProps> = ({
                                         หมายเหตุ: {item.notes}
                                     </p>
                                 )}
+                                {item.isTakeaway && item.takeawayCutlery && item.takeawayCutlery.length > 0 && (
+                                    <p className="text-xs text-purple-600 pl-1">
+                                        รับ: {item.takeawayCutlery.map(c => {
+                                            if(c === 'spoon-fork') return 'ช้อนส้อม';
+                                            if(c === 'chopsticks') return 'ตะเกียบ';
+                                            if(c === 'other') return `อื่นๆ (${item.takeawayCutleryNotes})`;
+                                            if(c === 'none') return 'ไม่รับ';
+                                            return '';
+                                        }).filter(Boolean).join(', ')}
+                                    </p>
+                                )}
                                 {isEditMode && <p className="text-sm text-gray-500">{item.finalPrice.toLocaleString()} ฿</p>}
                             </div>
                              {isEditMode ? (
@@ -133,17 +143,6 @@ export const TableBillModal: React.FC<TableBillModalProps> = ({
                             )}
                         </div>
                     ))}
-                    {order.takeawayCutlery && order.takeawayCutlery.length > 0 && order.items.some(i => i.isTakeaway) && (
-                        <div className="pt-3 mt-2 border-t">
-                            <h4 className="font-semibold text-gray-700">สำหรับกลับบ้าน:</h4>
-                            <ul className="list-disc list-inside text-sm text-gray-600 pl-4">
-                                {order.takeawayCutlery.includes('spoon-fork') && <li>ช้อนส้อม</li>}
-                                {order.takeawayCutlery.includes('chopsticks') && <li>ตะเกียบ</li>}
-                                {order.takeawayCutlery.includes('other') && order.takeawayCutleryNotes && <li>อื่นๆ: {order.takeawayCutleryNotes}</li>}
-                                {order.takeawayCutlery.includes('none') && <li>ไม่รับ</li>}
-                            </ul>
-                        </div>
-                    )}
                 </main>
 
                 <footer className="p-4 border-t bg-gray-50 rounded-b-lg space-y-3">

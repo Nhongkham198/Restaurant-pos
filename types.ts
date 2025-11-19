@@ -42,6 +42,8 @@ export interface MenuItem {
     optionGroups?: MenuOptionGroup[];
 }
 
+export type TakeawayCutleryOption = 'spoon-fork' | 'chopsticks' | 'other' | 'none';
+
 export interface OrderItem extends MenuItem {
     quantity: number;
     isTakeaway: boolean;
@@ -49,6 +51,8 @@ export interface OrderItem extends MenuItem {
     finalPrice: number;
     selectedOptions: MenuOption[];
     notes?: string;
+    takeawayCutlery?: TakeawayCutleryOption[];
+    takeawayCutleryNotes?: string;
 }
 
 export interface PaymentDetails {
@@ -56,8 +60,6 @@ export interface PaymentDetails {
     cashReceived?: number;
     changeGiven?: number;
 }
-
-export type TakeawayCutleryOption = 'spoon-fork' | 'chopsticks' | 'other' | 'none';
 
 interface BaseOrder {
     id: number;
@@ -72,6 +74,7 @@ interface BaseOrder {
     taxAmount: number;
     placedBy: string;
     parentOrderId?: number | null;
+    // Kept for legacy compatibility, but new logic uses item-level cutlery
     takeawayCutlery?: TakeawayCutleryOption[];
     takeawayCutleryNotes?: string;
 }

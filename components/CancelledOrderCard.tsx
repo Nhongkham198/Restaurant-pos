@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import type { CancelledOrder } from '../types';
 
@@ -72,18 +73,6 @@ export const CancelledOrderCard: React.FC<CancelledOrderCardProps> = ({ order, i
                         <p className="text-red-800 mt-1"><strong>ยกเลิกโดย:</strong> {order.cancelledBy}</p>
                     </div>
 
-                    {order.takeawayCutlery && order.takeawayCutlery.length > 0 && order.items.some(i => i.isTakeaway) && (
-                        <div className="mb-4 text-base">
-                            <p className="font-semibold text-gray-700">สำหรับกลับบ้าน:</p>
-                            <ul className="list-disc list-inside text-sm text-gray-600 pl-4">
-                                {order.takeawayCutlery.includes('spoon-fork') && <li>ช้อนส้อม</li>}
-                                {order.takeawayCutlery.includes('chopsticks') && <li>ตะเกียบ</li>}
-                                {order.takeawayCutlery.includes('other') && order.takeawayCutleryNotes && <li>อื่นๆ: {order.takeawayCutleryNotes}</li>}
-                                {order.takeawayCutlery.includes('none') && <li>ไม่รับ</li>}
-                            </ul>
-                        </div>
-                    )}
-
                      <div className="space-y-2">
                         <h4 className="font-semibold text-gray-700 mb-2">รายการอาหารที่ถูกยกเลิก</h4>
                         {order.items.map(item => (
@@ -98,6 +87,17 @@ export const CancelledOrderCard: React.FC<CancelledOrderCardProps> = ({ order, i
                                         {item.notes && <div className="text-blue-600">** {item.notes}</div>}
                                     </div>
                                 }
+                                 {item.isTakeaway && item.takeawayCutlery && item.takeawayCutlery.length > 0 && (
+                                    <div className="pl-5 text-sm text-purple-600">
+                                         รับ: {item.takeawayCutlery.map(c => {
+                                            if(c === 'spoon-fork') return 'ช้อนส้อม';
+                                            if(c === 'chopsticks') return 'ตะเกียบ';
+                                            if(c === 'other') return `อื่นๆ (${item.takeawayCutleryNotes})`;
+                                            if(c === 'none') return 'ไม่รับ';
+                                            return '';
+                                        }).filter(Boolean).join(', ')}
+                                    </div>
+                                )}
                             </div>
                         ))}
                     </div>

@@ -1,3 +1,4 @@
+
 import React, { useMemo } from 'react';
 import type { OrderItem, Table, TakeawayCutleryOption } from '../types';
 import { OrderListItem } from './OrderListItem';
@@ -7,9 +8,9 @@ interface SidebarProps {
     currentOrderItems: OrderItem[];
     onQuantityChange: (cartItemId: string, newQuantity: number) => void;
     onRemoveItem: (cartItemId: string) => void;
-    onToggleTakeaway: (cartItemId: string) => void;
+    onToggleTakeaway: (cartItemId: string, isTakeaway: boolean, cutlery?: TakeawayCutleryOption[], notes?: string) => void;
     onClearOrder: () => void;
-    onPlaceOrder: (cutleryInfo?: { cutlery: TakeawayCutleryOption[]; notes: string }) => void;
+    onPlaceOrder: () => void;
     isPlacingOrder: boolean;
     tables: Table[];
     selectedTable: Table | null;
@@ -70,18 +71,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
         return tables.filter(t => t.floor === selectedFloor);
     }, [tables, selectedFloor]);
 
-    const hasTakeaway = useMemo(() => currentOrderItems.some(item => item.isTakeaway), [currentOrderItems]);
+    const handleToggleItemTakeaway = async (cartItemId: string) => {
+        const item = currentOrderItems.find(i => i.cartItemId === cartItemId);
+        if (!item) return;
 
-    const handleConfirmPlaceOrder = async () => {
-        if (selectedTable === null) {
-            Swal.fire('กรุณาเลือกโต๊ะ', 'ต้องเลือกโต๊ะสำหรับออเดอร์', 'warning');
-            return;
-        }
-        if (!canPlaceOrder) return;
-
-        if (hasTakeaway) {
+        if (item.isTakeaway) {
+            // If already takeaway, toggle off (no questions needed)
+            onToggleTakeaway(cartItemId, false);
+        } else {
+            // If turning ON takeaway, ask for cutlery
             const { value: cutleryData, isConfirmed } = await Swal.fire({
-                title: 'ท่านต้องการรับ (สำหรับกลับบ้าน)',
+                title: `ท่านต้องการรับ (สำหรับ ${item.name})`,
                 html: `
                     <div class="swal-cutlery-container text-left space-y-1">
                         <label class="flex items-center gap-3 p-2 rounded-md hover:bg-gray-100 cursor-pointer">
@@ -167,11 +167,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
             });
 
             if (isConfirmed && cutleryData) {
-                onPlaceOrder(cutleryData);
+                onToggleTakeaway(cartItemId, true, cutleryData.cutlery, cutleryData.notes);
             }
-        } else {
-            onPlaceOrder();
         }
+    };
+
+    const handleConfirmPlaceOrder = () => {
+        if (selectedTable === null) {
+            Swal.fire('กรุณาเลือกโต๊ะ', 'ต้องเลือกโต๊ะสำหรับออเดอร์', 'warning');
+            return;
+        }
+        if (!canPlaceOrder) return;
+
+        onPlaceOrder();
     };
     
     const handleFloorChange = (floor: 'lower' | 'upper') => {
@@ -327,7 +335,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
             {/* Table Management (Edit Mode) */}
             {isEditMode && (
                 <div className="py-3 border-t border-b border-gray-700 space-y-2">
-                    <h3 className="text-sm font-medium text-gray-300 px-1">จัดการโต๊ะ ({selectedFloor === 'lower' ? 'ชั้นล่าง' : 'ชั้นบน'})</h3>
+                    <h3 className="text-sm font-medium text-gray-300 px-1">
+                        จัดการโต๊ะ ({selectedFloor === 'lower' ? 'ชั้นล่าง' : 'ชั้นบน'})
+                        <span className="ml-2 text-yellow-400">
+                            (มี {tables.filter(t => t.floor === selectedFloor).length} โต๊ะ)
+                        </span>
+                    </h3>
                     <div className="grid grid-cols-2 gap-2">
                         <button
                             onClick={() => onAddNewTable(selectedFloor)}
@@ -363,7 +376,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                                 item={item}
                                 onQuantityChange={onQuantityChange}
                                 onRemoveItem={onRemoveItem}
-                                onToggleTakeaway={onToggleTakeaway}
+                                onToggleTakeaway={handleToggleItemTakeaway}
                             />
                         ))}
                     </div>

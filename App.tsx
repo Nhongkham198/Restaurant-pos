@@ -1,3 +1,5 @@
+
+
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 
 import { 
@@ -135,7 +137,6 @@ const App: React.FC = () => {
     const [isConfirmingPayment, setIsConfirmingPayment] = useState(false);
 
     // --- KITCHEN NOTIFICATION REF ---
-    // FIX: Pass an argument to useRef to satisfy the linter/compiler rule that expects one argument. Initializing with `undefined` maintains the original behavior.
     const prevActiveOrdersRef = useRef<ActiveOrder[] | undefined>(undefined);
 
     // --- COMPUTED VALUES ---
@@ -151,6 +152,9 @@ const App: React.FC = () => {
         }
         return 'staff';
     }, [currentUser]);
+
+    // Total Items Calculation for Badge
+    const totalItems = useMemo(() => currentOrderItems.reduce((sum, item) => sum + item.quantity, 0), [currentOrderItems]);
 
     // --- KITCHEN NOTIFICATION EFFECT ---
     useEffect(() => {
@@ -174,7 +178,7 @@ const App: React.FC = () => {
                     const orderToShow = newOrders[0]; // Show alert for the first new order
                     Swal.fire({
                         title: '🔔 มีออเดอร์ใหม่!',
-                        html: `<b>โต๊ะ ${orderToShow.tableName}</b> (ออเดอร์ #${orderToShow.orderNumber})`,
+                        html: `<b>โต๊ะ ${orderToShow.tableName}</b> (ออเดอร์ #${String(orderToShow.orderNumber).padStart(3, '0')})`,
                         icon: 'info',
                         confirmButtonText: 'รับทราบ',
                         allowOutsideClick: false,
@@ -226,7 +230,7 @@ const App: React.FC = () => {
                 newlyOverdueOrders.forEach(order => {
                     Swal.fire({
                         title: '🔔 ลูกค้ารอนานเกินไป!',
-                        html: `ออเดอร์ <b>#${order.orderNumber}</b> (โต๊ะ ${order.tableName})<br/>รออาหารนานเกิน ${ORDER_TIMEOUT_MINUTES} นาทีแล้ว`,
+                        html: `ออเดอร์ <b>#${String(order.orderNumber).padStart(3, '0')}</b> (โต๊ะ ${order.tableName})<br/>รออาหารนานเกิน ${ORDER_TIMEOUT_MINUTES} นาทีแล้ว`,
                         icon: 'warning',
                         confirmButtonText: 'รับทราบ',
                     });
@@ -285,7 +289,7 @@ const App: React.FC = () => {
         setNotSentToKitchenDetails(null);
     }, []);
 
-    const handlePlaceOrder = async (cutleryInfo?: { cutlery: TakeawayCutleryOption[]; notes: string }) => {
+    const handlePlaceOrder = async () => {
         const selectedTable = tables.find(t => t.id === selectedTableId);
         if (!selectedTable || currentOrderItems.length === 0 || !currentUser || !branchId) return;
 
@@ -320,8 +324,6 @@ const App: React.FC = () => {
                 taxAmount,
                 status: 'waiting',
                 orderTime: Date.now(),
-                takeawayCutlery: cutleryInfo?.cutlery,
-                takeawayCutleryNotes: cutleryInfo?.notes,
             };
             setActiveOrders(prev => [...prev, newOrder]);
             
@@ -339,7 +341,8 @@ const App: React.FC = () => {
                     orderItemsPreview: newOrder.items.map(i => {
                         const optionsText = i.selectedOptions.map(opt => opt.name).join(', ');
                         const notesText = i.notes ? ` [**${i.notes}**]` : '';
-                        return `${i.name}${optionsText ? ` (${optionsText})` : ''} x${i.quantity}${notesText}`;
+                        const takeawayText = i.isTakeaway ? ' (กลับบ้าน)' : '';
+                        return `${i.name}${takeawayText}${optionsText ? ` (${optionsText})` : ''} x${i.quantity}${notesText}`;
                     }),
                     isReprint: false,
                 };
@@ -394,8 +397,6 @@ const App: React.FC = () => {
                 cancelledBy: currentUser.username,
                 cancellationReason: 'อื่นๆ',
                 cancellationNotes: fullReason,
-                takeawayCutlery: cutleryInfo?.cutlery,
-                takeawayCutleryNotes: cutleryInfo?.notes,
             };
 
             setCancelledOrders(prev => [...prev, cancelledOrder]);
@@ -561,7 +562,8 @@ const App: React.FC = () => {
             orderItemsPreview: orderToReprint.items.map(i => {
                 const optionsText = i.selectedOptions.map(opt => opt.name).join(', ');
                 const notesText = i.notes ? ` [**${i.notes}**]` : '';
-                return `${i.name}${optionsText ? ` (${optionsText})` : ''} x${i.quantity}${notesText}`;
+                const takeawayText = i.isTakeaway ? ' (กลับบ้าน)' : '';
+                return `${i.name}${takeawayText}${optionsText ? ` (${optionsText})` : ''} x${i.quantity}${notesText}`;
             }),
             isReprint: true,
         };
@@ -621,7 +623,7 @@ const App: React.FC = () => {
         if (layoutType === 'admin') {
             items.push({ id: 'history', label: 'ประวัติ', view: 'history', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>});
             items.push({ id: 'more', label: 'เพิ่มเติม', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>, subItems: [
-                { id: 'dashboard', label: 'Dashboard', view: 'dashboard', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" /></svg>},
+                { id: 'dashboard', label: 'Dashboard', view: 'dashboard', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1-1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" /></svg>},
                 { id: 'stock', label: 'สต็อก', view: 'stock', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>},
                 { id: 'users', label: 'จัดการผู้ใช้', onClick: () => setModalState(p=>({...p, isUserManager: true})), icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zm-1.5 5.5a3 3 0 00-3 0V12a1 1 0 00-1 1v-1.5a.5.5 0 00-1 0V12a2 2 0 002 2h2.5a.5.5 0 00.5-.5V12a1 1 0 00-1-1h-.5zM17 6a3 3 0 11-6 0 3 3 0 016 0zm-1.5 5.5a3 3 0 00-3 0V12a1 1 0 00-1 1v-1.5a.5.5 0 00-1 0V12a2 2 0 002 2h2.5a.5.5 0 00.5-.5V12a1 1 0 00-1-1h-.5z" /></svg> },
                 ...(currentUser?.role === 'admin' ? [{ id: 'branches', label: 'จัดการสาขา', onClick: () => setModalState(p=>({...p, isBranchManager: true})), icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M2 4.5A1.5 1.5 0 013.5 3h13A1.5 1.5 0 0118 4.5v2.755a3 3 0 01-1.5 2.599V15.5A1.5 1.5 0 0115 17h-1.5a1.5 1.5 0 01-1.5-1.5v-2.348a3 3 0 01-1.5-2.599V7.255a3 3 0 01-1.5 2.599V15.5A1.5 1.5 0 017.5 17H6a1.5 1.5 0 01-1.5-1.5v-5.146A3 3 0 013 7.255V4.5z" /></svg> }] : []),
@@ -736,7 +738,13 @@ const App: React.FC = () => {
                                             currentOrderItems={currentOrderItems}
                                             onQuantityChange={(id, qty) => setCurrentOrderItems(p => p.map(i => i.cartItemId === id ? {...i, quantity: qty} : i).filter(i => i.quantity > 0))}
                                             onRemoveItem={(id) => setCurrentOrderItems(p => p.filter(i => i.cartItemId !== id))}
-                                            onToggleTakeaway={(id) => setCurrentOrderItems(p => p.map(i => i.cartItemId === id ? {...i, isTakeaway: !i.isTakeaway} : i))}
+                                            onToggleTakeaway={(id, isTakeaway, cutlery, notes) => {
+                                                setCurrentOrderItems(p => p.map(i => 
+                                                    i.cartItemId === id 
+                                                        ? { ...i, isTakeaway, takeawayCutlery: isTakeaway ? cutlery : undefined, takeawayCutleryNotes: isTakeaway ? notes : undefined } 
+                                                        : i
+                                                ));
+                                            }}
                                             onClearOrder={clearPosState}
                                             onPlaceOrder={handlePlaceOrder}
                                             isPlacingOrder={isPlacingOrder}
@@ -785,6 +793,11 @@ const App: React.FC = () => {
                                     <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 transition-transform ${isOrderSidebarVisible ? '' : 'rotate-180'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                                     </svg>
+                                    {!isOrderSidebarVisible && totalItems > 0 && (
+                                        <span className="absolute -top-4 -left-4 flex h-8 w-8 items-center justify-center rounded-full bg-red-600 text-base font-bold text-white border-2 border-gray-800 shadow-lg z-30">
+                                            {totalItems > 99 ? '99+' : totalItems}
+                                        </span>
+                                    )}
                                 </button>
                             </div>
                         </div>
@@ -804,11 +817,9 @@ const App: React.FC = () => {
             {/* Modals */}
             <ItemCustomizationModal isOpen={modalState.isCustomization} onClose={() => setModalState(p=>({...p, isCustomization: false}))} item={itemToCustomize} onConfirm={handleConfirmCustomization} />
             <MenuItemModal isOpen={modalState.isMenuItem} onClose={() => setModalState(p=>({...p, isMenuItem: false}))} onSave={handleSaveMenuItem} itemToEdit={itemToEdit} categories={categories} onAddCategory={(name) => setCategories(p => [...p, name])} />
-            {/* FIX: The type signature for onClose is () => void, so the passed function should not accept arguments. */}
             <OrderSuccessModal isOpen={modalState.isOrderSuccess} onClose={() => setModalState(p=>({...p, isOrderSuccess: false}))} orderId={lastPlacedOrderId ?? 0} />
-            <TableBillModal isOpen={modalState.isTableBill} onClose={() => setModalState(p=>({...p, isTableBill: false}))} order={orderForModal as ActiveOrder | null} onInitiatePayment={(order) => { setOrderForModal(order); setModalState(p=>({...p, isTableBill: false, isPayment: true})); }} onInitiateMove={(order) => { setOrderForModal(order); setModalState(p=>({...p, isTableBill: false, isMoveTable: true})); }} onSplit={(order) => { setOrderForModal(order); setModalState(p=>({...p, isTableBill: false, isSplitBill: true})); }} isEditMode={isEditMode} onUpdateOrder={(id, items, cc) => { setActiveOrders(p => p.map(o => o.id === id ? {...o, items, customerCount: cc} : o)); setModalState(p=>({...p, isTableBill: false})); }} currentUser={currentUser} onInitiateCancel={(order) => { setOrderForModal(order); setModalState(p=>({...p, isTableBill: false, isCancelOrder: true})); }} />
+            <TableBillModal isOpen={modalState.isTableBill} onClose={() => setModalState(p=>({...p, isTableBill: false}))} order={orderForModal as ActiveOrder | null} onInitiatePayment={(order) => { setOrderForModal(order); setModalState(p=>({...p, isTableBill: false, isPayment: true})); }} onInitiateMove={(order) => { setOrderForModal(order); setModalState(p=>({...p, isTableBill: false, isMoveTable: true})); }} onSplit={(order) => { setOrderForModal(order); setModalState(p=>({...p, isTableBill: false, isSplitBill: true})); }} isEditMode={isEditMode} onUpdateOrder={(id, items, customerCount) => { setActiveOrders(p => p.map(o => o.id === id ? {...o, items, customerCount} : o)); setModalState(p=>({...p, isTableBill: false})); }} currentUser={currentUser} onInitiateCancel={(order) => { setOrderForModal(order); setModalState(p=>({...p, isTableBill: false, isCancelOrder: true})); }} />
             <PaymentModal isOpen={modalState.isPayment} onClose={() => setModalState(p=>({...p, isPayment: false}))} order={orderForModal as ActiveOrder | null} onConfirmPayment={handleConfirmPayment} qrCodeUrl={qrCodeUrl} isEditMode={isEditMode} onOpenSettings={() => setModalState(p => ({...p, isSettings: true}))} isConfirmingPayment={isConfirmingPayment}/>
-            {/* FIX: The onClose prop for PaymentSuccessModal expects a boolean argument. Update the callback to accept it to fix the type error. */}
             <PaymentSuccessModal isOpen={modalState.isPaymentSuccess} onClose={(_shouldPrint) => {setModalState(p=>({...p, isPaymentSuccess: false}));}} orderId={lastPlacedOrderId ?? 0} />
             <SettingsModal isOpen={modalState.isSettings} onClose={() => setModalState(p=>({...p, isSettings: false}))} onSave={(qr, sound, printer, open, close) => { setQrCodeUrl(qr); setNotificationSoundUrl(sound); setPrinterConfig(printer); setOpeningTime(open); setClosingTime(close); setModalState(p=>({...p, isSettings: false}));}} currentQrCodeUrl={qrCodeUrl} currentNotificationSoundUrl={notificationSoundUrl} currentPrinterConfig={printerConfig} currentOpeningTime={openingTime} currentClosingTime={closingTime} onSavePrinterConfig={setPrinterConfig} />
             <UserManagerModal isOpen={modalState.isUserManager} onClose={() => setModalState(p => ({...p, isUserManager: false}))} users={users} setUsers={setUsers} currentUser={currentUser} branches={branches} isEditMode={isEditMode} />
