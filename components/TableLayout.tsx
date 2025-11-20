@@ -18,6 +18,7 @@ const TableCard: React.FC<TableCardProps> = ({ table, orders, onTableSelect, onS
     const isOccupied = orders.length > 0;
     const hasSplitBill = orders.length > 1;
     const mainOrder = orders[0];
+    const isReserved = !!table.reservation && !isOccupied; // Only show reserved if not occupied
 
     // Check permissions for Static QR Code
     const isAdminOrManager = currentUser?.role === 'admin' || currentUser?.role === 'branch-admin';
@@ -51,6 +52,10 @@ const TableCard: React.FC<TableCardProps> = ({ table, orders, onTableSelect, onS
             cardStyle = 'bg-red-100 border-red-400 shadow-lg hover:shadow-xl';
             statusPillStyle = 'bg-red-200 text-red-800';
         }
+    } else if (isReserved) {
+        statusText = 'จองแล้ว';
+        cardStyle = 'bg-purple-100 border-purple-400 shadow-lg hover:shadow-xl';
+        statusPillStyle = 'bg-purple-200 text-purple-800';
     } else {
         statusText = 'ว่าง';
         cardStyle = 'bg-green-100 border-green-400 hover:shadow-lg';
@@ -169,6 +174,15 @@ const TableCard: React.FC<TableCardProps> = ({ table, orders, onTableSelect, onS
                         </p>
                     </div>
                 )}
+
+                {/* Reservation Info */}
+                {isReserved && table.reservation && (
+                     <div className="mt-3 bg-white/60 px-3 py-2 rounded border border-purple-300 text-sm">
+                        <p className="font-bold text-purple-800">คุณ {table.reservation.name}</p>
+                        <p className="text-purple-700">เวลา: {table.reservation.time}</p>
+                        {table.reservation.contact && <p className="text-purple-700 text-xs">โทร: {table.reservation.contact}</p>}
+                    </div>
+                )}
                 
                 {/* PIN Management Area - Visible to all staff */}
                 <div className="mt-3">
@@ -213,9 +227,9 @@ const TableCard: React.FC<TableCardProps> = ({ table, orders, onTableSelect, onS
                 ) : (
                     <button
                         onClick={() => onTableSelect(table.id)}
-                        className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg transition-colors"
+                        className={`w-full font-bold py-2 px-4 rounded-lg transition-colors text-white ${isReserved ? 'bg-purple-600 hover:bg-purple-700' : 'bg-green-500 hover:bg-green-600'}`}
                     >
-                        รับออเดอร์
+                        {isReserved ? 'เปิดโต๊ะ (จองแล้ว)' : 'รับออเดอร์'}
                     </button>
                 )}
             </div>

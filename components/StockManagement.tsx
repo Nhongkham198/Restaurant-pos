@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useRef } from 'react';
 import type { StockItem } from '../types';
 import Swal from 'sweetalert2';
@@ -184,6 +185,14 @@ export const StockManagement: React.FC<StockManagementProps> = ({
         reader.readAsBinaryString(file);
     };
 
+    // Format helper
+    const formatQty = (qty: number, unit: string) => {
+        if (unit === 'กิโลกรัม') {
+            return qty.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+        return qty.toLocaleString();
+    };
+
     return (
         <>
             <div className="h-full flex flex-col bg-gray-50 md:bg-white">
@@ -238,13 +247,13 @@ export const StockManagement: React.FC<StockManagementProps> = ({
 
                 <div className="flex-1 overflow-y-auto">
                      {/* Desktop Header */}
-                    <div className="hidden md:grid md:grid-cols-12 gap-4 px-6 py-3 text-xs text-gray-700 uppercase bg-gray-100 border-b">
-                        <div className="col-span-3 font-semibold">ชื่อวัตถุดิบ</div>
-                        <div className="col-span-2 font-semibold">หมวดหมู่</div>
-                        <div className="col-span-2 font-semibold text-right">จำนวนคงเหลือ</div>
-                        <div className="col-span-2 font-semibold text-right">จุดสั่งซื้อ</div>
-                        <div className="col-span-1 font-semibold text-center">สถานะ</div>
-                        <div className="col-span-2 font-semibold text-center">จัดการ</div>
+                    <div className="hidden md:grid md:grid-cols-12 gap-4 px-6 py-4 text-sm text-gray-700 uppercase bg-gray-100 border-b font-bold">
+                        <div className="col-span-3">ชื่อวัตถุดิบ</div>
+                        <div className="col-span-2">หมวดหมู่</div>
+                        <div className="col-span-2 text-right">จำนวนคงเหลือ</div>
+                        <div className="col-span-2 text-right">จุดสั่งซื้อ</div>
+                        <div className="col-span-1 text-center">สถานะ</div>
+                        <div className="col-span-2 text-center">จัดการ</div>
                     </div>
 
                     {/* Item List */}
@@ -257,43 +266,43 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                     {/* Mobile/Tablet Card Layout */}
                                     <div className="md:hidden p-4 space-y-3">
                                         <div className="flex justify-between items-start">
-                                            <h3 className="font-bold text-lg text-gray-900">{item.name}</h3>
-                                            <span className={`px-2 py-1 text-xs font-semibold rounded-full ${status.color}`}>{status.text}</span>
+                                            <h3 className="font-bold text-xl text-gray-900">{item.name}</h3>
+                                            <span className={`px-3 py-1 text-sm font-semibold rounded-full ${status.color}`}>{status.text}</span>
                                         </div>
-                                        <p className="text-sm text-gray-500">หมวดหมู่: {item.category}</p>
-                                        <div className="grid grid-cols-2 text-sm pt-2 border-t gap-2">
+                                        <p className="text-base text-gray-500">หมวดหมู่: {item.category}</p>
+                                        <div className="grid grid-cols-2 text-base pt-2 border-t gap-2">
                                             <div>
                                                 <p className="text-gray-500">คงเหลือ</p> 
-                                                <p className="font-semibold text-gray-800">{item.quantity.toLocaleString()} {item.unit}</p>
+                                                <p className="font-semibold text-gray-800">{formatQty(item.quantity, item.unit)} {item.unit}</p>
                                             </div>
                                             <div>
                                                 <p className="text-gray-500">จุดสั่งซื้อ</p>
-                                                <p className="font-semibold text-gray-800">{item.reorderPoint.toLocaleString()} {item.unit}</p>
+                                                <p className="font-semibold text-gray-800">{formatQty(item.reorderPoint, item.unit)} {item.unit}</p>
                                             </div>
                                         </div>
                                         <div className="flex justify-end gap-3 pt-3 border-t">
-                                            <button onClick={() => handleOpenAdjustModal(item)} className="text-sm font-medium text-green-600 hover:underline">ปรับสต็อก</button>
-                                            <button onClick={() => handleOpenItemModal(item)} className="text-sm font-medium text-blue-600 hover:underline">แก้ไข</button>
-                                            <button onClick={() => handleDeleteItem(item.id)} className="text-sm font-medium text-red-600 hover:underline">ลบ</button>
+                                            <button onClick={() => handleOpenAdjustModal(item)} className="text-base font-medium text-green-600 hover:underline">ปรับสต็อก</button>
+                                            <button onClick={() => handleOpenItemModal(item)} className="text-base font-medium text-blue-600 hover:underline">แก้ไข</button>
+                                            <button onClick={() => handleDeleteItem(item.id)} className="text-base font-medium text-red-600 hover:underline">ลบ</button>
                                         </div>
                                     </div>
 
                                     {/* Desktop Table Row Layout */}
-                                    <div className="hidden md:block md:col-span-3 md:py-4 md:font-medium md:text-gray-900 md:whitespace-nowrap">{item.name}</div>
+                                    <div className="hidden md:block md:col-span-3 md:py-4 md:font-medium md:text-lg md:text-gray-900 md:whitespace-nowrap">{item.name}</div>
                                     <div className="hidden md:block md:col-span-2 md:py-4">
-                                        <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-gray-200 text-gray-800">
+                                        <span className="px-3 py-1 text-sm font-semibold rounded-full bg-gray-200 text-gray-800">
                                             {item.category}
                                         </span>
                                     </div>
                                     <div className="hidden md:block md:col-span-2 md:py-4 md:text-right">
-                                        <span className="text-base font-bold text-gray-900">{item.quantity.toLocaleString()}</span>
-                                        <span className="text-sm text-gray-600 ml-1">{item.unit}</span>
+                                        <span className="text-xl font-bold text-gray-900">{formatQty(item.quantity, item.unit)}</span>
+                                        <span className="text-base text-gray-600 ml-1">{item.unit}</span>
                                     </div>
-                                    <div className="hidden md:block md:col-span-2 md:py-4 md:text-right">{item.reorderPoint.toLocaleString()} {item.unit}</div>
+                                    <div className="hidden md:block md:col-span-2 md:py-4 md:text-right text-lg text-gray-900">{formatQty(item.reorderPoint, item.unit)} {item.unit}</div>
                                     <div className="hidden md:flex md:col-span-1 md:py-4 md:justify-center">
-                                        <span className={`px-2 py-1 text-xs font-semibold rounded-full ${status.color}`}>{status.text}</span>
+                                        <span className={`px-3 py-1 text-sm font-semibold rounded-full ${status.color}`}>{status.text}</span>
                                     </div>
-                                    <div className="hidden md:block md:col-span-2 md:py-4 md:text-center md:space-x-2">
+                                    <div className="hidden md:block md:col-span-2 md:py-4 md:text-center md:space-x-3 text-lg">
                                         <button onClick={() => handleOpenAdjustModal(item)} className="font-medium text-green-600 hover:underline">ปรับ</button>
                                         <button onClick={() => handleOpenItemModal(item)} className="font-medium text-blue-600 hover:underline">แก้ไข</button>
                                         <button onClick={() => handleDeleteItem(item.id)} className="font-medium text-red-600 hover:underline">ลบ</button>
@@ -315,10 +324,8 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                 onSave={handleSaveItem}
                 itemToEdit={selectedItem}
                 categories={stockCategories.filter(c => c !== 'ทั้งหมด')}
-                // FIX: Pass setStockCategories to allow management of categories from the modal.
                 setCategories={setStockCategories}
                 units={stockUnits}
-                // FIX: Pass the correct 'setStockUnits' prop to the 'setUnits' prop of StockItemModal to resolve a 'Cannot find name' error.
                 setUnits={setStockUnits}
                 stockItems={stockItems}
             />

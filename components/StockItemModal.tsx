@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import type { StockItem } from '../types';
 import Swal from 'sweetalert2';
@@ -63,7 +64,8 @@ export const StockItemModal: React.FC<StockItemModalProps> = ({
 
     if (!isOpen) return null;
 
-    const inputClasses = "mt-1 block w-full border border-gray-300 p-2 rounded-md shadow-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500";
+    // Ensure text color is explicitly set to black
+    const inputClasses = "mt-1 block w-full border border-gray-300 p-2 rounded-md shadow-sm bg-white text-black focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500";
     const manageButtonClasses = "p-2 h-[42px] mt-1 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 flex items-center justify-center";
 
     return (
@@ -82,7 +84,7 @@ export const StockItemModal: React.FC<StockItemModalProps> = ({
                                 onClick={() => setNumpadConfig({ isOpen: true, field: 'quantity', title: 'จำนวนเริ่มต้น' })}
                                 className={`${inputClasses} cursor-pointer h-[42px] flex items-center`}
                             >
-                                {formState.quantity.toLocaleString()}
+                                {formState.quantity.toLocaleString(undefined, { maximumFractionDigits: 2 })}
                             </div>
                         </div>
                         <div className="flex gap-2 items-end">
@@ -113,11 +115,11 @@ export const StockItemModal: React.FC<StockItemModalProps> = ({
                             <label className="block text-sm font-medium text-gray-700">จุดสั่งซื้อขั้นต่ำ</label>
                              <div
                                 onClick={() => setNumpadConfig({ isOpen: true, field: 'reorderPoint', title: 'จุดสั่งซื้อขั้นต่ำ' })}
-                                className={`${inputClasses} cursor-pointer h-[42px] flex items-center`}
+                                className={`${inputClasses} cursor-pointer h-[42px] flex items-center text-black`}
                             >
-                                {formState.reorderPoint.toLocaleString()}
+                                {formState.reorderPoint.toLocaleString(undefined, { maximumFractionDigits: 2 })}
                             </div>
-                            <p className="mt-1 text-xs text-gray-500">ระบบจะแจ้งเตือนเมื่อจำนวนคงเหลือต่ำกว่าจุดนี้</p>
+                            <p className="mt-1 text-sm font-bold text-gray-700">ระบบจะแจ้งเตือนเมื่อจำนวนคงเหลือต่ำกว่าจุดนี้</p>
                         </div>
                         <div className="flex justify-end gap-2 pt-4">
                             <button type="button" onClick={onClose} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300">ยกเลิก</button>
@@ -147,13 +149,12 @@ export const StockItemModal: React.FC<StockItemModalProps> = ({
                 isOpen={numpadConfig.isOpen}
                 onClose={() => setNumpadConfig({ ...numpadConfig, isOpen: false })}
                 title={numpadConfig.title}
-                value={String(numpadConfig.field ? formState[numpadConfig.field] : '0')}
-                setValue={(newValue) => {
+                initialValue={numpadConfig.field ? formState[numpadConfig.field] : 0}
+                onSubmit={(newValue) => {
                     if (numpadConfig.field) {
-                        const numValue = parseInt(newValue, 10);
                         setFormState(prev => ({
                             ...prev,
-                            [numpadConfig.field!]: isNaN(numValue) ? 0 : numValue
+                            [numpadConfig.field!]: newValue
                         }));
                     }
                 }}

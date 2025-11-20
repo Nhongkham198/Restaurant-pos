@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import type { StockItem } from '../types';
 import { NumpadModal } from './NumpadModal';
@@ -38,6 +39,14 @@ export const AdjustStockModal: React.FC<AdjustStockModalProps> = ({ isOpen, onCl
 
     const inputClasses = "mt-1 block w-full border border-gray-300 p-2 rounded-md shadow-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500";
 
+    // Helper to format quantity based on unit
+    const formatQuantity = (qty: number) => {
+        if (item.unit === 'กิโลกรัม') {
+            return qty.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+        return qty.toLocaleString();
+    };
+
     return (
         <>
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={onClose}>
@@ -48,7 +57,10 @@ export const AdjustStockModal: React.FC<AdjustStockModalProps> = ({ isOpen, onCl
                     <form onSubmit={handleSubmit} className="space-y-4">
                         <div className="p-4 bg-gray-100 rounded-lg text-center">
                             <p className="text-sm text-gray-500">จำนวนปัจจุบัน</p>
-                            <p className="text-3xl font-bold text-gray-800">{item.quantity.toLocaleString()} <span className="text-xl">{item.unit}</span></p>
+                            <p className="text-3xl font-bold text-gray-800">
+                                {formatQuantity(item.quantity)} 
+                                <span className="text-xl ml-1">{item.unit}</span>
+                            </p>
                         </div>
                         
                         <div>
@@ -70,13 +82,16 @@ export const AdjustStockModal: React.FC<AdjustStockModalProps> = ({ isOpen, onCl
                                 onClick={() => setIsNumpadOpen(true)}
                                 className={`${inputClasses} cursor-pointer text-left h-[42px] flex items-center`}
                             >
-                                {adjustment.toLocaleString()}
+                                {adjustment.toLocaleString(undefined, { maximumFractionDigits: 2 })}
                             </div>
                         </div>
                         
                         <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg text-center">
                             <p className="text-sm text-blue-600">จำนวนใหม่</p>
-                            <p className={`text-3xl font-bold ${newQuantity < 0 ? 'text-red-600' : 'text-blue-800'}`}>{newQuantity.toLocaleString()} <span className="text-xl">{item.unit}</span></p>
+                            <p className={`text-3xl font-bold ${newQuantity < 0 ? 'text-red-600' : 'text-blue-800'}`}>
+                                {formatQuantity(newQuantity)} 
+                                <span className="text-xl ml-1">{item.unit}</span>
+                            </p>
                         </div>
 
                         <div className="flex justify-end gap-2 pt-4">
@@ -91,10 +106,9 @@ export const AdjustStockModal: React.FC<AdjustStockModalProps> = ({ isOpen, onCl
                 isOpen={isNumpadOpen}
                 onClose={() => setIsNumpadOpen(false)}
                 title="จำนวนที่ปรับ"
-                value={String(adjustment)}
-                setValue={(newValue) => {
-                    const numValue = parseInt(newValue, 10);
-                    setAdjustment(isNaN(numValue) ? 0 : numValue);
+                initialValue={adjustment}
+                onSubmit={(newValue) => {
+                    setAdjustment(newValue);
                 }}
             />
         </>

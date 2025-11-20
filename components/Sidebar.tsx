@@ -1,6 +1,6 @@
 
 import React, { useMemo } from 'react';
-import type { OrderItem, Table, TakeawayCutleryOption } from '../types';
+import type { OrderItem, Table, TakeawayCutleryOption, Reservation } from '../types';
 import { OrderListItem } from './OrderListItem';
 import Swal from 'sweetalert2';
 
@@ -30,6 +30,7 @@ interface SidebarProps {
     onTaxRateChange: (rate: number) => void;
     sendToKitchen: boolean;
     onSendToKitchenChange: (enabled: boolean, details: { reason: string; notes: string } | null) => void;
+    onUpdateReservation: (tableId: number, reservation: Reservation | null) => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -58,6 +59,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     onTaxRateChange,
     sendToKitchen,
     onSendToKitchenChange,
+    onUpdateReservation
 }) => {
     const { subtotal, taxAmount, total } = useMemo(() => {
         const sub = currentOrderItems.reduce((sum, item) => sum + item.finalPrice * item.quantity, 0);
@@ -251,6 +253,78 @@ export const Sidebar: React.FC<SidebarProps> = ({
         }
     };
 
+    const handleReservationClick = () => {
+        if (!selectedTable) return;
+    
+        if (selectedTable.reservation) {
+            // Show details and option to cancel
+            Swal.fire({
+                title: `การจองโต๊ะ ${selectedTable.name}`,
+                html: `
+                    <div class="text-left p-4 bg-gray-50 rounded-lg space-y-2">
+                        <p><strong>ชื่อผู้จอง:</strong> ${selectedTable.reservation.name}</p>
+                        <p><strong>เบอร์โทร:</strong> ${selectedTable.reservation.contact || '-'}</p>
+                        <p><strong>เวลา:</strong> ${selectedTable.reservation.time}</p>
+                    </div>
+                `,
+                showCancelButton: true,
+                confirmButtonText: 'ปิด',
+                cancelButtonText: 'ยกเลิกการจอง',
+                cancelButtonColor: '#d33',
+            }).then((result) => {
+                if (result.dismiss === Swal.DismissReason.cancel) {
+                    Swal.fire({
+                        title: 'ยกเลิกการจอง?',
+                        text: 'คุณต้องการยกเลิกการจองโต๊ะนี้ใช่หรือไม่',
+                        icon: 'warning',
+                        showCancelButton: true,
+                        confirmButtonText: 'ใช่, ยกเลิก',
+                        cancelButtonText: 'ไม่',
+                        confirmButtonColor: '#d33'
+                    }).then((confirmResult) => {
+                        if (confirmResult.isConfirmed) {
+                            onUpdateReservation(selectedTable.id, null);
+                            Swal.fire('เรียบร้อย', 'ยกเลิกการจองแล้ว', 'success');
+                        }
+                    });
+                }
+            });
+        } else {
+            // Create new reservation
+            Swal.fire({
+                title: `จองโต๊ะ ${selectedTable.name}`,
+                html: `
+                    <div class="space-y-3">
+                        <input id="res-name" class="swal2-input" placeholder="ชื่อผู้จอง">
+                        <input id="res-contact" class="swal2-input" placeholder="เบอร์โทรศัพท์ (ถ้ามี)">
+                        <label class="block text-sm font-medium text-gray-700 text-left mt-2">เวลาจอง</label>
+                        <input id="res-time" type="time" class="swal2-input">
+                    </div>
+                `,
+                focusConfirm: false,
+                showCancelButton: true,
+                confirmButtonText: 'บันทึกการจอง',
+                cancelButtonText: 'ยกเลิก',
+                preConfirm: () => {
+                    const name = (document.getElementById('res-name') as HTMLInputElement).value;
+                    const contact = (document.getElementById('res-contact') as HTMLInputElement).value;
+                    const time = (document.getElementById('res-time') as HTMLInputElement).value;
+    
+                    if (!name || !time) {
+                        Swal.showValidationMessage('กรุณากรอกชื่อและเวลา');
+                        return false;
+                    }
+                    return { name, contact, time };
+                }
+            }).then((result) => {
+                if (result.isConfirmed && result.value) {
+                    onUpdateReservation(selectedTable.id, result.value);
+                    Swal.fire('เรียบร้อย', 'บันทึกการจองแล้ว', 'success');
+                }
+            });
+        }
+    };
+
     return (
         <aside className="w-full md:w-[420px] flex-shrink-0 bg-gray-800 text-white p-4 flex flex-col h-auto md:h-full shadow-2xl">
             {/* Header */}
@@ -291,17 +365,32 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
                 <div>
                     <label htmlFor="table-select" className="block text-sm font-medium text-gray-300 mb-1">เลือกโต๊ะ:</label>
-                    <select
-                        id="table-select"
-                        value={selectedTable?.id ?? ''}
-                        onChange={(e) => onSelectTable(e.target.value ? Number(e.target.value) : null)}
-                        className="w-full p-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                        <option value="">-- กรุณาเลือกโต๊ะ --</option>
-                        {availableTables.map(table => (
-                            <option key={table.id} value={table.id}>{table.name}</option>
-                        ))}
-                    </select>
+                    <div className="flex gap-2">
+                        <select
+                            id="table-select"
+                            value={selectedTable?.id ?? ''}
+                            onChange={(e) => onSelectTable(e.target.value ? Number(e.target.value) : null)}
+                            className="flex-1 p-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                            <option value="">-- กรุณาเลือกโต๊ะ --</option>
+                            {availableTables.map(table => (
+                                <option key={table.id} value={table.id}>{table.name}</option>
+                            ))}
+                        </select>
+                        {selectedTable && (
+                            <button
+                                onClick={handleReservationClick}
+                                className={`w-32 rounded-md font-medium text-sm transition-colors ${
+                                    selectedTable.reservation 
+                                    ? 'bg-purple-600 hover:bg-purple-700 text-white' 
+                                    : 'bg-gray-600 hover:bg-gray-500 text-gray-200'
+                                }`}
+                                title={selectedTable.reservation ? 'ดูรายละเอียดการจอง' : 'จองโต๊ะ'}
+                            >
+                                {selectedTable.reservation ? 'จองแล้ว' : 'จอง'}
+                            </button>
+                        )}
+                    </div>
                 </div>
                  <div>
                     <label className="block text-sm font-medium text-gray-300 mb-1">ลูกค้า:</label>

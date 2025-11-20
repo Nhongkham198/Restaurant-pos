@@ -25,7 +25,8 @@ import type {
     View,
     NavItem,
     PrintHistoryEntry,
-    TakeawayCutleryOption
+    TakeawayCutleryOption,
+    Reservation
 } from './types';
 import { useFirestoreSync } from './hooks/useFirestoreSync';
 import { functionsService } from './services/firebaseFunctionsService';
@@ -510,6 +511,10 @@ const App: React.FC = () => {
             if (t.name === orderToComplete.tableName && t.floor === orderToComplete.floor) {
                 const updatedTable = { ...t };
                 delete updatedTable.activePin; // Clear the PIN
+                // Clear reservation when payment is completed (optional, but usually good practice)
+                if (updatedTable.reservation) {
+                     delete updatedTable.reservation;
+                }
                 return updatedTable;
             }
             return t;
@@ -535,6 +540,10 @@ const App: React.FC = () => {
 
         setModalState(prev => ({ ...prev, isPayment: false, isPaymentSuccess: true }));
         setLastPlacedOrderId(orderToComplete.orderNumber);
+    };
+    
+    const handleUpdateTableReservation = (tableId: number, reservation: Reservation | null) => {
+        setTables(prev => prev.map(t => t.id === tableId ? { ...t, reservation } : t));
     };
 
     const handleConfirmSplit = (itemsToSplit: OrderItem[]) => {
@@ -897,6 +906,7 @@ const App: React.FC = () => {
                                             onTaxRateChange={setTaxRate}
                                             sendToKitchen={sendToKitchen}
                                             onSendToKitchenChange={handleSendToKitchenChange}
+                                            onUpdateReservation={handleUpdateTableReservation}
                                         />
                                     </div>
                                 </div>

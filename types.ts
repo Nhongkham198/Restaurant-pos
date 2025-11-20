@@ -110,11 +110,18 @@ export interface CancelledOrder extends BaseOrder {
     cancellationNotes?: string;
 }
 
+export interface Reservation {
+    name: string;
+    time: string;
+    contact?: string;
+}
+
 export interface Table {
     id: number;
     name: string;
     floor: 'lower' | 'upper';
     activePin?: string; // PIN code for customer self-service verification
+    reservation?: Reservation | null;
 }
 
 export interface ReceiptPrintSettings {
