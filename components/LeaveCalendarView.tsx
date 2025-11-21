@@ -42,18 +42,22 @@ export const LeaveCalendarView: React.FC<LeaveCalendarViewProps> = ({ leaveReque
     const visibleRequests = useMemo(() => {
         if (!currentUser) return [];
 
-        // 1. Admin (System Admin) -> Sees ALL (or specifically focuses on Kalasin if needed, but usually sees all for oversight)
+        // 1. Admin (System Admin) -> Sees ALL requests from all branches.
         if (currentUser.role === 'admin') {
             return leaveRequests;
         }
 
-        // 2. Branch Admin -> Sees requests for their allowed branches
+        // 2. Branch Admin -> Sees requests for their assigned branches. This includes Kalasin if they are assigned to it.
         if (currentUser.role === 'branch-admin') {
             return leaveRequests.filter(req => currentUser.allowedBranchIds?.includes(req.branchId));
         }
 
-        // 3. Staff (Kitchen/POS) -> Sees ONLY their own requests
-        return leaveRequests.filter(req => req.userId === currentUser.id);
+        // 3. Staff (Kitchen/POS) -> Sees ONLY their own requests, but with a special rule for Kalasin.
+        // As per the request, leave data for Kalasin (branchId: 1) is restricted to admins.
+        // Therefore, regular staff cannot see any leave requests from the Kalasin branch, even their own.
+        return leaveRequests.filter(req => 
+            req.userId === currentUser.id && req.branchId !== 1
+        );
 
     }, [leaveRequests, currentUser]);
 
