@@ -1,4 +1,5 @@
 
+
 import React, { useState, useMemo, useEffect } from 'react';
 import type { LeaveRequest, User } from '../types';
 import Swal from 'sweetalert2';
@@ -7,7 +8,8 @@ interface LeaveRequestModalProps {
     isOpen: boolean;
     onClose: () => void;
     currentUser: User | null;
-    onSave: (request: Omit<LeaveRequest, 'id' | 'status'>) => void;
+    // FIX: The onSave prop should not expect a branchId, as the parent component (App.tsx) is responsible for adding it based on the currently selected branch. The modal component doesn't have this information.
+    onSave: (request: Omit<LeaveRequest, 'id' | 'status' | 'branchId'>) => void;
     leaveRequests?: LeaveRequest[]; // Needed to calculate remaining days
     initialDate?: Date | null;
 }
