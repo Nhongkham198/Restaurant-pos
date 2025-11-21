@@ -1088,7 +1088,7 @@ const App: React.FC = () => {
             case 'stock':
                 return <StockManagement stockItems={stockItems} setStockItems={setStockItems} stockCategories={stockCategories} setStockCategories={setStockCategories} stockUnits={stockUnits} setStockUnits={setStockUnits} />;
             case 'leave':
-                return <LeaveCalendarView leaveRequests={leaveRequests} currentUser={currentUser} onOpenRequestModal={(date) => { setLeaveRequestInitialDate(date || null); setModalState(p => ({ ...p, isLeaveRequest: true })); }} branches={branches} onUpdateStatus={handleUpdateLeaveStatus} onDeleteRequest={handleDeleteLeaveRequest} />;
+                return <LeaveCalendarView leaveRequests={leaveRequests} currentUser={currentUser} onOpenRequestModal={(date) => { setLeaveRequestInitialDate(date || null); setModalState(p => ({ ...p, isLeaveRequest: true })); }} branches={branches} onUpdateStatus={handleUpdateLeaveStatus} onDeleteRequest={handleDeleteLeaveRequest} selectedBranch={selectedBranch} />;
             case 'pos':
             default:
                 return (

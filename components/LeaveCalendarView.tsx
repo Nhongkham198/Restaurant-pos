@@ -14,9 +14,10 @@ interface LeaveCalendarViewProps {
     branches?: Branch[];
     onUpdateStatus?: (requestId: number, status: 'approved' | 'rejected') => void;
     onDeleteRequest?: (requestId: number) => void;
+    selectedBranch?: Branch | null;
 }
 
-export const LeaveCalendarView: React.FC<LeaveCalendarViewProps> = ({ leaveRequests, currentUser, onOpenRequestModal, branches, onUpdateStatus, onDeleteRequest }) => {
+export const LeaveCalendarView: React.FC<LeaveCalendarViewProps> = ({ leaveRequests, currentUser, onOpenRequestModal, branches, onUpdateStatus, onDeleteRequest, selectedBranch }) => {
     const [currentDate, setCurrentDate] = useState(new Date());
 
     const daysInMonth = useMemo(() => {
@@ -42,24 +43,25 @@ export const LeaveCalendarView: React.FC<LeaveCalendarViewProps> = ({ leaveReque
     const visibleRequests = useMemo(() => {
         if (!currentUser) return [];
 
-        // 1. Admin (System Admin) -> Sees ALL requests from all branches.
+        // Admin sees all requests.
         if (currentUser.role === 'admin') {
             return leaveRequests;
         }
 
-        // 2. Branch Admin -> Sees requests for their assigned branches. This includes Kalasin if they are assigned to it.
+        // Branch Admin sees requests for their assigned branches.
         if (currentUser.role === 'branch-admin') {
             return leaveRequests.filter(req => currentUser.allowedBranchIds?.includes(req.branchId));
         }
 
-        // 3. Staff (Kitchen/POS) -> Sees ONLY their own requests, but with a special rule for Kalasin.
-        // As per the request, leave data for Kalasin (branchId: 1) is restricted to admins.
-        // Therefore, regular staff cannot see any leave requests from the Kalasin branch, even their own.
-        return leaveRequests.filter(req => 
-            req.userId === currentUser.id && req.branchId !== 1
-        );
+        // Staff (POS/Kitchen) see all requests for the currently selected branch.
+        if (selectedBranch) {
+            return leaveRequests.filter(req => req.branchId === selectedBranch.id);
+        }
 
-    }, [leaveRequests, currentUser]);
+        // Fallback for staff if no branch is selected (should not happen in normal flow)
+        return leaveRequests.filter(req => req.userId === currentUser.id);
+
+    }, [leaveRequests, currentUser, selectedBranch]);
 
     const getLeavesForDay = (day: number) => {
         const currentYear = currentDate.getFullYear();
