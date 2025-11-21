@@ -38,17 +38,26 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         if (savedSession) {
             try {
                 const { name, pin } = JSON.parse(savedSession);
-                // Only auto-login if the PIN matches the current active PIN of the table.
-                // This ensures that if the table is cleared/reset by staff, the old session is invalid.
-                if (pin === table.activePin && table.activePin) {
-                    setCustomerName(name);
-                    setPinInput(pin); // Ensure pinInput is set for comparison later
-                    setIsAuthenticated(true);
-                } else {
-                    // PIN changed or invalid, clear session
-                    localStorage.removeItem(sessionKey);
+
+                // IMPORTANT FIX for refresh persistence:
+                // Only perform actions if table.activePin is loaded from the database.
+                // If it's undefined, we wait for the next render when Firestore data arrives.
+                // This prevents a race condition where the session is deleted before the correct PIN is loaded.
+                if (table.activePin) {
+                    if (pin === table.activePin) {
+                        // PIN is correct, authenticate the session.
+                        setCustomerName(name);
+                        setPinInput(pin);
+                        setIsAuthenticated(true);
+                    } else {
+                        // PIN is incorrect (changed by staff), the session is invalid.
+                        localStorage.removeItem(sessionKey);
+                    }
                 }
+                // If table.activePin is not available yet, do nothing and wait for the component to re-render.
+                
             } catch (e) {
+                // If parsing fails, the session data is corrupt.
                 localStorage.removeItem(sessionKey);
             }
         }

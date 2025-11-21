@@ -352,10 +352,10 @@ export const Menu: React.FC<MenuProps> = ({
             </div>
 
             {/* Category Filters */}
-            <div className="mb-4 flex-shrink-0">
-                <div className="flex flex-wrap gap-2 items-center">
+            <div className="mb-4 flex-shrink-0 overflow-hidden">
+                <div className="flex overflow-x-auto whitespace-nowrap gap-2 items-center py-2 custom-scrollbar -mx-4 px-4">
                     {categories.map(category => (
-                        <div key={category} className="relative group">
+                        <div key={category} className="relative group flex-shrink-0">
                             <button
                                 onClick={() => setSelectedCategory(category)}
                                 className={`px-4 py-2 rounded-full text-sm font-semibold transition-colors ${
@@ -382,7 +382,7 @@ export const Menu: React.FC<MenuProps> = ({
                         <>
                             <button
                                 onClick={handleAddCategory}
-                                className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white font-semibold rounded-full hover:bg-green-600 transition-colors text-sm"
+                                className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white font-semibold rounded-full hover:bg-green-600 transition-colors text-sm flex-shrink-0"
                             >
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
                                     <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
@@ -391,7 +391,7 @@ export const Menu: React.FC<MenuProps> = ({
                             </button>
                             <button
                                 onClick={handleExportMenu}
-                                className="flex items-center gap-2 px-4 py-2 bg-teal-500 text-white font-semibold rounded-full hover:bg-teal-600 transition-colors text-sm"
+                                className="flex items-center gap-2 px-4 py-2 bg-teal-500 text-white font-semibold rounded-full hover:bg-teal-600 transition-colors text-sm flex-shrink-0"
                             >
                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
@@ -400,7 +400,7 @@ export const Menu: React.FC<MenuProps> = ({
                             </button>
                             <button
                                 onClick={() => fileInputRef.current?.click()}
-                                className="flex items-center gap-2 px-4 py-2 bg-purple-500 text-white font-semibold rounded-full hover:bg-purple-600 transition-colors text-sm"
+                                className="flex items-center gap-2 px-4 py-2 bg-purple-500 text-white font-semibold rounded-full hover:bg-purple-600 transition-colors text-sm flex-shrink-0"
                             >
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />

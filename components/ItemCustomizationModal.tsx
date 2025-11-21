@@ -172,9 +172,10 @@ export const ItemCustomizationModal: React.FC<ItemCustomizationModalProps> = ({ 
                     </div>
                     <button 
                         onClick={handleConfirmClick}
-                        className="px-6 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 font-bold text-lg"
+                        className="px-4 sm:px-6 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 font-bold text-base sm:text-lg flex items-center justify-center gap-x-3"
                     >
-                        เพิ่มลงออเดอร์ - {(finalPrice * quantity).toLocaleString()} ฿
+                        <span>เพิ่มOrder</span>
+                        <span className="text-sm sm:text-base font-semibold bg-green-700/50 px-2 py-0.5 rounded">{(finalPrice * quantity).toLocaleString()} ฿</span>
                     </button>
                 </footer>
             </div>
