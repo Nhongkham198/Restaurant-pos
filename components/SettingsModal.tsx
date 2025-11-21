@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import type { PrinterConfig, ReceiptPrintSettings, KitchenPrinterSettings, CashierPrinterSettings } from '../types';
 import { printerService } from '../services/printerService';
@@ -7,9 +6,10 @@ import Swal from 'sweetalert2';
 interface SettingsModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onSave: (newQrCodeUrl: string, newSoundUrl: string, newPrinterConfig: PrinterConfig, newOpeningTime: string, newClosingTime: string) => void;
+    onSave: (newQrCodeUrl: string, newSoundUrl: string, newStaffCallSoundUrl: string, newPrinterConfig: PrinterConfig, newOpeningTime: string, newClosingTime: string) => void;
     currentQrCodeUrl: string | null;
     currentNotificationSoundUrl: string | null;
+    currentStaffCallSoundUrl: string | null;
     currentPrinterConfig: PrinterConfig | null;
     currentOpeningTime: string | null;
     currentClosingTime: string | null;
@@ -106,18 +106,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     onClose, 
     onSave, 
     currentQrCodeUrl, 
-    currentNotificationSoundUrl, 
+    currentNotificationSoundUrl,
+    currentStaffCallSoundUrl,
     currentPrinterConfig,
     currentOpeningTime, 
     currentClosingTime,
     onSavePrinterConfig
 }) => {
     
-    const [activeTab, setActiveTab] = useState<'general' | 'sound' | 'qrcode' | 'kitchen' | 'cashier'>('general');
+    const [activeTab, setActiveTab] = useState<'general' | 'sound' | 'staffCallSound' | 'qrcode' | 'kitchen' | 'cashier'>('general');
     const [settingsForm, setSettingsForm] = useState({
         qrCodeUrl: '',
         soundDataUrl: '',
         soundFileName: 'No file chosen',
+        staffCallSoundDataUrl: '',
+        staffCallSoundFileName: 'No file chosen',
         openingTime: '10:00',
         closingTime: '22:00',
         printerConfig: { 
@@ -131,6 +134,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     }>({ kitchen: 'idle', cashier: 'idle' });
     
     const soundFileInputRef = useRef<HTMLInputElement>(null);
+    const staffCallSoundFileInputRef = useRef<HTMLInputElement>(null);
     const qrCodeFileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
@@ -157,6 +161,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 qrCodeUrl: currentQrCodeUrl || '',
                 soundDataUrl: currentNotificationSoundUrl || '',
                 soundFileName: currentNotificationSoundUrl ? 'Current Sound' : 'No file chosen',
+                staffCallSoundDataUrl: currentStaffCallSoundUrl || '',
+                staffCallSoundFileName: currentStaffCallSoundUrl ? 'Current Sound' : 'No file chosen',
                 openingTime: currentOpeningTime || '10:00',
                 closingTime: currentClosingTime || '22:00',
                 printerConfig: {
@@ -165,7 +171,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 }
             });
         }
-    }, [isOpen, currentQrCodeUrl, currentNotificationSoundUrl, currentPrinterConfig, currentOpeningTime, currentClosingTime]);
+    }, [isOpen, currentQrCodeUrl, currentNotificationSoundUrl, currentStaffCallSoundUrl, currentPrinterConfig, currentOpeningTime, currentClosingTime]);
 
     const handleSoundFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -179,6 +185,24 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                  setSettingsForm(prev => ({
                     ...prev,
                     soundDataUrl: event.target?.result as string
+                 }));
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+
+    const handleStaffCallSoundFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+             setSettingsForm(prev => ({
+                ...prev,
+                staffCallSoundFileName: file.name
+             }));
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                 setSettingsForm(prev => ({
+                    ...prev,
+                    staffCallSoundDataUrl: event.target?.result as string
                  }));
             };
             reader.readAsDataURL(file);
@@ -335,6 +359,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         onSave(
             settingsForm.qrCodeUrl, 
             settingsForm.soundDataUrl, 
+            settingsForm.staffCallSoundDataUrl,
             finalConfig, 
             settingsForm.openingTime,
             settingsForm.closingTime
@@ -362,6 +387,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         <nav className="-mb-px flex space-x-4 sm:space-x-6">
                             <TabButton label="ทั่วไป" isActive={activeTab === 'general'} onClick={() => setActiveTab('general')} />
                             <TabButton label="เสียงแจ้งเตือน" isActive={activeTab === 'sound'} onClick={() => setActiveTab('sound')} />
+                            <TabButton label="เสียงเรียกพนักงาน" isActive={activeTab === 'staffCallSound'} onClick={() => setActiveTab('staffCallSound')} />
                             <TabButton label="QR Code" isActive={activeTab === 'qrcode'} onClick={() => setActiveTab('qrcode')} />
                             <TabButton label="เครื่องพิมพ์ครัว" isActive={activeTab === 'kitchen'} onClick={() => setActiveTab('kitchen')} />
                             <TabButton label="เครื่องพิมพ์ใบเสร็จ" isActive={activeTab === 'cashier'} onClick={() => setActiveTab('cashier')} />
@@ -398,7 +424,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         )}
                         {activeTab === 'sound' && (
                              <div>
-                                <h4 className="text-lg font-semibold text-gray-700 mb-2">ตั้งค่าเสียงแจ้งเตือน</h4>
+                                <h4 className="text-lg font-semibold text-gray-700 mb-2">ตั้งค่าเสียงแจ้งเตือนออเดอร์</h4>
                                 <p className="text-sm text-gray-500 mb-4">ตั้งค่าเสียงที่จะเล่นเมื่อมีออเดอร์ใหม่เข้ามาในหน้าครัว</p>
                                 {settingsForm.soundDataUrl && (
                                     <div className="my-4">
@@ -420,6 +446,36 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                         type="file"
                                         ref={soundFileInputRef}
                                         onChange={handleSoundFileChange}
+                                        accept="audio/*"
+                                        className="hidden"
+                                    />
+                                </div>
+                            </div>
+                        )}
+                         {activeTab === 'staffCallSound' && (
+                             <div>
+                                <h4 className="text-lg font-semibold text-gray-700 mb-2">ตั้งค่าเสียงกริ่งเรียกพนักงาน</h4>
+                                <p className="text-sm text-gray-500 mb-4">ตั้งค่าเสียงที่จะเล่นเมื่อลูกค้ากด "เรียกพนักงาน"</p>
+                                {settingsForm.staffCallSoundDataUrl && (
+                                    <div className="my-4">
+                                        <audio controls src={settingsForm.staffCallSoundDataUrl} className="w-full">
+                                            Your browser does not support the audio element.
+                                        </audio>
+                                    </div>
+                                )}
+                                <div className="flex items-center gap-4">
+                                    <button
+                                        type="button"
+                                        onClick={() => staffCallSoundFileInputRef.current?.click()}
+                                        className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 font-semibold"
+                                    >
+                                        Choose File
+                                    </button>
+                                    <span className="text-gray-600 text-sm truncate">{settingsForm.staffCallSoundFileName}</span>
+                                    <input
+                                        type="file"
+                                        ref={staffCallSoundFileInputRef}
+                                        onChange={handleStaffCallSoundFileChange}
                                         accept="audio/*"
                                         className="hidden"
                                     />

@@ -1,6 +1,5 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
-import type { MenuItem, Table, OrderItem, ActiveOrder } from '../types';
+import type { MenuItem, Table, OrderItem, ActiveOrder, StaffCall } from '../types';
 import { Menu } from './Menu';
 import { ItemCustomizationModal } from './ItemCustomizationModal';
 import Swal from 'sweetalert2';
@@ -12,6 +11,7 @@ interface CustomerViewProps {
     activeOrders: ActiveOrder[];
     allBranchOrders: ActiveOrder[]; // Added to calculate global queue position
     onPlaceOrder: (items: OrderItem[], customerName: string, customerCount: number) => void;
+    onStaffCall: (table: Table, customerName: string) => void;
 }
 
 export const CustomerView: React.FC<CustomerViewProps> = ({
@@ -20,7 +20,8 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     categories,
     activeOrders,
     allBranchOrders,
-    onPlaceOrder
+    onPlaceOrder,
+    onStaffCall
 }) => {
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [customerName, setCustomerName] = useState('');
@@ -162,6 +163,19 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         });
     };
 
+    const handleCallStaffClick = () => {
+        onStaffCall(table, customerName);
+        Swal.fire({
+            toast: true,
+            position: 'top-end',
+            icon: 'success',
+            title: 'ส่งสัญญาณเรียกพนักงานแล้ว',
+            text: 'กรุณารอสักครู่...',
+            showConfirmButton: false,
+            timer: 3000
+        });
+    };
+
     // Calculate Cart Totals
     const cartTotalAmount = useMemo(() => cartItems.reduce((sum, i) => sum + (i.finalPrice * i.quantity), 0), [cartItems]);
     const totalCartItemsCount = useMemo(() => cartItems.reduce((sum, i) => sum + i.quantity, 0), [cartItems]);
@@ -258,7 +272,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         <div className="h-screen flex flex-col bg-gray-50 overflow-hidden">
             {/* Header */}
             <header className="bg-white shadow-sm px-4 py-3 z-10 relative">
-                <div className="flex justify-between items-start mb-1">
+                <div className="flex justify-between items-start">
                     <div>
                         <h1 className="font-bold text-gray-800 text-lg flex items-center gap-2">
                             เมนูอาหาร 🍽️ 
@@ -266,39 +280,46 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                         </h1>
                         <p className="text-xs text-gray-500 mt-1">คุณ{customerName}</p>
                     </div>
-                     {/* Right Side: Status & Bill */}
-                    <div 
-                        className="flex flex-col items-end gap-1.5 cursor-pointer hover:opacity-80 transition-opacity group"
-                        onClick={() => setIsActiveOrderListOpen(true)}
-                    >
-                         {orderStatus && (
-                            <span className={`text-xs font-bold px-2 py-1 rounded-full border shadow-sm ${orderStatus.color} animate-pulse`}>
-                                {orderStatus.text}
-                            </span>
-                        )}
-                        <div className="text-right">
-                            <div className="flex items-center justify-end gap-1 text-gray-400 text-[10px]">
-                                <span>ยอดที่ต้องชำระ</span>
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                            </div>
-                            <div className="flex items-center gap-1 justify-end">
-                                <span className="text-base font-bold text-blue-600 leading-none border-b border-dashed border-blue-300 group-hover:text-blue-700 transition-colors">{billTotal.toLocaleString()} ฿</span>
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                                </svg>
+                    <div className="flex items-start gap-2">
+                        <button
+                            onClick={handleCallStaffClick}
+                            className="flex flex-col items-center justify-center p-2 bg-yellow-100 text-yellow-800 rounded-lg shadow-sm hover:bg-yellow-200 active:bg-yellow-300 transition-colors"
+                            title="เรียกพนักงาน"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
+                                <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z" />
+                            </svg>
+                            <span className="text-[9px] font-bold mt-0.5">เรียก</span>
+                        </button>
+                         {/* Right Side: Status & Bill */}
+                        <div 
+                            className="flex flex-col items-end gap-1.5 cursor-pointer hover:opacity-80 transition-opacity group"
+                            onClick={() => setIsActiveOrderListOpen(true)}
+                        >
+                             {orderStatus && (
+                                <span className={`text-xs font-bold px-2 py-1 rounded-full border shadow-sm ${orderStatus.color} animate-pulse`}>
+                                    {orderStatus.text}
+                                </span>
+                            )}
+                            <div className="text-right">
+                                <div className="flex items-center justify-end gap-1 text-gray-400 text-[10px]">
+                                    <span>ยอดที่ต้องชำระ</span>
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                </div>
+                                <div className="flex items-center gap-1 justify-end">
+                                    <span className="text-base font-bold text-blue-600 leading-none border-b border-dashed border-blue-300 group-hover:text-blue-700 transition-colors">{billTotal.toLocaleString()} ฿</span>
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                    </svg>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
             </header>
             
-            {/* Warning Banner */}
-            <div className="bg-red-100 text-red-700 text-xs px-4 py-2 text-center border-b border-red-200 shadow-inner z-10">
-                <strong>⚠️ ห้ามรีเฟรชหน้าจอ!</strong> หากหลุดให้เข้าใหม่โดยใช้ <u>ชื่อเดิม</u> และ <u>รหัสเดิม</u> เท่านั้น
-            </div>
-
             {/* Menu Content */}
             <div className="flex-1 overflow-hidden relative">
                 <Menu 

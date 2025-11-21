@@ -1,4 +1,3 @@
-
 import type { ReactNode } from 'react';
 
 export interface Branch {
@@ -184,6 +183,15 @@ export interface LeaveRequest {
     reason: string;
     status: 'pending' | 'approved' | 'rejected';
     isHalfDay?: boolean; // Added support for half-day leave
+}
+
+export interface StaffCall {
+    id: number; // timestamp
+    tableId: number;
+    tableName: string;
+    customerName: string;
+    branchId: number;
+    timestamp: number;
 }
 
 export type View = 'pos' | 'kitchen' | 'tables' | 'dashboard' | 'history' | 'stock' | 'leave';

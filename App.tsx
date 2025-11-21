@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 
 import { 
@@ -27,7 +26,8 @@ import type {
     PrintHistoryEntry,
     TakeawayCutleryOption,
     Reservation,
-    LeaveRequest
+    LeaveRequest,
+    StaffCall
 } from './types';
 import { useFirestoreSync } from './hooks/useFirestoreSync';
 import { functionsService } from './services/firebaseFunctionsService';
@@ -105,6 +105,7 @@ const App: React.FC = () => {
     const [stockCategories, setStockCategories] = useFirestoreSync<string[]>(branchId, 'stockCategories', DEFAULT_STOCK_CATEGORIES);
     const [stockUnits, setStockUnits] = useFirestoreSync<string[]>(branchId, 'stockUnits', DEFAULT_STOCK_UNITS);
     const [printHistory, setPrintHistory] = useFirestoreSync<PrintHistoryEntry[]>(branchId, 'printHistory', []);
+    const [staffCalls, setStaffCalls] = useFirestoreSync<StaffCall[]>(branchId, 'staffCalls', []);
     // Note: Leave requests are global (not branch specific in sync) but filtered by branchId
     const [leaveRequests, setLeaveRequests] = useFirestoreSync<LeaveRequest[]>(null, 'leaveRequests', []);
 
@@ -122,6 +123,7 @@ const App: React.FC = () => {
     const [restaurantName, setRestaurantName] = useFirestoreSync<string>(branchId, 'restaurantName', 'ชื่อร้านอาหาร');
     const [qrCodeUrl, setQrCodeUrl] = useFirestoreSync<string | null>(branchId, 'qrCodeUrl', null);
     const [notificationSoundUrl, setNotificationSoundUrl] = useFirestoreSync<string | null>(branchId, 'notificationSoundUrl', null);
+    const [staffCallSoundUrl, setStaffCallSoundUrl] = useFirestoreSync<string | null>(branchId, 'staffCallSoundUrl', null);
     const [printerConfig, setPrinterConfig] = useFirestoreSync<PrinterConfig | null>(branchId, 'printerConfig', null);
     const [openingTime, setOpeningTime] = useFirestoreSync<string | null>(branchId, 'openingTime', '10:00');
     const [closingTime, setClosingTime] = useFirestoreSync<string | null>(branchId, 'closingTime', '22:00');
@@ -150,6 +152,7 @@ const App: React.FC = () => {
     // --- REFS ---
     const prevActiveOrdersRef = useRef<ActiveOrder[] | undefined>(undefined);
     const prevLeaveRequestsRef = useRef<LeaveRequest[] | undefined>(undefined);
+    const prevStaffCallsRef = useRef<StaffCall[] | undefined>(undefined);
 
     // --- CUSTOMER MODE INITIALIZATION ---
     useEffect(() => {
@@ -282,6 +285,33 @@ const App: React.FC = () => {
         }
         prevLeaveRequestsRef.current = leaveRequests;
     }, [leaveRequests, currentUser]);
+
+    // --- STAFF CALL NOTIFICATION EFFECT ---
+    useEffect(() => {
+        if (isCustomerMode || !currentUser || !['pos', 'kitchen', 'admin', 'branch-admin'].includes(currentUser.role)) {
+            return;
+        }
+
+        if (prevStaffCallsRef.current && staffCalls.length > prevStaffCallsRef.current.length) {
+            const newCall = staffCalls.find(c => !(prevStaffCallsRef.current?.some(pc => pc.id === c.id)));
+            
+            if (newCall) {
+                if (staffCallSoundUrl) {
+                    const audio = new Audio(staffCallSoundUrl);
+                    audio.play().catch(e => console.error("Error playing staff call sound:", e));
+                }
+                Swal.fire({
+                    title: '🔔 ลูกค้าเรียกพนักงาน!',
+                    html: `โต๊ะ <b>${newCall.tableName}</b> (คุณ ${newCall.customerName})<br/>ต้องการความช่วยเหลือ`,
+                    icon: 'info',
+                    confirmButtonText: 'รับทราบ',
+                    timer: 15000,
+                    timerProgressBar: true
+                });
+            }
+        }
+        prevStaffCallsRef.current = staffCalls;
+    }, [staffCalls, currentUser, isCustomerMode, staffCallSoundUrl]);
 
 
     // --- ORDER TIMEOUT NOTIFICATION EFFECT ---
@@ -564,6 +594,19 @@ const App: React.FC = () => {
             timer: 3000,
             showConfirmButton: false
         });
+    };
+
+    const handleStaffCall = (table: Table, cName: string) => {
+        if (!selectedBranch) return;
+        const newCall: StaffCall = {
+            id: Date.now(),
+            tableId: table.id,
+            tableName: table.name,
+            customerName: cName,
+            branchId: selectedBranch.id,
+            timestamp: Date.now()
+        };
+        setStaffCalls(prev => [newCall, ...prev.slice(0, 49)]); // Keep last 50 calls
     };
 
     const generateTablePin = (tableId: number) => {
@@ -923,6 +966,7 @@ const App: React.FC = () => {
                     activeOrders={activeOrders.filter(o => o.tableName === customerTable.name && o.floor === customerTable.floor)}
                     allBranchOrders={activeOrders}
                     onPlaceOrder={handleCustomerPlaceOrder}
+                    onStaffCall={handleStaffCall}
                 />
             );
         } else {
@@ -1131,7 +1175,7 @@ const App: React.FC = () => {
             <TableBillModal isOpen={modalState.isTableBill} onClose={() => setModalState(p=>({...p, isTableBill: false}))} order={orderForModal as ActiveOrder | null} onInitiatePayment={(order) => { setOrderForModal(order); setModalState(p=>({...p, isTableBill: false, isPayment: true})); }} onInitiateMove={(order) => { setOrderForModal(order); setModalState(p=>({...p, isTableBill: false, isMoveTable: true})); }} onSplit={(order) => { setOrderForModal(order); setModalState(p=>({...p, isTableBill: false, isSplitBill: true})); }} isEditMode={isEditMode} onUpdateOrder={(id, items, customerCount) => { setActiveOrders(p => p.map(o => o.id === id ? {...o, items, customerCount} : o)); setModalState(p=>({...p, isTableBill: false})); }} currentUser={currentUser} onInitiateCancel={(order) => { setOrderForModal(order); setModalState(p=>({...p, isTableBill: false, isCancelOrder: true})); }} />
             <PaymentModal isOpen={modalState.isPayment} onClose={() => setModalState(p=>({...p, isPayment: false}))} order={orderForModal as ActiveOrder | null} onConfirmPayment={handleConfirmPayment} qrCodeUrl={qrCodeUrl} isEditMode={isEditMode} onOpenSettings={() => setModalState(p => ({...p, isSettings: true}))} isConfirmingPayment={isConfirmingPayment}/>
             <PaymentSuccessModal isOpen={modalState.isPaymentSuccess} onClose={(_shouldPrint) => {setModalState(p=>({...p, isPaymentSuccess: false}));}} orderId={lastPlacedOrderId ?? 0} />
-            <SettingsModal isOpen={modalState.isSettings} onClose={() => setModalState(p=>({...p, isSettings: false}))} onSave={(qr, sound, printer, open, close) => { setQrCodeUrl(qr); setNotificationSoundUrl(sound); setPrinterConfig(printer); setOpeningTime(open); setClosingTime(close); setModalState(p=>({...p, isSettings: false}));}} currentQrCodeUrl={qrCodeUrl} currentNotificationSoundUrl={notificationSoundUrl} currentPrinterConfig={printerConfig} currentOpeningTime={openingTime} currentClosingTime={closingTime} onSavePrinterConfig={setPrinterConfig} />
+            <SettingsModal isOpen={modalState.isSettings} onClose={() => setModalState(p=>({...p, isSettings: false}))} onSave={(qr, sound, staffCallSound, printer, open, close) => { setQrCodeUrl(qr); setNotificationSoundUrl(sound); setStaffCallSoundUrl(staffCallSound); setPrinterConfig(printer); setOpeningTime(open); setClosingTime(close); setModalState(p=>({...p, isSettings: false}));}} currentQrCodeUrl={qrCodeUrl} currentNotificationSoundUrl={notificationSoundUrl} currentStaffCallSoundUrl={staffCallSoundUrl} currentPrinterConfig={printerConfig} currentOpeningTime={openingTime} currentClosingTime={closingTime} onSavePrinterConfig={setPrinterConfig} />
             <UserManagerModal isOpen={modalState.isUserManager} onClose={() => setModalState(p => ({...p, isUserManager: false}))} users={users} setUsers={setUsers} currentUser={currentUser} branches={branches} isEditMode={isEditMode} />
             <BranchManagerModal isOpen={modalState.isBranchManager} onClose={() => setModalState(p => ({...p, isBranchManager: false}))} branches={branches} setBranches={setBranches} />
             <CancelOrderModal isOpen={modalState.isCancelOrder} onClose={() => setModalState(p=>({...p, isCancelOrder: false}))} order={orderForModal as ActiveOrder | null} onConfirm={(order, reason, notes) => { const cancelled: CancelledOrder = {...order, status: 'cancelled', cancellationTime: Date.now(), cancelledBy: currentUser.username, cancellationReason: reason, cancellationNotes: notes}; setCancelledOrders(p => [...p, cancelled]); setActiveOrders(p => p.filter(o => o.id !== order.id)); setNotifiedOverdueOrders(prevSet => { const newSet = new Set(prevSet); newSet.delete(order.id); return newSet; }); setModalState(p=>({...p, isCancelOrder: false})); }} />
