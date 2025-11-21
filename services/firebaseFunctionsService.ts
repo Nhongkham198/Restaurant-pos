@@ -46,13 +46,13 @@ interface ConfirmPaymentResponse {
 }
 
 // --- Leave Management Payloads ---
-interface SubmitLeaveRequestPayload {
+export interface SubmitLeaveRequestPayload {
     userId: number;
     username: string;
     branchId: number;
     startDate: number;
     endDate: number;
-    type: string;
+    type: 'sick' | 'personal' | 'vacation' | 'leave-without-pay' | 'other';
     reason: string;
     isHalfDay?: boolean;
 }

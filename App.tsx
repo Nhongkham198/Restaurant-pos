@@ -32,7 +32,8 @@ import type {
 import { useFirestoreSync } from './hooks/useFirestoreSync';
 import { functionsService } from './services/firebaseFunctionsService';
 import { printerService } from './services/printerService';
-import { isFirebaseConfigured } from './firebaseConfig';
+import { isFirebaseConfigured, db } from './firebaseConfig';
+import { doc, runTransaction } from 'firebase/firestore';
 
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
@@ -69,6 +70,7 @@ import { CustomerView } from './components/CustomerView';
 import { LeaveRequestModal } from './components/LeaveRequestModal';
 
 import Swal from 'sweetalert2';
+import type { SubmitLeaveRequestPayload } from './services/firebaseFunctionsService';
 
 const isSameDay = (d1: Date, d2: Date) => {
     return d1.getFullYear() === d2.getFullYear() &&
@@ -839,8 +841,13 @@ const App: React.FC = () => {
     };
 
     const handleSaveLeaveRequest = async (request: Omit<LeaveRequest, 'id' | 'status' | 'branchId'>) => {
+        if (!selectedBranch || !selectedBranch.id) {
+            Swal.fire('เกิดข้อผิดพลาด', 'กรุณาเลือกสาขาก่อนส่งคำขอลา', 'error');
+            return;
+        }
+        
         const newId = Date.now();
-        const branchId = selectedBranch?.id || 0;
+        const branchId = selectedBranch.id;
         
         const newRequest: LeaveRequest = {
             ...request,
@@ -850,8 +857,7 @@ const App: React.FC = () => {
         };
 
         try {
-            const result = await functionsService.submitLeaveRequest({
-                ...request,
+            const payload: SubmitLeaveRequestPayload = {
                 userId: request.userId,
                 username: request.username,
                 startDate: request.startDate,
@@ -860,14 +866,30 @@ const App: React.FC = () => {
                 reason: request.reason,
                 branchId: branchId,
                 isHalfDay: request.isHalfDay
-            });
+            };
+            const result = await functionsService.submitLeaveRequest(payload);
             
             if (!result.success) {
                 throw new Error(result.error || "Backend indicated failure");
             }
         } catch (e: any) {
-            console.warn("Backend submit unavailable or failed, falling back to direct DB write.", e);
-            setLeaveRequests(prev => [...prev, newRequest]);
+            console.warn("Backend submit unavailable or failed, falling back to atomic DB write.", e);
+            const docRef = doc(db, 'leaveRequests', 'data');
+            try {
+                await runTransaction(db, async (transaction) => {
+                    const docSnap = await transaction.get(docRef);
+                    const currentRequests = docSnap.exists() ? (docSnap.data().value as LeaveRequest[]) : [];
+                    if (currentRequests.some(r => r.id === newRequest.id)) {
+                        return; // Prevent duplicate on retry
+                    }
+                    const updatedRequests = [...currentRequests, newRequest];
+                    transaction.set(docRef, { value: updatedRequests });
+                });
+            } catch (transactionError) {
+                console.error("Leave request fallback transaction failed: ", transactionError);
+                Swal.fire('เกิดข้อผิดพลาดร้ายแรง', 'ไม่สามารถบันทึกข้อมูลการลาได้ โปรดลองอีกครั้ง', 'error');
+                return;
+            }
         }
 
         setModalState(prev => ({ ...prev, isLeaveRequest: false }));
@@ -891,8 +913,24 @@ const App: React.FC = () => {
                 throw new Error(result.error || "Backend indicated failure");
             }
         } catch (e: any) {
-             console.warn("Backend update unavailable or failed, falling back to direct DB write.", e);
-             setLeaveRequests(prev => prev.map(req => req.id === requestId ? { ...req, status } : req));
+            console.warn("Backend update unavailable or failed, falling back to atomic DB write.", e);
+            const docRef = doc(db, 'leaveRequests', 'data');
+            try {
+               await runTransaction(db, async (transaction) => {
+                   const docSnap = await transaction.get(docRef);
+                   if (!docSnap.exists()) {
+                       throw "Document does not exist!";
+                   }
+                   const currentRequests = docSnap.data().value as LeaveRequest[];
+                   const updatedRequests = currentRequests.map(req => 
+                       req.id === requestId ? { ...req, status } : req
+                   );
+                   transaction.update(docRef, { value: updatedRequests });
+               });
+            } catch (transactionError) {
+               console.error("Leave status update fallback transaction failed: ", transactionError);
+               Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถอัปเดตสถานะการลาได้', 'error');
+            }
         }
     };
 
@@ -904,8 +942,22 @@ const App: React.FC = () => {
             }
         } catch (e: any) {
             if (e.message.includes("Functions not initialized") || e.message.includes("Backend error") || e.message.includes("failed")) {
-                console.warn("Backend delete unavailable or failed, falling back to direct DB write.", e);
-                setLeaveRequests(prev => prev.filter(req => req.id !== requestId));
+                console.warn("Backend delete unavailable or failed, falling back to atomic DB write.", e);
+                const docRef = doc(db, 'leaveRequests', 'data');
+                try {
+                    await runTransaction(db, async (transaction) => {
+                        const docSnap = await transaction.get(docRef);
+                        if (!docSnap.exists()) {
+                            return; // Nothing to delete
+                        }
+                        const currentRequests = docSnap.data().value as LeaveRequest[];
+                        const updatedRequests = currentRequests.filter(req => req.id !== requestId);
+                        transaction.update(docRef, { value: updatedRequests });
+                    });
+                } catch (transactionError) {
+                    console.error("Leave delete fallback transaction failed: ", transactionError);
+                    Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถลบข้อมูลได้', 'error');
+                }
             } else {
                  console.error("Error deleting leave request:", e);
                  Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถลบข้อมูลได้', 'error');
@@ -1092,7 +1144,21 @@ const App: React.FC = () => {
             case 'pos':
             default:
                 return (
-                     <div className="flex flex-col md:flex-row flex-1 overflow-hidden h-full">
+                     <div className="flex flex-col md:flex-row flex-1 overflow-hidden h-full relative">
+                        {/* Sidebar Toggle Button */}
+                        <div className="absolute top-1/2 -translate-y-1/2 right-0 z-20 hidden md:block transition-all duration-300" style={{ right: isOrderSidebarVisible ? '420px' : '0px' }}>
+                            <button
+                                onClick={() => setIsOrderSidebarVisible(!isOrderSidebarVisible)}
+                                className="w-8 h-16 bg-gray-700 text-white rounded-l-lg hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 flex items-center justify-center"
+                                title={isOrderSidebarVisible ? "ซ่อนรายการ" : "แสดงรายการ"}
+                            >
+                                {isOrderSidebarVisible ? (
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                                ) : (
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+                                )}
+                            </button>
+                        </div>
                         <div className="flex-1 overflow-hidden">
                             <Menu 
                                 menuItems={menuItems} 
