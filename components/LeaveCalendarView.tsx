@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import type { LeaveRequest, User, Branch } from '../types';
 import Swal from 'sweetalert2';
@@ -102,15 +101,17 @@ export const LeaveCalendarView: React.FC<LeaveCalendarViewProps> = ({ leaveReque
     // Check if current user can approve a specific request
     const canApproveRequest = (req: LeaveRequest) => {
         if (!currentUser) return false;
-        // Kalasin (ID 1) -> Only Admin can approve
-        if (req.branchId === 1) {
-            return currentUser.role === 'admin';
+        
+        // Admins can approve any request.
+        if (currentUser.role === 'admin') {
+            return true;
         }
-        // Other Branches -> Branch Admin of that branch can approve (Admin also generally can, but strictly following prompt logic implies Branch Admin)
+
+        // Branch Admins can approve requests for their allowed branches.
         if (currentUser.role === 'branch-admin' && currentUser.allowedBranchIds?.includes(req.branchId)) {
             return true;
         }
-        // Fallback: Admin usually can override anything, but strict rule applied above.
+        
         return false;
     };
 

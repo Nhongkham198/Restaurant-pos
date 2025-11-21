@@ -203,21 +203,20 @@ const App: React.FC = () => {
     const leaveBadgeCount = useMemo(() => {
         if (!currentUser) return 0;
         
-        // Admin (Kalasin ID 1 focused, but generally seeing all pending)
+        // Admin sees all pending requests across all branches.
         if (currentUser.role === 'admin') {
-            return leaveRequests.filter(req => req.status === 'pending' && req.branchId === 1).length;
+            return leaveRequests.filter(req => req.status === 'pending').length;
         }
         
-        // Branch Admin -> See pending for their branches
+        // Branch Admin sees pending requests only for their allowed branches.
         if (currentUser.role === 'branch-admin') {
             return leaveRequests.filter(req => 
                 req.status === 'pending' && 
-                req.branchId !== 1 && // Branch 1 goes to Admin
                 currentUser.allowedBranchIds?.includes(req.branchId)
             ).length;
         }
 
-        return 0; // Regular staff don't approve, so no badge needed (or could show their own status changes)
+        return 0; // Regular staff don't approve, so no badge needed
     }, [leaveRequests, currentUser]);
 
 
@@ -1149,13 +1148,18 @@ const App: React.FC = () => {
                         <div className="absolute top-1/2 -translate-y-1/2 right-0 z-20 hidden md:block transition-all duration-300" style={{ right: isOrderSidebarVisible ? '420px' : '0px' }}>
                             <button
                                 onClick={() => setIsOrderSidebarVisible(!isOrderSidebarVisible)}
-                                className="w-8 h-16 bg-gray-700 text-white rounded-l-lg hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 flex items-center justify-center"
+                                className="relative w-8 h-16 bg-gray-700 text-white rounded-l-lg hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 flex items-center justify-center"
                                 title={isOrderSidebarVisible ? "ซ่อนรายการ" : "แสดงรายการ"}
                             >
                                 {isOrderSidebarVisible ? (
                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                                 ) : (
                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+                                )}
+                                {!isOrderSidebarVisible && totalItems > 0 && (
+                                    <span className="absolute -top-2 -left-2 flex h-6 w-6 items-center justify-center rounded-full bg-red-500 text-xs font-bold text-white border-2 border-white">
+                                        {totalItems > 99 ? '99+' : totalItems}
+                                    </span>
                                 )}
                             </button>
                         </div>

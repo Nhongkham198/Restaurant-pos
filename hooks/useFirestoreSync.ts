@@ -20,7 +20,9 @@ export function useFirestoreSync<T>(
             return;
         }
 
-        const isBranchSpecific = !['users', 'branches'].includes(collectionKey);
+        // FIX: 'leaveRequests' should be treated as a global collection, not branch-specific.
+        // This was the root cause of leave requests not appearing.
+        const isBranchSpecific = !['users', 'branches', 'leaveRequests'].includes(collectionKey);
         const currentInitialValue = initialValueRef.current;
 
         if (isBranchSpecific && !branchId) {
@@ -80,7 +82,8 @@ export function useFirestoreSync<T>(
             return;
         }
 
-        const isBranchSpecific = !['users', 'branches'].includes(collectionKey);
+        // FIX: 'leaveRequests' should be treated as a global collection.
+        const isBranchSpecific = !['users', 'branches', 'leaveRequests'].includes(collectionKey);
         
         if (isBranchSpecific && !branchId) {
             console.warn(`Cannot save to ${collectionKey} without a branchId. Data is only local.`);
