@@ -692,6 +692,51 @@ const App: React.FC = () => {
         setModalState(prev => ({ ...prev, isPayment: false, isPaymentSuccess: true }));
         setLastPlacedOrderId(orderToComplete.orderNumber);
     };
+
+    const handleClosePaymentSuccess = async (shouldPrint: boolean) => {
+        setModalState(p => ({ ...p, isPaymentSuccess: false }));
+    
+        if (shouldPrint) {
+            if (!printerConfig?.cashier?.ipAddress) {
+                Swal.fire('ไม่ได้ตั้งค่า', 'กรุณาตั้งค่า IP เครื่องพิมพ์ใบเสร็จก่อน', 'warning');
+                return;
+            }
+    
+            const orderToPrint = completedOrders.find(o => o.orderNumber === lastPlacedOrderId);
+            if (!orderToPrint) {
+                console.error("Could not find completed order to print receipt for:", lastPlacedOrderId);
+                Swal.fire('ผิดพลาด', 'ไม่พบข้อมูลออเดอร์สำหรับพิมพ์ใบเสร็จ', 'error');
+                return;
+            }
+            
+            const logEntry: PrintHistoryEntry = {
+                id: Date.now(),
+                timestamp: Date.now(),
+                orderNumber: orderToPrint.orderNumber,
+                tableName: orderToPrint.tableName,
+                printedBy: currentUser?.username ?? 'N/A',
+                printerType: 'receipt',
+                status: 'success', // optimistic
+                errorMessage: null,
+                orderItemsPreview: orderToPrint.items.map(i => `${i.name} x${i.quantity}`),
+                isReprint: false,
+            };
+    
+            try {
+                await printerService.printReceipt(orderToPrint, printerConfig.cashier, restaurantName);
+                setPrintHistory(prev => [logEntry, ...prev.slice(0, 99)]);
+            } catch (err: any) {
+                logEntry.status = 'failed';
+                logEntry.errorMessage = err.message;
+                setPrintHistory(prev => [logEntry, ...prev.slice(0, 99)]);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'พิมพ์ใบเสร็จไม่สำเร็จ',
+                    text: err.message || 'ไม่สามารถเชื่อมต่อกับ Print Server ได้',
+                });
+            }
+        }
+    };
     
     const handleUpdateTableReservation = (tableId: number, reservation: Reservation | null) => {
         setTables(prev => prev.map(t => t.id === tableId ? { ...t, reservation } : t));
@@ -933,33 +978,35 @@ const App: React.FC = () => {
         }
     };
 
-    const handleDeleteLeaveRequest = async (requestId: number) => {
+    const handleDeleteLeaveRequest = async (requestId: number): Promise<boolean> => {
         try {
             const result = await functionsService.deleteLeaveRequest({ requestId });
             if (!result.success) {
                 throw new Error(result.error || "Backend indicated failure");
             }
+            return true;
         } catch (e: any) {
-            if (e.message.includes("Functions not initialized") || e.message.includes("Backend error") || e.message.includes("failed")) {
-                console.warn("Backend delete unavailable or failed, falling back to atomic DB write.", e);
-                const docRef = doc(db, 'leaveRequests', 'data');
-                try {
-                    await runTransaction(db, async (transaction) => {
-                        const docSnap = await transaction.get(docRef);
-                        if (!docSnap.exists()) {
-                            return; // Nothing to delete
-                        }
-                        const currentRequests = docSnap.data().value as LeaveRequest[];
-                        const updatedRequests = currentRequests.filter(req => req.id !== requestId);
-                        transaction.update(docRef, { value: updatedRequests });
-                    });
-                } catch (transactionError) {
-                    console.error("Leave delete fallback transaction failed: ", transactionError);
-                    Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถลบข้อมูลได้', 'error');
-                }
-            } else {
-                 console.error("Error deleting leave request:", e);
-                 Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถลบข้อมูลได้', 'error');
+            console.warn("Backend delete unavailable or failed, falling back to atomic DB write.", e);
+            const docRef = doc(db, 'leaveRequests', 'data');
+            try {
+                await runTransaction(db, async (transaction) => {
+                    const docSnap = await transaction.get(docRef);
+                    if (!docSnap.exists()) {
+                        throw new Error("Leave requests document not found.");
+                    }
+                    const currentData = docSnap.data();
+                    if (!currentData || !Array.isArray(currentData.value)) {
+                        throw new Error("Invalid data structure in leave requests document.");
+                    }
+                    const currentRequests = currentData.value as LeaveRequest[];
+                    const updatedRequests = currentRequests.filter(req => req.id !== requestId);
+                    transaction.update(docRef, { value: updatedRequests });
+                });
+                return true; // Success from fallback
+            } catch (transactionError) {
+                console.error("Leave delete fallback transaction failed: ", transactionError);
+                Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถลบข้อมูลได้', 'error');
+                return false; // Failure from fallback
             }
         }
     };
@@ -1286,7 +1333,7 @@ const App: React.FC = () => {
             <SplitBillModal isOpen={modalState.isSplitBill} onClose={() => setModalState(p => ({...p, isSplitBill: false}))} order={orderForModal as ActiveOrder} onConfirmSplit={handleConfirmSplit} />
             <TableBillModal isOpen={modalState.isTableBill} onClose={() => setModalState(p => ({...p, isTableBill: false}))} order={orderForModal as ActiveOrder} onInitiatePayment={(order) => { setOrderForModal(order); setModalState(p => ({...p, isTableBill: false, isPayment: true})); }} onInitiateMove={(order) => { setOrderForModal(order); setModalState(p => ({...p, isTableBill: false, isMoveTable: true})); }} onSplit={(order) => { setOrderForModal(order); setModalState(p => ({...p, isTableBill: false, isSplitBill: true})); }} isEditMode={isEditMode} onUpdateOrder={() => {}} currentUser={currentUser} onInitiateCancel={(order) => {setOrderForModal(order); setModalState(p => ({...p, isTableBill: false, isCancelOrder: true})); }} />
             <PaymentModal isOpen={modalState.isPayment} onClose={() => setModalState(p => ({...p, isPayment: false}))} order={orderForModal as ActiveOrder} onConfirmPayment={handleConfirmPayment} qrCodeUrl={qrCodeUrl} isEditMode={false} onOpenSettings={() => setModalState(p => ({...p, isSettings: true}))} isConfirmingPayment={isConfirmingPayment} />
-            <PaymentSuccessModal isOpen={modalState.isPaymentSuccess} onClose={() => setModalState(p => ({...p, isPaymentSuccess: false}))} orderId={lastPlacedOrderId || 0} />
+            <PaymentSuccessModal isOpen={modalState.isPaymentSuccess} onClose={handleClosePaymentSuccess} orderId={lastPlacedOrderId || 0} />
             <SettingsModal isOpen={modalState.isSettings} onClose={() => setModalState(p => ({...p, isSettings: false}))} onSave={(qr, sound, staffSound, printer, open, close) => { setQrCodeUrl(qr); setNotificationSoundUrl(sound); setStaffCallSoundUrl(staffSound); setPrinterConfig(printer); setOpeningTime(open); setClosingTime(close); }} currentQrCodeUrl={qrCodeUrl} currentNotificationSoundUrl={notificationSoundUrl} currentStaffCallSoundUrl={staffCallSoundUrl} currentPrinterConfig={printerConfig} currentOpeningTime={openingTime} currentClosingTime={closingTime} onSavePrinterConfig={setPrinterConfig} />
             <EditCompletedOrderModal isOpen={modalState.isEditCompleted} onClose={() => setModalState(p => ({...p, isEditCompleted: false}))} order={orderForModal as CompletedOrder} onSave={handleSaveCompletedOrder} menuItems={menuItems} />
             <UserManagerModal isOpen={modalState.isUserManager} onClose={() => setModalState(p => ({...p, isUserManager: false}))} users={users} setUsers={setUsers} currentUser={currentUser!} branches={branches} isEditMode={isEditMode} />

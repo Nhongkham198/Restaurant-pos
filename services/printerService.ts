@@ -1,5 +1,4 @@
-
-import type { ActiveOrder, KitchenPrinterSettings, Table } from '../types';
+import type { ActiveOrder, KitchenPrinterSettings, Table, CompletedOrder, CashierPrinterSettings } from '../types';
 
 export const printerService = {
     /**
@@ -97,6 +96,94 @@ export const printerService = {
                 // Re-throw to notify the UI that printing failed
                 throw error;
             }
+        }
+    },
+
+    printReceipt: async (order: CompletedOrder, config: CashierPrinterSettings, restaurantName: string): Promise<void> => {
+        if (!config.ipAddress) {
+            throw new Error("ไม่ได้ตั้งค่า IP ของ Print Server");
+        }
+
+        const url = `http://${config.ipAddress}:${config.port || 3001}/print`;
+        const lines: string[] = [];
+        const options = config.receiptOptions;
+        const total = order.items.reduce((s, i) => s + (i.finalPrice * i.quantity), 0) + order.taxAmount;
+
+        // Header
+        if (options.printRestaurantName) lines.push(restaurantName);
+        lines.push('ใบเสร็จรับเงิน/ใบกำกับภาษีอย่างย่อ');
+        lines.push('----------------------------------------');
+
+        if (options.printOrderId) lines.push(`ออเดอร์ #: ${order.orderNumber}`);
+        if (options.printTableInfo) lines.push(`โต๊ะ: ${order.tableName} / ลูกค้า: ${order.customerCount} คน`);
+        if (options.printDateTime) lines.push(`วันที่: ${new Date(order.completionTime).toLocaleString('th-TH')}`);
+        if (options.printPlacedBy) lines.push(`พนักงาน: ${order.placedBy}`);
+        lines.push('----------------------------------------');
+
+        // Items
+        if (options.printItems) {
+            lines.push('รายการอาหาร');
+            order.items.forEach(item => {
+                const itemTotal = item.finalPrice * item.quantity;
+                lines.push(`${item.quantity}x ${item.name} ..... ${itemTotal.toFixed(2)}`);
+                if (item.selectedOptions && item.selectedOptions.length > 0) {
+                    const optionsText = item.selectedOptions.map(o => o.name).join(', ');
+                    lines.push(`  (${optionsText})`);
+                }
+            });
+        }
+        lines.push('----------------------------------------');
+
+        const subtotal = order.items.reduce((sum, item) => sum + item.finalPrice * item.quantity, 0);
+
+        // Totals
+        if (options.printSubtotal) lines.push(`ยอดรวม: ${subtotal.toFixed(2)} บาท`);
+        if (options.printTax && order.taxAmount > 0) lines.push(`ภาษี (${order.taxRate}%): ${order.taxAmount.toFixed(2)} บาท`);
+        if (options.printTotal) lines.push(`ยอดสุทธิ: ${total.toFixed(2)} บาท`);
+        lines.push('----------------------------------------');
+
+        // Payment
+        if (options.printPaymentDetails) {
+            lines.push(`ชำระโดย: ${order.paymentDetails.method === 'cash' ? 'เงินสด' : 'โอนจ่าย'}`);
+            if (order.paymentDetails.method === 'cash') {
+                lines.push(`รับเงินมา: ${order.paymentDetails.cashReceived?.toFixed(2)} บาท`);
+                lines.push(`เงินทอน: ${order.paymentDetails.changeGiven?.toFixed(2)} บาท`);
+            }
+        }
+        lines.push('');
+
+        // Footer
+        if (options.printThankYouMessage) {
+            lines.push('ขอบคุณที่ใช้บริการ');
+        }
+        
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+            const payload = {
+                order: {
+                    orderId: `RECEIPT-${order.orderNumber}`,
+                    items: lines,
+                },
+                paperSize: config.paperWidth,
+            };
+
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+                signal: controller.signal
+            });
+
+            clearTimeout(timeoutId);
+
+            if (!response.ok) {
+                throw new Error(`Printer API responded with status ${response.status}`);
+            }
+        } catch (error) {
+            console.error(`Print receipt error for order #${order.orderNumber}:`, error);
+            throw error;
         }
     },
 
