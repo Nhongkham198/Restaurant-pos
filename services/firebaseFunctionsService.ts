@@ -1,6 +1,7 @@
+
 import { functions } from '../firebaseConfig';
 import { httpsCallable } from 'firebase/functions';
-import type { PaymentDetails, OrderItem } from '../types';
+import type { PaymentDetails, OrderItem, LeaveRequest, StockItem } from '../types';
 
 /*
 --------------------------------------------------------------------------------
@@ -10,106 +11,6 @@ components clean and make it easy to manage our backend API.
 
 This file serves as the definitive "API Contract" for backend developers.
 --------------------------------------------------------------------------------
-
-// --- BACKEND DEVELOPER BLUEPRINT ---
-
-// functions/src/index.ts (Example Backend Code)
-//
-// import * as functions from "firebase-functions";
-// import * as admin from "firebase-admin";
-//
-// admin.initializeApp();
-// const db = admin.firestore();
-
-//
-// -----------------------------
-// --- PLACE ORDER FUNCTION ---
-// -----------------------------
-//
-// export const placeOrder = functions.https.onCall(async (data, context) => {
-//   if (!context.auth) { // Or your own authentication check
-//     throw new functions.https.HttpsError("unauthenticated", "User must be authenticated.");
-//   }
-//
-//   const { branchId, items, ...otherOrderData } = data;
-//   if (!branchId || !items || items.length === 0) {
-//     throw new functions.https.HttpsError("invalid-argument", "Branch ID and items are required.");
-//   }
-//
-//   // --- CRITICAL SECURITY STEP: VALIDATE PRICES ---
-//   // NEVER trust prices from the client. Look up each item in the database.
-//   const menuItemsRef = db.collection(`branches/${branchId}/menuItems`).doc('data');
-//   const menuItemsDoc = await menuItemsRef.get();
-//   const allMenuItems = menuItemsDoc.data().value;
-//
-//   let subtotal = 0;
-//   const validatedItems = items.map(clientItem => {
-//     const dbItem = allMenuItems.find(mi => mi.id === clientItem.id);
-//     if (!dbItem) {
-//       throw new functions.https.HttpsError("not-found", `Menu item with ID ${clientItem.id} not found.`);
-//     }
-//     subtotal += dbItem.price * clientItem.quantity;
-//     return {
-//       ...dbItem, // Use all data from DB
-//       quantity: clientItem.quantity,
-//       isTakeaway: clientItem.isTakeaway,
-//     };
-//   });
-//
-//   const taxAmount = otherOrderData.taxRate > 0 ? subtotal * (otherOrderData.taxRate / 100) : 0;
-//
-//   // You need a way to generate order numbers server-side, e.g., using a counter document.
-//   const newOrderNumber = await getNextOrderNumber(branchId);
-//
-//   const newOrder = {
-//     ...otherOrderData,
-//     id: Date.now(), // Or a more robust ID
-//     orderNumber: newOrderNumber,
-//     items: validatedItems,
-//     taxAmount,
-//     status: otherOrderData.sendToKitchen ? 'waiting' : 'served',
-//     orderTime: admin.firestore.FieldValue.serverTimestamp(),
-//   };
-//
-//   await db.collection(`branches/${branchId}/activeOrders`).add(newOrder);
-//
-//   return { success: true, orderNumber: newOrderNumber };
-// });
-
-//
-// ---------------------------------
-// --- CONFIRM PAYMENT FUNCTION ---
-// ---------------------------------
-//
-// export const confirmPayment = functions.https.onCall(async (data, context) => {
-//   const { branchId, orderId, paymentDetails } = data;
-//
-//   // ... validation and authentication ...
-//
-//   const activeOrderRef = db.collection(`branches/${branchId}/activeOrders`).doc(String(orderId));
-//   const completedOrdersColRef = db.collection(`branches/${branchId}/completedOrders`);
-//
-//   // Use a transaction to ensure atomicity (delete from active, add to completed)
-//   return db.runTransaction(async (transaction) => {
-//      const activeOrderDoc = await transaction.get(activeOrderRef);
-//      if (!activeOrderDoc.exists) {
-//        throw new functions.https.HttpsError("not-found", "Active order not found.");
-//      }
-//
-//      const activeOrderData = activeOrderDoc.data();
-//      const completedOrder = {
-//        ...activeOrderData,
-//        completionTime: admin.firestore.FieldValue.serverTimestamp(),
-//        paymentDetails,
-//      };
-//
-//      transaction.set(completedOrdersColRef.doc(String(orderId)), completedOrder);
-//      transaction.delete(activeOrderRef);
-//
-//      return { success: true, orderNumber: completedOrder.orderNumber };
-//   });
-// });
-
 */
 
 
@@ -144,6 +45,60 @@ interface ConfirmPaymentResponse {
     error?: string;
 }
 
+// --- Leave Management Payloads ---
+interface SubmitLeaveRequestPayload {
+    userId: number;
+    username: string;
+    branchId: number;
+    startDate: number;
+    endDate: number;
+    type: string;
+    reason: string;
+    isHalfDay?: boolean;
+}
+
+interface UpdateLeaveStatusPayload {
+    requestId: number;
+    status: 'approved' | 'rejected';
+    approverId: number;
+}
+
+interface DeleteLeaveRequestPayload {
+    requestId: number;
+}
+
+// --- Stock Management Payloads ---
+interface AddStockItemPayload {
+    name: string;
+    category: string;
+    quantity: number;
+    unit: string;
+    reorderPoint: number;
+    branchId: number; // Assuming stock is branch-specific or global
+}
+
+interface UpdateStockItemPayload {
+    itemId: number;
+    name: string;
+    category: string;
+    unit: string;
+    reorderPoint: number;
+}
+
+interface AdjustStockQuantityPayload {
+    itemId: number;
+    adjustment: number; // Positive to add, negative to subtract
+}
+
+interface DeleteStockItemPayload {
+    itemId: number;
+}
+
+interface GenericResponse {
+    success: boolean;
+    error?: string;
+}
+
 // Check if Firebase Functions is initialized
 if (!functions) {
     console.error("Firebase Functions is not initialized. Please check your firebaseConfig.");
@@ -152,6 +107,17 @@ if (!functions) {
 // Create callable function instances
 const placeOrderFunction = functions ? httpsCallable<PlaceOrderPayload, PlaceOrderResponse>(functions, 'placeOrder') : null;
 const confirmPaymentFunction = functions ? httpsCallable<ConfirmPaymentPayload, ConfirmPaymentResponse>(functions, 'confirmPayment') : null;
+
+// Leave Management Functions
+const submitLeaveRequestFunction = functions ? httpsCallable<SubmitLeaveRequestPayload, GenericResponse>(functions, 'submitLeaveRequest') : null;
+const updateLeaveStatusFunction = functions ? httpsCallable<UpdateLeaveStatusPayload, GenericResponse>(functions, 'updateLeaveStatus') : null;
+const deleteLeaveRequestFunction = functions ? httpsCallable<DeleteLeaveRequestPayload, GenericResponse>(functions, 'deleteLeaveRequest') : null;
+
+// Stock Management Functions
+const addStockItemFunction = functions ? httpsCallable<AddStockItemPayload, GenericResponse>(functions, 'addStockItem') : null;
+const updateStockItemFunction = functions ? httpsCallable<UpdateStockItemPayload, GenericResponse>(functions, 'updateStockItem') : null;
+const adjustStockQuantityFunction = functions ? httpsCallable<AdjustStockQuantityPayload, GenericResponse>(functions, 'adjustStockQuantity') : null;
+const deleteStockItemFunction = functions ? httpsCallable<DeleteStockItemPayload, GenericResponse>(functions, 'deleteStockItem') : null;
 
 
 // Exported service object
@@ -190,9 +156,90 @@ export const functionsService = {
         } catch (error) {
             console.error("Error calling confirmPayment function:", error);
             const httpsError = error as { code: string, message: string };
-            // Propagate the error to be caught by the calling function, triggering the fallback.
             throw new Error(httpsError.message || 'An unexpected error occurred calling the function.');
         }
     },
+
+    /**
+     * Submits a leave request to the backend.
+     */
+    submitLeaveRequest: async (payload: SubmitLeaveRequestPayload): Promise<GenericResponse> => {
+        if (!submitLeaveRequestFunction) {
+            return { success: false, error: "Functions not initialized" };
+        }
+        try {
+            const result = await submitLeaveRequestFunction(payload);
+            return result.data;
+        } catch (error: any) {
+            console.error("Error submitting leave request:", error);
+            throw new Error(error.message || "Backend error");
+        }
+    },
+
+    /**
+     * Updates the status of a leave request.
+     */
+    updateLeaveStatus: async (payload: UpdateLeaveStatusPayload): Promise<GenericResponse> => {
+        if (!updateLeaveStatusFunction) {
+            return { success: false, error: "Functions not initialized" };
+        }
+        try {
+            const result = await updateLeaveStatusFunction(payload);
+            return result.data;
+        } catch (error: any) {
+            console.error("Error updating leave status:", error);
+            throw new Error(error.message || "Backend error");
+        }
+    },
+
+    /**
+     * Deletes a leave request.
+     */
+    deleteLeaveRequest: async (payload: DeleteLeaveRequestPayload): Promise<GenericResponse> => {
+        if (!deleteLeaveRequestFunction) {
+            return { success: false, error: "Functions not initialized" };
+        }
+        try {
+            const result = await deleteLeaveRequestFunction(payload);
+            return result.data;
+        } catch (error: any) {
+            console.error("Error deleting leave request:", error);
+            throw new Error(error.message || "Backend error");
+        }
+    },
+
+    // --- Stock Functions ---
+
+    addStockItem: async (payload: AddStockItemPayload): Promise<GenericResponse> => {
+        if (!addStockItemFunction) return { success: false, error: "Functions not initialized" };
+        try {
+            const result = await addStockItemFunction(payload);
+            return result.data;
+        } catch (error: any) { throw new Error(error.message || "Backend error"); }
+    },
+
+    updateStockItem: async (payload: UpdateStockItemPayload): Promise<GenericResponse> => {
+        if (!updateStockItemFunction) return { success: false, error: "Functions not initialized" };
+        try {
+            const result = await updateStockItemFunction(payload);
+            return result.data;
+        } catch (error: any) { throw new Error(error.message || "Backend error"); }
+    },
+
+    adjustStockQuantity: async (payload: AdjustStockQuantityPayload): Promise<GenericResponse> => {
+        if (!adjustStockQuantityFunction) return { success: false, error: "Functions not initialized" };
+        try {
+            const result = await adjustStockQuantityFunction(payload);
+            return result.data;
+        } catch (error: any) { throw new Error(error.message || "Backend error"); }
+    },
+
+    deleteStockItem: async (payload: DeleteStockItemPayload): Promise<GenericResponse> => {
+        if (!deleteStockItemFunction) return { success: false, error: "Functions not initialized" };
+        try {
+            const result = await deleteStockItemFunction(payload);
+            return result.data;
+        } catch (error: any) { throw new Error(error.message || "Backend error"); }
+    }
 
 };

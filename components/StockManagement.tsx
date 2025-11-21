@@ -4,6 +4,7 @@ import type { StockItem } from '../types';
 import Swal from 'sweetalert2';
 import { StockItemModal } from './StockItemModal';
 import { AdjustStockModal } from './AdjustStockModal';
+import { functionsService } from '../services/firebaseFunctionsService';
 
 // Declare XLSX to inform TypeScript that it's available globally from the script tag
 declare var XLSX: any;
@@ -56,28 +57,90 @@ export const StockManagement: React.FC<StockManagementProps> = ({
         setIsAdjustModalOpen(true);
     };
 
-    const handleSaveItem = (itemToSave: Omit<StockItem, 'id'> & { id?: number }) => {
-        setStockItems(prev => {
-            const exists = prev.some(i => i.id === itemToSave.id);
-            if (exists && itemToSave.id) {
-                return prev.map(i => i.id === itemToSave.id ? { ...i, ...itemToSave, lastUpdated: Date.now() } : i);
+    const handleSaveItem = async (itemToSave: Omit<StockItem, 'id'> & { id?: number }) => {
+        try {
+            if (itemToSave.id) {
+                // Update existing item
+                await functionsService.updateStockItem({
+                    itemId: itemToSave.id,
+                    name: itemToSave.name,
+                    category: itemToSave.category,
+                    unit: itemToSave.unit,
+                    reorderPoint: itemToSave.reorderPoint
+                });
+            } else {
+                // Add new item
+                await functionsService.addStockItem({
+                    name: itemToSave.name,
+                    category: itemToSave.category,
+                    quantity: itemToSave.quantity,
+                    unit: itemToSave.unit,
+                    reorderPoint: itemToSave.reorderPoint,
+                    branchId: 1 // Default branch ID or get from context if available
+                });
             }
-            const newId = Math.max(0, ...prev.map(i => i.id)) + 1;
-            return [...prev, { ...itemToSave, id: newId, lastUpdated: Date.now() }];
-        });
+        } catch (e: any) {
+            // Fallback to local state update if backend fails or not initialized
+            if (e.message && (e.message.includes("Functions not initialized") || e.message.includes("Backend error"))) {
+                console.warn("Backend unavailable, falling back to direct DB write.");
+                setStockItems(prev => {
+                    const exists = prev.some(i => i.id === itemToSave.id);
+                    if (exists && itemToSave.id) {
+                        return prev.map(i => i.id === itemToSave.id ? { ...i, ...itemToSave, lastUpdated: Date.now() } : i);
+                    }
+                    const newId = Math.max(0, ...prev.map(i => i.id)) + 1;
+                    return [...prev, { ...itemToSave, id: newId, lastUpdated: Date.now() }];
+                });
+            } else {
+                console.error("Error saving stock item:", e);
+                Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถบันทึกข้อมูลได้', 'error');
+                return;
+            }
+        }
+        
         setIsItemModalOpen(false);
+        Swal.fire({
+            toast: true,
+            position: 'top-end',
+            icon: 'success',
+            title: 'บันทึกข้อมูลสำเร็จ',
+            showConfirmButton: false,
+            timer: 1500
+        });
     };
 
-    const handleAdjustStock = (itemToAdjust: StockItem, adjustment: number) => {
-        setStockItems(prev => prev.map(i => 
-            i.id === itemToAdjust.id 
-            ? { ...i, quantity: i.quantity + adjustment, lastUpdated: Date.now() } 
-            : i
-        ));
+    const handleAdjustStock = async (itemToAdjust: StockItem, adjustment: number) => {
+        try {
+            await functionsService.adjustStockQuantity({
+                itemId: itemToAdjust.id,
+                adjustment: adjustment
+            });
+        } catch (e: any) {
+             if (e.message && (e.message.includes("Functions not initialized") || e.message.includes("Backend error"))) {
+                console.warn("Backend unavailable, falling back to direct DB write.");
+                setStockItems(prev => prev.map(i => 
+                    i.id === itemToAdjust.id 
+                    ? { ...i, quantity: i.quantity + adjustment, lastUpdated: Date.now() } 
+                    : i
+                ));
+            } else {
+                console.error("Error adjusting stock:", e);
+                Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถปรับสต็อกได้', 'error');
+                return;
+            }
+        }
         setIsAdjustModalOpen(false);
+        Swal.fire({
+            toast: true,
+            position: 'top-end',
+            icon: 'success',
+            title: 'ปรับปรุงสต็อกแล้ว',
+            showConfirmButton: false,
+            timer: 1500
+        });
     };
 
-    const handleDeleteItem = (itemId: number) => {
+    const handleDeleteItem = async (itemId: number) => {
         Swal.fire({
             title: 'คุณแน่ใจหรือไม่?',
             text: "คุณกำลังจะลบรายการนี้ออกจากสต็อก",
@@ -86,9 +149,20 @@ export const StockManagement: React.FC<StockManagementProps> = ({
             confirmButtonColor: '#d33',
             confirmButtonText: 'ใช่, ลบเลย',
             cancelButtonText: 'ยกเลิก'
-        }).then((result) => {
+        }).then(async (result) => {
             if (result.isConfirmed) {
-                setStockItems(prev => prev.filter(item => item.id !== itemId));
+                try {
+                    await functionsService.deleteStockItem({ itemId });
+                } catch (e: any) {
+                    if (e.message && (e.message.includes("Functions not initialized") || e.message.includes("Backend error"))) {
+                        console.warn("Backend unavailable, falling back to direct DB write.");
+                        setStockItems(prev => prev.filter(item => item.id !== itemId));
+                    } else {
+                        console.error("Error deleting item:", e);
+                        Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถลบรายการได้', 'error');
+                        return;
+                    }
+                }
                 Swal.fire('ลบแล้ว!', 'รายการถูกลบออกจากสต็อกแล้ว', 'success');
             }
         });
@@ -247,7 +321,7 @@ export const StockManagement: React.FC<StockManagementProps> = ({
 
                 <div className="flex-1 overflow-y-auto">
                      {/* Desktop Header */}
-                    <div className="hidden md:grid md:grid-cols-12 gap-4 px-6 py-4 text-sm text-gray-700 uppercase bg-gray-100 border-b font-bold">
+                    <div className="hidden md:grid md:grid-cols-12 gap-4 px-6 py-4 text-sm text-gray-700 uppercase bg-gray-100 border-b font-bold sticky top-0 z-10 shadow-sm">
                         <div className="col-span-3">ชื่อวัตถุดิบ</div>
                         <div className="col-span-2">หมวดหมู่</div>
                         <div className="col-span-2 text-right">จำนวนคงเหลือ</div>
@@ -258,13 +332,16 @@ export const StockManagement: React.FC<StockManagementProps> = ({
 
                     {/* Item List */}
                     <div className="space-y-3 md:space-y-0 p-3 md:p-0">
-                        {filteredItems.length > 0 ? filteredItems.map(item => {
+                        {filteredItems.length > 0 ? filteredItems.map((item, index) => {
                             const status = getStatus(item);
+                            // Determine background color for zebra striping (alternating rows)
+                            const rowBgClass = index % 2 === 0 ? 'bg-white' : 'bg-gray-50';
+                            
                             return (
-                                <div key={item.id} className="md:grid md:grid-cols-12 md:gap-4 md:px-6 md:items-center bg-white md:border-b hover:bg-gray-50 rounded-lg shadow-sm md:shadow-none md:rounded-none">
+                                <div key={item.id} className={`md:grid md:grid-cols-12 md:gap-4 md:px-6 md:items-center ${rowBgClass} md:border-b hover:bg-blue-50 rounded-lg shadow-sm md:shadow-none md:rounded-none transition-colors duration-150`}>
                                     
                                     {/* Mobile/Tablet Card Layout */}
-                                    <div className="md:hidden p-4 space-y-3">
+                                    <div className="md:hidden p-4 space-y-3 bg-white">
                                         <div className="flex justify-between items-start">
                                             <h3 className="font-bold text-xl text-gray-900">{item.name}</h3>
                                             <span className={`px-3 py-1 text-sm font-semibold rounded-full ${status.color}`}>{status.text}</span>
@@ -294,11 +371,17 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                             {item.category}
                                         </span>
                                     </div>
+                                    {/* Quantity Column */}
                                     <div className="hidden md:block md:col-span-2 md:py-4 md:text-right">
                                         <span className="text-xl font-bold text-gray-900">{formatQty(item.quantity, item.unit)}</span>
                                         <span className="text-base text-gray-600 ml-1">{item.unit}</span>
                                     </div>
-                                    <div className="hidden md:block md:col-span-2 md:py-4 md:text-right text-lg text-gray-900">{formatQty(item.reorderPoint, item.unit)} {item.unit}</div>
+                                    {/* Reorder Point Column - Updated to match Quantity style */}
+                                    <div className="hidden md:block md:col-span-2 md:py-4 md:text-right">
+                                        <span className="text-xl font-bold text-gray-900">{formatQty(item.reorderPoint, item.unit)}</span>
+                                        <span className="text-base text-gray-600 ml-1">{item.unit}</span>
+                                    </div>
+                                    
                                     <div className="hidden md:flex md:col-span-1 md:py-4 md:justify-center">
                                         <span className={`px-3 py-1 text-sm font-semibold rounded-full ${status.color}`}>{status.text}</span>
                                     </div>

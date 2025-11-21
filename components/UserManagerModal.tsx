@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import type { User, Branch } from '../types';
 import Swal from 'sweetalert2';
@@ -18,6 +19,7 @@ const initialFormState: Omit<User, 'id'> = {
     role: 'pos' as const,
     allowedBranchIds: [],
     profilePictureUrl: '',
+    leaveQuotas: { sick: 30, personal: 6, vacation: 6 } // Default quotas
 };
 
 export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onClose, users, setUsers, currentUser, branches, isEditMode }) => {
@@ -83,6 +85,16 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
         setFormData(prev => ({ ...prev, [name]: value as 'admin' | 'branch-admin' | 'pos' | 'kitchen' }));
     };
 
+    const handleQuotaChange = (type: 'sick' | 'personal' | 'vacation', value: number) => {
+        setFormData(prev => ({
+            ...prev,
+            leaveQuotas: {
+                ...prev.leaveQuotas!,
+                [type]: value
+            }
+        }));
+    };
+
     const handleBranchChange = (branchId: number) => {
         setFormData(prev => {
             const currentIds = prev.allowedBranchIds || [];
@@ -145,6 +157,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
                     username: formData.username.trim(),
                     password: formData.password,
                     role: formData.role,
+                    leaveQuotas: formData.leaveQuotas
                 };
     
                 // Handle profile picture logic
@@ -178,6 +191,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
                 username: formData.username.trim(),
                 password: formData.password,
                 role: formData.role,
+                leaveQuotas: formData.leaveQuotas
             };
 
             if (formData.profilePictureUrl && formData.profilePictureUrl.trim()) {
@@ -221,7 +235,8 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
             password: user.password, 
             role: user.role, 
             allowedBranchIds: user.allowedBranchIds || [],
-            profilePictureUrl: user.profilePictureUrl || ''
+            profilePictureUrl: user.profilePictureUrl || '',
+            leaveQuotas: user.leaveQuotas || { sick: 30, personal: 6, vacation: 6 }
         });
     };
 
@@ -380,6 +395,42 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
                                                     <span className="text-gray-800">{branch.name}</span>
                                                 </label>
                                             ))}
+                                        </div>
+                                    </div>
+                                )}
+                                
+                                {/* Leave Quotas Section - Admin Only Configuration, but NOT for Admin/Branch Admin roles */}
+                                {currentUser.role === 'admin' && formData.role !== 'admin' && formData.role !== 'branch-admin' && (
+                                    <div className="pt-2 border-t mt-2">
+                                        <label className="block text-sm font-bold text-gray-700 mb-2">โควตาวันลา (ต่อปี):</label>
+                                        <div className="grid grid-cols-3 gap-3">
+                                            <div>
+                                                <label className="block text-xs text-gray-500 mb-1">ลาป่วย</label>
+                                                <input 
+                                                    type="number" 
+                                                    value={formData.leaveQuotas?.sick ?? 30} 
+                                                    onChange={(e) => handleQuotaChange('sick', Number(e.target.value))}
+                                                    className="w-full px-2 py-1 border rounded text-center"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs text-gray-500 mb-1">ลากิจ</label>
+                                                <input 
+                                                    type="number" 
+                                                    value={formData.leaveQuotas?.personal ?? 6} 
+                                                    onChange={(e) => handleQuotaChange('personal', Number(e.target.value))}
+                                                    className="w-full px-2 py-1 border rounded text-center"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs text-gray-500 mb-1">ลาไม่รับเงินเดือน</label>
+                                                <input 
+                                                    type="number" 
+                                                    value={formData.leaveQuotas?.vacation ?? 6} 
+                                                    onChange={(e) => handleQuotaChange('vacation', Number(e.target.value))}
+                                                    className="w-full px-2 py-1 border rounded text-center"
+                                                />
+                                            </div>
                                         </div>
                                     </div>
                                 )}

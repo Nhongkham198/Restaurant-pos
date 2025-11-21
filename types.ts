@@ -7,6 +7,12 @@ export interface Branch {
     location?: string;
 }
 
+export interface LeaveQuotas {
+    sick: number;
+    personal: number;
+    vacation: number;
+}
+
 export interface User {
     id: number;
     username: string;
@@ -14,6 +20,7 @@ export interface User {
     role: 'admin' | 'branch-admin' | 'pos' | 'kitchen';
     allowedBranchIds?: number[];
     profilePictureUrl?: string;
+    leaveQuotas?: LeaveQuotas; // Added specific quotas per user
 }
 
 export interface MenuOption {
@@ -166,7 +173,20 @@ export interface StockItem {
     lastUpdated: number; // timestamp
 }
 
-export type View = 'pos' | 'kitchen' | 'tables' | 'dashboard' | 'history' | 'stock';
+export interface LeaveRequest {
+    id: number;
+    userId: number;
+    username: string;
+    branchId: number; // Added to track branch
+    startDate: number; // timestamp
+    endDate: number; // timestamp
+    type: 'sick' | 'personal' | 'vacation' | 'leave-without-pay' | 'other';
+    reason: string;
+    status: 'pending' | 'approved' | 'rejected';
+    isHalfDay?: boolean; // Added support for half-day leave
+}
+
+export type View = 'pos' | 'kitchen' | 'tables' | 'dashboard' | 'history' | 'stock' | 'leave';
 
 export interface NavItem {
     id: string;
