@@ -489,7 +489,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
             {/* Totals and Actions */}
             <div className="pt-3 mt-2 border-t border-gray-700 space-y-3">
-                <div className="space-y-1 text-base">
+                <div className="hidden md:block space-y-1 text-base">
                     <div className="flex justify-between items-center">
                         <label className="flex items-center gap-2 text-gray-400 cursor-pointer">
                             <input
