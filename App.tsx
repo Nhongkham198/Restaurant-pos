@@ -8,7 +8,8 @@ import {
     DEFAULT_USERS, 
     DEFAULT_STOCK_CATEGORIES, 
     DEFAULT_STOCK_UNITS, 
-    DEFAULT_STOCK_ITEMS
+    DEFAULT_STOCK_ITEMS,
+    DEFAULT_FLOORS
 } from './constants';
 import type { 
     MenuItem, 
@@ -100,6 +101,7 @@ const App: React.FC = () => {
     const [menuItems, setMenuItems] = useFirestoreSync<MenuItem[]>(branchId, 'menuItems', DEFAULT_MENU_ITEMS);
     const [categories, setCategories] = useFirestoreSync<string[]>(branchId, 'categories', DEFAULT_CATEGORIES);
     const [tables, setTables] = useFirestoreSync<Table[]>(branchId, 'tables', DEFAULT_TABLES);
+    const [floors, setFloors] = useFirestoreSync<string[]>(branchId, 'floors', DEFAULT_FLOORS);
     const [activeOrders, setActiveOrders] = useFirestoreSync<ActiveOrder[]>(branchId, 'activeOrders', []);
     const [completedOrders, setCompletedOrders] = useFirestoreSync<CompletedOrder[]>(branchId, 'completedOrders', []);
     const [cancelledOrders, setCancelledOrders] = useFirestoreSync<CancelledOrder[]>(branchId, 'cancelledOrders', []);
@@ -116,8 +118,18 @@ const App: React.FC = () => {
     const [selectedTableId, setSelectedTableId] = useState<number | null>(null);
     const [customerName, setCustomerName] = useState('');
     const [customerCount, setCustomerCount] = useState(1);
-    const [selectedSidebarFloor, setSelectedSidebarFloor] = useState<'lower' | 'upper'>('lower');
+    const [selectedSidebarFloor, setSelectedSidebarFloor] = useState<string>('');
     const [notSentToKitchenDetails, setNotSentToKitchenDetails] = useState<{ reason: string; notes: string } | null>(null);
+
+    useEffect(() => {
+        if (floors && floors.length > 0) {
+            if (!selectedSidebarFloor || !floors.includes(selectedSidebarFloor)) {
+                setSelectedSidebarFloor(floors[0]);
+            }
+        } else {
+            setSelectedSidebarFloor('');
+        }
+    }, [floors, selectedSidebarFloor]);
 
 
     // --- GENERAL SETTINGS STATE ---
@@ -1011,6 +1023,43 @@ const App: React.FC = () => {
         }
     };
     
+    // --- FLOOR & TABLE MANAGEMENT HANDLERS ---
+    const handleAddFloor = async () => {
+        const { value: floorName } = await Swal.fire({
+            title: 'เพิ่มชั้นใหม่',
+            input: 'text',
+            inputPlaceholder: 'ชื่อชั้น (เช่น ชั้น 3, โซนสวน)',
+            showCancelButton: true,
+            confirmButtonText: 'เพิ่ม',
+            cancelButtonText: 'ยกเลิก',
+            inputValidator: (value) => {
+                if (!value) return 'กรุณาใส่ชื่อชั้น';
+                if (floors.includes(value)) return 'ชื่อชั้นนี้มีอยู่แล้ว';
+            }
+        });
+        if (floorName) {
+            setFloors(prev => [...prev, floorName]);
+        }
+    };
+
+    const handleRemoveFloor = async (floorToRemove: string) => {
+        if (tables.some(table => table.floor === floorToRemove)) {
+            Swal.fire('ไม่สามารถลบได้', `กรุณาย้ายหรือลบโต๊ะทั้งหมดใน "${floorToRemove}" ก่อน`, 'error');
+            return;
+        }
+        const result = await Swal.fire({
+            title: `ลบชั้น "${floorToRemove}"?`,
+            text: 'การกระทำนี้ไม่สามารถย้อนกลับได้',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            confirmButtonText: 'ใช่, ลบเลย'
+        });
+        if (result.isConfirmed) {
+            setFloors(prev => prev.filter(f => f !== floorToRemove));
+        }
+    };
+
 
     // --- UI & MODAL HANDLERS ---
     const handleOpenItemModal = (item: MenuItem | null) => {
@@ -1104,16 +1153,15 @@ const App: React.FC = () => {
                 : item
         ));
     };
-    const handleAddNewTable = (floor: 'lower' | 'upper') => {
+    const handleAddNewTable = (floor: string) => {
         setTables(prev => {
             const maxId = Math.max(0, ...prev.map(t => t.id));
-            const floorPrefix = floor === 'lower' ? 'A' : 'B';
             const tablesOnFloor = prev.filter(t => t.floor === floor);
-            const newTableName = `${floorPrefix}${tablesOnFloor.length + 1}`;
+            const newTableName = `${floor} ${tablesOnFloor.length + 1}`;
             return [...prev, { id: maxId + 1, name: newTableName, floor }];
         });
     };
-    const handleRemoveLastTable = (floor: 'lower' | 'upper') => {
+    const handleRemoveLastTable = (floor: string) => {
         setTables(prev => {
             const tablesOnFloor = prev.filter(t => t.floor === floor).sort((a,b) => a.id - b.id);
             if (tablesOnFloor.length === 0) return prev;
@@ -1178,7 +1226,7 @@ const App: React.FC = () => {
             case 'kitchen':
                 return <KitchenView activeOrders={activeOrders} onStartCooking={handleStartCooking} onCompleteOrder={handleServeOrder} />;
             case 'tables':
-                return <TableLayout tables={tables} activeOrders={activeOrders} onTableSelect={setSelectedTableId} onShowBill={(orderId) => { setOrderForModal(activeOrders.find(o => o.id === orderId) || null); setModalState(p => ({ ...p, isTableBill: true })); }} onGeneratePin={generateTablePin} currentUser={currentUser} printerConfig={printerConfig} />;
+                return <TableLayout tables={tables} activeOrders={activeOrders} onTableSelect={setSelectedTableId} onShowBill={(orderId) => { setOrderForModal(activeOrders.find(o => o.id === orderId) || null); setModalState(p => ({ ...p, isTableBill: true })); }} onGeneratePin={generateTablePin} currentUser={currentUser} printerConfig={printerConfig} floors={floors} />;
             case 'dashboard':
                 return <Dashboard completedOrders={completedOrders} cancelledOrders={cancelledOrders} openingTime={openingTime || '10:00'} closingTime={closingTime || '22:00'} />;
             case 'history':
@@ -1245,12 +1293,11 @@ const App: React.FC = () => {
                                 isEditMode={isEditMode}
                                 onAddNewTable={handleAddNewTable}
                                 onRemoveLastTable={handleRemoveLastTable}
+                                floors={floors}
                                 selectedFloor={selectedSidebarFloor}
                                 onFloorChange={setSelectedSidebarFloor}
-                                isTaxEnabled={isTaxEnabled}
-                                onTaxEnabledChange={setIsTaxEnabled}
-                                taxRate={taxRate}
-                                onTaxRateChange={setTaxRate}
+                                onAddFloor={handleAddFloor}
+                                onRemoveFloor={handleRemoveFloor}
                                 sendToKitchen={sendToKitchen}
                                 onSendToKitchenChange={handleSendToKitchenChange}
                                 onUpdateReservation={handleUpdateTableReservation}
@@ -1338,7 +1385,7 @@ const App: React.FC = () => {
             <EditCompletedOrderModal isOpen={modalState.isEditCompleted} onClose={() => setModalState(p => ({...p, isEditCompleted: false}))} order={orderForModal as CompletedOrder} onSave={handleSaveCompletedOrder} menuItems={menuItems} />
             <UserManagerModal isOpen={modalState.isUserManager} onClose={() => setModalState(p => ({...p, isUserManager: false}))} users={users} setUsers={setUsers} currentUser={currentUser!} branches={branches} isEditMode={isEditMode} />
             <BranchManagerModal isOpen={modalState.isBranchManager} onClose={() => setModalState(p => ({...p, isBranchManager: false}))} branches={branches} setBranches={setBranches} />
-            <MoveTableModal isOpen={modalState.isMoveTable} onClose={() => setModalState(p => ({...p, isMoveTable: false}))} order={orderForModal as ActiveOrder} tables={tables} activeOrders={activeOrders} onConfirmMove={(orderId, newTableId) => { setActiveOrders(prev => prev.map(o => o.id === orderId ? {...o, tableName: tables.find(t=>t.id===newTableId)?.name || o.tableName, floor: tables.find(t=>t.id===newTableId)?.floor || o.floor} : o)); setModalState(p => ({...p, isMoveTable: false})); }} />
+            <MoveTableModal isOpen={modalState.isMoveTable} onClose={() => setModalState(p => ({...p, isMoveTable: false}))} order={orderForModal as ActiveOrder} tables={tables} activeOrders={activeOrders} onConfirmMove={(orderId, newTableId) => { setActiveOrders(prev => prev.map(o => o.id === orderId ? {...o, tableName: tables.find(t=>t.id===newTableId)?.name || o.tableName, floor: tables.find(t=>t.id===newTableId)?.floor || o.floor} : o)); setModalState(p => ({...p, isMoveTable: false})); }} floors={floors} />
             <CancelOrderModal isOpen={modalState.isCancelOrder} onClose={() => setModalState(p => ({...p, isCancelOrder: false}))} order={orderForModal as ActiveOrder} onConfirm={(order, reason, notes) => { const cancelled: CancelledOrder = {...order, status: 'cancelled', cancellationTime: Date.now(), cancelledBy: currentUser?.username || 'N/A', cancellationReason: reason, cancellationNotes: notes}; setCancelledOrders(p => [...p, cancelled]); setActiveOrders(p => p.filter(o => o.id !== order.id)); setModalState(p => ({...p, isCancelOrder: false})); }} />
             <CashBillModal isOpen={modalState.isCashBill} onClose={() => setModalState(p => ({...p, isCashBill: false}))} order={orderForModal as CompletedOrder} restaurantName={restaurantName} logoUrl={logoUrl} />
             <ItemCustomizationModal isOpen={modalState.isCustomization} onClose={() => setModalState(p => ({...p, isCustomization: false}))} item={itemToCustomize} onConfirm={handleConfirmCustomization} />

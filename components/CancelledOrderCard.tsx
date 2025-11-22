@@ -18,7 +18,6 @@ export const CancelledOrderCard: React.FC<CancelledOrderCardProps> = ({ order, i
     }, [order.items, order.taxAmount]);
 
     const cancellationDate = useMemo(() => new Date(order.cancellationTime).toLocaleString('th-TH'), [order.cancellationTime]);
-    const floorText = order.floor === 'lower' ? 'ชั้นล่าง' : 'ชั้นบน';
 
     const cardClasses = useMemo(() => {
         let base = "bg-white rounded-lg shadow-md border overflow-hidden transition-colors ";
@@ -49,7 +48,7 @@ export const CancelledOrderCard: React.FC<CancelledOrderCardProps> = ({ order, i
                             <p className="font-bold text-xl text-red-700">
                                 <span className="text-gray-500">#</span>{String(order.orderNumber).padStart(3, '0')}
                             </p>
-                            <p className="font-semibold text-lg text-gray-800 truncate">โต๊ะ {order.tableName} ({floorText})</p>
+                            <p className="font-semibold text-lg text-gray-800 truncate">โต๊ะ {order.tableName} ({order.floor})</p>
                         </div>
                         {order.customerName && (
                             <p className="text-base text-blue-700 font-semibold">{order.customerName}</p>

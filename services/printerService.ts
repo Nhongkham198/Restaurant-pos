@@ -12,7 +12,6 @@ export const printerService = {
         }
 
         const url = `http://${config.ipAddress}:${config.port || 3001}/print`;
-        const floorText = order.floor === 'lower' ? 'ชั้นล่าง' : 'ชั้นบน';
         const timeString = new Date(order.orderTime).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
         const totalItems = order.items.length;
 
@@ -22,7 +21,7 @@ export const printerService = {
             const lines: string[] = [];
 
             // --- Header (Included on every ticket) ---
-            lines.push(`โต๊ะ: ${order.tableName} (${floorText})`);
+            lines.push(`โต๊ะ: ${order.tableName} (${order.floor})`);
             lines.push(`ออเดอร์: #${order.orderNumber} (ใบที่ ${i + 1}/${totalItems})`);
             lines.push(`เวลา: ${timeString}`);
             lines.push(`พนักงาน: ${order.placedBy}`);
@@ -196,12 +195,11 @@ export const printerService = {
         }
 
         const url = `http://${config.ipAddress}:${config.port || 3001}/print`;
-        const floorText = table.floor === 'lower' ? 'ชั้นล่าง' : 'ชั้นบน';
 
         // Construct a simple "ticket" for the QR Code
         const itemsAsStrings = [
             `*** QR CODE สำหรับโต๊ะ ***`,
-            `โต๊ะ: ${table.name} (${floorText})`,
+            `โต๊ะ: ${table.name} (${table.floor})`,
             `--------------------------------`,
             `สแกนเพื่อสั่งอาหาร:`,
             `${qrUrl}`,

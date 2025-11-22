@@ -59,8 +59,6 @@ export const KitchenOrderCard: React.FC<KitchenOrderCardProps> = ({ order, onCom
         return base;
     }, [isCooking, isOverdue]);
     
-    const floorText = order.floor === 'lower' ? 'ชั้นล่าง' : 'ชั้นบน';
-
     return (
         <div className={cardClasses}>
             <div className="flex justify-between items-start mb-3 gap-2">
@@ -69,7 +67,7 @@ export const KitchenOrderCard: React.FC<KitchenOrderCardProps> = ({ order, onCom
                         ออเดอร์ #{String(order.orderNumber).padStart(3, '0')}
                     </h4>
                     <div className="flex items-center gap-2 text-base text-gray-300 mt-1 flex-wrap">
-                        <span className="font-semibold text-cyan-300">{floorText} / โต๊ะ: {order.tableName}</span>
+                        <span className="font-semibold text-cyan-300">{order.floor} / โต๊ะ: {order.tableName}</span>
                         {order.customerName && (
                             <>
                                 <span className="text-gray-500">|</span>

@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import type { Table, ActiveOrder, User, PrinterConfig } from '../types';
 import { printerService } from '../services/printerService';
 import Swal from 'sweetalert2';
@@ -245,10 +245,17 @@ interface TableLayoutProps {
     onGeneratePin: (tableId: number) => void;
     currentUser: User | null;
     printerConfig: PrinterConfig | null;
+    floors: string[];
 }
 
-export const TableLayout: React.FC<TableLayoutProps> = ({ tables, activeOrders, onTableSelect, onShowBill, onGeneratePin, currentUser, printerConfig }) => {
-    const [selectedFloor, setSelectedFloor] = useState<'lower' | 'upper'>('lower');
+export const TableLayout: React.FC<TableLayoutProps> = ({ tables, activeOrders, onTableSelect, onShowBill, onGeneratePin, currentUser, printerConfig, floors }) => {
+    const [selectedFloor, setSelectedFloor] = useState<string>('');
+
+    useEffect(() => {
+        if (floors && floors.length > 0 && !selectedFloor) {
+            setSelectedFloor(floors[0]);
+        }
+    }, [floors, selectedFloor]);
 
     const tablesOnFloor = useMemo(() => {
         return tables.filter(t => t.floor === selectedFloor).sort((a,b) => a.id - b.id);
@@ -259,22 +266,17 @@ export const TableLayout: React.FC<TableLayoutProps> = ({ tables, activeOrders, 
              <div className="flex-shrink-0">
                 <h2 className="text-2xl font-bold text-gray-800 mb-4 text-center">ผังโต๊ะ</h2>
                 <div className="flex justify-center bg-gray-200 rounded-full p-1 max-w-sm mx-auto">
-                    <button
-                        onClick={() => setSelectedFloor('lower')}
-                        className={`w-full py-2 px-4 rounded-full font-semibold transition-colors ${
-                            selectedFloor === 'lower' ? 'bg-white text-blue-600 shadow' : 'text-gray-600'
-                        }`}
-                    >
-                        ชั้นล่าง
-                    </button>
-                    <button
-                        onClick={() => setSelectedFloor('upper')}
-                        className={`w-full py-2 px-4 rounded-full font-semibold transition-colors ${
-                             selectedFloor === 'upper' ? 'bg-white text-blue-600 shadow' : 'text-gray-600'
-                        }`}
-                    >
-                        ชั้นบน
-                    </button>
+                    {floors.map(floor => (
+                         <button
+                            key={floor}
+                            onClick={() => setSelectedFloor(floor)}
+                            className={`w-full py-2 px-4 rounded-full font-semibold transition-colors ${
+                                selectedFloor === floor ? 'bg-white text-blue-600 shadow' : 'text-gray-600'
+                            }`}
+                        >
+                            {floor}
+                        </button>
+                    ))}
                 </div>
             </div>
             

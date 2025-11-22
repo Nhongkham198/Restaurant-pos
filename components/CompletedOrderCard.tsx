@@ -21,7 +21,6 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({ order, o
     }, [order.items, order.taxAmount]);
 
     const completionDate = useMemo(() => new Date(order.completionTime).toLocaleString('th-TH'), [order.completionTime]);
-    const floorText = order.floor === 'lower' ? 'ชั้นล่าง' : 'ชั้นบน';
     
     const cardClasses = useMemo(() => {
         let base = "bg-white rounded-lg shadow-md border overflow-hidden transition-colors ";
@@ -52,7 +51,7 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({ order, o
                             <p className="font-bold text-xl text-teal-700">
                                 <span className="text-gray-500">#</span>{String(order.orderNumber).padStart(3, '0')}
                             </p>
-                            <p className="font-semibold text-lg text-gray-800 truncate">โต๊ะ {order.tableName} ({floorText})</p>
+                            <p className="font-semibold text-lg text-gray-800 truncate">โต๊ะ {order.tableName} ({order.floor})</p>
                         </div>
                         {order.customerName && (
                             <p className="text-base text-blue-700 font-semibold">{order.customerName}</p>

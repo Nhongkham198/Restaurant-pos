@@ -71,7 +71,7 @@ interface BaseOrder {
     orderNumber: number;
     tableName: string;
     customerName?: string;
-    floor: 'lower' | 'upper';
+    floor: string;
     customerCount: number;
     items: OrderItem[];
     orderType: 'dine-in' | 'takeaway';
@@ -125,7 +125,7 @@ export interface Reservation {
 export interface Table {
     id: number;
     name: string;
-    floor: 'lower' | 'upper';
+    floor: string;
     activePin?: string; // PIN code for customer self-service verification
     reservation?: Reservation | null;
 }

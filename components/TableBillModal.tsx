@@ -64,7 +64,6 @@ export const TableBillModal: React.FC<TableBillModalProps> = ({
         onUpdateOrder(order.id, editedItems, editedCustomerCount);
     };
 
-    const floorText = order.floor === 'lower' ? 'ชั้นล่าง' : 'ชั้นบน';
     const canCancel = currentUser?.role === 'admin' || currentUser?.role === 'pos';
     // Only allow cancellation if status is 'waiting' (matching "Start Cooking" button in kitchen)
     const isCancelableStatus = order.status === 'waiting';
@@ -74,7 +73,7 @@ export const TableBillModal: React.FC<TableBillModalProps> = ({
             <div className="bg-white rounded-lg shadow-xl w-full max-w-md transform transition-all flex flex-col" style={{maxHeight: '90vh'}} onClick={e => e.stopPropagation()}>
                 <header className="p-4 border-b bg-gray-50 rounded-t-lg">
                     <h3 className="text-2xl font-bold text-gray-800 text-center">
-                        บิลโต๊ะ {order.tableName} ({floorText})
+                        บิลโต๊ะ {order.tableName} ({order.floor})
                     </h3>
                     {order.customerName && (
                         <p className="text-lg text-gray-600 text-center font-semibold mt-1">

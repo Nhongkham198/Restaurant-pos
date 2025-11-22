@@ -8,6 +8,7 @@ interface MoveTableModalProps {
     tables: Table[];
     activeOrders: ActiveOrder[];
     onConfirmMove: (orderId: number, newTableId: number) => void;
+    floors: string[];
 }
 
 export const MoveTableModal: React.FC<MoveTableModalProps> = ({
@@ -17,8 +18,9 @@ export const MoveTableModal: React.FC<MoveTableModalProps> = ({
     tables,
     activeOrders,
     onConfirmMove,
+    floors,
 }) => {
-    const [selectedFloor, setSelectedFloor] = useState<'lower' | 'upper'>('lower');
+    const [selectedFloor, setSelectedFloor] = useState<string>('');
     const [selectedTableId, setSelectedTableId] = useState<number | null>(null);
 
     // Determine which tables are currently occupied by creating a unique key for each occupied table (name + floor).
@@ -68,18 +70,15 @@ export const MoveTableModal: React.FC<MoveTableModalProps> = ({
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">เลือกชั้น:</label>
                         <div className="grid grid-cols-2 gap-2">
-                            <button
-                                onClick={() => setSelectedFloor('lower')}
-                                className={`py-2 px-4 rounded-md font-semibold transition-colors ${selectedFloor === 'lower' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-800 hover:bg-gray-300'}`}
-                            >
-                                ชั้นล่าง
-                            </button>
-                            <button
-                                onClick={() => setSelectedFloor('upper')}
-                                className={`py-2 px-4 rounded-md font-semibold transition-colors ${selectedFloor === 'upper' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-800 hover:bg-gray-300'}`}
-                            >
-                                ชั้นบน
-                            </button>
+                            {floors.map(floor => (
+                                <button
+                                    key={floor}
+                                    onClick={() => setSelectedFloor(floor)}
+                                    className={`py-2 px-4 rounded-md font-semibold transition-colors ${selectedFloor === floor ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-800 hover:bg-gray-300'}`}
+                                >
+                                    {floor}
+                                </button>
+                            ))}
                         </div>
                     </div>
                     <div>
