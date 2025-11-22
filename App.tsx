@@ -1250,7 +1250,7 @@ const App: React.FC = () => {
             case 'pos':
             default:
                 return (
-                     <div className="flex flex-col md:flex-row flex-1 overflow-hidden h-full relative">
+                     <div className="flex flex-col md:flex-row md:h-full relative">
                         {/* Sidebar Toggle Button */}
                         <div className="absolute top-1/2 -translate-y-1/2 right-0 z-20 hidden md:block transition-all duration-300" style={{ right: isOrderSidebarVisible ? '420px' : '0px' }}>
                             <button
@@ -1270,7 +1270,7 @@ const App: React.FC = () => {
                                 )}
                             </button>
                         </div>
-                        <div className="flex-1 overflow-hidden">
+                        <div className="md:flex-1 overflow-hidden">
                             <Menu 
                                 menuItems={menuItems} 
                                 setMenuItems={setMenuItems}
