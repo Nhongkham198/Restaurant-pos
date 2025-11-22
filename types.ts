@@ -20,6 +20,7 @@ export interface User {
     allowedBranchIds?: number[];
     profilePictureUrl?: string;
     leaveQuotas?: LeaveQuotas; // Added specific quotas per user
+    fcmToken?: string; // For Push Notifications
 }
 
 export interface MenuOption {

@@ -29,6 +29,7 @@ interface SidebarProps {
     sendToKitchen: boolean;
     onSendToKitchenChange: (enabled: boolean, details: { reason: string; notes: string } | null) => void;
     onUpdateReservation: (tableId: number, reservation: Reservation | null) => void;
+    onOpenSearch: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -56,7 +57,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
     onRemoveFloor,
     sendToKitchen,
     onSendToKitchenChange,
-    onUpdateReservation
+    onUpdateReservation,
+    onOpenSearch
 }) => {
     const total = useMemo(() => {
         return currentOrderItems.reduce((sum, item) => sum + item.finalPrice * item.quantity, 0);
@@ -321,10 +323,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
     };
 
     return (
-        <aside className="w-full md:w-[420px] flex-shrink-0 bg-gray-800 text-white p-4 flex flex-col h-auto md:h-full shadow-2xl">
+        <aside className="w-full md:w-[420px] flex-shrink-0 bg-gray-800 text-white p-4 flex flex-col h-full shadow-2xl">
             {/* Header */}
-            <div className="pb-3 border-b border-gray-700">
+            <div className="pb-3 border-b border-gray-700 flex justify-between items-center">
                 <h2 className="text-2xl font-bold">ข้อมูลออเดอร์</h2>
+                <button 
+                    onClick={onOpenSearch}
+                    className="p-2 rounded-full text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"
+                    title="ค้นหาเมนูอาหาร"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                </button>
             </div>
 
             {/* Order Configuration */}
@@ -478,7 +489,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
             {/* Totals and Actions */}
             <div className="pt-3 mt-2 border-t border-gray-700 space-y-3">
-                <div className="space-y-1 text-base">
+                <div className="hidden md:block space-y-1 text-base">
                     <div className="flex justify-between items-center">
                         <label className="flex items-center gap-2 text-gray-400 cursor-pointer">
                             <input

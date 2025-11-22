@@ -1,3 +1,37 @@
+// Firebase Messaging Service Worker
+// NOTE: These scripts are imported from the web, not locally.
+importScripts('https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js');
+importScripts('https://www.gstatic.com/firebasejs/9.22.1/firebase-messaging.js');
+
+// IMPORTANT: This config must match your project's firebaseConfig.
+const firebaseConfig = {
+  apiKey: "AIzaSyCVLo7EeWsDSR1tWmucYuZq7uOuV8zvqXI",
+  authDomain: "restaurant-pos-f8bd4.firebaseapp.com",
+  projectId: "restaurant-pos-f8bd4",
+  storageBucket: "restaurant-pos-f8bd4.firebasestorage.app",
+  messagingSenderId: "822986056017",
+  appId: "1:822986056017:web:a1955349d8d94adcda3370",
+  measurementId: "G-2B6ZS4VYMF"
+};
+
+firebase.initializeApp(firebaseConfig);
+
+const messaging = firebase.messaging();
+
+messaging.onBackgroundMessage(function(payload) {
+  console.log('[sw.js] Received background message ', payload);
+
+  const notificationTitle = payload.notification?.title || 'มีออเดอร์ใหม่!';
+  const notificationOptions = {
+    body: payload.notification?.body || 'มีรายการอาหารใหม่ส่งเข้าครัว',
+    icon: '/icon.svg'
+  };
+
+  self.registration.showNotification(notificationTitle, notificationOptions);
+});
+
+
+// --- Original Caching Service Worker ---
 const CACHE_NAME = 'restaurant-pos-cache-v1';
 const urlsToCache = [
   '/',

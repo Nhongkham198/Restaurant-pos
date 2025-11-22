@@ -35,6 +35,7 @@ import { functionsService } from './services/firebaseFunctionsService';
 import { printerService } from './services/printerService';
 import { isFirebaseConfigured, db } from './firebaseConfig';
 import { doc, runTransaction } from 'firebase/firestore';
+import { getMessaging, getToken } from 'firebase/messaging';
 
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
@@ -69,6 +70,7 @@ import { CashBillModal } from './components/CashBillModal';
 import { ItemCustomizationModal } from './components/ItemCustomizationModal';
 import { CustomerView } from './components/CustomerView';
 import { LeaveRequestModal } from './components/LeaveRequestModal';
+import { MenuSearchModal } from './components/MenuSearchModal';
 
 import Swal from 'sweetalert2';
 import type { SubmitLeaveRequestPayload } from './services/firebaseFunctionsService';
@@ -150,7 +152,8 @@ const App: React.FC = () => {
         isMenuItem: false, isOrderSuccess: false, isSplitBill: false, isTableBill: false,
         isPayment: false, isPaymentSuccess: false, isSettings: false, isEditCompleted: false,
         isUserManager: false, isBranchManager: false, isMoveTable: false, isCancelOrder: false,
-        isCashBill: false, isSplitCompleted: false, isCustomization: false, isLeaveRequest: false
+        isCashBill: false, isSplitCompleted: false, isCustomization: false, isLeaveRequest: false,
+        isMenuSearch: false
     });
     const [itemToEdit, setItemToEdit] = useState<MenuItem | null>(null);
     const [itemToCustomize, setItemToCustomize] = useState<MenuItem | null>(null);
@@ -194,6 +197,51 @@ const App: React.FC = () => {
             }
         }
     }, [users, currentUser]);
+
+    // --- Push Notification Setup ---
+    useEffect(() => {
+        const setupPushNotifications = async (userToUpdate: User) => {
+            if (!db || !('serviceWorker' in navigator) || !('PushManager' in window)) {
+                console.log("Push notifications are not supported in this browser.");
+                return;
+            }
+
+            try {
+                const permission = await Notification.requestPermission();
+                if (permission === 'granted') {
+                    console.log('Notification permission granted.');
+                    const messaging = getMessaging(db.app);
+                    
+                    // IMPORTANT: Replace with your key from Firebase Console > Project Settings > Cloud Messaging > Web Push certificates
+                    const vapidKey = 'BMIo7v3beGbvOlEciEL3TN5lFAZBZ-52zkg-vqgo8gudi4QW4UyIR4HDEk17Q2pYb3FFDCgzyq5oYFKIGXGfpJU'; 
+                    const currentToken = await getToken(messaging, { vapidKey });
+
+                    if (currentToken) {
+                        // Save the token to the user's profile if it's new or different
+                        if (userToUpdate.fcmToken !== currentToken) {
+                            console.log('New or updated FCM token found, saving to user profile:', currentToken);
+                            setUsers(prevUsers =>
+                                prevUsers.map(u =>
+                                    u.id === userToUpdate.id ? { ...u, fcmToken: currentToken } : u
+                                )
+                            );
+                        }
+                    } else {
+                        console.log('No registration token available. Request permission to generate one.');
+                    }
+                } else {
+                    console.log('Unable to get permission to notify.');
+                }
+            } catch (err) {
+                console.error('An error occurred while setting up push notifications.', err);
+            }
+        };
+
+        if (currentUser && currentUser.role === 'kitchen') {
+            // Only setup for kitchen staff
+            setupPushNotifications(currentUser);
+        }
+    }, [currentUser, setUsers]);
 
 
     // --- COMPUTED VALUES ---
@@ -1248,8 +1296,8 @@ const App: React.FC = () => {
             case 'pos':
             default:
                 return (
-                     <div className="flex flex-col md:flex-row flex-1 overflow-hidden h-full relative">
-                        {/* Sidebar Toggle Button */}
+                     <div className="flex flex-col md:flex-row h-full relative">
+                        {/* Sidebar Toggle Button - Desktop Only */}
                         <div className="absolute top-1/2 -translate-y-1/2 right-0 z-20 hidden md:block transition-all duration-300" style={{ right: isOrderSidebarVisible ? '420px' : '0px' }}>
                             <button
                                 onClick={() => setIsOrderSidebarVisible(!isOrderSidebarVisible)}
@@ -1268,7 +1316,8 @@ const App: React.FC = () => {
                                 )}
                             </button>
                         </div>
-                        <div className="flex-1 overflow-hidden">
+                        {/* Menu - Hidden on mobile */}
+                        <div className="hidden md:block md:flex-1 overflow-hidden">
                             <Menu 
                                 menuItems={menuItems} 
                                 setMenuItems={setMenuItems}
@@ -1284,35 +1333,72 @@ const App: React.FC = () => {
                                 onImportMenu={handleImportMenu}
                             />
                         </div>
-                        {isOrderSidebarVisible && (
-                             <Sidebar 
-                                currentOrderItems={currentOrderItems}
-                                onQuantityChange={handleCartQuantityChange}
-                                onRemoveItem={handleRemoveFromCart}
-                                onToggleTakeaway={handleToggleTakeaway}
-                                onClearOrder={clearPosState}
-                                onPlaceOrder={handlePlaceOrder}
-                                isPlacingOrder={isPlacingOrder}
-                                tables={tables}
-                                selectedTable={tables.find(t => t.id === selectedTableId) || null}
-                                onSelectTable={(id) => setSelectedTableId(id)}
-                                customerName={customerName}
-                                onCustomerNameChange={setCustomerName}
-                                customerCount={customerCount}
-                                onCustomerCountChange={setCustomerCount}
-                                isEditMode={isEditMode}
-                                onAddNewTable={handleAddNewTable}
-                                onRemoveLastTable={handleRemoveLastTable}
-                                floors={floors}
-                                selectedFloor={selectedSidebarFloor}
-                                onFloorChange={setSelectedSidebarFloor}
-                                onAddFloor={handleAddFloor}
-                                onRemoveFloor={handleRemoveFloor}
-                                sendToKitchen={sendToKitchen}
-                                onSendToKitchenChange={handleSendToKitchenChange}
-                                onUpdateReservation={handleUpdateTableReservation}
-                            />
-                        )}
+                        {/* Sidebar Wrapper for correct scrolling on mobile */}
+                        <div className="flex-1 md:flex-initial min-h-0">
+                           {/* Show Sidebar on mobile, or on desktop if toggled visible */}
+                            <div className="md:hidden h-full">
+                                <Sidebar 
+                                    currentOrderItems={currentOrderItems}
+                                    onQuantityChange={handleCartQuantityChange}
+                                    onRemoveItem={handleRemoveFromCart}
+                                    onToggleTakeaway={handleToggleTakeaway}
+                                    onClearOrder={clearPosState}
+                                    onPlaceOrder={handlePlaceOrder}
+                                    isPlacingOrder={isPlacingOrder}
+                                    tables={tables}
+                                    selectedTable={tables.find(t => t.id === selectedTableId) || null}
+                                    onSelectTable={(id) => setSelectedTableId(id)}
+                                    customerName={customerName}
+                                    onCustomerNameChange={setCustomerName}
+                                    customerCount={customerCount}
+                                    onCustomerCountChange={setCustomerCount}
+                                    isEditMode={isEditMode}
+                                    onAddNewTable={handleAddNewTable}
+                                    onRemoveLastTable={handleRemoveLastTable}
+                                    floors={floors}
+                                    selectedFloor={selectedSidebarFloor}
+                                    onFloorChange={setSelectedSidebarFloor}
+                                    onAddFloor={handleAddFloor}
+                                    onRemoveFloor={handleRemoveFloor}
+                                    sendToKitchen={sendToKitchen}
+                                    onSendToKitchenChange={handleSendToKitchenChange}
+                                    onUpdateReservation={handleUpdateTableReservation}
+                                    onOpenSearch={() => setModalState(p => ({ ...p, isMenuSearch: true }))}
+                                />
+                            </div>
+                            <div className="hidden md:block h-full">
+                                {isOrderSidebarVisible && (
+                                    <Sidebar 
+                                        currentOrderItems={currentOrderItems}
+                                        onQuantityChange={handleCartQuantityChange}
+                                        onRemoveItem={handleRemoveFromCart}
+                                        onToggleTakeaway={handleToggleTakeaway}
+                                        onClearOrder={clearPosState}
+                                        onPlaceOrder={handlePlaceOrder}
+                                        isPlacingOrder={isPlacingOrder}
+                                        tables={tables}
+                                        selectedTable={tables.find(t => t.id === selectedTableId) || null}
+                                        onSelectTable={(id) => setSelectedTableId(id)}
+                                        customerName={customerName}
+                                        onCustomerNameChange={setCustomerName}
+                                        customerCount={customerCount}
+                                        onCustomerCountChange={setCustomerCount}
+                                        isEditMode={isEditMode}
+                                        onAddNewTable={handleAddNewTable}
+                                        onRemoveLastTable={handleRemoveLastTable}
+                                        floors={floors}
+                                        selectedFloor={selectedSidebarFloor}
+                                        onFloorChange={setSelectedSidebarFloor}
+                                        onAddFloor={handleAddFloor}
+                                        onRemoveFloor={handleRemoveFloor}
+                                        sendToKitchen={sendToKitchen}
+                                        onSendToKitchenChange={handleSendToKitchenChange}
+                                        onUpdateReservation={handleUpdateTableReservation}
+                                        onOpenSearch={() => setModalState(p => ({ ...p, isMenuSearch: true }))}
+                                    />
+                                )}
+                            </div>
+                        </div>
                     </div>
                 );
         }
@@ -1370,7 +1456,7 @@ const App: React.FC = () => {
                             onManageBranches={() => setModalState(p => ({...p, isBranchManager: true}))}
                         />
                     )}
-                     <main className="flex-1 flex flex-col overflow-y-auto">
+                     <main className="flex-1 flex flex-col overflow-hidden">
                         {renderView()}
                      </main>
                     {layoutType === 'staff' && <div className="h-16 flex-shrink-0 md:hidden" />}
@@ -1401,6 +1487,12 @@ const App: React.FC = () => {
             <ItemCustomizationModal isOpen={modalState.isCustomization} onClose={() => setModalState(p => ({...p, isCustomization: false}))} item={itemToCustomize} onConfirm={handleConfirmCustomization} />
             <LeaveRequestModal isOpen={modalState.isLeaveRequest} onClose={() => setModalState(p => ({...p, isLeaveRequest: false}))} currentUser={currentUser} onSave={handleSaveLeaveRequest} leaveRequests={leaveRequests} initialDate={leaveRequestInitialDate} />
             <SplitCompletedBillModal isOpen={modalState.isSplitCompleted} onClose={() => setModalState(p => ({...p, isSplitCompleted: false}))} order={orderForModal as CompletedOrder} onConfirmSplit={() => {}} />
+            <MenuSearchModal 
+                isOpen={modalState.isMenuSearch} 
+                onClose={() => setModalState(p => ({ ...p, isMenuSearch: false }))} 
+                menuItems={menuItems} 
+                onSelectItem={handleSelectItem}
+            />
             <LoginModal isOpen={false} onClose={() => {}} />
             <OrderTimeoutModal isOpen={false} onClose={() => {}} orderId={null} />
         </>
