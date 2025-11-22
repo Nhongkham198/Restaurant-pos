@@ -1,4 +1,5 @@
 
+
 import React, { useState, useMemo, useEffect } from 'react';
 import type { LeaveRequest, User } from '../types';
 import Swal from 'sweetalert2';
@@ -7,7 +8,8 @@ interface LeaveRequestModalProps {
     isOpen: boolean;
     onClose: () => void;
     currentUser: User | null;
-    onSave: (request: Omit<LeaveRequest, 'id' | 'status'>) => void;
+    // FIX: The onSave prop should not expect a branchId, as the parent component (App.tsx) is responsible for adding it based on the currently selected branch. The modal component doesn't have this information.
+    onSave: (request: Omit<LeaveRequest, 'id' | 'status' | 'branchId'>) => void;
     leaveRequests?: LeaveRequest[]; // Needed to calculate remaining days
     initialDate?: Date | null;
 }
@@ -43,6 +45,35 @@ export const LeaveRequestModal: React.FC<LeaveRequestModalProps> = ({ isOpen, on
             setEndDate(startDate);
         }
     }, [isHalfDay, startDate]);
+
+    const duration = useMemo(() => {
+        if (isHalfDay) {
+            return 0.5;
+        }
+        if (!startDate || !endDate) {
+            return 0;
+        }
+    
+        try {
+            const start = new Date(startDate);
+            const end = new Date(endDate);
+            
+            start.setHours(0,0,0,0);
+            end.setHours(0,0,0,0);
+    
+            if (end < start) {
+                return 0;
+            }
+    
+            const diffTime = end.getTime() - start.getTime();
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+            
+            return diffDays;
+    
+        } catch (e) {
+            return 0;
+        }
+    }, [startDate, endDate, isHalfDay]);
 
     const quotas = useMemo(() => {
         const defaultQuotas = { sick: 30, personal: 6, vacation: 6 }; 
@@ -107,7 +138,10 @@ export const LeaveRequestModal: React.FC<LeaveRequestModalProps> = ({ isOpen, on
         }
 
         // Final validation for quota before submit (in case UI was bypassed)
-        const duration = isHalfDay ? 0.5 : Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+        if (duration <= 0) {
+            Swal.fire('วันที่ไม่ถูกต้อง', 'ระยะเวลาการลาไม่ถูกต้อง', 'error');
+            return;
+        }
         
         if (type === 'personal' && remainingPersonal < duration) {
              Swal.fire('สิทธิ์วันลาไม่พอ', `วันลากิจเหลือ ${remainingPersonal} วัน แต่คุณขอ ${duration} วัน ระบบจะเปลี่ยนเป็นลาไม่รับเงินเดือนแทนหรือไม่?`, 'question').then((result) => {
@@ -141,99 +175,58 @@ export const LeaveRequestModal: React.FC<LeaveRequestModalProps> = ({ isOpen, on
     };
 
     if (!isOpen) return null;
+    
+    const inputClasses = "mt-1 block w-full border border-gray-300 p-2 rounded-md shadow-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500";
+
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={onClose}>
-            <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full flex flex-col" style={{ minHeight: '400px' }} onClick={e => e.stopPropagation()}>
-                <h3 className="text-2xl font-bold text-gray-900 mb-4">ขอวันลา</h3>
-                <form onSubmit={handleSubmit} className="space-y-4 flex-1">
-                    
-                    <div className="flex items-center gap-2 mb-2">
-                        <input 
-                            type="checkbox" 
-                            id="halfDay" 
-                            checked={isHalfDay} 
-                            onChange={(e) => setIsHalfDay(e.target.checked)}
-                            className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 border-gray-300"
-                        />
-                        <label htmlFor="halfDay" className="text-gray-700 font-medium select-none cursor-pointer">ลาครึ่งวัน (0.5 วัน)</label>
-                    </div>
-
+            <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full" onClick={e => e.stopPropagation()}>
+                <h2 className="text-2xl font-bold mb-6 text-gray-800">ขอวันลา</h2>
+                <form onSubmit={handleSubmit} className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">วันที่เริ่มลา</label>
-                            <input 
-                                type="date" 
-                                value={startDate} 
-                                onChange={(e) => setStartDate(e.target.value)} 
-                                className="w-full border border-gray-300 rounded-md p-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                                required
-                            />
+                            <label className="block text-sm font-medium text-gray-700">วันที่เริ่มลา</label>
+                            <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className={inputClasses} required />
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">ถึงวันที่</label>
-                            <input 
-                                type="date" 
-                                value={endDate} 
-                                onChange={(e) => setEndDate(e.target.value)} 
-                                className={`w-full border border-gray-300 rounded-md p-2 focus:ring-2 focus:ring-blue-500 focus:outline-none ${isHalfDay ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : ''}`}
-                                required
-                                disabled={isHalfDay}
-                            />
+                            <label className="block text-sm font-medium text-gray-700">ถึงวันที่</label>
+                            <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className={inputClasses} required disabled={isHalfDay} />
                         </div>
                     </div>
+                    <div className="flex items-center">
+                        <input type="checkbox" id="halfDay" checked={isHalfDay} onChange={(e) => setIsHalfDay(e.target.checked)} className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500" />
+                        <label htmlFor="halfDay" className="ml-2 block text-sm text-gray-900">ลาครึ่งวัน (0.5 วัน)</label>
+                    </div>
+
+                    {duration > 0 && (
+                        <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-center">
+                            <p className="font-semibold text-blue-800">
+                                ระยะเวลาที่ลา: {duration} วัน
+                            </p>
+                        </div>
+                    )}
 
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">ประเภทการลา</label>
-                        <select 
-                            value={type} 
-                            onChange={(e) => setType(e.target.value as LeaveRequest['type'])}
-                            className="w-full border border-gray-300 rounded-md p-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                        >
-                            {remainingPersonal > 0 && <option value="personal">ลากิจ</option>}
-                            {remainingSick > 0 && <option value="sick">ลาป่วย</option>}
+                        <label className="block text-sm font-medium text-gray-700">ประเภทการลา</label>
+                        <select value={type} onChange={(e) => setType(e.target.value as LeaveRequest['type'])} className={inputClasses} required>
+                            <option value="sick" disabled={remainingSick <= 0}>ลาป่วย (เหลือ {remainingSick} วัน)</option>
+                            <option value="personal" disabled={remainingPersonal <= 0}>ลากิจ (เหลือ {remainingPersonal} วัน)</option>
                             <option value="leave-without-pay">ลาไม่รับเงินเดือน</option>
                         </select>
                     </div>
-
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">เหตุผล</label>
-                        <textarea 
-                            value={reason} 
-                            onChange={(e) => setReason(e.target.value)} 
-                            rows={3}
-                            className="w-full border border-gray-300 rounded-md p-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                            placeholder="ระบุเหตุผล..."
-                            required
-                        />
+                        <label className="block text-sm font-medium text-gray-700">เหตุผล</label>
+                        <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3} className={inputClasses} required />
                     </div>
-
-                    <div className="pt-4 mt-auto flex items-end justify-between">
-                        {/* Quota Display Area */}
-                        <div className="text-xs text-gray-600 space-y-1 bg-gray-50 p-2 rounded border border-gray-200 mr-2 flex-grow">
-                            <p className="font-bold text-gray-700 border-b pb-1 mb-1">วันลาคงเหลือ (อนุมัติแล้ว):</p>
-                            <div className={`flex justify-between ${remainingPersonal <= 0 ? 'text-red-500' : ''}`}>
-                                <span>ลากิจ:</span>
-                                <span className="font-medium">{remainingPersonal} / {quotas.total.personal}</span>
-                            </div>
-                            <div className={`flex justify-between ${remainingSick <= 0 ? 'text-red-500' : ''}`}>
-                                <span>ลาป่วย:</span>
-                                <span className="font-medium">{remainingSick} / {quotas.total.sick}</span>
-                            </div>
-                            <div className="flex justify-between">
-                                <span>ลาไม่รับเงินเดือน:</span>
-                                <span className="font-medium">{Math.max(0, quotas.total.vacation - quotas.used.vacation)} / {quotas.total.vacation}</span>
-                            </div>
-                        </div>
-
-                        <div className="flex gap-2 flex-shrink-0">
-                            <button type="button" onClick={onClose} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 font-medium h-10">
-                                ยกเลิก
-                            </button>
-                            <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium h-10">
-                                ส่งคำขอ
-                            </button>
-                        </div>
+                    <div className="text-sm text-gray-500">
+                        <p>ลากิจ: {quotas.used.personal}/{quotas.total.personal}</p>
+                        <p>ลาป่วย: {quotas.used.sick}/{quotas.total.sick}</p>
+                        <p>ลาไม่รับเงินเดือน: {quotas.used.vacation}/{quotas.total.vacation}</p>
+                    </div>
+                    <div className="flex justify-end gap-2 pt-4">
+                        <button type="button" onClick={onClose} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300">ยกเลิก</button>
+                        <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">ส่งคำขอ</button>
                     </div>
                 </form>
             </div>
