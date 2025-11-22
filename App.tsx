@@ -1406,7 +1406,7 @@ const App: React.FC = () => {
     
     return (
         <>
-            <div className={`flex h-screen bg-gray-100 font-sans ${layoutType === 'admin' ? 'md:pl-20' : ''}`}>
+            <div className={`flex min-h-screen bg-gray-100 font-sans ${layoutType === 'admin' ? 'md:pl-20' : ''}`}>
                  {layoutType === 'admin' && (
                     <AdminSidebar
                         isCollapsed={isAdminSidebarCollapsed}
@@ -1432,7 +1432,7 @@ const App: React.FC = () => {
                         onUpdateRestaurantName={setRestaurantName}
                     />
                 )}
-                <div className="flex-1 flex flex-col overflow-hidden">
+                <div className="flex-1 flex flex-col">
                     {layoutType === 'staff' && (
                         <Header 
                             currentView={currentView}
@@ -1456,7 +1456,7 @@ const App: React.FC = () => {
                             onManageBranches={() => setModalState(p => ({...p, isBranchManager: true}))}
                         />
                     )}
-                     <main className="flex-1 flex flex-col overflow-hidden">
+                     <main className="flex-1 flex flex-col">
                         {renderView()}
                      </main>
                     {layoutType === 'staff' && <div className="h-16 flex-shrink-0 md:hidden" />}
