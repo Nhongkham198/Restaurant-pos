@@ -323,7 +323,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     };
 
     return (
-        <aside className="w-full md:w-[420px] flex-shrink-0 bg-gray-800 text-white p-4 flex flex-col h-auto md:h-full shadow-2xl">
+        <aside className="w-full md:w-[420px] flex-shrink-0 bg-gray-800 text-white p-4 flex flex-col h-full shadow-2xl">
             {/* Header */}
             <div className="pb-3 border-b border-gray-700 flex justify-between items-center">
                 <h2 className="text-2xl font-bold">ข้อมูลออเดอร์</h2>

@@ -1250,8 +1250,8 @@ const App: React.FC = () => {
             case 'pos':
             default:
                 return (
-                     <div className="flex flex-col md:flex-row md:h-full relative">
-                        {/* Sidebar Toggle Button */}
+                     <div className="flex flex-col md:flex-row h-full relative">
+                        {/* Sidebar Toggle Button - Desktop Only */}
                         <div className="absolute top-1/2 -translate-y-1/2 right-0 z-20 hidden md:block transition-all duration-300" style={{ right: isOrderSidebarVisible ? '420px' : '0px' }}>
                             <button
                                 onClick={() => setIsOrderSidebarVisible(!isOrderSidebarVisible)}
@@ -1270,7 +1270,8 @@ const App: React.FC = () => {
                                 )}
                             </button>
                         </div>
-                        <div className="md:flex-1 overflow-hidden">
+                        {/* Menu - Hidden on mobile */}
+                        <div className="hidden md:block md:flex-1 overflow-hidden">
                             <Menu 
                                 menuItems={menuItems} 
                                 setMenuItems={setMenuItems}
@@ -1286,36 +1287,72 @@ const App: React.FC = () => {
                                 onImportMenu={handleImportMenu}
                             />
                         </div>
-                        {isOrderSidebarVisible && (
-                             <Sidebar 
-                                currentOrderItems={currentOrderItems}
-                                onQuantityChange={handleCartQuantityChange}
-                                onRemoveItem={handleRemoveFromCart}
-                                onToggleTakeaway={handleToggleTakeaway}
-                                onClearOrder={clearPosState}
-                                onPlaceOrder={handlePlaceOrder}
-                                isPlacingOrder={isPlacingOrder}
-                                tables={tables}
-                                selectedTable={tables.find(t => t.id === selectedTableId) || null}
-                                onSelectTable={(id) => setSelectedTableId(id)}
-                                customerName={customerName}
-                                onCustomerNameChange={setCustomerName}
-                                customerCount={customerCount}
-                                onCustomerCountChange={setCustomerCount}
-                                isEditMode={isEditMode}
-                                onAddNewTable={handleAddNewTable}
-                                onRemoveLastTable={handleRemoveLastTable}
-                                floors={floors}
-                                selectedFloor={selectedSidebarFloor}
-                                onFloorChange={setSelectedSidebarFloor}
-                                onAddFloor={handleAddFloor}
-                                onRemoveFloor={handleRemoveFloor}
-                                sendToKitchen={sendToKitchen}
-                                onSendToKitchenChange={handleSendToKitchenChange}
-                                onUpdateReservation={handleUpdateTableReservation}
-                                onOpenSearch={() => setModalState(p => ({ ...p, isMenuSearch: true }))}
-                            />
-                        )}
+                        {/* Sidebar Wrapper for correct scrolling on mobile */}
+                        <div className="flex-1 md:flex-initial min-h-0">
+                           {/* Show Sidebar on mobile, or on desktop if toggled visible */}
+                            <div className="md:hidden h-full">
+                                <Sidebar 
+                                    currentOrderItems={currentOrderItems}
+                                    onQuantityChange={handleCartQuantityChange}
+                                    onRemoveItem={handleRemoveFromCart}
+                                    onToggleTakeaway={handleToggleTakeaway}
+                                    onClearOrder={clearPosState}
+                                    onPlaceOrder={handlePlaceOrder}
+                                    isPlacingOrder={isPlacingOrder}
+                                    tables={tables}
+                                    selectedTable={tables.find(t => t.id === selectedTableId) || null}
+                                    onSelectTable={(id) => setSelectedTableId(id)}
+                                    customerName={customerName}
+                                    onCustomerNameChange={setCustomerName}
+                                    customerCount={customerCount}
+                                    onCustomerCountChange={setCustomerCount}
+                                    isEditMode={isEditMode}
+                                    onAddNewTable={handleAddNewTable}
+                                    onRemoveLastTable={handleRemoveLastTable}
+                                    floors={floors}
+                                    selectedFloor={selectedSidebarFloor}
+                                    onFloorChange={setSelectedSidebarFloor}
+                                    onAddFloor={handleAddFloor}
+                                    onRemoveFloor={handleRemoveFloor}
+                                    sendToKitchen={sendToKitchen}
+                                    onSendToKitchenChange={handleSendToKitchenChange}
+                                    onUpdateReservation={handleUpdateTableReservation}
+                                    onOpenSearch={() => setModalState(p => ({ ...p, isMenuSearch: true }))}
+                                />
+                            </div>
+                            <div className="hidden md:block h-full">
+                                {isOrderSidebarVisible && (
+                                    <Sidebar 
+                                        currentOrderItems={currentOrderItems}
+                                        onQuantityChange={handleCartQuantityChange}
+                                        onRemoveItem={handleRemoveFromCart}
+                                        onToggleTakeaway={handleToggleTakeaway}
+                                        onClearOrder={clearPosState}
+                                        onPlaceOrder={handlePlaceOrder}
+                                        isPlacingOrder={isPlacingOrder}
+                                        tables={tables}
+                                        selectedTable={tables.find(t => t.id === selectedTableId) || null}
+                                        onSelectTable={(id) => setSelectedTableId(id)}
+                                        customerName={customerName}
+                                        onCustomerNameChange={setCustomerName}
+                                        customerCount={customerCount}
+                                        onCustomerCountChange={setCustomerCount}
+                                        isEditMode={isEditMode}
+                                        onAddNewTable={handleAddNewTable}
+                                        onRemoveLastTable={handleRemoveLastTable}
+                                        floors={floors}
+                                        selectedFloor={selectedSidebarFloor}
+                                        onFloorChange={setSelectedSidebarFloor}
+                                        onAddFloor={handleAddFloor}
+                                        onRemoveFloor={handleRemoveFloor}
+                                        sendToKitchen={sendToKitchen}
+                                        onSendToKitchenChange={handleSendToKitchenChange}
+                                        onUpdateReservation={handleUpdateTableReservation}
+                                        onOpenSearch={() => setModalState(p => ({ ...p, isMenuSearch: true }))}
+                                    />
+                                )}
+                            </div>
+                        </div>
                     </div>
                 );
         }
@@ -1373,7 +1410,7 @@ const App: React.FC = () => {
                             onManageBranches={() => setModalState(p => ({...p, isBranchManager: true}))}
                         />
                     )}
-                     <main className="flex-1 flex flex-col overflow-y-auto">
+                     <main className="flex-1 flex flex-col overflow-hidden">
                         {renderView()}
                      </main>
                     {layoutType === 'staff' && <div className="h-16 flex-shrink-0 md:hidden" />}
