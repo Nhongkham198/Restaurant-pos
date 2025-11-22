@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
 import type { ActiveOrder, PaymentDetails } from '../types';
 import Swal from 'sweetalert2';
@@ -28,6 +27,11 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, order, onClo
         if (!order) return 0;
         const subtotal = order.items.reduce((sum, item) => sum + item.finalPrice * item.quantity, 0);
         return subtotal + order.taxAmount;
+    }, [order]);
+
+    const subtotal = useMemo(() => {
+        if (!order) return 0;
+        return order.items.reduce((sum, item) => sum + item.finalPrice * item.quantity, 0);
     }, [order]);
     
     const changeGiven = useMemo(() => {
@@ -99,11 +103,23 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, order, onClo
                 <main className="flex-1 overflow-y-auto p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
                     {/* Left side: Order details */}
                     <div className="flex flex-col">
-                         <div className="text-center mb-4">
-                            <p className="text-lg text-gray-600">ยอดชำระทั้งหมด</p>
-                            <p className="text-5xl font-extrabold text-blue-600">{total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ฿</p>
+                        <div className="mb-4 space-y-2 p-4 border rounded-lg bg-gray-50">
+                            <div className="flex justify-between text-lg text-gray-700">
+                                <span>ยอดรวม (ก่อนภาษี)</span>
+                                <span className="font-mono">{subtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })} ฿</span>
+                            </div>
+                            {order.taxAmount > 0 && (
+                                <div className="flex justify-between text-lg text-gray-700">
+                                    <span>ภาษี ({order.taxRate}%)</span>
+                                    <span className="font-mono">{order.taxAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} ฿</span>
+                                </div>
+                            )}
+                            <div className="flex justify-between text-3xl font-bold text-blue-600 pt-2 border-t-2 border-dashed border-gray-300">
+                                <span>ยอดสุทธิ</span>
+                                <span className="font-mono">{total.toLocaleString(undefined, { minimumFractionDigits: 2 })} ฿</span>
+                            </div>
                         </div>
-                        <div className="border rounded-lg p-4 bg-gray-50 flex-1 overflow-y-auto">
+                        <div className="border rounded-lg p-4 bg-white flex-1 overflow-y-auto">
                             <h4 className="text-lg font-semibold text-gray-700 mb-3">รายการอาหาร</h4>
                             <ul className="space-y-2">
                                 {order.items.map(item => (

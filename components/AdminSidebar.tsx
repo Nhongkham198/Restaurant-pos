@@ -3,6 +3,7 @@
 
 
 
+
 import React, { useState, ReactNode, useRef } from 'react';
 import type { User, View } from '../types';
 import Swal from 'sweetalert2';
@@ -228,7 +229,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({
                 />
                  
                 {/* Navigation */}
-                <nav className="flex-1 px-3 py-4 overflow-y-auto">
+                <nav className="flex-1 px-3 py-4 overflow-y-auto overflow-x-hidden">
                     <ul className="space-y-1">
                          <NavItem
                             icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>}
@@ -289,7 +290,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({
                             onClick={() => onViewChange('stock')}
                         />
                         <NavItem
-                            icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>}
+                            icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>}
                             text="วันลาพนักงาน"
                             isCollapsed={isCollapsed}
                             isActive={currentView === 'leave'}

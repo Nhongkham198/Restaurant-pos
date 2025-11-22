@@ -67,11 +67,13 @@ export const DEFAULT_MENU_ITEMS: MenuItem[] = [
     { id: 5, name: 'น้ำเปล่า', price: 15, category: 'เครื่องดื่ม', imageUrl: 'https://backend.tops.co.th/media/catalog/product/8/8/8851959141017_1.jpg', cookingTime: 1 },
 ];
 
+export const DEFAULT_FLOORS: string[] = ['ชั้นล่าง', 'ชั้นบน'];
+
 export const DEFAULT_TABLES: Table[] = [
-    { id: 1, name: 'A1', floor: 'lower' },
-    { id: 2, name: 'A2', floor: 'lower' },
-    { id: 3, name: 'A3', floor: 'lower' },
-    { id: 4, name: 'B1', floor: 'upper' },
+    { id: 1, name: 'A1', floor: 'ชั้นล่าง' },
+    { id: 2, name: 'A2', floor: 'ชั้นล่าง' },
+    { id: 3, name: 'A3', floor: 'ชั้นล่าง' },
+    { id: 4, name: 'B1', floor: 'ชั้นบน' },
 ];
 
 export const DEFAULT_CATEGORIES: string[] = ['ทั้งหมด', 'อาหารจานเดียว', 'ของทานเล่น', 'เครื่องดื่ม'];

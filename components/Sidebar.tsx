@@ -1,4 +1,3 @@
-
 import React, { useMemo } from 'react';
 import type { OrderItem, Table, TakeawayCutleryOption, Reservation } from '../types';
 import { OrderListItem } from './OrderListItem';
@@ -20,17 +19,17 @@ interface SidebarProps {
     customerCount: number;
     onCustomerCountChange: (count: number) => void;
     isEditMode: boolean;
-    onAddNewTable: (floor: 'lower' | 'upper') => void;
-    onRemoveLastTable: (floor: 'lower' | 'upper') => void;
-    selectedFloor: 'lower' | 'upper';
-    onFloorChange: (floor: 'lower' | 'upper') => void;
-    isTaxEnabled: boolean;
-    onTaxEnabledChange: (enabled: boolean) => void;
-    taxRate: number;
-    onTaxRateChange: (rate: number) => void;
+    onAddNewTable: (floor: string) => void;
+    onRemoveLastTable: (floor: string) => void;
+    floors: string[];
+    selectedFloor: string;
+    onFloorChange: (floor: string) => void;
+    onAddFloor: () => void;
+    onRemoveFloor: (floor: string) => void;
     sendToKitchen: boolean;
     onSendToKitchenChange: (enabled: boolean, details: { reason: string; notes: string } | null) => void;
     onUpdateReservation: (tableId: number, reservation: Reservation | null) => void;
+    onOpenSearch: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -51,21 +50,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
     isEditMode,
     onAddNewTable,
     onRemoveLastTable,
+    floors,
     selectedFloor,
     onFloorChange,
-    isTaxEnabled,
-    onTaxEnabledChange,
-    taxRate,
-    onTaxRateChange,
+    onAddFloor,
+    onRemoveFloor,
     sendToKitchen,
     onSendToKitchenChange,
-    onUpdateReservation
+    onUpdateReservation,
+    onOpenSearch
 }) => {
-    const { subtotal, taxAmount, total } = useMemo(() => {
-        const sub = currentOrderItems.reduce((sum, item) => sum + item.finalPrice * item.quantity, 0);
-        const tax = isTaxEnabled ? sub * (taxRate / 100) : 0;
-        return { subtotal: sub, taxAmount: tax, total: sub + tax };
-    }, [currentOrderItems, isTaxEnabled, taxRate]);
+    const total = useMemo(() => {
+        return currentOrderItems.reduce((sum, item) => sum + item.finalPrice * item.quantity, 0);
+    }, [currentOrderItems]);
 
     const canPlaceOrder = currentOrderItems.length > 0 && selectedTable !== null;
     
@@ -184,7 +181,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         onPlaceOrder();
     };
     
-    const handleFloorChange = (floor: 'lower' | 'upper') => {
+    const handleFloorChange = (floor: string) => {
         if (selectedFloor !== floor) {
             onFloorChange(floor);
             onSelectTable(null); // Clear the table selection when floor changes
@@ -328,8 +325,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
     return (
         <aside className="w-full md:w-[420px] flex-shrink-0 bg-gray-800 text-white p-4 flex flex-col h-auto md:h-full shadow-2xl">
             {/* Header */}
-            <div className="pb-3 border-b border-gray-700">
+            <div className="pb-3 border-b border-gray-700 flex justify-between items-center">
                 <h2 className="text-2xl font-bold">ข้อมูลออเดอร์</h2>
+                <button 
+                    onClick={onOpenSearch}
+                    className="p-2 rounded-full text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"
+                    title="ค้นหาเมนูอาหาร"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                </button>
             </div>
 
             {/* Order Configuration */}
@@ -348,18 +354,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
                  <div>
                     <label className="block text-sm font-medium text-gray-300 mb-1">เลือกชั้น:</label>
                     <div className="grid grid-cols-2 gap-2">
-                        <button 
-                            onClick={() => handleFloorChange('lower')} 
-                            className={`py-2 px-4 rounded-md font-semibold transition-colors ${selectedFloor === 'lower' ? 'bg-blue-600 text-white' : 'bg-gray-700 hover:bg-gray-600'}`}
-                        >
-                            ชั้นล่าง
-                        </button>
-                        <button 
-                            onClick={() => handleFloorChange('upper')} 
-                            className={`py-2 px-4 rounded-md font-semibold transition-colors ${selectedFloor === 'upper' ? 'bg-blue-600 text-white' : 'bg-gray-700 hover:bg-gray-600'}`}
-                        >
-                            ชั้นบน
-                        </button>
+                        {floors.map(floor => (
+                            <button 
+                                key={floor}
+                                onClick={() => handleFloorChange(floor)} 
+                                className={`py-2 px-4 rounded-md font-semibold transition-colors ${selectedFloor === floor ? 'bg-blue-600 text-white' : 'bg-gray-700 hover:bg-gray-600'}`}
+                            >
+                                {floor}
+                            </button>
+                        ))}
                     </div>
                 </div>
 
@@ -421,29 +424,41 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 </div>
             </div>
 
-            {/* Table Management (Edit Mode) */}
+            {/* Management (Edit Mode) */}
             {isEditMode && (
                 <div className="py-3 border-t border-b border-gray-700 space-y-2">
-                    <h3 className="text-sm font-medium text-gray-300 px-1">
-                        จัดการโต๊ะ ({selectedFloor === 'lower' ? 'ชั้นล่าง' : 'ชั้นบน'})
-                        <span className="ml-2 text-yellow-400">
-                            (มี {tables.filter(t => t.floor === selectedFloor).length} โต๊ะ)
+                    <div className="flex justify-between items-center px-1">
+                        <h3 className="text-sm font-medium text-gray-300">
+                            จัดการ (โหมดแก้ไข)
+                        </h3>
+                        <span className="text-sm font-bold text-yellow-400 bg-gray-700 px-2 py-0.5 rounded-full">
+                            {availableTables.length} โต๊ะ
                         </span>
-                    </h3>
+                    </div>
                     <div className="grid grid-cols-2 gap-2">
                         <button
-                            onClick={() => onAddNewTable(selectedFloor)}
-                            className="w-full px-4 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-colors text-sm flex items-center justify-center gap-2"
+                            onClick={onAddFloor}
+                            className="w-full px-4 py-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition-colors text-sm"
                         >
-                             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" /></svg>
-                            <span>เพิ่มโต๊ะ</span>
+                           + เพิ่มชั้น
+                        </button>
+                         <button
+                            onClick={() => onRemoveFloor(selectedFloor)}
+                            className="w-full px-4 py-2 bg-pink-800/80 text-white font-semibold rounded-lg hover:bg-pink-700 transition-colors text-sm"
+                        >
+                            - ลบชั้นปัจจุบัน
+                        </button>
+                        <button
+                            onClick={() => onAddNewTable(selectedFloor)}
+                            className="w-full px-4 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-colors text-sm"
+                        >
+                           + เพิ่มโต๊ะ
                         </button>
                         <button
                             onClick={() => onRemoveLastTable(selectedFloor)}
-                            className="w-full px-4 py-2 bg-red-800/80 text-white font-semibold rounded-lg hover:bg-red-700 transition-colors text-sm flex items-center justify-center gap-2"
+                            className="w-full px-4 py-2 bg-red-800/80 text-white font-semibold rounded-lg hover:bg-red-700 transition-colors text-sm"
                         >
-                           <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5 10a1 1 0 011-1h8a1 1 0 110 2H6a1 1 0 01-1-1z" clipRule="evenodd" /></svg>
-                           <span>ลบโต๊ะล่าสุด</span>
+                           - ลบโต๊ะล่าสุด
                         </button>
                     </div>
                 </div>
@@ -474,23 +489,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
             {/* Totals and Actions */}
             <div className="pt-3 mt-2 border-t border-gray-700 space-y-3">
-                 <div className="space-y-1 text-base">
-                    <div className="flex justify-between">
-                        <span className="text-gray-400">ยอดรวม (ก่อนภาษี)</span>
-                        <span>{subtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })} ฿</span>
-                    </div>
-                     <div className="flex justify-between items-center">
-                        <label className="flex items-center gap-2 text-gray-400 cursor-pointer">
-                            <input type="checkbox" checked={isTaxEnabled} onChange={e => onTaxEnabledChange(e.target.checked)} className="h-4 w-4 bg-gray-700 border-gray-600 rounded text-blue-500 focus:ring-blue-500"/>
-                            ภาษี
-                        </label>
-                        <div className="flex items-center gap-2">
-                            {isTaxEnabled && (
-                                <input type="number" value={taxRate} onChange={e => onTaxRateChange(Number(e.target.value))} className="w-14 bg-gray-700 text-white text-right rounded-md p-1 border border-gray-600"/>
-                            )}
-                            <span>{taxAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} ฿</span>
-                        </div>
-                    </div>
+                <div className="space-y-1 text-base">
                     <div className="flex justify-between items-center">
                         <label className="flex items-center gap-2 text-gray-400 cursor-pointer">
                             <input
@@ -504,7 +503,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     </div>
                 </div>
                 <div className="flex justify-between items-center text-2xl font-bold border-t border-gray-600 pt-2">
-                    <span className="text-yellow-400">ยอดสุทธิ</span>
+                    <span className="text-yellow-400">ยอดรวม</span>
                     <span className="text-yellow-400">{total.toLocaleString(undefined, { minimumFractionDigits: 2 })} ฿</span>
                 </div>
                  <div className="grid grid-cols-2 gap-2">
