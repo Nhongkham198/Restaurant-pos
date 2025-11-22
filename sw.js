@@ -32,7 +32,7 @@ messaging.onBackgroundMessage(function(payload) {
 
 
 // --- Original Caching Service Worker ---
-const CACHE_NAME = 'restaurant-pos-cache-v1';
+const CACHE_NAME = 'restaurant-pos-cache-v2';
 const urlsToCache = [
   '/',
   '/index.html',
