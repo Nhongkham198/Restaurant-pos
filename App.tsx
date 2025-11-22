@@ -167,6 +167,7 @@ const App: React.FC = () => {
     const prevActiveOrdersRef = useRef<ActiveOrder[] | undefined>(undefined);
     const prevLeaveRequestsRef = useRef<LeaveRequest[] | undefined>(undefined);
     const notifiedCallIdsRef = useRef<Set<number>>(new Set());
+    const staffCallAudioRef = useRef<HTMLAudioElement | null>(null);
 
     // --- CUSTOMER MODE INITIALIZATION ---
     useEffect(() => {
@@ -310,22 +311,23 @@ const App: React.FC = () => {
             if (isCustomerMode || !currentUser || !['pos', 'kitchen', 'admin', 'branch-admin'].includes(currentUser.role)) {
                 return;
             }
-
-            // Find calls that exist in the current state but have not been notified in this user session yet.
+    
             const unnotifiedCalls = staffCalls.filter(c => !notifiedCallIdsRef.current.has(c.id));
-            
-            // Process only the first unnotified call to prevent multiple Swal modals.
+    
             if (unnotifiedCalls.length > 0) {
                 const callToNotify = unnotifiedCalls[0];
-                
-                // Mark this call as notified for this session to prevent re-triggering.
                 notifiedCallIdsRef.current.add(callToNotify.id);
-
+    
                 if (staffCallSoundUrl) {
-                    const audio = new Audio(staffCallSoundUrl);
-                    audio.play().catch(e => console.error("Error playing staff call sound:", e));
+                    if (!staffCallAudioRef.current) {
+                        staffCallAudioRef.current = new Audio(staffCallSoundUrl);
+                        staffCallAudioRef.current.loop = true;
+                    }
+                    if (staffCallAudioRef.current.paused) {
+                        staffCallAudioRef.current.play().catch(e => console.error("Error playing staff call sound:", e));
+                    }
                 }
-
+    
                 const result = await Swal.fire({
                     title: '🔔 ลูกค้าเรียกพนักงาน!',
                     html: `โต๊ะ <b>${callToNotify.tableName}</b> (คุณ ${callToNotify.customerName})<br/>ต้องการความช่วยเหลือ`,
@@ -336,15 +338,19 @@ const App: React.FC = () => {
                     allowOutsideClick: false,
                     allowEscapeKey: false
                 });
-
-                // When this user acknowledges (or timer runs out), remove the call from the central state.
+    
                 if (result.isConfirmed || result.dismiss === Swal.DismissReason.timer) {
-                    setStaffCalls(prev => prev.filter(call => call.id !== callToNotify.id));
+                    setStaffCalls(prev => {
+                        const updatedCalls = prev.filter(call => call.id !== callToNotify.id);
+                        if (updatedCalls.length === 0 && staffCallAudioRef.current) {
+                            staffCallAudioRef.current.pause();
+                            staffCallAudioRef.current.currentTime = 0;
+                        }
+                        return updatedCalls;
+                    });
                 }
             }
-
-            // Clean up the notified IDs ref: remove any IDs that are no longer in the main staffCalls list.
-            // This is important for when a call is acknowledged.
+    
             const currentCallIds = new Set(staffCalls.map(c => c.id));
             notifiedCallIdsRef.current.forEach(id => {
                 if (!currentCallIds.has(id)) {
@@ -352,7 +358,7 @@ const App: React.FC = () => {
                 }
             });
         };
-
+    
         handleNewCalls();
     }, [staffCalls, currentUser, isCustomerMode, staffCallSoundUrl, setStaffCalls]);
 
@@ -439,6 +445,10 @@ const App: React.FC = () => {
         setCurrentUser(null);
         setSelectedBranch(null);
         setCurrentView('pos');
+        if (staffCallAudioRef.current) {
+            staffCallAudioRef.current.pause();
+            staffCallAudioRef.current.currentTime = 0;
+        }
     };
 
     const handleSendToKitchenChange = (enabled: boolean, details: { reason: string; notes: string } | null = null) => {
