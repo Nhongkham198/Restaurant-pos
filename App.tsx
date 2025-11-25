@@ -818,8 +818,6 @@ const App: React.FC = () => {
     };
 
     // --- RENDER LOGIC ---
-    if (!currentUser) return <LoginScreen onLogin={handleLogin} />;
-
     if (isCustomerMode && customerTableId) {
          const table = tables.find(t => t.id === customerTableId);
          if (!table) return <div className="p-4 text-center">Table not found</div>;
@@ -836,6 +834,8 @@ const App: React.FC = () => {
          );
     }
 
+    if (!currentUser) return <LoginScreen onLogin={handleLogin} />;
+    
     if (!selectedBranch && currentUser.role !== 'admin') {
         return <BranchSelectionScreen 
             onSelectBranch={setSelectedBranch} 
