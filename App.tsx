@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 
 import { 
@@ -407,29 +408,44 @@ const App: React.FC = () => {
         notifiedCallIdsRef.current.clear();
     }, [currentUser]);
 
-    // --- STAFF CALL NOTIFICATION EFFECT ---
+    // --- STAFF CALL NOTIFICATION & SOUND EFFECT ---
+    // This effect manages ONLY the audio playback.
     useEffect(() => {
-        const handleNewCalls = async () => {
+        const shouldPlayAudio = staffCalls.length > 0 && staffCallSoundUrl && !isCustomerMode;
+
+        if (shouldPlayAudio) {
+            if (!staffCallAudioRef.current) {
+                staffCallAudioRef.current = new Audio(staffCallSoundUrl);
+                staffCallAudioRef.current.loop = true;
+            }
+            if (staffCallAudioRef.current.paused) {
+                staffCallAudioRef.current.play().catch(e => console.error("Error playing staff call sound:", e));
+            }
+        } else if (staffCallAudioRef.current && !staffCallAudioRef.current.paused) {
+            staffCallAudioRef.current.pause();
+            staffCallAudioRef.current.currentTime = 0;
+        }
+
+        return () => {
+            if (staffCallAudioRef.current) {
+                staffCallAudioRef.current.pause();
+            }
+        };
+    }, [staffCalls.length, staffCallSoundUrl, isCustomerMode]);
+
+    // This effect manages ONLY showing the visual Swal notifications.
+    useEffect(() => {
+        const showNotifications = async () => {
             if (isCustomerMode || !currentUser || !['pos', 'kitchen', 'admin', 'branch-admin'].includes(currentUser.role)) {
                 return;
             }
-    
+
             const unnotifiedCalls = staffCalls.filter(c => !notifiedCallIdsRef.current.has(c.id));
-    
+
             if (unnotifiedCalls.length > 0) {
                 const callToNotify = unnotifiedCalls[0];
-                notifiedCallIdsRef.current.add(callToNotify.id);
-    
-                if (staffCallSoundUrl) {
-                    if (!staffCallAudioRef.current) {
-                        staffCallAudioRef.current = new Audio(staffCallSoundUrl);
-                        staffCallAudioRef.current.loop = true;
-                    }
-                    if (staffCallAudioRef.current.paused) {
-                        staffCallAudioRef.current.play().catch(e => console.error("Error playing staff call sound:", e));
-                    }
-                }
-    
+                notifiedCallIdsRef.current.add(callToNotify.id); 
+
                 const result = await Swal.fire({
                     title: '🔔 ลูกค้าเรียกพนักงาน!',
                     html: `โต๊ะ <b>${callToNotify.tableName}</b> (คุณ ${callToNotify.customerName})<br/>ต้องการความช่วยเหลือ`,
@@ -440,19 +456,12 @@ const App: React.FC = () => {
                     allowOutsideClick: false,
                     allowEscapeKey: false
                 });
-    
+                
                 if (result.isConfirmed || result.dismiss === Swal.DismissReason.timer) {
-                    setStaffCalls(prev => {
-                        const updatedCalls = prev.filter(call => call.id !== callToNotify.id);
-                        if (updatedCalls.length === 0 && staffCallAudioRef.current) {
-                            staffCallAudioRef.current.pause();
-                            staffCallAudioRef.current.currentTime = 0;
-                        }
-                        return updatedCalls;
-                    });
+                    setStaffCalls(prev => prev.filter(call => call.id !== callToNotify.id));
                 }
             }
-    
+            
             const currentCallIds = new Set(staffCalls.map(c => c.id));
             notifiedCallIdsRef.current.forEach(id => {
                 if (!currentCallIds.has(id)) {
@@ -460,9 +469,9 @@ const App: React.FC = () => {
                 }
             });
         };
-    
-        handleNewCalls();
-    }, [staffCalls, currentUser, isCustomerMode, staffCallSoundUrl, setStaffCalls]);
+
+        showNotifications();
+    }, [staffCalls, currentUser, isCustomerMode, setStaffCalls]);
 
 
     // --- ORDER TIMEOUT NOTIFICATION EFFECT ---
@@ -774,28 +783,35 @@ const App: React.FC = () => {
     const handleConfirmPayment = async (orderId: number, paymentDetails: any) => {
         const orderToComplete = activeOrders.find(o => o.id === orderId);
         if (!orderToComplete || !branchId) return;
-
+    
         setIsConfirmingPayment(true);
-        
-        const completedOrder: CompletedOrder = {
-            ...orderToComplete,
-            status: 'completed',
-            completionTime: Date.now(),
-            paymentDetails,
-        };
-        setCompletedOrders(prev => [...prev, completedOrder]);
-        setActiveOrders(prev => prev.filter(o => o.id !== orderId));
-
-        setTables(prevTables => prevTables.map(t => {
-            if (t.name === orderToComplete.tableName && t.floor === orderToComplete.floor) {
-                 return { ...t, activePin: undefined, reservation: null };
-            }
-            return t;
-        }));
-        
-        setIsConfirmingPayment(false);
-        setModalState(prev => ({ ...prev, isPayment: false, isPaymentSuccess: true }));
-        setLastPlacedOrderId(orderId);
+        try {
+            const completedOrder: CompletedOrder = {
+                ...orderToComplete,
+                status: 'completed',
+                completionTime: Date.now(),
+                paymentDetails,
+            };
+            
+            setCompletedOrders(prev => [...prev, completedOrder]);
+            setActiveOrders(prev => prev.filter(o => o.id !== orderId));
+    
+            setTables(prevTables => prevTables.map(t => {
+                if (t.name === orderToComplete.tableName && t.floor === orderToComplete.floor) {
+                    return { ...t, activePin: undefined, reservation: null };
+                }
+                return t;
+            }));
+    
+            setLastPlacedOrderId(orderId);
+            setModalState(prev => ({ ...prev, isPayment: false, isPaymentSuccess: true }));
+            
+        } catch (error) {
+            console.error("Error during payment confirmation process:", error);
+            Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถบันทึกการชำระเงินได้', 'error');
+        } finally {
+            setIsConfirmingPayment(false);
+        }
     };
 
     // Missing local handlers for POS
