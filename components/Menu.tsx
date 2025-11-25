@@ -335,80 +335,81 @@ export const Menu: React.FC<MenuProps> = ({
             {/* Header and Search */}
             <div className="mb-4 flex-shrink-0">
                 <h2 className="text-2xl font-bold text-gray-800">เมนูอาหาร</h2>
-                <div className="relative mt-2">
-                     <span className="absolute inset-y-0 left-0 flex items-center pl-3">
-                        <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                        </svg>
-                    </span>
-                    <input
-                        type="text"
-                        placeholder="ค้นหาเมนู..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50 text-gray-900"
-                    />
-                </div>
-            </div>
-
-            {/* Category Filters */}
-            <div className="mb-4 flex-shrink-0 overflow-hidden">
-                <div className="flex overflow-x-auto whitespace-nowrap gap-2 items-center py-2 custom-scrollbar -mx-4 px-4">
-                    {categories.map(category => (
-                        <div key={category} className="relative group flex-shrink-0">
-                            <button
-                                onClick={() => setSelectedCategory(category)}
-                                className={`px-4 py-2 rounded-full text-sm font-semibold transition-colors ${
-                                    selectedCategory === category
-                                        ? 'bg-blue-600 text-white shadow'
-                                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                                }`}
-                            >
-                                {category}
-                            </button>
-                            {isEditMode && category !== 'ทั้งหมด' && (
-                                <div className="absolute -top-2 -right-2 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                                    <button onClick={() => handleEditCategory(category)} className="p-1.5 bg-white rounded-full shadow-md hover:bg-gray-200">
-                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L15.232 5.232z" /></svg>
+                <div className="mt-2 flex items-center gap-4">
+                    <div className="relative">
+                         <span className="absolute inset-y-0 left-0 flex items-center pl-3">
+                            <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                        </span>
+                        <input
+                            type="text"
+                            placeholder="ค้นหาเมนู..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="w-64 pl-10 pr-4 py-2 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50 text-gray-900"
+                        />
+                    </div>
+                    {/* Category Filters */}
+                    <div className="flex-1 overflow-hidden">
+                        <div className="flex overflow-x-auto whitespace-nowrap gap-2 items-center py-2 custom-scrollbar">
+                            {categories.map(category => (
+                                <div key={category} className="relative group flex-shrink-0">
+                                    <button
+                                        onClick={() => setSelectedCategory(category)}
+                                        className={`px-4 py-2 rounded-full text-sm font-semibold transition-colors ${
+                                            selectedCategory === category
+                                                ? 'bg-blue-600 text-white shadow'
+                                                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                                        }`}
+                                    >
+                                        {category}
                                     </button>
-                                    <button onClick={() => handleDeleteCategory(category)} className="p-1.5 bg-white rounded-full shadow-md hover:bg-gray-200">
-                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
-                                    </button>
+                                    {isEditMode && category !== 'ทั้งหมด' && (
+                                        <div className="absolute -top-2 -right-2 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                                            <button onClick={() => handleEditCategory(category)} className="p-1.5 bg-white rounded-full shadow-md hover:bg-gray-200">
+                                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L15.232 5.232z" /></svg>
+                                            </button>
+                                            <button onClick={() => handleDeleteCategory(category)} className="p-1.5 bg-white rounded-full shadow-md hover:bg-gray-200">
+                                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
+                            ))}
+                            {isEditMode && (
+                                <>
+                                    <button
+                                        onClick={handleAddCategory}
+                                        className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white font-semibold rounded-full hover:bg-green-600 transition-colors text-sm flex-shrink-0"
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                            <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+                                        </svg>
+                                        <span>เพิ่มหมวดหมู่</span>
+                                    </button>
+                                    <button
+                                        onClick={handleExportMenu}
+                                        className="flex items-center gap-2 px-4 py-2 bg-teal-500 text-white font-semibold rounded-full hover:bg-teal-600 transition-colors text-sm flex-shrink-0"
+                                    >
+                                       <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                                        </svg>
+                                        <span>ดึงข้อมูลเมนู</span>
+                                    </button>
+                                    <button
+                                        onClick={() => fileInputRef.current?.click()}
+                                        className="flex items-center gap-2 px-4 py-2 bg-purple-500 text-white font-semibold rounded-full hover:bg-purple-600 transition-colors text-sm flex-shrink-0"
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                        </svg>
+                                        <span>นำเข้าข้อมูลเมนู</span>
+                                    </button>
+                                </>
                             )}
                         </div>
-                    ))}
-                    {isEditMode && (
-                        <>
-                            <button
-                                onClick={handleAddCategory}
-                                className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white font-semibold rounded-full hover:bg-green-600 transition-colors text-sm flex-shrink-0"
-                            >
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                                    <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
-                                </svg>
-                                <span>เพิ่มหมวดหมู่</span>
-                            </button>
-                            <button
-                                onClick={handleExportMenu}
-                                className="flex items-center gap-2 px-4 py-2 bg-teal-500 text-white font-semibold rounded-full hover:bg-teal-600 transition-colors text-sm flex-shrink-0"
-                            >
-                               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                                </svg>
-                                <span>ดึงข้อมูลเมนู</span>
-                            </button>
-                            <button
-                                onClick={() => fileInputRef.current?.click()}
-                                className="flex items-center gap-2 px-4 py-2 bg-purple-500 text-white font-semibold rounded-full hover:bg-purple-600 transition-colors text-sm flex-shrink-0"
-                            >
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                                </svg>
-                                <span>นำเข้าข้อมูลเมนู</span>
-                            </button>
-                        </>
-                    )}
+                    </div>
                 </div>
             </div>
             

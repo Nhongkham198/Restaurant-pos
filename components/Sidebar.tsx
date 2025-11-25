@@ -1,3 +1,4 @@
+
 import React, { useMemo } from 'react';
 import type { OrderItem, Table, TakeawayCutleryOption, Reservation } from '../types';
 import { OrderListItem } from './OrderListItem';
@@ -82,7 +83,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             const { value: cutleryData, isConfirmed } = await Swal.fire({
                 title: `ท่านต้องการรับ (สำหรับ ${item.name})`,
                 html: `
-                    <div class="swal-cutlery-container text-left space-y-1">
+                    <div class="swal-cutlery-container text-left space-y-1 text-gray-800">
                         <label class="flex items-center gap-3 p-2 rounded-md hover:bg-gray-100 cursor-pointer">
                             <input type="checkbox" id="swal-cutlery-spoon" class="swal-cutlery-checkbox h-5 w-5 rounded text-blue-500 border-gray-300 focus:ring-blue-500" value="spoon-fork">
                             <span>ช้อนส้อม</span>
@@ -96,7 +97,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                                 <input type="checkbox" id="swal-cutlery-other" class="swal-cutlery-checkbox h-5 w-5 rounded text-blue-500 border-gray-300 focus:ring-blue-500" value="other">
                                 <span>อื่นๆ (ระบุ)</span>
                             </label>
-                            <input type="text" id="swal-cutlery-other-notes" placeholder="ระบุ..." class="w-full mt-2 p-2 bg-gray-50 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm" style="display:none;">
+                            <input type="text" id="swal-cutlery-other-notes" placeholder="ระบุ..." class="w-full mt-2 p-2 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm text-gray-800" style="display:none;">
                         </div>
                         <label class="flex items-center gap-3 p-2 rounded-md hover:bg-gray-100 cursor-pointer">
                             <input type="checkbox" id="swal-cutlery-none" class="h-5 w-5 rounded text-blue-500 border-gray-300 focus:ring-blue-500" value="none">
@@ -197,7 +198,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 title: 'ระบุเหตุผลที่ไม่ส่งเข้าครัว',
                 width: '500px',
                 html: `
-                    <select id="swal-reason" class="swal2-select">
+                    <select id="swal-reason" class="swal2-select text-gray-800">
                         <option value="" disabled selected>-- เลือกเหตุผล --</option>
                         <option value="ลูกค้าสั่งกลับบ้าน">ลูกค้าสั่งกลับบ้าน</option>
                         <option value="ลูกค้าสั่งอาหารที่เคาน์เตอร์">ลูกค้าสั่งอาหารที่เคาน์เตอร์</option>
@@ -205,7 +206,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         <option value="ทำออร์เดอร์ผิด">ทำออร์เดอร์ผิด</option>
                         <option value="อื่นๆ">อื่นๆ (ระบุ)</option>
                     </select>
-                    <input id="swal-notes" class="swal2-input" placeholder="ระบุเหตุผล..." style="display:none; margin-top: 1em;">
+                    <input id="swal-notes" class="swal2-input text-gray-800" placeholder="ระบุเหตุผล..." style="display:none; margin-top: 1em;">
                 `,
                 confirmButtonText: 'ยืนยัน',
                 cancelButtonText: 'ยกเลิก',
@@ -252,13 +253,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
     const handleReservationClick = () => {
         if (!selectedTable) return;
-    
+
         if (selectedTable.reservation) {
             // Show details and option to cancel
             Swal.fire({
                 title: `การจองโต๊ะ ${selectedTable.name}`,
                 html: `
-                    <div class="text-left p-4 bg-gray-50 rounded-lg space-y-2">
+                    <div class="text-left p-4 bg-gray-50 rounded-lg space-y-2 text-gray-800">
                         <p><strong>ชื่อผู้จอง:</strong> ${selectedTable.reservation.name}</p>
                         <p><strong>เบอร์โทร:</strong> ${selectedTable.reservation.contact || '-'}</p>
                         <p><strong>เวลา:</strong> ${selectedTable.reservation.time}</p>
@@ -270,43 +271,27 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 cancelButtonColor: '#d33',
             }).then((result) => {
                 if (result.dismiss === Swal.DismissReason.cancel) {
-                    Swal.fire({
-                        title: 'ยกเลิกการจอง?',
-                        text: 'คุณต้องการยกเลิกการจองโต๊ะนี้ใช่หรือไม่',
-                        icon: 'warning',
-                        showCancelButton: true,
-                        confirmButtonText: 'ใช่, ยกเลิก',
-                        cancelButtonText: 'ไม่',
-                        confirmButtonColor: '#d33'
-                    }).then((confirmResult) => {
-                        if (confirmResult.isConfirmed) {
-                            onUpdateReservation(selectedTable.id, null);
-                            Swal.fire('เรียบร้อย', 'ยกเลิกการจองแล้ว', 'success');
-                        }
-                    });
+                    onUpdateReservation(selectedTable.id, null);
+                    Swal.fire('ยกเลิกแล้ว', 'การจองสำหรับโต๊ะนี้ถูกยกเลิกแล้ว', 'success');
                 }
             });
         } else {
-            // Create new reservation
+            // Open modal to create a new reservation
             Swal.fire({
                 title: `จองโต๊ะ ${selectedTable.name}`,
                 html: `
-                    <div class="space-y-3">
-                        <input id="res-name" class="swal2-input" placeholder="ชื่อผู้จอง">
-                        <input id="res-contact" class="swal2-input" placeholder="เบอร์โทรศัพท์ (ถ้ามี)">
-                        <label class="block text-sm font-medium text-gray-700 text-left mt-2">เวลาจอง</label>
-                        <input id="res-time" type="time" class="swal2-input">
-                    </div>
+                    <input id="swal-input-name" class="swal2-input text-gray-800" placeholder="ชื่อผู้จอง">
+                    <input id="swal-input-contact" class="swal2-input text-gray-800" placeholder="เบอร์โทร (ถ้ามี)">
+                    <input id="swal-input-time" type="time" class="swal2-input text-gray-800">
                 `,
                 focusConfirm: false,
                 showCancelButton: true,
-                confirmButtonText: 'บันทึกการจอง',
+                confirmButtonText: 'ยืนยันการจอง',
                 cancelButtonText: 'ยกเลิก',
                 preConfirm: () => {
-                    const name = (document.getElementById('res-name') as HTMLInputElement).value;
-                    const contact = (document.getElementById('res-contact') as HTMLInputElement).value;
-                    const time = (document.getElementById('res-time') as HTMLInputElement).value;
-    
+                    const name = (document.getElementById('swal-input-name') as HTMLInputElement).value;
+                    const contact = (document.getElementById('swal-input-contact') as HTMLInputElement).value;
+                    const time = (document.getElementById('swal-input-time') as HTMLInputElement).value;
                     if (!name || !time) {
                         Swal.showValidationMessage('กรุณากรอกชื่อและเวลา');
                         return false;
@@ -316,49 +301,64 @@ export const Sidebar: React.FC<SidebarProps> = ({
             }).then((result) => {
                 if (result.isConfirmed && result.value) {
                     onUpdateReservation(selectedTable.id, result.value);
-                    Swal.fire('เรียบร้อย', 'บันทึกการจองแล้ว', 'success');
+                    Swal.fire('จองแล้ว', `โต๊ะ ${selectedTable.name} ถูกจองเรียบร้อย`, 'success');
                 }
             });
         }
     };
 
     return (
-        <aside className="w-full md:w-[420px] flex-shrink-0 bg-gray-800 text-white p-4 flex flex-col h-full shadow-2xl">
+        <div className="bg-gray-900 text-white w-full h-full flex flex-col shadow-2xl overflow-hidden border-l border-gray-800 transition-all duration-200">
+            {/* Force hide scrollbar for this component specifically */}
+            <style>{`
+                .custom-scrollbar::-webkit-scrollbar {
+                    display: none !important;
+                    width: 0px;
+                    background: transparent;
+                }
+                .custom-scrollbar {
+                    -ms-overflow-style: none !important;
+                    scrollbar-width: none !important;
+                }
+            `}</style>
+            
             {/* Header */}
-            <div className="pb-3 border-b border-gray-700 flex justify-between items-center">
-                <h2 className="text-2xl font-bold">ข้อมูลออเดอร์</h2>
-                <button 
+            <div className="p-4 flex justify-between items-center border-b border-gray-800 flex-shrink-0 bg-gray-900">
+                <h2 className="text-xl font-bold text-white">ข้อมูลออเดอร์</h2>
+                <button
                     onClick={onOpenSearch}
-                    className="p-2 rounded-full text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"
-                    title="ค้นหาเมนูอาหาร"
+                    className="p-2 rounded-full hover:bg-gray-800 transition-colors text-gray-300 hover:text-white"
+                    title="ค้นหาเมนู"
                 >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                     </svg>
                 </button>
             </div>
 
-            {/* Order Configuration */}
-            <div className="py-3 space-y-3">
-                 <div>
-                    <label htmlFor="customer-name" className="block text-sm font-medium text-gray-300 mb-1">ชื่อลูกค้า (ถ้ามี):</label>
+            {/* Top section for customer info and tables */}
+            <div className="p-4 space-y-4 flex-shrink-0 bg-gray-900">
+                {/* Customer Info */}
+                <div className="space-y-1">
+                    <label className="text-xs font-medium text-gray-400">ชื่อลูกค้า (ถ้ามี)</label>
                     <input
-                        id="customer-name"
                         type="text"
+                        placeholder="เช่น คุณสมชาย"
                         value={customerName}
                         onChange={(e) => onCustomerNameChange(e.target.value)}
-                        placeholder="เช่น คุณสมชาย"
-                        className="w-full p-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full p-3 bg-gray-800 rounded-lg border border-gray-700 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all"
                     />
                 </div>
-                 <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">เลือกชั้น:</label>
-                    <div className="grid grid-cols-2 gap-2">
+
+                {/* Floor Selection */}
+                <div>
+                    <label className="text-xs font-medium text-gray-400">เลือกชั้น:</label>
+                    <div className="mt-1 grid grid-cols-2 gap-2">
                         {floors.map(floor => (
-                            <button 
+                            <button
                                 key={floor}
-                                onClick={() => handleFloorChange(floor)} 
-                                className={`py-2 px-4 rounded-md font-semibold transition-colors ${selectedFloor === floor ? 'bg-blue-600 text-white' : 'bg-gray-700 hover:bg-gray-600'}`}
+                                onClick={() => handleFloorChange(floor)}
+                                className={`py-2 px-4 rounded-lg font-semibold transition-all border ${selectedFloor === floor ? 'bg-blue-600 text-white border-blue-600 shadow-md' : 'bg-gray-800 text-gray-400 border-gray-700 hover:bg-gray-700 hover:border-gray-600'}`}
                             >
                                 {floor}
                             </button>
@@ -366,173 +366,140 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     </div>
                 </div>
 
-                <div>
-                    <label htmlFor="table-select" className="block text-sm font-medium text-gray-300 mb-1">เลือกโต๊ะ:</label>
-                    <div className="flex gap-2">
+                {/* Table and Customer Count */}
+                <div className="grid grid-cols-2 gap-4">
+                    <div>
+                        <label htmlFor="table-select" className="block text-xs font-medium text-gray-400 mb-1">เลือกโต๊ะ:</label>
                         <select
                             id="table-select"
-                            value={selectedTable?.id ?? ''}
+                            value={selectedTable?.id || ''}
                             onChange={(e) => onSelectTable(e.target.value ? Number(e.target.value) : null)}
-                            className="flex-1 p-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            className="w-full p-2.5 bg-gray-800 rounded-lg border border-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-blue-600 transition-all"
                         >
                             <option value="">-- กรุณาเลือกโต๊ะ --</option>
                             {availableTables.map(table => (
                                 <option key={table.id} value={table.id}>{table.name}</option>
                             ))}
                         </select>
-                        {selectedTable && (
-                            <button
-                                onClick={handleReservationClick}
-                                className={`w-32 rounded-md font-medium text-sm transition-colors ${
-                                    selectedTable.reservation 
-                                    ? 'bg-purple-600 hover:bg-purple-700 text-white' 
-                                    : 'bg-gray-600 hover:bg-gray-500 text-gray-200'
-                                }`}
-                                title={selectedTable.reservation ? 'ดูรายละเอียดการจอง' : 'จองโต๊ะ'}
-                            >
-                                {selectedTable.reservation ? 'จองแล้ว' : 'จอง'}
-                            </button>
-                        )}
                     </div>
-                </div>
-                 <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">ลูกค้า:</label>
-                     <div className="flex items-center">
-                        <button 
-                            onClick={() => onCustomerCountChange(customerCount - 1)} 
-                            className="px-4 py-2 bg-gray-700 rounded-l-md hover:bg-gray-600 font-bold text-lg disabled:opacity-50"
-                            disabled={selectedTable === null}
-                        >
-                            -
-                        </button>
-                        <input
-                            type="number"
-                            value={customerCount}
-                            onChange={(e) => onCustomerCountChange(Math.max(1, Number(e.target.value)))}
-                            min="1"
-                            className="w-full p-2 text-center bg-gray-900 border-y border-gray-600 text-lg font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
-                            disabled={selectedTable === null}
-                        />
-                         <button 
-                            onClick={() => onCustomerCountChange(customerCount + 1)} 
-                            className="px-4 py-2 bg-gray-700 rounded-r-md hover:bg-gray-600 font-bold text-lg disabled:opacity-50"
-                            disabled={selectedTable === null}
-                        >
-                            +
-                         </button>
-                    </div>
-                </div>
-            </div>
-
-            {/* Management (Edit Mode) */}
-            {isEditMode && (
-                <div className="py-3 border-t border-b border-gray-700 space-y-2">
-                    <div className="flex justify-between items-center px-1">
-                        <h3 className="text-sm font-medium text-gray-300">
-                            จัดการ (โหมดแก้ไข)
-                        </h3>
-                        <span className="text-sm font-bold text-yellow-400 bg-gray-700 px-2 py-0.5 rounded-full">
-                            {availableTables.length} โต๊ะ
-                        </span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                        <button
-                            onClick={onAddFloor}
-                            className="w-full px-4 py-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition-colors text-sm"
-                        >
-                           + เพิ่มชั้น
-                        </button>
-                         <button
-                            onClick={() => onRemoveFloor(selectedFloor)}
-                            className="w-full px-4 py-2 bg-pink-800/80 text-white font-semibold rounded-lg hover:bg-pink-700 transition-colors text-sm"
-                        >
-                            - ลบชั้นปัจจุบัน
-                        </button>
-                        <button
-                            onClick={() => onAddNewTable(selectedFloor)}
-                            className="w-full px-4 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-colors text-sm"
-                        >
-                           + เพิ่มโต๊ะ
-                        </button>
-                        <button
-                            onClick={() => onRemoveLastTable(selectedFloor)}
-                            className="w-full px-4 py-2 bg-red-800/80 text-white font-semibold rounded-lg hover:bg-red-700 transition-colors text-sm"
-                        >
-                           - ลบโต๊ะล่าสุด
-                        </button>
-                    </div>
-                </div>
-            )}
-
-
-            {/* Order Items List */}
-            <div className="flex-1 min-h-0 bg-gray-900 rounded-lg p-2 flex flex-col">
-                {currentOrderItems.length === 0 ? (
-                    <div className="flex-1 flex flex-col items-center justify-center text-gray-500 text-center">
-                        <svg className="w-16 h-16" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
-                        <p className="mt-2">ยังไม่มีรายการอาหาร</p>
-                    </div>
-                ) : (
-                    <div className="flex-1 overflow-y-auto space-y-2">
-                        {currentOrderItems.map((item) => (
-                             <OrderListItem
-                                key={item.cartItemId}
-                                item={item}
-                                onQuantityChange={onQuantityChange}
-                                onRemoveItem={onRemoveItem}
-                                onToggleTakeaway={handleToggleItemTakeaway}
+                    <div>
+                        <label htmlFor="customer-count" className="block text-xs font-medium text-gray-400 mb-1">ลูกค้า:</label>
+                        <div className="flex items-center h-[42px]">
+                            <button onClick={() => onCustomerCountChange(Math.max(1, customerCount - 1))} className="w-10 h-full bg-gray-800 border border-gray-700 border-r-0 rounded-l-lg hover:bg-gray-700 text-gray-300 hover:text-white transition-colors">-</button>
+                            <input
+                                id="customer-count"
+                                type="number"
+                                value={customerCount}
+                                onChange={(e) => onCustomerCountChange(Math.max(1, Number(e.target.value)))}
+                                className="w-full h-full bg-gray-900 text-center border-y border-gray-700 text-white focus:outline-none focus:ring-0 appearance-none [-moz-appearance:textfield]"
                             />
-                        ))}
+                            <button onClick={() => onCustomerCountChange(customerCount + 1)} className="w-10 h-full bg-gray-800 border border-gray-700 border-l-0 rounded-r-lg hover:bg-gray-700 text-gray-300 hover:text-white transition-colors">+</button>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Reservation button */}
+                {selectedTable && (
+                    <div>
+                        <button
+                            onClick={handleReservationClick}
+                            className={`w-full py-2.5 rounded-lg font-semibold transition-colors shadow-sm ${selectedTable.reservation ? 'bg-purple-600 text-white hover:bg-purple-700' : 'bg-gray-800 border border-gray-700 text-gray-300 hover:bg-gray-700 hover:text-white'}`}
+                        >
+                            {selectedTable.reservation ? 'ดูการจอง' : 'จองโต๊ะนี้'}
+                        </button>
                     </div>
                 )}
             </div>
 
-            {/* Totals and Actions */}
-            <div className="pt-3 mt-2 border-t border-gray-700 space-y-3">
-                <div className="hidden md:block space-y-1 text-base">
-                    <div className="flex justify-between items-center">
-                        <label className="flex items-center gap-2 text-gray-400 cursor-pointer">
+            {/* Order Items List - Scrollable area */}
+            <div 
+                className="flex-1 overflow-y-auto custom-scrollbar px-4 py-2 space-y-2 min-h-0 bg-gray-900"
+            >
+                {currentOrderItems.length === 0 ? (
+                    <div className="h-full flex flex-col items-center justify-center text-gray-600">
+                         <div className="bg-gray-800 p-6 rounded-full mb-4">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+                         </div>
+                        <p className="text-lg font-medium">ยังไม่มีรายการอาหาร</p>
+                        <p className="text-sm">เลือกเมนูจากด้านซ้ายเพื่อเริ่มสั่ง</p>
+                    </div>
+                ) : (
+                    currentOrderItems.map(item => (
+                        <OrderListItem
+                            key={item.cartItemId}
+                            item={item}
+                            onQuantityChange={onQuantityChange}
+                            onRemoveItem={onRemoveItem}
+                            onToggleTakeaway={() => handleToggleItemTakeaway(item.cartItemId)}
+                        />
+                    ))
+                )}
+            </div>
+
+            {/* Footer section */}
+            <div className="p-4 border-t border-gray-800 flex-shrink-0 space-y-4 bg-gray-900">
+                <div className="hidden md:block">
+                    <label className="flex items-center gap-3 text-sm cursor-pointer p-2 rounded-lg hover:bg-gray-800 transition-colors">
+                        <div className="relative flex items-center">
                             <input
                                 type="checkbox"
                                 checked={sendToKitchen}
                                 onChange={(e) => handleSendToKitchenToggle(e.target.checked)}
-                                className="h-4 w-4 bg-gray-700 border-gray-600 rounded text-blue-500 focus:ring-blue-500"
+                                className="peer h-5 w-5 cursor-pointer appearance-none rounded border border-gray-600 bg-gray-800 checked:bg-blue-600 checked:border-blue-600 transition-all"
                             />
-                            <span>ส่งไปที่ห้องครัว</span>
-                        </label>
+                            <svg className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white opacity-0 peer-checked:opacity-100 pointer-events-none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
+                                <polyline points="20 6 9 17 4 12"></polyline>
+                            </svg>
+                        </div>
+                        <span className="font-medium text-gray-300">ส่งไปที่ห้องครัว</span>
+                    </label>
+                </div>
+                
+                <div className="flex justify-between items-baseline">
+                    <span className="text-gray-400 font-medium">ยอดรวม</span>
+                    <div className="flex items-baseline gap-1 flex-wrap justify-end">
+                        <span className="text-4xl font-bold text-yellow-400 tracking-tight">{total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                        <span className="text-xl text-yellow-600 font-medium">฿</span>
                     </div>
                 </div>
-                <div className="flex justify-between items-center text-2xl font-bold border-t border-gray-600 pt-2">
-                    <span className="text-yellow-400">ยอดรวม</span>
-                    <span className="text-yellow-400">{total.toLocaleString(undefined, { minimumFractionDigits: 2 })} ฿</span>
-                </div>
-                 <div className="grid grid-cols-2 gap-2">
+
+                <div className="grid grid-cols-3 gap-3">
                     <button
                         onClick={onClearOrder}
-                        disabled={currentOrderItems.length === 0}
-                        className="w-full px-4 py-3 bg-red-800/80 text-white font-semibold rounded-lg hover:bg-red-700 disabled:bg-gray-600 disabled:text-gray-400 transition-colors"
+                        className="col-span-1 bg-gray-800 border border-gray-700 p-3 rounded-xl hover:bg-gray-700 hover:border-gray-600 hover:text-white text-gray-400 font-semibold transition-all"
                     >
-                        ล้างออเดอร์
+                        ล้าง
                     </button>
-                     <button
+                    <button
                         onClick={handleConfirmPlaceOrder}
                         disabled={!canPlaceOrder || isPlacingOrder}
-                        className="w-full px-4 py-3 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
+                        className="col-span-2 flex-grow bg-gradient-to-r from-blue-600 to-blue-500 p-3 rounded-xl hover:from-blue-500 hover:to-blue-400 text-white font-bold shadow-lg shadow-blue-900/30 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-all transform active:scale-95"
                     >
                         {isPlacingOrder ? (
-                           <>
-                                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                </svg>
-                                กำลังยืนยัน...
-                           </>
+                            <>
+                                <svg className="animate-spin -ml-1 mr-2 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                                <span>กำลังส่ง...</span>
+                            </>
                         ) : (
                             'ยืนยันออเดอร์'
                         )}
                     </button>
                 </div>
+                {isEditMode && (
+                    <div className="p-3 mt-2 border-t border-gray-800 space-y-2 bg-gray-800/50 rounded-lg">
+                        <h3 className="text-xs font-bold text-center text-gray-500 uppercase tracking-wider">โหมดแก้ไข</h3>
+                         <div className="grid grid-cols-2 gap-2">
+                            <button onClick={onAddFloor} className="w-full bg-indigo-600/80 p-2 rounded-lg hover:bg-indigo-600 text-xs font-semibold">เพิ่มชั้น</button>
+                            <button onClick={() => onRemoveFloor(selectedFloor)} className="w-full bg-red-900/80 p-2 rounded-lg hover:bg-red-800 text-xs font-semibold">ลบชั้น</button>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                            <button onClick={() => onAddNewTable(selectedFloor)} className="w-full bg-blue-600/80 p-2 rounded-lg hover:bg-blue-600 text-xs font-semibold">เพิ่มโต๊ะ</button>
+                            <button onClick={() => onRemoveLastTable(selectedFloor)} className="w-full bg-red-600/80 p-2 rounded-lg hover:bg-red-600 text-xs font-semibold">ลบโต๊ะ</button>
+                        </div>
+                        <p className="text-center text-gray-600 text-[10px]">โต๊ะใน "{selectedFloor}": {availableTables.length}</p>
+                    </div>
+                )}
             </div>
-        </aside>
+        </div>
     );
 };

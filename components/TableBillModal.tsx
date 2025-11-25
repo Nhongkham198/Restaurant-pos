@@ -64,7 +64,7 @@ export const TableBillModal: React.FC<TableBillModalProps> = ({
         onUpdateOrder(order.id, editedItems, editedCustomerCount);
     };
 
-    const canCancel = currentUser?.role === 'admin' || currentUser?.role === 'pos';
+    const canCancel = !!currentUser;
     // Only allow cancellation if status is 'waiting' (matching "Start Cooking" button in kitchen)
     const isCancelableStatus = order.status === 'waiting';
 
