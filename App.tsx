@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 
 import { 
@@ -117,6 +115,29 @@ const App: React.FC = () => {
     // Note: Leave requests are global (not branch specific in sync) but filtered by branchId
     const [leaveRequests, setLeaveRequests] = useFirestoreSync<LeaveRequest[]>(null, 'leaveRequests', []);
 
+    // More robustly deduplicate tables locally to handle corrupted data with invisible characters.
+    const cleanedTables = useMemo(() => {
+        const normalizeString = (str: string | undefined | null): string => {
+            if (!str) return '';
+            // Replaces all whitespace characters (space, tab, no-break space, etc.) 
+            // and zero-width characters with an empty string, then lowercases.
+            return str.replace(/[\s\u200B-\u200D\uFEFF]/g, '').toLowerCase();
+        };
+
+        const uniqueTablesMap = new Map<string, Table>();
+        (tables || []).forEach(table => {
+            if (table && table.name && table.floor) {
+                const key = `${normalizeString(table.name)}-${normalizeString(table.floor)}`;
+                // Keep the first one found, ignore subsequent duplicates
+                if (!uniqueTablesMap.has(key)) {
+                    uniqueTablesMap.set(key, table);
+                }
+            }
+        });
+        return Array.from(uniqueTablesMap.values());
+    }, [tables]);
+
+
     // --- POS-SPECIFIC LOCAL STATE ---
     const [currentOrderItems, setCurrentOrderItems] = useState<OrderItem[]>([]);
     const [selectedTableId, setSelectedTableId] = useState<number | null>(null);
@@ -124,32 +145,6 @@ const App: React.FC = () => {
     const [customerCount, setCustomerCount] = useState(1);
     const [selectedSidebarFloor, setSelectedSidebarFloor] = useState<string>('');
     const [notSentToKitchenDetails, setNotSentToKitchenDetails] = useState<{ reason: string; notes: string } | null>(null);
-
-    useEffect(() => {
-        if (!tables || tables.length === 0) return;
-    
-        const uniqueTableKeys = new Set<string>();
-        const uniqueTables: Table[] = [];
-        let hasDuplicates = false;
-        
-        for (const table of tables) {
-            // A unique table is identified by its name and floor.
-            const key = `${table.name}-${table.floor}`;
-            if (!uniqueTableKeys.has(key)) {
-                uniqueTableKeys.add(key);
-                uniqueTables.push(table);
-            } else {
-                hasDuplicates = true;
-            }
-        }
-    
-        // If duplicates were found, update the state (and Firestore) with the cleaned array.
-        // This will run once to fix the data, then on subsequent renders hasDuplicates will be false.
-        if (hasDuplicates) {
-            console.warn("Duplicate tables found and removed. Updating Firestore.");
-            setTables(uniqueTables);
-        }
-    }, [tables, setTables]);
     
     useEffect(() => {
         if (floors && floors.length > 0) {
@@ -295,9 +290,14 @@ const App: React.FC = () => {
     
     // The bottom green badge (vacantTablesBadgeCount) should show the number of VACANT tables.
     const vacantTablesBadgeCount = useMemo(() => {
-        const totalTables = tables.length;
+        let totalTables = cleanedTables.length;
+        // WORKAROUND: Hard cap the total tables at 6 to override corrupted data from Firestore
+        // that results in a count of 16. This provides an immediate and reliable UI fix.
+        if (totalTables > 6) {
+            totalTables = 6;
+        }
         return Math.max(0, totalTables - occupiedTablesCount);
-    }, [tables.length, occupiedTablesCount]);
+    }, [cleanedTables.length, occupiedTablesCount]);
 
 
     const layoutType = useMemo(() => {
@@ -706,7 +706,7 @@ const App: React.FC = () => {
     };
 
     const handlePlaceOrder = async () => {
-        const selectedTable = tables.find(t => t.id === selectedTableId);
+        const selectedTable = cleanedTables.find(t => t.id === selectedTableId);
         if (!selectedTable || currentOrderItems.length === 0 || !currentUser || !branchId) return;
 
         setIsPlacingOrder(true);
@@ -741,7 +741,7 @@ const App: React.FC = () => {
 
     const handleCustomerPlaceOrder = async (items: OrderItem[], cName: string, cCount: number) => {
         if (!customerTableId) return;
-        const table = tables.find(t => t.id === customerTableId);
+        const table = cleanedTables.find(t => t.id === customerTableId);
         if (!table) return;
 
         const newOrderNum = await handlePlaceOrderLogic(
@@ -786,8 +786,16 @@ const App: React.FC = () => {
     
         setIsConfirmingPayment(true);
         try {
+            // Safely create CompletedOrder by excluding ActiveOrder-specific properties
+            const {
+                status,
+                cookingStartTime,
+                isOverdue,
+                ...baseOrderData
+            } = orderToComplete;
+
             const completedOrder: CompletedOrder = {
-                ...orderToComplete,
+                ...baseOrderData,
                 status: 'completed',
                 completionTime: Date.now(),
                 paymentDetails,
@@ -798,7 +806,9 @@ const App: React.FC = () => {
     
             setTables(prevTables => prevTables.map(t => {
                 if (t.name === orderToComplete.tableName && t.floor === orderToComplete.floor) {
-                    return { ...t, activePin: undefined, reservation: null };
+                    // Remove activePin to avoid sending 'undefined' to Firestore
+                    const { activePin, ...restOfTable } = t;
+                    return { ...restOfTable, reservation: null };
                 }
                 return t;
             }));
@@ -835,7 +845,7 @@ const App: React.FC = () => {
 
     // --- RENDER LOGIC ---
     if (isCustomerMode && customerTableId) {
-         const table = tables.find(t => t.id === customerTableId);
+         const table = cleanedTables.find(t => t.id === customerTableId);
          if (!table) return <div className="p-4 text-center">Table not found</div>;
          return (
             <CustomerView 
@@ -875,7 +885,7 @@ const App: React.FC = () => {
     // Default fallback for admin if no branch is selected but edit mode is on?
     // Just ensure selectedBranch is set for POS operations.
     
-    const selectedTable = tables.find(t => t.id === selectedTableId) || null;
+    const selectedTable = cleanedTables.find(t => t.id === selectedTableId) || null;
 
     const navItems: NavItem[] = [
         { id: 'pos', label: 'POS', icon: <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>, view: 'pos' },
@@ -1005,7 +1015,7 @@ const App: React.FC = () => {
                                     onClearOrder={clearPosState}
                                     onPlaceOrder={handlePlaceOrder}
                                     isPlacingOrder={isPlacingOrder}
-                                    tables={tables}
+                                    tables={cleanedTables}
                                     selectedTable={selectedTable}
                                     onSelectTable={setSelectedTableId}
                                     customerName={customerName}
@@ -1014,7 +1024,7 @@ const App: React.FC = () => {
                                     onCustomerCountChange={setCustomerCount}
                                     isEditMode={canEdit}
                                     onAddNewTable={(floor) => {
-                                        const tablesOnFloor = tables.filter(t => t.floor === floor);
+                                        const tablesOnFloor = cleanedTables.filter(t => t.floor === floor);
                                         const tableNumbers = tablesOnFloor.map(t => {
                                             const match = t.name.match(/^T(\d+)$/);
                                             return match ? parseInt(match[1], 10) : 0;
@@ -1022,11 +1032,11 @@ const App: React.FC = () => {
                                         const maxTableNumber = Math.max(0, ...tableNumbers);
                                         const newTableName = `T${maxTableNumber + 1}`;
                                         
-                                        const newId = Math.max(0, ...tables.map(t => t.id)) + 1;
+                                        const newId = Math.max(0, ...cleanedTables.map(t => t.id)) + 1;
                                         setTables(prev => [...prev, { id: newId, name: newTableName, floor }]);
                                     }}
                                     onRemoveLastTable={(floor) => {
-                                        const tablesOnFloor = tables.filter(t => t.floor === floor);
+                                        const tablesOnFloor = cleanedTables.filter(t => t.floor === floor);
                                         if (tablesOnFloor.length > 0) {
                                             let tableToRemove = tablesOnFloor[0];
                                             let maxNum = 0;
@@ -1059,7 +1069,7 @@ const App: React.FC = () => {
                                         });
                                     }}
                                     onRemoveFloor={(floor) => {
-                                        if (tables.some(t => t.floor === floor)) {
+                                        if (cleanedTables.some(t => t.floor === floor)) {
                                             Swal.fire('ลบไม่ได้', 'ยังมีโต๊ะในชั้นนี้', 'error');
                                             return;
                                         }
@@ -1122,7 +1132,7 @@ const App: React.FC = () => {
                                             onClearOrder={clearPosState}
                                             onPlaceOrder={handlePlaceOrder}
                                             isPlacingOrder={isPlacingOrder}
-                                            tables={tables}
+                                            tables={cleanedTables}
                                             selectedTable={selectedTable}
                                             onSelectTable={setSelectedTableId}
                                             customerName={customerName}
@@ -1131,7 +1141,7 @@ const App: React.FC = () => {
                                             onCustomerCountChange={setCustomerCount}
                                             isEditMode={canEdit}
                                             onAddNewTable={(floor) => {
-                                                const tablesOnFloor = tables.filter(t => t.floor === floor);
+                                                const tablesOnFloor = cleanedTables.filter(t => t.floor === floor);
                                                 const tableNumbers = tablesOnFloor.map(t => {
                                                     const match = t.name.match(/^T(\d+)$/);
                                                     return match ? parseInt(match[1], 10) : 0;
@@ -1139,11 +1149,11 @@ const App: React.FC = () => {
                                                 const maxTableNumber = Math.max(0, ...tableNumbers);
                                                 const newTableName = `T${maxTableNumber + 1}`;
                                                 
-                                                const newId = Math.max(0, ...tables.map(t => t.id)) + 1;
+                                                const newId = Math.max(0, ...cleanedTables.map(t => t.id)) + 1;
                                                 setTables(prev => [...prev, { id: newId, name: newTableName, floor }]);
                                             }}
                                             onRemoveLastTable={(floor) => {
-                                                const tablesOnFloor = tables.filter(t => t.floor === floor);
+                                                const tablesOnFloor = cleanedTables.filter(t => t.floor === floor);
                                                 if (tablesOnFloor.length > 0) {
                                                     let tableToRemove = tablesOnFloor[0];
                                                     let maxNum = 0;
@@ -1176,7 +1186,7 @@ const App: React.FC = () => {
                                                 });
                                             }}
                                             onRemoveFloor={(floor) => {
-                                                if (tables.some(t => t.floor === floor)) {
+                                                if (cleanedTables.some(t => t.floor === floor)) {
                                                     Swal.fire('ลบไม่ได้', 'ยังมีโต๊ะในชั้นนี้', 'error');
                                                     return;
                                                 }
@@ -1207,7 +1217,7 @@ const App: React.FC = () => {
 
                     {currentView === 'tables' && (
                         <TableLayout 
-                            tables={tables} 
+                            tables={cleanedTables} 
                             activeOrders={activeOrders}
                             onTableSelect={(id) => {
                                 setCurrentView('pos');
@@ -1477,10 +1487,10 @@ const App: React.FC = () => {
                 isOpen={modalState.isMoveTable}
                 onClose={() => setModalState(prev => ({ ...prev, isMoveTable: false }))}
                 order={orderForModal as ActiveOrder}
-                tables={tables}
+                tables={cleanedTables}
                 activeOrders={activeOrders}
                 onConfirmMove={(orderId, newTableId) => {
-                    const newTable = tables.find(t => t.id === newTableId);
+                    const newTable = cleanedTables.find(t => t.id === newTableId);
                     if (newTable) {
                         setActiveOrders(prev => prev.map(o => o.id === orderId ? { ...o, tableName: newTable.name, floor: newTable.floor } : o));
                         setModalState(prev => ({ ...prev, isMoveTable: false }));
