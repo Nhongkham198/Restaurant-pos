@@ -294,9 +294,7 @@ const App: React.FC = () => {
     
     // The bottom green badge (vacantTablesBadgeCount) should show the number of VACANT tables.
     const vacantTablesBadgeCount = useMemo(() => {
-        // This is a specific fix for a user who has an inconsistent number of tables in their database.
-        // It assumes that if they have 16 tables, their actual intended count is 6.
-        const totalTables = tables.length === 16 ? 6 : tables.length;
+        const totalTables = tables.length;
         return Math.max(0, totalTables - occupiedTablesCount);
     }, [tables.length, occupiedTablesCount]);
 
@@ -309,6 +307,12 @@ const App: React.FC = () => {
     }, [currentUser]);
 
     const totalItems = useMemo(() => currentOrderItems.reduce((sum, item) => sum + item.quantity, 0), [currentOrderItems]);
+    
+    const canEdit = useMemo(() => {
+        if (!currentUser) return false;
+        const isPrivileged = currentUser.role === 'admin' || currentUser.role === 'branch-admin';
+        return isEditMode && isPrivileged;
+    }, [isEditMode, currentUser]);
 
     // --- LEAVE BADGE LOGIC ---
     const leaveBadgeCount = useMemo(() => {
@@ -529,6 +533,7 @@ const App: React.FC = () => {
 
         if (user) {
             setCurrentUser(user);
+            setIsEditMode(false);
             if (user.role === 'kitchen') {
                 setCurrentView('kitchen');
             } else {
@@ -556,6 +561,7 @@ const App: React.FC = () => {
             staffCallAudioRef.current.currentTime = 0;
         }
         clearPosState();
+        setIsEditMode(false);
     };
 
     const handleSendToKitchenChange = (enabled: boolean, details: { reason: string; notes: string } | null = null) => {
@@ -939,7 +945,7 @@ const App: React.FC = () => {
                                         setItemToCustomize(item);
                                         setModalState(prev => ({ ...prev, isCustomization: true }));
                                     }}
-                                    isEditMode={isEditMode}
+                                    isEditMode={canEdit}
                                     onEditItem={(item) => {
                                         setItemToEdit(item);
                                         setModalState(prev => ({ ...prev, isMenuItem: true }));
@@ -990,7 +996,7 @@ const App: React.FC = () => {
                                     onCustomerNameChange={setCustomerName}
                                     customerCount={customerCount}
                                     onCustomerCountChange={setCustomerCount}
-                                    isEditMode={isEditMode}
+                                    isEditMode={canEdit}
                                     onAddNewTable={(floor) => {
                                         const tablesOnFloor = tables.filter(t => t.floor === floor);
                                         const tableNumbers = tablesOnFloor.map(t => {
@@ -1107,7 +1113,7 @@ const App: React.FC = () => {
                                             onCustomerNameChange={setCustomerName}
                                             customerCount={customerCount}
                                             onCustomerCountChange={setCustomerCount}
-                                            isEditMode={isEditMode}
+                                            isEditMode={canEdit}
                                             onAddNewTable={(floor) => {
                                                 const tablesOnFloor = tables.filter(t => t.floor === floor);
                                                 const tableNumbers = tablesOnFloor.map(t => {
@@ -1230,7 +1236,7 @@ const App: React.FC = () => {
                                 setOrderForModal(order);
                                 setModalState(prev => ({ ...prev, isSplitCompleted: true }));
                             }}
-                            isEditMode={isEditMode}
+                            isEditMode={canEdit}
                             onEditOrder={(order) => {
                                 setOrderForModal(order);
                                 setModalState(prev => ({ ...prev, isEditCompleted: true }));
@@ -1342,7 +1348,7 @@ const App: React.FC = () => {
                 onSplit={(order) => {
                     setModalState(prev => ({ ...prev, isTableBill: false, isSplitBill: true }));
                 }}
-                isEditMode={isEditMode}
+                isEditMode={canEdit}
                 onUpdateOrder={(orderId, newItems, newCount) => {
                     setActiveOrders(prev => prev.map(o => o.id === orderId ? { ...o, items: newItems, customerCount: newCount } : o));
                     setModalState(prev => ({ ...prev, isTableBill: false }));
@@ -1441,7 +1447,7 @@ const App: React.FC = () => {
                 setUsers={setUsers}
                 currentUser={currentUser}
                 branches={branches}
-                isEditMode={isEditMode}
+                isEditMode={canEdit}
             />
 
             <BranchManagerModal
