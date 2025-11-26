@@ -75,6 +75,15 @@ import { MenuSearchModal } from './components/MenuSearchModal';
 import Swal from 'sweetalert2';
 import type { SubmitLeaveRequestPayload } from './services/firebaseFunctionsService';
 
+// Add a global interface for the Android Bridge to avoid TypeScript errors
+declare global {
+    interface Window {
+        AndroidBridge?: {
+            setPendingOrderCount: (count: number) => void;
+        };
+    }
+}
+
 const isSameDay = (d1: Date, d2: Date) => {
     return d1.getFullYear() === d2.getFullYear() &&
            d1.getMonth() === d2.getMonth() &&
@@ -314,6 +323,15 @@ const App: React.FC = () => {
         const isPrivileged = currentUser.role === 'admin' || currentUser.role === 'branch-admin';
         return isEditMode && isPrivileged;
     }, [isEditMode, currentUser]);
+
+    // --- ANDROID APP ICON BADGE SYNC ---
+    useEffect(() => {
+        // This effect syncs the pending order count with the native Android app icon badge.
+        // It relies on a JavaScript Bridge (`AndroidBridge`) injected by the Android WebView.
+        if (window.AndroidBridge && typeof window.AndroidBridge.setPendingOrderCount === 'function') {
+            window.AndroidBridge.setPendingOrderCount(kitchenBadgeCount);
+        }
+    }, [kitchenBadgeCount]);
 
     // --- LEAVE BADGE LOGIC ---
     const leaveBadgeCount = useMemo(() => {
