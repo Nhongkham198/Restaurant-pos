@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import type { MenuItem, MenuOption, OrderItem, MenuOptionGroup } from '../types';
 import Swal from 'sweetalert2';
+import { MenuItemImage } from './MenuItemImage';
 
 interface ItemCustomizationModalProps {
     isOpen: boolean;
@@ -109,7 +110,11 @@ export const ItemCustomizationModal: React.FC<ItemCustomizationModalProps> = ({ 
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4" onClick={onClose}>
             <div className="bg-white rounded-lg shadow-xl w-full max-w-lg transform transition-all flex flex-col" style={{maxHeight: '90vh'}} onClick={e => e.stopPropagation()}>
                 <header className="p-4 border-b flex items-center gap-4 relative">
-                    <img src={item.imageUrl} alt={item.name} className="w-20 h-20 rounded-md object-cover"/>
+                    <MenuItemImage
+                        src={item.imageUrl}
+                        alt={item.name}
+                        className="w-20 h-20 rounded-md flex-shrink-0"
+                    />
                     <div>
                         <h3 className="text-2xl font-bold text-gray-900">{item.name}</h3>
                         <p className="text-base text-gray-500">ราคาเริ่มต้น {item.price.toLocaleString()} ฿</p>

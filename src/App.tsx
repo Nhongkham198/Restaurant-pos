@@ -124,7 +124,14 @@ const App: React.FC = () => {
     const [currentFcmToken, setCurrentFcmToken] = useState<string | null>(null);
 
     // --- VIEW & EDIT MODE STATE ---
-    const [currentView, setCurrentView] = useState<View>('pos');
+    const [currentView, setCurrentView] = useState<View>(() => {
+        const storedView = localStorage.getItem('currentView');
+        // Validate that the stored view is a valid View type
+        if (storedView && ['pos', 'kitchen', 'tables', 'dashboard', 'history', 'stock', 'leave'].includes(storedView)) {
+            return storedView as View;
+        }
+        return 'pos';
+    });
     const [isEditMode, setIsEditMode] = useState(false);
     const [isAdminSidebarCollapsed, setIsAdminSidebarCollapsed] = useState(false);
     const [isOrderSidebarVisible, setIsOrderSidebarVisible] = useState(true);
@@ -240,6 +247,11 @@ const App: React.FC = () => {
             localStorage.removeItem('selectedBranch');
         }
     }, [selectedBranch]);
+
+    useEffect(() => {
+        // Save current view to localStorage whenever it changes to persist on refresh
+        localStorage.setItem('currentView', currentView);
+    }, [currentView]);
 
 
     // --- CUSTOMER MODE INITIALIZATION ---

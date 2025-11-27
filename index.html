@@ -46,6 +46,22 @@
         -ms-overflow-style: none;  /* IE and Edge */
         scrollbar-width: none;  /* Firefox */
       }
+      
+      /* Shimmer effect for loading placeholders */
+      @keyframes shimmer-animation {
+        0% {
+          background-position: -200% 0;
+        }
+        100% {
+          background-position: 200% 0;
+        }
+      }
+
+      .shimmer-effect {
+        animation: shimmer-animation 1.5s infinite linear;
+        background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+        background-size: 200% 100%;
+      }
     </style>
 
 <script type="importmap">
