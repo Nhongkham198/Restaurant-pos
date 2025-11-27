@@ -69,8 +69,12 @@ export function useFirestoreSync<T>(
                             valueToSet = cleanedUniqueTables;
                         }
 
-
-                        if (collectionKey === 'branches' && Array.isArray(valueToSet) && valueToSet.length === 0 && Array.isArray(currentInitialValue) && currentInitialValue.length > 0) {
+                        // Self-healing for 'users' collection
+                        if (collectionKey === 'users' && Array.isArray(valueToSet) && valueToSet.length === 0 && Array.isArray(currentInitialValue) && currentInitialValue.length > 0) {
+                            console.warn(`'users' collection is empty in Firestore. Re-initializing with default value.`);
+                            docRef.set({ value: currentInitialValue });
+                            setValue(currentInitialValue);
+                        } else if (collectionKey === 'branches' && Array.isArray(valueToSet) && valueToSet.length === 0 && Array.isArray(currentInitialValue) && currentInitialValue.length > 0) {
                             console.warn(`'branches' collection is empty in Firestore. Re-initializing with default value.`);
                             // FIX: Use v8 API: docRef.set(...)
                             docRef.set({ value: currentInitialValue });

@@ -115,16 +115,33 @@ const App: React.FC = () => {
         return null;
     });
     const [selectedBranch, setSelectedBranch] = useState<Branch | null>(() => {
-        const storedBranch = localStorage.getItem('selectedBranch');
-        if (storedBranch) {
-            try {
-                return JSON.parse(storedBranch);
-            } catch (e) {
-                console.error('Error parsing stored branch', e);
-                localStorage.removeItem('selectedBranch');
-                return null;
+        const params = new URLSearchParams(window.location.search);
+        const isCustomer = params.get('mode') === 'customer';
+
+        // For customers, try to get their specific branch first. This prevents race conditions on refresh.
+        if (isCustomer) {
+            const customerBranch = localStorage.getItem('customerSelectedBranch');
+            if (customerBranch) {
+                try {
+                    return JSON.parse(customerBranch);
+                } catch (e) {
+                    console.error('Error parsing customer branch from localStorage', e);
+                    localStorage.removeItem('customerSelectedBranch');
+                }
             }
         }
+        
+        // For staff, or as a fallback for customers on first load, get the staff-selected branch.
+        const staffBranch = localStorage.getItem('selectedBranch');
+        if (staffBranch) {
+            try {
+                return JSON.parse(staffBranch);
+            } catch (e) {
+                console.error('Error parsing staff branch from localStorage', e);
+                localStorage.removeItem('selectedBranch');
+            }
+        }
+
         return null;
     });
     const [currentFcmToken, setCurrentFcmToken] = useState<string | null>(null);
@@ -246,13 +263,15 @@ const App: React.FC = () => {
 
     // --- SESSION PERSISTENCE ---
     useEffect(() => {
-        // Save selected branch to localStorage whenever it changes
-        if (selectedBranch) {
-            localStorage.setItem('selectedBranch', JSON.stringify(selectedBranch));
-        } else {
-            localStorage.removeItem('selectedBranch');
+        // Only persist selectedBranch for staff users. Customer branch is handled in its own effect.
+        if (currentUser && !isCustomerMode) {
+            if (selectedBranch) {
+                localStorage.setItem('selectedBranch', JSON.stringify(selectedBranch));
+            } else {
+                localStorage.removeItem('selectedBranch');
+            }
         }
-    }, [selectedBranch]);
+    }, [selectedBranch, currentUser, isCustomerMode]);
 
     useEffect(() => {
         // Save current view to localStorage whenever it changes to persist on refresh
@@ -284,7 +303,7 @@ const App: React.FC = () => {
         }
     }, []);
 
-    // Part 2: Auto-select branch for customer mode once branch data is available.
+    // Part 2: Auto-select branch for customer mode once branch data is available AND persist it.
     useEffect(() => {
         // This effect runs when isCustomerMode, branches, or selectedBranch changes.
         // It ensures that if we are in customer mode and branches are loaded,
@@ -292,22 +311,35 @@ const App: React.FC = () => {
         if (isCustomerMode && !selectedBranch && branches.length > 0) {
             // For customer mode, assuming a single branch setup for simplicity.
             // In a multi-branch setup, the branch ID would need to be in the URL.
-            setSelectedBranch(branches[0]);
+            const branchForCustomer = branches[0];
+            setSelectedBranch(branchForCustomer);
+            // Persist this choice specifically for customer mode to solve refresh issues
+            localStorage.setItem('customerSelectedBranch', JSON.stringify(branchForCustomer));
         }
     }, [isCustomerMode, branches, selectedBranch]);
 
 
     // --- USER SYNC EFFECT ---
     useEffect(() => {
-        if (currentUser) {
+        if (currentUser && users && users.length > 0) {
+            // This is a flag to prevent a race condition on initial load.
+            // We only check for user deletion after we're sure the user list
+            // has been populated from Firestore, not just the initial default.
+            const isUsersLoadedFromFirestore = users !== DEFAULT_USERS;
+    
             const foundUser = users.find(u => u.id === currentUser.id);
+    
             if (foundUser) {
+                // User exists, sync data if it has changed
                 if (JSON.stringify(foundUser) !== JSON.stringify(currentUser)) {
                     setCurrentUser(foundUser);
                 }
             } else {
-                // User was deleted from another client, force logout.
-                handleLogout();
+                // User does not exist in the list.
+                // If the list has been loaded from Firestore, it means the user was deleted.
+                if (isUsersLoadedFromFirestore) {
+                    handleLogout();
+                }
             }
         }
     }, [users, currentUser]);
@@ -716,6 +748,7 @@ const App: React.FC = () => {
 
         localStorage.removeItem('currentUser');
         localStorage.removeItem('selectedBranch');
+        localStorage.removeItem('customerSelectedBranch'); // Explicitly clear customer branch
         setCurrentUser(null);
         setSelectedBranch(null);
         setCurrentView('pos'); // Reset view to default

@@ -73,6 +73,8 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                 // 1. Clear Session
                 const sessionKey = `customer_session_${table.id}`;
                 localStorage.removeItem(sessionKey);
+                // Also clear the persisted branch for customer mode to prevent stale data
+                localStorage.removeItem('customerSelectedBranch');
 
                 // 2. Reset State
                 setIsAuthenticated(false);
