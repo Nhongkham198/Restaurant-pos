@@ -203,6 +203,7 @@ const App: React.FC = () => {
     const prevLeaveRequestsRef = useRef<LeaveRequest[] | undefined>(undefined);
     const notifiedCallIdsRef = useRef<Set<number>>(new Set());
     const staffCallAudioRef = useRef<HTMLAudioElement | null>(null);
+    const prevUserRef = useRef<User | null>(null);
 
     // --- CUSTOMER MODE INITIALIZATION ---
     useEffect(() => {
@@ -381,6 +382,36 @@ const App: React.FC = () => {
         }
         prevActiveOrdersRef.current = activeOrders;
     }, [activeOrders, currentUser, notificationSoundUrl]);
+
+    // --- KITCHEN LOGIN REMINDER EFFECT ---
+    useEffect(() => {
+        // This effect triggers a reminder for pending orders specifically when a kitchen user logs in.
+        if (currentUser?.role === 'kitchen' && prevUserRef.current?.id !== currentUser.id) {
+            const waitingOrders = activeOrders.filter(o => o.status === 'waiting');
+            if (waitingOrders.length > 0) {
+                // Sort to show the oldest order first
+                const oldestWaitingOrder = waitingOrders.sort((a, b) => a.orderTime - b.orderTime)[0];
+
+                // Play sound
+                if (notificationSoundUrl) {
+                    const audio = new Audio(notificationSoundUrl);
+                    audio.play().catch(error => console.error("Error playing login reminder sound:", error));
+                }
+                
+                // Show notification
+                Swal.fire({
+                    title: '🔔 มีออเดอร์รออยู่ในคิว!',
+                    html: `มี <b>${waitingOrders.length}</b> ออเดอร์ที่ยังไม่ได้รับ<br/>ออเดอร์แรกคือ <b>#${String(oldestWaitingOrder.orderNumber).padStart(3, '0')}</b>`,
+                    icon: 'info',
+                    confirmButtonText: 'รับทราบ',
+                    allowOutsideClick: false,
+                    allowEscapeKey: false,
+                });
+            }
+        }
+        // Update the previous user at the end of the effect for the next render.
+        prevUserRef.current = currentUser;
+    }, [currentUser, activeOrders, notificationSoundUrl]);
 
     // --- LEAVE REQUEST NOTIFICATION EFFECT ---
     useEffect(() => {
