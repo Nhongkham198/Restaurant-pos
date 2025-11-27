@@ -71,6 +71,7 @@ import { ItemCustomizationModal } from './components/ItemCustomizationModal';
 import { CustomerView } from './components/CustomerView';
 import { LeaveRequestModal } from './components/LeaveRequestModal';
 import { MenuSearchModal } from './components/MenuSearchModal';
+import { MergeBillModal } from './components/MergeBillModal';
 
 import Swal from 'sweetalert2';
 import type { SubmitLeaveRequestPayload } from './services/firebaseFunctionsService';
@@ -96,6 +97,7 @@ const App: React.FC = () => {
     const [branches, setBranches] = useFirestoreSync<Branch[]>(null, 'branches', DEFAULT_BRANCHES);
     const [currentUser, setCurrentUser] = useState<User | null>(null);
     const [selectedBranch, setSelectedBranch] = useState<Branch | null>(null);
+    const [currentFcmToken, setCurrentFcmToken] = useState<string | null>(null);
 
     // --- VIEW & EDIT MODE STATE ---
     const [currentView, setCurrentView] = useState<View>('pos');
@@ -185,7 +187,7 @@ const App: React.FC = () => {
         isPayment: false, isPaymentSuccess: false, isSettings: false, isEditCompleted: false,
         isUserManager: false, isBranchManager: false, isMoveTable: false, isCancelOrder: false,
         isCashBill: false, isSplitCompleted: false, isCustomization: false, isLeaveRequest: false,
-        isMenuSearch: false
+        isMenuSearch: false, isMergeBill: false
     });
     const [itemToEdit, setItemToEdit] = useState<MenuItem | null>(null);
     const [itemToCustomize, setItemToCustomize] = useState<MenuItem | null>(null);
@@ -204,6 +206,39 @@ const App: React.FC = () => {
     const notifiedCallIdsRef = useRef<Set<number>>(new Set());
     const staffCallAudioRef = useRef<HTMLAudioElement | null>(null);
     const prevUserRef = useRef<User | null>(null);
+
+    // --- SESSION PERSISTENCE ---
+    useEffect(() => {
+        // On initial load, try to restore session from localStorage
+        const storedUser = localStorage.getItem('currentUser');
+        if (storedUser) {
+            try {
+                setCurrentUser(JSON.parse(storedUser));
+            } catch (e) {
+                console.error('Error parsing stored user', e);
+                localStorage.removeItem('currentUser');
+            }
+        }
+        const storedBranch = localStorage.getItem('selectedBranch');
+        if (storedBranch) {
+            try {
+                setSelectedBranch(JSON.parse(storedBranch));
+            } catch (e) {
+                console.error('Error parsing stored branch', e);
+                localStorage.removeItem('selectedBranch');
+            }
+        }
+    }, []); // Run only on component mount
+
+    useEffect(() => {
+        // Save selected branch to localStorage whenever it changes
+        if (selectedBranch) {
+            localStorage.setItem('selectedBranch', JSON.stringify(selectedBranch));
+        } else {
+            localStorage.removeItem('selectedBranch');
+        }
+    }, [selectedBranch]);
+
 
     // --- CUSTOMER MODE INITIALIZATION ---
     useEffect(() => {
@@ -268,13 +303,16 @@ const App: React.FC = () => {
                     
                     const vapidKey = 'BMIo7v3beGbvOlEciEL3TN5lFAZBZ-52zkg-vqgo8gudi4QW4UyIR4HDEk17Q2pYb3FFDCgzyq5oYFKIGXGfpJU'; 
                     const currentToken = await getToken(messaging, { vapidKey });
+                    setCurrentFcmToken(currentToken); // Store the token for this device to use on logout
 
                     if (currentToken) {
-                        if (userToUpdate.fcmToken !== currentToken) {
-                            console.log('New or updated FCM token found, saving to user profile:', currentToken);
+                        const existingTokens = userToUpdate.fcmTokens || [];
+                        if (!existingTokens.includes(currentToken)) {
+                            console.log('Adding new FCM token to user profile:', currentToken);
+                            const newTokens = [...existingTokens, currentToken];
                             setUsers(prevUsers =>
                                 prevUsers.map(u =>
-                                    u.id === userToUpdate.id ? { ...u, fcmToken: currentToken } : u
+                                    u.id === userToUpdate.id ? { ...u, fcmTokens: newTokens } : u
                                 )
                             );
                         }
@@ -601,6 +639,7 @@ const App: React.FC = () => {
 
         if (user) {
             setCurrentUser(user);
+            localStorage.setItem('currentUser', JSON.stringify(user));
             setIsEditMode(false); // Ensure edit mode is off on login
             // Redirect based on role
             if (user.role === 'kitchen') {
@@ -622,6 +661,21 @@ const App: React.FC = () => {
     }, []);
 
     const handleLogout = () => {
+        // Remove FCM token for this device from the user's profile
+        if (currentUser && currentFcmToken) {
+            const userInState = users.find(u => u.id === currentUser.id);
+            if (userInState) {
+                const updatedTokens = (userInState.fcmTokens || []).filter(token => token !== currentFcmToken);
+                setUsers(prevUsers =>
+                    prevUsers.map(u =>
+                        u.id === currentUser.id ? { ...u, fcmTokens: updatedTokens } : u
+                    )
+                );
+            }
+        }
+
+        localStorage.removeItem('currentUser');
+        localStorage.removeItem('selectedBranch');
         setCurrentUser(null);
         setSelectedBranch(null);
         setCurrentView('pos'); // Reset view to default
@@ -901,6 +955,60 @@ const App: React.FC = () => {
         } finally {
             setIsConfirmingPayment(false);
         }
+    };
+
+    const handleConfirmMerge = (sourceOrderIds: number[], targetOrderId: number) => {
+        setActiveOrders(prev => {
+            const sourceOrders = prev.filter(o => sourceOrderIds.includes(o.id));
+            let targetOrder = prev.find(o => o.id === targetOrderId);
+
+            if (!targetOrder || sourceOrders.length === 0) {
+                console.error("Merge failed: Target or source orders not found.");
+                return prev;
+            }
+
+            // --- Combine Items ---
+            const allItemsToMerge = sourceOrders.flatMap(o => o.items);
+            const combinedItemsMap = new Map<string, OrderItem>();
+
+            // 1. Add target order's items to the map
+            targetOrder.items.forEach(item => {
+                combinedItemsMap.set(item.cartItemId, { ...item });
+            });
+            
+            // 2. Add source orders' items, merging quantities if they exist
+            allItemsToMerge.forEach(item => {
+                if (combinedItemsMap.has(item.cartItemId)) {
+                    const existing = combinedItemsMap.get(item.cartItemId)!;
+                    existing.quantity += item.quantity;
+                } else {
+                    combinedItemsMap.set(item.cartItemId, { ...item });
+                }
+            });
+
+            // Re-calculate tax for the new merged order
+            const newSubtotal = Array.from(combinedItemsMap.values()).reduce((sum, item) => sum + item.finalPrice * item.quantity, 0);
+            const newTaxAmount = targetOrder.taxRate > 0 ? newSubtotal * (targetOrder.taxRate / 100) : 0;
+            
+            // --- Update Target Order ---
+            const updatedTargetOrder = {
+                ...targetOrder,
+                items: Array.from(combinedItemsMap.values()),
+                taxAmount: newTaxAmount,
+                // Combine customer counts
+                customerCount: targetOrder.customerCount + sourceOrders.reduce((sum, o) => o.customerCount, 0)
+            };
+
+            // --- Create New State ---
+            // Remove source orders and update target order
+            const newActiveOrders = prev
+                .filter(o => !sourceOrderIds.includes(o.id) && o.id !== targetOrderId)
+                .concat(updatedTargetOrder);
+            
+            return newActiveOrders;
+        });
+        
+        Swal.fire('รวมบิลสำเร็จ!', 'รายการอาหารถูกรวมเรียบร้อยแล้ว', 'success');
     };
 
     // Missing local handlers for POS
@@ -1444,11 +1552,15 @@ const App: React.FC = () => {
                 isOpen={modalState.isTableBill}
                 onClose={() => setModalState(prev => ({ ...prev, isTableBill: false }))}
                 order={orderForModal as ActiveOrder}
+                activeOrderCount={activeOrders.length}
                 onInitiatePayment={(order) => {
                     setModalState(prev => ({ ...prev, isTableBill: false, isPayment: true }));
                 }}
                 onInitiateMove={(order) => {
                     setModalState(prev => ({ ...prev, isTableBill: false, isMoveTable: true }));
+                }}
+                onInitiateMerge={(order) => {
+                    setModalState(prev => ({ ...prev, isTableBill: false, isMergeBill: true }));
                 }}
                 onSplit={(order) => {
                     setModalState(prev => ({ ...prev, isSplitBill: true }));
@@ -1462,6 +1574,15 @@ const App: React.FC = () => {
                 onInitiateCancel={(order) => {
                     setModalState(prev => ({ ...prev, isTableBill: false, isCancelOrder: true }));
                 }}
+            />
+
+            <MergeBillModal
+                isOpen={modalState.isMergeBill}
+                onClose={() => setModalState(prev => ({ ...prev, isMergeBill: false }))}
+                order={orderForModal as ActiveOrder}
+                allActiveOrders={activeOrders}
+                tables={cleanedTables}
+                onConfirmMerge={handleConfirmMerge}
             />
 
             <PaymentModal 

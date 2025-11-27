@@ -42,16 +42,19 @@ exports.sendHighPriorityOrderNotification = functions.region('asia-southeast1').
         }
         const allUsers = usersDoc.data().value || [];
 
-        // Filter for kitchen staff in the relevant branch who have an FCM token.
+        // Filter for kitchen staff, collect all their tokens from the `fcmTokens` array.
         const branchIdNumber = parseInt(context.params.branchId, 10);
-        const kitchenStaffTokens = allUsers
+        const allKitchenStaffTokens = allUsers
             .filter(user => 
                 user.role === 'kitchen' &&
-                user.fcmToken &&
+                user.fcmTokens && Array.isArray(user.fcmTokens) && user.fcmTokens.length > 0 &&
                 user.allowedBranchIds &&
                 user.allowedBranchIds.includes(branchIdNumber)
             )
-            .map(user => user.fcmToken);
+            .flatMap(user => user.fcmTokens); // Use flatMap to get all tokens into a single array.
+
+        // Remove duplicate tokens to avoid sending multiple notifications to the same device.
+        const kitchenStaffTokens = [...new Set(allKitchenStaffTokens)];
 
         if (kitchenStaffTokens.length === 0) {
             console.log('No kitchen staff with registered devices found for this branch.');
