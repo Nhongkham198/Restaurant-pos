@@ -59,7 +59,7 @@ export const MenuSearchModal: React.FC<MenuSearchModalProps> = ({ isOpen, onClos
                                 onClick={() => handleItemClick(item)}
                                 className="flex items-center gap-4 p-3 rounded-lg hover:bg-gray-100 cursor-pointer"
                             >
-                                <MenuItemImage imageUrl={item.imageUrl} alt={item.name} className="w-16 h-16 rounded-md object-cover flex-shrink-0" />
+                                <MenuItemImage src={item.imageUrl} alt={item.name} className="w-16 h-16 rounded-md object-cover flex-shrink-0" />
                                 <div className="flex-1">
                                     <p className="font-semibold text-gray-800">{item.name}</p>
                                     <p className="text-sm text-gray-500">{item.category}</p>

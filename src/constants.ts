@@ -21,7 +21,7 @@ export const DEFAULT_MENU_ITEMS: MenuItem[] = [
         name: 'ข้าวกะเพรา', 
         price: 60, 
         category: 'อาหารจานเดียว', 
-        imageUrl: 'https://img.kapook.com/u/surauch/cook/3_35.jpg', 
+        imageUrl: 'https://firebasestorage.googleapis.com/v0/b/restaurant-pos-f8bd4.appspot.com/o/menu%2Fkaprao.jpg?alt=media', 
         cookingTime: 5,
         optionGroups: [
             {
@@ -62,10 +62,10 @@ export const DEFAULT_MENU_ITEMS: MenuItem[] = [
             }
         ]
     },
-    { id: 2, name: 'ข้าวผัดหมู', price: 60, category: 'อาหารจานเดียว', imageUrl: 'https://img.wongnai.com/p/1920x0/2019/08/03/995914a49c6d48259a4c04299b9e155c.jpg', cookingTime: 7 },
-    { id: 3, name: 'เฟรนช์ฟรายส์', price: 45, category: 'ของทานเล่น', imageUrl: 'https://www.seriouseats.com/thmb/j1e_J1J9g-8a-o-2-8-8a/1500x1125/filters:fill(auto,1)/__opt__aboutcom__coeus__resources__content_migration__serious_eats__seriouseats.com__2018__04__20180309-french-fries-vicky-wasik-15-5a379f84d4354d7e85c137358a113e62.jpg', cookingTime: 4 },
-    { id: 4, name: 'โค้ก', price: 20, category: 'เครื่องดื่ม', imageUrl: 'https://backend.tops.co.th/media/catalog/product/8/8/8851959132039_1.jpg', cookingTime: 1 },
-    { id: 5, name: 'น้ำเปล่า', price: 15, category: 'เครื่องดื่ม', imageUrl: 'https://backend.tops.co.th/media/catalog/product/8/8/8851959141017_1.jpg', cookingTime: 1 },
+    { id: 2, name: 'ข้าวผัดหมู', price: 60, category: 'อาหารจานเดียว', imageUrl: 'https://firebasestorage.googleapis.com/v0/b/restaurant-pos-f8bd4.appspot.com/o/menu%2Ffried-rice.jpg?alt=media', cookingTime: 7 },
+    { id: 3, name: 'เฟรนช์ฟรายส์', price: 45, category: 'ของทานเล่น', imageUrl: 'https://firebasestorage.googleapis.com/v0/b/restaurant-pos-f8bd4.appspot.com/o/menu%2Ffrench-fries.jpg?alt=media', cookingTime: 4 },
+    { id: 4, name: 'โค้ก', price: 20, category: 'เครื่องดื่ม', imageUrl: 'https://firebasestorage.googleapis.com/v0/b/restaurant-pos-f8bd4.appspot.com/o/menu%2Fcoke.jpg?alt=media', cookingTime: 1 },
+    { id: 5, name: 'น้ำเปล่า', price: 15, category: 'เครื่องดื่ม', imageUrl: 'https://firebasestorage.googleapis.com/v0/b/restaurant-pos-f8bd4.appspot.com/o/menu%2Fwater.jpg?alt=media', cookingTime: 1 },
 ];
 
 export const DEFAULT_FLOORS: string[] = ['ชั้นล่าง', 'ชั้นบน'];

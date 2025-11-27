@@ -1,8 +1,5 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../firebaseConfig';
-// FIX: Switched to Firebase v8 compatibility API. This uses db.doc() instead of v9 modular functions.
-// import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 import type { Table } from '../types';
 
 export function useFirestoreSync<T>(
@@ -30,12 +27,12 @@ export function useFirestoreSync<T>(
         const pathSegments = isBranchSpecific && branchId
             ? ['branches', branchId, collectionKey, 'data']
             : [collectionKey, 'data'];
-
+        
         // FIX: Use v8 API: db.doc('path/to/doc')
         const docRef = db.doc(pathSegments.join('/'));
 
         // FIX: Use v8 API: docRef.onSnapshot(...)
-        const unsubscribe = docRef.onSnapshot( 
+        const unsubscribe = docRef.onSnapshot(
             (docSnapshot) => {
                 if (docSnapshot.exists) {
                     const data = docSnapshot.data();

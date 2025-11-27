@@ -145,3 +145,32 @@ self.addEventListener('fetch', event => {
     })
   );
 });
+
+// --- MESSAGE EVENT for Proactive Caching ---
+self.addEventListener('message', event => {
+  if (event.data && event.data.type === 'CACHE_IMAGES') {
+    const urlsToCache = event.data.urls;
+    console.log('[SW] Proactively caching images:', urlsToCache.length);
+
+    event.waitUntil(
+      caches.open(IMAGE_CACHE_NAME).then(cache => {
+        // Use individual add() for resilience. If one URL fails, others can still succeed.
+        const promises = urlsToCache.map(url => {
+          // Create a new request to handle potential CORS issues for external images
+          const request = new Request(url, { mode: 'no-cors' });
+          // IMPORTANT: Ignore search parameters when matching/caching to avoid duplicates.
+          const cacheKey = url.split('?')[0];
+          
+          return cache.match(cacheKey).then(cachedResponse => {
+            if (!cachedResponse) { // Only fetch and cache if it's not already there
+              return cache.add(request).catch(err => {
+                console.warn(`[SW] Failed to proactively cache image: ${url}`, err);
+              });
+            }
+          });
+        });
+        return Promise.all(promises);
+      })
+    );
+  }
+});
