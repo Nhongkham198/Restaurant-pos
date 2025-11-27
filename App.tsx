@@ -1,5 +1,6 @@
 
 
+
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 
 import { 
@@ -101,8 +102,32 @@ const App: React.FC = () => {
     // --- AUTH & BRANCH STATE ---
     const [users, setUsers] = useFirestoreSync<User[]>(null, 'users', DEFAULT_USERS);
     const [branches, setBranches] = useFirestoreSync<Branch[]>(null, 'branches', DEFAULT_BRANCHES);
-    const [currentUser, setCurrentUser] = useState<User | null>(null);
-    const [selectedBranch, setSelectedBranch] = useState<Branch | null>(null);
+    const [currentUser, setCurrentUser] = useState<User | null>(() => {
+        const storedUser = localStorage.getItem('currentUser');
+        if (storedUser) {
+            try {
+                return JSON.parse(storedUser);
+            } catch (e) {
+                console.error('Error parsing stored user', e);
+                localStorage.removeItem('currentUser');
+                return null;
+            }
+        }
+        return null;
+    });
+    const [selectedBranch, setSelectedBranch] = useState<Branch | null>(() => {
+        const storedBranch = localStorage.getItem('selectedBranch');
+        if (storedBranch) {
+            try {
+                return JSON.parse(storedBranch);
+            } catch (e) {
+                console.error('Error parsing stored branch', e);
+                localStorage.removeItem('selectedBranch');
+                return null;
+            }
+        }
+        return null;
+    });
     const [currentFcmToken, setCurrentFcmToken] = useState<string | null>(null);
 
     // --- VIEW & EDIT MODE STATE ---
@@ -214,28 +239,6 @@ const App: React.FC = () => {
     const prevUserRef = useRef<User | null>(null);
 
     // --- SESSION PERSISTENCE ---
-    useEffect(() => {
-        // On initial load, try to restore session from localStorage
-        const storedUser = localStorage.getItem('currentUser');
-        if (storedUser) {
-            try {
-                setCurrentUser(JSON.parse(storedUser));
-            } catch (e) {
-                console.error('Error parsing stored user', e);
-                localStorage.removeItem('currentUser');
-            }
-        }
-        const storedBranch = localStorage.getItem('selectedBranch');
-        if (storedBranch) {
-            try {
-                setSelectedBranch(JSON.parse(storedBranch));
-            } catch (e) {
-                console.error('Error parsing stored branch', e);
-                localStorage.removeItem('selectedBranch');
-            }
-        }
-    }, []); // Run only on component mount
-
     useEffect(() => {
         // Save selected branch to localStorage whenever it changes
         if (selectedBranch) {
