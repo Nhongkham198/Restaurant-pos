@@ -353,7 +353,6 @@ const App: React.FC = () => {
         return 0; // Regular staff don't approve, so no badge needed
     }, [leaveRequests, currentUser]);
 
-
     // --- KITCHEN NOTIFICATION EFFECT ---
     useEffect(() => {
         if (currentUser?.role === 'kitchen' && prevActiveOrdersRef.current) {
@@ -363,6 +362,7 @@ const App: React.FC = () => {
                 const newOrders = activeOrders.filter(o => !previousOrderIds.has(o.id) && o.status === 'waiting');
 
                 if (newOrders.length > 0) {
+                    // Create a new Audio object and play it each time to ensure it plays.
                     if (notificationSoundUrl) {
                         const audio = new Audio(notificationSoundUrl);
                         audio.play().catch(error => console.error("Error playing notification sound:", error));
@@ -1390,7 +1390,7 @@ const App: React.FC = () => {
                     setModalState(prev => ({ ...prev, isTableBill: false, isMoveTable: true }));
                 }}
                 onSplit={(order) => {
-                    setModalState(prev => ({ ...prev, isTableBill: false, isSplitBill: true }));
+                    setModalState(prev => ({ ...prev, isSplitBill: true }));
                 }}
                 isEditMode={canEdit}
                 onUpdateOrder={(orderId, newItems, newCount) => {
