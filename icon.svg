@@ -1,14 +1,34 @@
 <svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
-<rect width="512" height="512" rx="96" fill="#1E3A8A"/>
-<g clip-path="url(#clip0_101_2)">
-<path d="M221.707 152.293C225.612 148.388 231.944 148.388 235.849 152.293L256 172.444L276.151 152.293C280.056 148.388 286.388 148.388 290.293 152.293C294.198 156.198 294.198 162.53 290.293 166.435L265.142 191.586C261.237 195.491 254.905 195.491 251.001 191.586L221.707 162.293C217.802 158.388 217.802 156.198 221.707 152.293Z" fill="#FFFFFF"/>
-<path d="M256 182.5V360" stroke="#FFFFFF" stroke-width="24" stroke-linecap="round"/>
-<path d="M192 256H320" stroke="#FFFFFF" stroke-width="24" stroke-linecap="round"/>
-<path d="M192 310H320" stroke="#FFFFFF" stroke-width="24" stroke-linecap="round"/>
-</g>
-<defs>
-<clipPath id="clip0_101_2">
-<rect width="240" height="240" fill="white" transform="translate(136 136)"/>
-</clipPath>
-</defs>
+    <!-- Background -->
+    <rect width="512" height="512" fill="#D72828"/>
+    
+    <!-- Pot -->
+    <g transform="translate(0, -20)">
+        <!-- Pot Body -->
+        <path d="M120 220 C 120 290, 392 290, 392 220 L 384 190 H 128 Z" fill="#C18943"/>
+        <path d="M128 190 L 384 190 L 380 180 L 132 180 Z" fill="#A77239" />
+        
+        <!-- Left Handle -->
+        <path d="M128 190 C 108 190, 108 210, 128 215" stroke="#A77239" stroke-width="8" fill="#C18943" />
+        <!-- Right Handle -->
+        <path d="M384 190 C 404 190, 404 210, 384 215" stroke="#A77239" stroke-width="8" fill="#C18943" />
+
+        <!-- Soup -->
+        <ellipse cx="256" cy="195" rx="120" ry="25" fill="#B33A3A"/>
+        <path d="M156 190 C 196 180, 236 190, 276 180 S 356 190, 396 180" stroke="#D34F4F" stroke-width="4" fill="none"/>
+        <path d="M156 200 C 196 190, 236 200, 276 190 S 356 200, 396 190" stroke="#D34F4F" stroke-width="4" fill="none"/>
+
+        <!-- Egg Yolk -->
+        <circle cx="256" cy="195" r="24" fill="#FFD966"/>
+        <circle cx="256" cy="195" r="16" fill="#FFC700"/>
+    </g>
+
+    <!-- Text -->
+    <style>
+        .heavy-font { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-weight: 800; fill: black; text-anchor: middle; }
+        .thai-font { font-family: 'Sarabun', sans-serif; font-weight: 700; fill: black; text-anchor: middle; }
+    </style>
+    <text x="256" y="330" class="heavy-font" font-size="72">SEOUL</text>
+    <text x="256" y="400" class="heavy-font" font-size="72">GOOD</text>
+    <text x="256" y="465" class="thai-font" font-size="52">서울굿 โซลกู๊ด</text>
 </svg>
