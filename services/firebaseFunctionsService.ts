@@ -1,6 +1,7 @@
 
 import { functions } from '../firebaseConfig';
-import { httpsCallable } from 'firebase/functions';
+// FIX: Switched to Firebase v8 compatibility API. This uses functions.httpsCallable() instead of v9 modular function.
+// import { httpsCallable } from 'firebase/functions';
 import type { PaymentDetails, OrderItem, LeaveRequest, StockItem } from '../types';
 
 /*
@@ -105,19 +106,20 @@ if (!functions) {
 }
 
 // Create callable function instances
-const placeOrderFunction = functions ? httpsCallable<PlaceOrderPayload, PlaceOrderResponse>(functions, 'placeOrder') : null;
-const confirmPaymentFunction = functions ? httpsCallable<ConfirmPaymentPayload, ConfirmPaymentResponse>(functions, 'confirmPayment') : null;
+// FIX: Use v8 httpsCallable syntax
+const placeOrderFunction = functions ? functions.httpsCallable('placeOrder') : null;
+const confirmPaymentFunction = functions ? functions.httpsCallable('confirmPayment') : null;
 
 // Leave Management Functions
-const submitLeaveRequestFunction = functions ? httpsCallable<SubmitLeaveRequestPayload, GenericResponse>(functions, 'submitLeaveRequest') : null;
-const updateLeaveStatusFunction = functions ? httpsCallable<UpdateLeaveStatusPayload, GenericResponse>(functions, 'updateLeaveStatus') : null;
-const deleteLeaveRequestFunction = functions ? httpsCallable<DeleteLeaveRequestPayload, GenericResponse>(functions, 'deleteLeaveRequest') : null;
+const submitLeaveRequestFunction = functions ? functions.httpsCallable('submitLeaveRequest') : null;
+const updateLeaveStatusFunction = functions ? functions.httpsCallable('updateLeaveStatus') : null;
+const deleteLeaveRequestFunction = functions ? functions.httpsCallable('deleteLeaveRequest') : null;
 
 // Stock Management Functions
-const addStockItemFunction = functions ? httpsCallable<AddStockItemPayload, GenericResponse>(functions, 'addStockItem') : null;
-const updateStockItemFunction = functions ? httpsCallable<UpdateStockItemPayload, GenericResponse>(functions, 'updateStockItem') : null;
-const adjustStockQuantityFunction = functions ? httpsCallable<AdjustStockQuantityPayload, GenericResponse>(functions, 'adjustStockQuantity') : null;
-const deleteStockItemFunction = functions ? httpsCallable<DeleteStockItemPayload, GenericResponse>(functions, 'deleteStockItem') : null;
+const addStockItemFunction = functions ? functions.httpsCallable('addStockItem') : null;
+const updateStockItemFunction = functions ? functions.httpsCallable('updateStockItem') : null;
+const adjustStockQuantityFunction = functions ? functions.httpsCallable('adjustStockQuantity') : null;
+const deleteStockItemFunction = functions ? functions.httpsCallable('deleteStockItem') : null;
 
 
 // Exported service object
@@ -133,7 +135,8 @@ export const functionsService = {
         }
         try {
             const result = await placeOrderFunction(payload);
-            return result.data;
+            // FIX: Cast result data to the correct type for v8 API.
+            return result.data as PlaceOrderResponse;
         } catch (error) {
             console.error("Error calling placeOrder function:", error);
             const httpsError = error as { code: string, message: string };
@@ -152,7 +155,8 @@ export const functionsService = {
         }
         try {
             const result = await confirmPaymentFunction(payload);
-            return result.data;
+            // FIX: Cast result data to the correct type for v8 API.
+            return result.data as ConfirmPaymentResponse;
         } catch (error) {
             console.error("Error calling confirmPayment function:", error);
             const httpsError = error as { code: string, message: string };
@@ -169,7 +173,8 @@ export const functionsService = {
         }
         try {
             const result = await submitLeaveRequestFunction(payload);
-            return result.data;
+            // FIX: Cast result data to the correct type for v8 API.
+            return result.data as GenericResponse;
         } catch (error: any) {
             console.error("Error submitting leave request:", error);
             throw new Error(error.message || "Backend error");
@@ -185,7 +190,8 @@ export const functionsService = {
         }
         try {
             const result = await updateLeaveStatusFunction(payload);
-            return result.data;
+            // FIX: Cast result data to the correct type for v8 API.
+            return result.data as GenericResponse;
         } catch (error: any) {
             console.error("Error updating leave status:", error);
             throw new Error(error.message || "Backend error");
@@ -201,7 +207,8 @@ export const functionsService = {
         }
         try {
             const result = await deleteLeaveRequestFunction(payload);
-            return result.data;
+            // FIX: Cast result data to the correct type for v8 API.
+            return result.data as GenericResponse;
         } catch (error: any) {
             console.error("Error deleting leave request:", error);
             throw new Error(error.message || "Backend error");
@@ -214,7 +221,8 @@ export const functionsService = {
         if (!addStockItemFunction) return { success: false, error: "Functions not initialized" };
         try {
             const result = await addStockItemFunction(payload);
-            return result.data;
+            // FIX: Cast result data to the correct type for v8 API.
+            return result.data as GenericResponse;
         } catch (error: any) { throw new Error(error.message || "Backend error"); }
     },
 
@@ -222,7 +230,8 @@ export const functionsService = {
         if (!updateStockItemFunction) return { success: false, error: "Functions not initialized" };
         try {
             const result = await updateStockItemFunction(payload);
-            return result.data;
+            // FIX: Cast result data to the correct type for v8 API.
+            return result.data as GenericResponse;
         } catch (error: any) { throw new Error(error.message || "Backend error"); }
     },
 
@@ -230,7 +239,8 @@ export const functionsService = {
         if (!adjustStockQuantityFunction) return { success: false, error: "Functions not initialized" };
         try {
             const result = await adjustStockQuantityFunction(payload);
-            return result.data;
+            // FIX: Cast result data to the correct type for v8 API.
+            return result.data as GenericResponse;
         } catch (error: any) { throw new Error(error.message || "Backend error"); }
     },
 
@@ -238,7 +248,8 @@ export const functionsService = {
         if (!deleteStockItemFunction) return { success: false, error: "Functions not initialized" };
         try {
             const result = await deleteStockItemFunction(payload);
-            return result.data;
+            // FIX: Cast result data to the correct type for v8 API.
+            return result.data as GenericResponse;
         } catch (error: any) { throw new Error(error.message || "Backend error"); }
     }
 

@@ -1,7 +1,9 @@
+
 // Firebase Messaging Service Worker
 // NOTE: These scripts are imported from the web, not locally.
-importScripts('https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js');
-importScripts('https://www.gstatic.com/firebasejs/9.22.1/firebase-messaging.js');
+// FIX: Use compatibility scripts to match v8/compat API usage.
+importScripts('https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/9.22.1/firebase-messaging-compat.js');
 
 // IMPORTANT: This config must match your project's firebaseConfig.
 const firebaseConfig = {

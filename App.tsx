@@ -1,3 +1,5 @@
+
+
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 
 import { 
@@ -33,9 +35,13 @@ import type {
 import { useFirestoreSync } from './hooks/useFirestoreSync';
 import { functionsService } from './services/firebaseFunctionsService';
 import { printerService } from './services/printerService';
+// FIX: Correct Firebase v8 compatibility imports for 'app' and 'messaging'.
+import firebase from 'firebase/compat/app';
+import 'firebase/compat/messaging';
 import { isFirebaseConfigured, db } from './firebaseConfig';
-import { doc, runTransaction } from 'firebase/firestore';
-import { getMessaging, getToken, onMessage } from 'firebase/messaging';
+// FIX: Removed unused v9 firestore and messaging imports
+// import { doc, runTransaction } from 'firebase/firestore';
+// import { getMessaging, getToken, onMessage } from 'firebase/messaging';
 
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
@@ -207,6 +213,7 @@ const App: React.FC = () => {
 
     // --- CUSTOMER MODE INITIALIZATION ---
     useEffect(() => {
+        // This effect should run only once on mount to avoid re-running on branch changes.
         const params = new URLSearchParams(window.location.search);
         if (params.get('mode') === 'customer' && params.get('tableId')) {
             setIsCustomerMode(true);
@@ -214,10 +221,14 @@ const App: React.FC = () => {
             
             // Auto-select branch for customer if not selected
              if (!selectedBranch && branches.length > 0) {
+                // For customer mode, assuming a single branch setup for simplicity
+                // In a multi-branch setup, the branch ID would need to be in the URL.
                 setSelectedBranch(branches[0]);
             }
         }
-    }, [branches, selectedBranch]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []); // Empty dependency array ensures this runs only once.
+
 
     // --- USER SYNC EFFECT ---
     useEffect(() => {
@@ -227,6 +238,9 @@ const App: React.FC = () => {
                 if (JSON.stringify(foundUser) !== JSON.stringify(currentUser)) {
                     setCurrentUser(foundUser);
                 }
+            } else {
+                // User was deleted from another client, force logout.
+                handleLogout();
             }
         }
     }, [users, currentUser]);
@@ -240,10 +254,11 @@ const App: React.FC = () => {
             }
 
             try {
-                const messaging = getMessaging(db.app);
+                // FIX: Use v8 messaging API.
+                const messaging = firebase.messaging();
 
                 // Add an event listener for messages received while the app is in the foreground.
-                onMessage(messaging, (payload) => {
+                messaging.onMessage((payload) => {
                     console.log('Message received. ', payload);
                     const notificationTitle = payload.notification?.title || 'แจ้งเตือนใหม่';
                     const notificationBody = payload.notification?.body || 'คุณมีข้อความใหม่';
@@ -259,7 +274,8 @@ const App: React.FC = () => {
                     console.log('Notification permission granted.');
                     
                     const vapidKey = 'BMIo7v3beGbvOlEciEL3TN5lFAZBZ-52zkg-vqgo8gudi4QW4UyIR4HDEk17Q2pYb3FFDCgzyq5oYFKIGXGfpJU'; 
-                    const currentToken = await getToken(messaging, { vapidKey });
+                    // FIX: Use v8 messaging API.
+                    const currentToken = await messaging.getToken({ vapidKey });
 
                     if (currentToken) {
                         if (userToUpdate.fcmToken !== currentToken) {
@@ -460,7 +476,8 @@ const App: React.FC = () => {
     // --- STAFF CALL NOTIFICATION & SOUND EFFECT ---
     // This effect manages ONLY the audio playback.
     useEffect(() => {
-        const shouldPlayAudio = staffCalls.length > 0 && staffCallSoundUrl && !isCustomerMode;
+        // Only play sound for 'pos' and 'kitchen' roles. Mute for 'admin' and 'branch-admin'.
+        const shouldPlayAudio = staffCalls.length > 0 && staffCallSoundUrl && !isCustomerMode && currentUser?.role !== 'admin' && currentUser?.role !== 'branch-admin';
 
         if (shouldPlayAudio) {
             if (!staffCallAudioRef.current) {
@@ -480,7 +497,7 @@ const App: React.FC = () => {
                 staffCallAudioRef.current.pause();
             }
         };
-    }, [staffCalls.length, staffCallSoundUrl, isCustomerMode]);
+    }, [staffCalls.length, staffCallSoundUrl, isCustomerMode, currentUser]);
 
     // This effect manages ONLY showing the visual Swal notifications.
     useEffect(() => {
@@ -586,12 +603,14 @@ const App: React.FC = () => {
     const handleLogin = (username: string, password: string) => {
         let user = users.find(u => u.username === username && u.password === password);
         if (!user) {
+             // Fallback to check default users if not found in synced state (e.g., first run)
              user = DEFAULT_USERS.find(u => u.username === username && u.password === password);
         }
 
         if (user) {
             setCurrentUser(user);
-            setIsEditMode(false);
+            setIsEditMode(false); // Ensure edit mode is off on login
+            // Redirect based on role
             if (user.role === 'kitchen') {
                 setCurrentView('kitchen');
             } else {
@@ -613,13 +632,13 @@ const App: React.FC = () => {
     const handleLogout = () => {
         setCurrentUser(null);
         setSelectedBranch(null);
-        setCurrentView('pos');
+        setCurrentView('pos'); // Reset view to default
         if (staffCallAudioRef.current) {
             staffCallAudioRef.current.pause();
             staffCallAudioRef.current.currentTime = 0;
         }
         clearPosState();
-        setIsEditMode(false);
+        setIsEditMode(false); // Ensure edit mode is off on logout
     };
 
     const handleSendToKitchenChange = (enabled: boolean, details: { reason: string; notes: string } | null = null) => {
@@ -639,31 +658,41 @@ const App: React.FC = () => {
         placedBy: string,
         shouldSendToKitchen: boolean
     ) => {
+        // --- Security & Data Validation ---
+        // Validate every item against the master menu list to ensure prices and options haven't been tampered with.
         const validatedItems = items.map(cartItem => {
             const masterItem = menuItems.find(m => m.id === cartItem.id);
             if (!masterItem) {
+                // This should not happen in normal operation. Could indicate an issue or tampering.
                 console.warn(`Security Warning: Item ID ${cartItem.id} not found in master menu.`);
+                // We'll still process it but use the cart data as a fallback.
                 return cartItem; 
             }
+            // Recalculate options total from master data
             let optionsTotal = 0;
             const validatedOptions = cartItem.selectedOptions.map(cartOpt => {
                 let masterOption = null;
+                // Find the option in the master item's groups
                 masterItem.optionGroups?.forEach(group => {
                     const found = group.options.find(o => o.id === cartOpt.id);
                     if (found) masterOption = found;
                 });
                 if (masterOption) {
                     optionsTotal += masterOption.priceModifier;
+                    // Return the master option data to ensure price is correct
                     return { ...masterOption };
                 }
+                // If option not found (e.g., removed from menu), just keep what was in cart.
                 return cartOpt;
             });
+
+            // Return a fully validated item with prices recalculated from the source of truth.
             return {
                 ...cartItem,
-                name: masterItem.name,
-                price: masterItem.price,
-                finalPrice: masterItem.price + optionsTotal,
-                selectedOptions: validatedOptions
+                name: masterItem.name, // Ensure name is up-to-date
+                price: masterItem.price, // Ensure base price is up-to-date
+                finalPrice: masterItem.price + optionsTotal, // Recalculate final price
+                selectedOptions: validatedOptions, // Use validated options
             };
         });
 
@@ -671,7 +700,11 @@ const App: React.FC = () => {
         const todayDate = new Date();
         let newOrderNumber = 1;
 
-        const todayOrders = allOrders.filter(o => isSameDay(new Date(o.orderTime), todayDate));
+        // Find the highest order number from today's orders
+        const todayOrders = allOrders.filter(o => {
+            const orderDate = new Date(o.orderTime);
+            return isSameDay(orderDate, todayDate);
+        });
 
         if (todayOrders.length > 0) {
             newOrderNumber = Math.max(0, ...todayOrders.map(o => o.orderNumber)) + 1;
@@ -697,8 +730,10 @@ const App: React.FC = () => {
         };
 
         if (shouldSendToKitchen) {
+            // Update state to include the new active order
             setActiveOrders(prev => [...prev, newOrder]);
             
+            // If kitchen printer is configured, attempt to print
             if (printerConfig?.kitchen) {
                  const logEntry: PrintHistoryEntry = {
                     id: Date.now(),
@@ -707,7 +742,7 @@ const App: React.FC = () => {
                     tableName: newOrder.tableName,
                     printedBy: newOrder.placedBy,
                     printerType: 'kitchen',
-                    status: 'success',
+                    status: 'success', // Assume success initially
                     errorMessage: null,
                     orderItemsPreview: newOrder.items.map(i => {
                         const optionsText = i.selectedOptions.map(opt => opt.name).join(', ');
@@ -719,8 +754,10 @@ const App: React.FC = () => {
                 };
                 try {
                     await printerService.printKitchenOrder(newOrder, printerConfig.kitchen);
+                    // Add to print history on success
                     setPrintHistory(prev => [logEntry, ...prev.slice(0, 99)]);
                 } catch (err: any) {
+                    // Update log and state on failure
                     logEntry.status = 'failed';
                     logEntry.errorMessage = err.message;
                     setPrintHistory(prev => [logEntry, ...prev.slice(0, 99)]);
@@ -734,6 +771,7 @@ const App: React.FC = () => {
             }
             return newOrderNumber;
         } else {
+            // Logic for orders NOT sent to kitchen (e.g., drinks, errors)
             const fullReason = notSentToKitchenDetails 
                 ? (notSentToKitchenDetails.reason === 'อื่นๆ' 
                     ? `ไม่ได้ส่งเข้าครัว: ${notSentToKitchenDetails.notes}`
@@ -785,7 +823,7 @@ const App: React.FC = () => {
         
         setIsPlacingOrder(false);
         clearPosState();
-        setSendToKitchen(true); 
+        setSendToKitchen(true); // Reset checkbox after order
     };
 
     const handleCustomerPlaceOrder = async (items: OrderItem[], cName: string, cCount: number) => {
@@ -799,7 +837,7 @@ const App: React.FC = () => {
             cName,
             cCount,
             'Customer (Self)',
-            true 
+            true // Always send to kitchen from customer mode
         );
         
         Swal.fire({

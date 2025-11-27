@@ -1,6 +1,7 @@
-import { initializeApp } from "firebase/app";
-import { getFirestore } from "firebase/firestore";
-import { getFunctions } from "firebase/functions";
+
+import firebase from "firebase/compat/app";
+import "firebase/compat/firestore";
+import "firebase/compat/functions";
 
 // TODO: Replace the following with your app's Firebase project configuration
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional
@@ -26,9 +27,14 @@ let functions: any = null; // Initialize functions as null
 
 if (isFirebaseConfigured) {
   try {
-    app = initializeApp(firebaseConfig);
-    db = getFirestore(app);
-    functions = getFunctions(app);
+    // FIX: Switched to v8 initialization syntax to resolve module loading error.
+    if (!firebase.apps.length) {
+      app = firebase.initializeApp(firebaseConfig);
+    } else {
+      app = firebase.app();
+    }
+    db = firebase.firestore();
+    functions = firebase.functions();
   } catch (e) {
     console.error("Error initializing Firebase. Please check your config.", e);
     // isFirebaseConfigured should remain true, but db will be null, and errors will be caught.
