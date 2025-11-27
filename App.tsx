@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 
 import { 
@@ -274,21 +275,26 @@ const App: React.FC = () => {
 
 
     // --- CUSTOMER MODE INITIALIZATION ---
+    // Part 1: Detect customer mode from URL on initial load. Runs only once.
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
         if (params.get('mode') === 'customer' && params.get('tableId')) {
             setIsCustomerMode(true);
             setCustomerTableId(Number(params.get('tableId')));
-            
-            // Auto-select branch for customer if not selected.
-            // This effect re-runs when branches are loaded to prevent a race condition.
-             if (!selectedBranch && branches.length > 0) {
-                // For customer mode, assuming a single branch setup for simplicity
-                // In a multi-branch setup, the branch ID would need to be in the URL.
-                setSelectedBranch(branches[0]);
-            }
         }
-    }, [branches, selectedBranch]);
+    }, []);
+
+    // Part 2: Auto-select branch for customer mode once branch data is available.
+    useEffect(() => {
+        // This effect runs when isCustomerMode, branches, or selectedBranch changes.
+        // It ensures that if we are in customer mode and branches are loaded,
+        // the correct branch is selected, preventing a race condition on refresh.
+        if (isCustomerMode && !selectedBranch && branches.length > 0) {
+            // For customer mode, assuming a single branch setup for simplicity.
+            // In a multi-branch setup, the branch ID would need to be in the URL.
+            setSelectedBranch(branches[0]);
+        }
+    }, [isCustomerMode, branches, selectedBranch]);
 
 
     // --- USER SYNC EFFECT ---
