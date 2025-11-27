@@ -256,21 +256,20 @@ const App: React.FC = () => {
 
     // --- CUSTOMER MODE INITIALIZATION ---
     useEffect(() => {
-        // This effect should run only once on mount to avoid re-running on branch changes.
         const params = new URLSearchParams(window.location.search);
         if (params.get('mode') === 'customer' && params.get('tableId')) {
             setIsCustomerMode(true);
             setCustomerTableId(Number(params.get('tableId')));
             
-            // Auto-select branch for customer if not selected
+            // Auto-select branch for customer if not selected.
+            // This effect re-runs when branches are loaded to prevent a race condition.
              if (!selectedBranch && branches.length > 0) {
                 // For customer mode, assuming a single branch setup for simplicity
                 // In a multi-branch setup, the branch ID would need to be in the URL.
                 setSelectedBranch(branches[0]);
             }
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []); // Empty dependency array ensures this runs only once.
+    }, [branches, selectedBranch]);
 
 
     // --- USER SYNC EFFECT ---
