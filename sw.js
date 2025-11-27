@@ -21,13 +21,18 @@ const messaging = firebase.messaging();
 messaging.onBackgroundMessage(function(payload) {
   console.log('[sw.js] Received background message ', payload);
 
-  const notificationTitle = payload.notification?.title || 'มีออเดอร์ใหม่!';
+  // Use the 'data' payload for more control over the notification.
+  const notificationTitle = payload.data?.title || 'มีออเดอร์ใหม่!';
   const notificationOptions = {
-    body: payload.notification?.body || 'มีรายการอาหารใหม่ส่งเข้าครัว',
-    icon: '/icon.svg'
+    body: payload.data?.body || 'มีรายการอาหารใหม่ส่งเข้าครัว',
+    icon: payload.data?.icon || '/icon.svg',
+    // The crucial part: use the sound and vibrate properties from the payload.
+    sound: payload.data?.sound,
+    vibrate: payload.data?.vibrate ? JSON.parse(payload.data.vibrate) : [200, 100, 200]
   };
 
-  self.registration.showNotification(notificationTitle, notificationOptions);
+  // The Service Worker must return the promise from showNotification.
+  return self.registration.showNotification(notificationTitle, notificationOptions);
 });
 
 

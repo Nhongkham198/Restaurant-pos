@@ -61,10 +61,25 @@ exports.sendHighPriorityOrderNotification = functions.region('asia-southeast1').
         console.log(`Found ${kitchenStaffTokens.length} kitchen staff tokens to notify.`);
 
         // Construct the high-priority message payload.
+        // We include a 'data' payload for the service worker to have more control.
+        const notificationTitle = '🔔 มีออเดอร์ใหม่!';
+        const notificationBody = `โต๊ะ ${newOrder.tableName} (ออเดอร์ #${String(newOrder.orderNumber).padStart(3, '0')})`;
+
         const message = {
+            // Basic notification for simple display (iOS, etc.)
             notification: {
-                title: '🔔 มีออเดอร์ใหม่!',
-                body: `โต๊ะ ${newOrder.tableName} (ออเดอร์ #${String(newOrder.orderNumber).padStart(3, '0')})`
+                title: notificationTitle,
+                body: notificationBody,
+            },
+            // Custom data payload for our Service Worker to build a rich notification
+            data: {
+                title: notificationTitle,
+                body: notificationBody,
+                icon: '/icon.svg',
+                // The crucial part for sound and vibration
+                // This URL must be publicly accessible. Using a default sound stored in Firebase Storage.
+                sound: 'https://firebasestorage.googleapis.com/v0/b/restaurant-pos-f8bd4.appspot.com/o/sounds%2Fdefault-notification.mp3?alt=media',
+                vibrate: '[200, 100, 200]' // A standard vibration pattern: vibrate 200ms, pause 100ms, vibrate 200ms
             },
             android: {
                 priority: 'high' // This is the crucial part for high-priority delivery.
@@ -75,7 +90,7 @@ exports.sendHighPriorityOrderNotification = functions.region('asia-southeast1').
         // Send the message using the FCM Admin SDK.
         try {
             const response = await admin.messaging().sendMulticast(message);
-            console.log('Successfully sent message:', response);
+            console.log('Successfully sent message:', response.successCount, 'successes,', response.failureCount, 'failures');
             if (response.failureCount > 0) {
                 const failedTokens = [];
                 response.responses.forEach((resp, idx) => {
@@ -84,7 +99,6 @@ exports.sendHighPriorityOrderNotification = functions.region('asia-southeast1').
                     }
                 });
                 console.log('List of tokens that caused failures: ' + failedTokens);
-                // Here you could add logic to clean up invalid tokens from the user documents.
             }
         } catch (error) {
             console.error('Error sending message:', error);
