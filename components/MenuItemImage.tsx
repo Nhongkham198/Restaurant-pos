@@ -15,6 +15,7 @@ export const MenuItemImage: React.FC<MenuItemImageProps> = ({ src, alt, classNam
     const [isLoaded, setIsLoaded] = useState(false);
     const retryCountRef = useRef(0);
     const timeoutIdRef = useRef<number | null>(null);
+    const imgRef = useRef<HTMLImageElement>(null); // Ref for the image element
 
     // Reset everything when the src prop changes
     useEffect(() => {
@@ -36,6 +37,12 @@ export const MenuItemImage: React.FC<MenuItemImageProps> = ({ src, alt, classNam
         };
     }, []);
 
+    const handleLoad = () => {
+        setIsLoaded(true);
+        setHasError(false); // Reset error on successful load
+        retryCountRef.current = 0; // Reset on success
+    };
+
     const handleError = () => {
         if (retryCountRef.current < MAX_RETRIES) {
             retryCountRef.current++;
@@ -53,11 +60,16 @@ export const MenuItemImage: React.FC<MenuItemImageProps> = ({ src, alt, classNam
         }
     };
 
-    const handleLoad = () => {
-        setIsLoaded(true);
-        setHasError(false); // Reset error on successful load
-        retryCountRef.current = 0; // Reset on success
-    };
+    // --- FIX FOR CACHED IMAGES ---
+    // This effect checks if the image is already loaded from the browser's cache.
+    // The `onLoad` event might not fire for cached images, so this ensures we still
+    // update the state correctly.
+    useEffect(() => {
+        const img = imgRef.current;
+        if (img && img.complete && !isLoaded) {
+            handleLoad();
+        }
+    }); // No dependency array, runs after every render to check the image's status.
 
     // Determine what to render
     const shouldShowImage = src && !hasError;
@@ -71,6 +83,7 @@ export const MenuItemImage: React.FC<MenuItemImageProps> = ({ src, alt, classNam
             
             {shouldShowImage ? (
                 <img
+                    ref={imgRef}
                     src={currentSrc}
                     alt={alt}
                     className={`w-full h-full object-cover transition-opacity duration-500 ${isLoaded ? 'opacity-100' : 'opacity-0'}`}

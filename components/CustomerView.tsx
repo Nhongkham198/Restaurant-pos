@@ -26,7 +26,25 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [customerName, setCustomerName] = useState('');
     const [pinInput, setPinInput] = useState('');
-    const [cartItems, setCartItems] = useState<OrderItem[]>([]);
+    
+    // --- CART PERSISTENCE ---
+    const cartKey = `customer_cart_${table.id}`;
+    const [cartItems, setCartItems] = useState<OrderItem[]>(() => {
+        const savedCart = localStorage.getItem(cartKey);
+        try {
+            return savedCart ? JSON.parse(savedCart) : [];
+        } catch (e) {
+            console.error(`Error parsing cart for table ${table.id}`, e);
+            localStorage.removeItem(cartKey);
+            return [];
+        }
+    });
+
+    useEffect(() => {
+        localStorage.setItem(cartKey, JSON.stringify(cartItems));
+    }, [cartItems, cartKey]);
+
+
     const [isCartOpen, setIsCartOpen] = useState(false);
     const [isActiveOrderListOpen, setIsActiveOrderListOpen] = useState(false);
     const [itemToCustomize, setItemToCustomize] = useState<MenuItem | null>(null);
@@ -44,7 +62,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                 // Only perform actions if table.activePin is loaded from the database.
                 // If it's undefined, we wait for the next render when Firestore data arrives.
                 // This prevents a race condition where the session is deleted before the correct PIN is loaded.
-                if (table.activePin) {
+                if (table.activePin !== undefined) {
                     if (pin === table.activePin) {
                         // PIN is correct, authenticate the session.
                         setCustomerName(name);
@@ -68,13 +86,16 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     useEffect(() => {
         // If user is logged in, but the table's PIN is suddenly cleared (Payment Confirmed)
         // or changed (Staff reset PIN), force logout immediately.
-        if (isAuthenticated) {
-            if (!table.activePin || table.activePin !== pinInput) {
-                // 1. Clear Session
+        // We add `table.activePin !== undefined` to prevent a race condition on refresh
+        // where this effect runs before the table data is fully loaded from Firestore.
+        if (isAuthenticated && table.activePin !== undefined) {
+            if (table.activePin !== pinInput) {
+                // 1. Clear All Customer Data from localStorage
                 const sessionKey = `customer_session_${table.id}`;
+                const cartKey = `customer_cart_${table.id}`;
                 localStorage.removeItem(sessionKey);
-                // Also clear the persisted branch for customer mode to prevent stale data
                 localStorage.removeItem('customerSelectedBranch');
+                localStorage.removeItem(cartKey); // Clear the persisted cart on logout
 
                 // 2. Reset State
                 setIsAuthenticated(false);
