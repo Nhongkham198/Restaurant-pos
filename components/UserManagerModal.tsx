@@ -82,7 +82,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: value as 'admin' | 'branch-admin' | 'pos' | 'kitchen' }));
+        setFormData(prev => ({ ...prev, [name]: value as User['role'] }));
     };
 
     const handleQuotaChange = (type: 'sick' | 'personal' | 'vacation', value: number) => {
@@ -248,12 +248,13 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
     
     if (!isOpen) return null;
 
-    const roleText = (role: 'admin' | 'branch-admin' | 'pos' | 'kitchen') => {
+    const roleText = (role: User['role']) => {
         switch (role) {
             case 'admin': return 'ผู้ดูแลระบบ';
             case 'branch-admin': return 'ผู้ดูแลสาขา';
             case 'pos': return 'พนักงาน POS';
             case 'kitchen': return 'พนักงานครัว';
+            case 'auditor': return 'Auditor';
         }
     };
 
@@ -311,6 +312,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
                                                             user.role === 'admin' ? 'text-red-600' :
                                                             user.role === 'branch-admin' ? 'text-purple-600' :
                                                             user.role === 'kitchen' ? 'text-orange-600' :
+                                                            user.role === 'auditor' ? 'text-gray-600' :
                                                             'text-blue-600'
                                                         }`}>{roleText(user.role)}</span>
                                                         {user.role !== 'admin' && (
@@ -375,6 +377,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
                                         <option value="pos">พนักงาน POS</option>
                                         <option value="kitchen">พนักงานครัว</option>
                                         <option value="branch-admin">ผู้ดูแลสาขา</option>
+                                        <option value="auditor">Auditor</option>
                                         {currentUser.role === 'admin' && (
                                             <option value="admin">ผู้ดูแลระบบ</option>
                                         )}

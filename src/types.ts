@@ -16,7 +16,7 @@ export interface User {
     id: number;
     username: string;
     password: string;
-    role: 'admin' | 'branch-admin' | 'pos' | 'kitchen';
+    role: 'admin' | 'branch-admin' | 'pos' | 'kitchen' | 'auditor';
     allowedBranchIds?: number[];
     profilePictureUrl?: string;
     leaveQuotas?: LeaveQuotas; // Added specific quotas per user

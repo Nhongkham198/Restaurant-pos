@@ -1,4 +1,5 @@
 
+
 // Firebase Messaging Service Worker (This part remains the same)
 importScripts('https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/9.22.1/firebase-messaging-compat.js');
@@ -32,7 +33,7 @@ messaging.onBackgroundMessage(function(payload) {
 // --- ADVANCED CACHING SERVICE WORKER ---
 
 // Define cache names for better management
-const STATIC_CACHE_NAME = 'restaurant-pos-static-v5'; // For app shell files
+const STATIC_CACHE_NAME = 'restaurant-pos-static-v6'; // For app shell files
 const IMAGE_CACHE_NAME = 'restaurant-pos-images-v1';  // Dedicated cache for images
 
 // List of core app files to cache on install
@@ -91,7 +92,7 @@ self.addEventListener('fetch', event => {
 
   // --- Image Caching Strategy: Cache First, then Network Fallback ---
   // This strategy makes images load instantly after the first time.
-  const isImageRequest = /\.(jpg|jpeg|png|gif|svg|webp)$/i.test(url.pathname);
+  const isImageRequest = /\.(jpg|jpeg|png|gif|svg|webp)$/i.test(url.pathname) || url.hostname.includes('firebasestorage.googleapis.com');
 
   if (isImageRequest) {
     event.respondWith(
@@ -154,11 +155,9 @@ self.addEventListener('message', event => {
 
     event.waitUntil(
       caches.open(IMAGE_CACHE_NAME).then(cache => {
-        // Use individual add() for resilience. If one URL fails, others can still succeed.
         const promises = urlsToCache.map(url => {
           // Create a new request to handle potential CORS issues for external images
           const request = new Request(url, { mode: 'no-cors' });
-          // IMPORTANT: Ignore search parameters when matching/caching to avoid duplicates.
           const cacheKey = url.split('?')[0];
           
           return cache.match(cacheKey).then(cachedResponse => {
@@ -169,7 +168,16 @@ self.addEventListener('message', event => {
             }
           });
         });
-        return Promise.all(promises);
+        
+        // After all cache attempts are done, notify the client.
+        return Promise.all(promises).then(() => {
+            console.log('[SW] Image caching process complete.');
+            return self.clients.matchAll({ type: 'window' }).then(clients => {
+                clients.forEach(client => {
+                    client.postMessage({ type: 'CACHE_IMAGES_COMPLETE' });
+                });
+            });
+        });
       })
     );
   }
