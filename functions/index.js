@@ -2,11 +2,6 @@
 
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
-const { google } = require('googleapis');
-
-// --- Google Sheet Configuration (USER MUST EDIT THIS) ---
-const SPREADSHEET_ID = '1aBUMvmYLZMfn1ycjWROgrjldeMddGzgT7WooHSB3CN4'; 
-const SHEET_NAME = 'Sheet1'; 
 
 admin.initializeApp();
 
@@ -99,105 +94,5 @@ exports.sendHighPriorityOrderNotification = functions.region('asia-southeast1').
             console.error('Error sending message:', error);
         }
         
-        return null;
-    });
-
-/**
- * REBUILT: This single Cloud Function triggers on any update to completed orders.
- * It intelligently detects CREATION (SALE), MODIFICATION (EDIT), and DELETION (DELETE)
- * and logs the appropriate action to Google Sheets.
- */
-exports.logSalesAndEditsToSheet = functions.region('asia-southeast1').firestore
-    .document('branches/{branchId}/completedOrders/data')
-    .onUpdate(async (change, context) => {
-
-        const ordersBefore = change.before.exists ? change.before.data().value || [] : [];
-        const ordersAfter = change.after.exists ? change.after.data().value || [] : [];
-        
-        // --- AUTHENTICATION ---
-        let sheets;
-        try {
-            const auth = new google.auth.GoogleAuth({
-                keyFile: './service-account.json',
-                scopes: ['https://www.googleapis.com/auth/spreadsheets'],
-            });
-            sheets = google.sheets({ version: 'v4', auth });
-        } catch (error) {
-            console.error('Google Sheets: Authentication failed!', error.message);
-            return; // Stop execution if auth fails
-        }
-
-        // --- HELPER FUNCTION TO WRITE A ROW ---
-        const writeToSheet = async (order, action) => {
-            try {
-                const totalAmount = order.items.reduce((sum, item) => sum + (item.finalPrice * item.quantity), 0) + order.taxAmount;
-                const logTimestamp = (action === 'SALE' || action === 'DELETE') ? (order.completionTime || Date.now()) : Date.now();
-                
-                const timestamp = new Date(logTimestamp).toLocaleString('th-TH', {
-                    year: 'numeric', month: '2-digit', day: '2-digit',
-                    hour: '2-digit', minute: '2-digit', second: '2-digit',
-                    hour12: false
-                });
-                
-                const itemsString = order.items.map(item => `${item.quantity}x ${item.name}`).join(', ');
-
-                const values = [
-                    action,
-                    timestamp,
-                    order.orderNumber,
-                    order.tableName,
-                    order.customerName || '',
-                    totalAmount,
-                    order.paymentDetails?.method || (action === 'DELETE' ? 'N/A' : ''),
-                    order.placedBy,
-                    itemsString
-                    // Note: 'Edited By' is not easily available here without more complex logging.
-                    // The 'Employee' field will show the user who made the last change (if available in the order data).
-                ];
-
-                await sheets.spreadsheets.values.append({
-                    spreadsheetId: SPREADSHEET_ID,
-                    range: `${SHEET_NAME}!A1`,
-                    valueInputOption: 'USER_ENTERED',
-                    resource: { values: [values] },
-                });
-                
-                console.log(`Google Sheets: Successfully logged action '${action}' for order #${order.orderNumber}.`);
-            } catch (error) {
-                console.error(`Google Sheets: Error logging action '${action}' for order #${order.orderNumber}:`, error.message);
-            }
-        };
-
-        const beforeMap = new Map(ordersBefore.map(o => [o.id, o]));
-        const afterMap = new Map(ordersAfter.map(o => [o.id, o]));
-        const promises = [];
-
-        // 1. Check for NEW SALES and EDITS by iterating through the new state
-        for (const orderAfter of ordersAfter) {
-            const orderBefore = beforeMap.get(orderAfter.id);
-            if (!orderBefore) {
-                console.log(`Google Sheets: Detected SALE for order #${orderAfter.orderNumber}.`);
-                promises.push(writeToSheet(orderAfter, 'SALE'));
-            } else if (JSON.stringify(orderBefore) !== JSON.stringify(orderAfter)) {
-                console.log(`Google Sheets: Detected EDIT for order #${orderAfter.orderNumber}.`);
-                promises.push(writeToSheet(orderAfter, 'EDIT'));
-            }
-        }
-
-        // 2. Check for DELETIONS by iterating through the old state
-        for (const orderBefore of ordersBefore) {
-            if (!afterMap.has(orderBefore.id)) {
-                console.log(`Google Sheets: Detected DELETE for order #${orderBefore.orderNumber}.`);
-                promises.push(writeToSheet(orderBefore, 'DELETE'));
-            }
-        }
-        
-        if (promises.length > 0) {
-            await Promise.all(promises);
-            console.log(`Google Sheets: Finished processing ${promises.length} event(s).`);
-        } else {
-            console.log('Google Sheets: No new sales, edits, or deletions detected.');
-        }
-
         return null;
     });
