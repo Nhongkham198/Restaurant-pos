@@ -151,6 +151,8 @@ exports.logSalesAndEditsToSheet = functions.region('asia-southeast1').firestore
                     order.paymentDetails?.method || (action === 'DELETE' ? 'N/A' : ''),
                     order.placedBy,
                     itemsString
+                    // Note: 'Edited By' is not easily available here without more complex logging.
+                    // The 'Employee' field will show the user who made the last change (if available in the order data).
                 ];
 
                 await sheets.spreadsheets.values.append({
