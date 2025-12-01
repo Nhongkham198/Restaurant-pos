@@ -103,29 +103,36 @@ exports.sendHighPriorityOrderNotification = functions.region('asia-southeast1').
     });
 
 /**
- * NEW: This single Cloud Function triggers on any update to completed orders.
- * It intelligently detects whether an order is newly created (SALE) or
- * has been modified (EDIT) and logs the appropriate action to Google Sheets.
+ * REBUILT: This single Cloud Function triggers on any update to completed orders.
+ * It intelligently detects CREATION (SALE), MODIFICATION (EDIT), and DELETION (DELETE)
+ * and logs the appropriate action to Google Sheets.
  */
 exports.logSalesAndEditsToSheet = functions.region('asia-southeast1').firestore
     .document('branches/{branchId}/completedOrders/data')
     .onUpdate(async (change, context) => {
+
         const ordersBefore = change.before.exists ? change.before.data().value || [] : [];
         const ordersAfter = change.after.exists ? change.after.data().value || [] : [];
+        
+        // --- AUTHENTICATION ---
+        let sheets;
+        try {
+            const auth = new google.auth.GoogleAuth({
+                keyFile: './service-account.json',
+                scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+            });
+            sheets = google.sheets({ version: 'v4', auth });
+        } catch (error) {
+            console.error('Google Sheets: Authentication failed!', error.message);
+            return; // Stop execution if auth fails
+        }
 
-        // Helper function to write a single row to the sheet.
+        // --- HELPER FUNCTION TO WRITE A ROW ---
         const writeToSheet = async (order, action) => {
             try {
-                const auth = new google.auth.GoogleAuth({
-                    keyFile: './service-account.json',
-                    scopes: ['https://www.googleapis.com/auth/spreadsheets'],
-                });
-                const sheets = google.sheets({ version: 'v4', auth });
-
                 const totalAmount = order.items.reduce((sum, item) => sum + (item.finalPrice * item.quantity), 0) + order.taxAmount;
+                const logTimestamp = (action === 'SALE' || action === 'DELETE') ? (order.completionTime || Date.now()) : Date.now();
                 
-                // Use completionTime for SALE, and current time for EDIT
-                const logTimestamp = action === 'SALE' ? order.completionTime : Date.now();
                 const timestamp = new Date(logTimestamp).toLocaleString('th-TH', {
                     year: 'numeric', month: '2-digit', day: '2-digit',
                     hour: '2-digit', minute: '2-digit', second: '2-digit',
@@ -134,15 +141,14 @@ exports.logSalesAndEditsToSheet = functions.region('asia-southeast1').firestore
                 
                 const itemsString = order.items.map(item => `${item.quantity}x ${item.name}`).join(', ');
 
-                // Prepare row data. Ensure this order matches your Google Sheet columns.
                 const values = [
-                    action, // Column 1: 'SALE' or 'EDIT'
+                    action,
                     timestamp,
                     order.orderNumber,
                     order.tableName,
                     order.customerName || '',
                     totalAmount,
-                    order.paymentDetails.method,
+                    order.paymentDetails?.method || (action === 'DELETE' ? 'N/A' : ''),
                     order.placedBy,
                     itemsString
                 ];
@@ -161,20 +167,26 @@ exports.logSalesAndEditsToSheet = functions.region('asia-southeast1').firestore
         };
 
         const beforeMap = new Map(ordersBefore.map(o => [o.id, o]));
+        const afterMap = new Map(ordersAfter.map(o => [o.id, o]));
         const promises = [];
 
-        // Iterate through orders AFTER the change to detect new sales or edits
+        // 1. Check for NEW SALES and EDITS by iterating through the new state
         for (const orderAfter of ordersAfter) {
             const orderBefore = beforeMap.get(orderAfter.id);
-
             if (!orderBefore) {
-                // This is a new order (SALE)
                 console.log(`Google Sheets: Detected SALE for order #${orderAfter.orderNumber}.`);
                 promises.push(writeToSheet(orderAfter, 'SALE'));
             } else if (JSON.stringify(orderBefore) !== JSON.stringify(orderAfter)) {
-                // This order existed before and has changed (EDIT)
                 console.log(`Google Sheets: Detected EDIT for order #${orderAfter.orderNumber}.`);
                 promises.push(writeToSheet(orderAfter, 'EDIT'));
+            }
+        }
+
+        // 2. Check for DELETIONS by iterating through the old state
+        for (const orderBefore of ordersBefore) {
+            if (!afterMap.has(orderBefore.id)) {
+                console.log(`Google Sheets: Detected DELETE for order #${orderBefore.orderNumber}.`);
+                promises.push(writeToSheet(orderBefore, 'DELETE'));
             }
         }
         
@@ -182,7 +194,7 @@ exports.logSalesAndEditsToSheet = functions.region('asia-southeast1').firestore
             await Promise.all(promises);
             console.log(`Google Sheets: Finished processing ${promises.length} event(s).`);
         } else {
-            console.log('Google Sheets: No new sales or edits detected.');
+            console.log('Google Sheets: No new sales, edits, or deletions detected.');
         }
 
         return null;
