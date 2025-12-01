@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 
 import { 
@@ -33,9 +34,13 @@ import type {
 import { useFirestoreSync } from './hooks/useFirestoreSync';
 import { functionsService } from './services/firebaseFunctionsService';
 import { printerService } from './services/printerService';
+// FIX: Correct Firebase v8 compatibility imports for 'app' and 'messaging'.
+import firebase from 'firebase/compat/app';
+import 'firebase/compat/messaging';
 import { isFirebaseConfigured, db } from './firebaseConfig';
-import { doc, runTransaction } from 'firebase/firestore';
-import { getMessaging, getToken, onMessage } from 'firebase/messaging';
+// FIX: Removed unused v9 firestore and messaging imports
+// import { doc, runTransaction } from 'firebase/firestore';
+// import { getMessaging, getToken, onMessage } from 'firebase/messaging';
 
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
@@ -247,6 +252,9 @@ const App: React.FC = () => {
     // --- ASYNC OPERATION STATE ---
     const [isPlacingOrder, setIsPlacingOrder] = useState(false);
     const [isConfirmingPayment, setIsConfirmingPayment] = useState(false);
+    const [isCachingImages, setIsCachingImages] = useState(false);
+    const imageCacheTriggeredRef = useRef(false);
+
 
     // --- REFS ---
     const prevActiveOrdersRef = useRef<ActiveOrder[] | undefined>(undefined);
@@ -271,6 +279,47 @@ const App: React.FC = () => {
         // Save current view to localStorage whenever it changes to persist on refresh
         localStorage.setItem('currentView', currentView);
     }, [currentView]);
+
+    // --- PROACTIVE IMAGE CACHING ---
+    useEffect(() => {
+        if ('serviceWorker' in navigator && navigator.serviceWorker.controller && currentUser && !isCustomerMode && menuItems && menuItems.length > 0 && !imageCacheTriggeredRef.current) {
+            
+            setIsCachingImages(true);
+            imageCacheTriggeredRef.current = true; // Mark as triggered for this session
+
+            const imageUrls = [...new Set(menuItems.map(item => item.imageUrl).filter(Boolean))];
+            if (imageUrls.length > 0) {
+                console.log(`[App] Sending ${imageUrls.length} image URLs to Service Worker for precaching.`);
+                navigator.serviceWorker.controller.postMessage({
+                    type: 'CACHE_IMAGES',
+                    urls: imageUrls
+                });
+            } else {
+                // No images to cache, so end the loading state immediately.
+                setIsCachingImages(false);
+            }
+        }
+    }, [menuItems, currentUser, isCustomerMode]);
+
+    useEffect(() => {
+        const handleServiceWorkerMessage = (event: MessageEvent) => {
+            if (event.data && event.data.type === 'CACHE_IMAGES_COMPLETE') {
+                console.log('[App] Received CACHE_IMAGES_COMPLETE from Service Worker.');
+                setIsCachingImages(false);
+            }
+        };
+
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.addEventListener('message', handleServiceWorkerMessage);
+        }
+
+        return () => {
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.removeEventListener('message', handleServiceWorkerMessage);
+            }
+        };
+    }, []);
+
 
 
     // --- CUSTOMER MODE INITIALIZATION ---
@@ -344,10 +393,11 @@ const App: React.FC = () => {
             }
 
             try {
-                const messaging = getMessaging(db.app);
+                // FIX: Use v8 messaging API.
+                const messaging = firebase.messaging();
 
                 // Add an event listener for messages received while the app is in the foreground.
-                onMessage(messaging, (payload) => {
+                messaging.onMessage((payload) => {
                     console.log('Message received. ', payload);
                     const notificationTitle = payload.notification?.title || 'แจ้งเตือนใหม่';
                     const notificationBody = payload.notification?.body || 'คุณมีข้อความใหม่';
@@ -363,7 +413,8 @@ const App: React.FC = () => {
                     console.log('Notification permission granted.');
                     
                     const vapidKey = 'BMIo7v3beGbvOlEciEL3TN5lFAZBZ-52zkg-vqgo8gudi4QW4UyIR4HDEk17Q2pYb3FFDCgzyq5oYFKIGXGfpJU'; 
-                    const currentToken = await getToken(messaging, { vapidKey });
+                    // FIX: Use v8 messaging API.
+                    const currentToken = await messaging.getToken({ vapidKey });
                     setCurrentFcmToken(currentToken); // Store the token for this device to use on logout
 
                     if (currentToken) {
@@ -593,9 +644,14 @@ const App: React.FC = () => {
     // This effect manages ONLY showing the visual Swal notifications.
     useEffect(() => {
         const showNotifications = async () => {
-            if (isCustomerMode || !currentUser || !['pos', 'kitchen', 'admin', 'branch-admin'].includes(currentUser.role)) {
+            if (isCustomerMode || !currentUser || !['pos', 'kitchen', 'admin', 'branch-admin', 'auditor'].includes(currentUser.role)) {
                 return;
             }
+             // Do not show visual pop-up for auditors
+            if (currentUser.role === 'auditor') {
+                return;
+            }
+
 
             const unnotifiedCalls = staffCalls.filter(c => !notifiedCallIdsRef.current.has(c.id));
 
@@ -769,57 +825,69 @@ const App: React.FC = () => {
         placedBy: string,
         shouldSendToKitchen: boolean
     ) => {
+        // --- Generate Order Number with Transaction (NEW) ---
+        const today = new Date();
+        const dateString = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+        
+        if (!db || !branchId) {
+            Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถเชื่อมต่อฐานข้อมูลได้', 'error');
+            return null;
+        }
+        const counterRef = db.doc(`branches/${branchId}/counters/dailyOrder_${dateString}`);
+    
+        let newOrderNumber: number | null = null;
+        try {
+            await db.runTransaction(async (transaction: firebase.firestore.Transaction) => {
+                const counterDoc = await transaction.get(counterRef);
+                let currentCount = 0;
+                if (counterDoc.exists) {
+                    const data = counterDoc.data();
+                    if (data && typeof data.count === 'number') {
+                        currentCount = data.count;
+                    }
+                }
+                const newCount = currentCount + 1;
+                transaction.set(counterRef, { count: newCount });
+                newOrderNumber = newCount;
+            });
+        } catch (e) {
+            console.error("Order number transaction failed: ", e);
+            Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถสร้างหมายเลขออเดอร์ได้ กรุณาลองใหม่อีกครั้ง', 'error');
+            return null; // Indicate failure
+        }
+    
+        if (newOrderNumber === null) {
+            return null; // Abort if transaction failed
+        }
+
         // --- Security & Data Validation ---
-        // Validate every item against the master menu list to ensure prices and options haven't been tampered with.
         const validatedItems = items.map(cartItem => {
             const masterItem = menuItems.find(m => m.id === cartItem.id);
             if (!masterItem) {
-                // This should not happen in normal operation. Could indicate an issue or tampering.
                 console.warn(`Security Warning: Item ID ${cartItem.id} not found in master menu.`);
-                // We'll still process it but use the cart data as a fallback.
                 return cartItem; 
             }
-            // Recalculate options total from master data
             let optionsTotal = 0;
             const validatedOptions = cartItem.selectedOptions.map(cartOpt => {
                 let masterOption = null;
-                // Find the option in the master item's groups
                 masterItem.optionGroups?.forEach(group => {
                     const found = group.options.find(o => o.id === cartOpt.id);
                     if (found) masterOption = found;
                 });
                 if (masterOption) {
                     optionsTotal += masterOption.priceModifier;
-                    // Return the master option data to ensure price is correct
                     return { ...masterOption };
                 }
-                // If option not found (e.g., removed from menu), just keep what was in cart.
                 return cartOpt;
             });
-
-            // Return a fully validated item with prices recalculated from the source of truth.
             return {
                 ...cartItem,
-                name: masterItem.name, // Ensure name is up-to-date
-                price: masterItem.price, // Ensure base price is up-to-date
-                finalPrice: masterItem.price + optionsTotal, // Recalculate final price
-                selectedOptions: validatedOptions, // Use validated options
+                name: masterItem.name,
+                price: masterItem.price,
+                finalPrice: masterItem.price + optionsTotal,
+                selectedOptions: validatedOptions,
             };
         });
-
-        const allOrders = [...activeOrders, ...completedOrders, ...cancelledOrders];
-        const todayDate = new Date();
-        let newOrderNumber = 1;
-
-        // Find the highest order number from today's orders
-        const todayOrders = allOrders.filter(o => {
-            const orderDate = new Date(o.orderTime);
-            return isSameDay(orderDate, todayDate);
-        });
-
-        if (todayOrders.length > 0) {
-            newOrderNumber = Math.max(0, ...todayOrders.map(o => o.orderNumber)) + 1;
-        }
         
         const subtotal = validatedItems.reduce((sum, item) => sum + item.finalPrice * item.quantity, 0);
         const taxAmount = isTaxEnabled ? subtotal * (taxRate / 100) : 0;
@@ -841,10 +909,7 @@ const App: React.FC = () => {
         };
 
         if (shouldSendToKitchen) {
-            // Update state to include the new active order
             setActiveOrders(prev => [...prev, newOrder]);
-            
-            // If kitchen printer is configured, attempt to print
             if (printerConfig?.kitchen) {
                  const logEntry: PrintHistoryEntry = {
                     id: Date.now(),
@@ -853,7 +918,7 @@ const App: React.FC = () => {
                     tableName: newOrder.tableName,
                     printedBy: newOrder.placedBy,
                     printerType: 'kitchen',
-                    status: 'success', // Assume success initially
+                    status: 'success',
                     errorMessage: null,
                     orderItemsPreview: newOrder.items.map(i => {
                         const optionsText = i.selectedOptions.map(opt => opt.name).join(', ');
@@ -865,10 +930,8 @@ const App: React.FC = () => {
                 };
                 try {
                     await printerService.printKitchenOrder(newOrder, printerConfig.kitchen);
-                    // Add to print history on success
                     setPrintHistory(prev => [logEntry, ...prev.slice(0, 99)]);
                 } catch (err: any) {
-                    // Update log and state on failure
                     logEntry.status = 'failed';
                     logEntry.errorMessage = err.message;
                     setPrintHistory(prev => [logEntry, ...prev.slice(0, 99)]);
@@ -882,7 +945,6 @@ const App: React.FC = () => {
             }
             return newOrderNumber;
         } else {
-            // Logic for orders NOT sent to kitchen (e.g., drinks, errors)
             const fullReason = notSentToKitchenDetails 
                 ? (notSentToKitchenDetails.reason === 'อื่นๆ' 
                     ? `ไม่ได้ส่งเข้าครัว: ${notSentToKitchenDetails.notes}`
@@ -1133,6 +1195,23 @@ const App: React.FC = () => {
             onLogout={handleLogout}
         />;
     }
+    
+    // Proactive Image Caching Loading Screen
+    if (isCachingImages) {
+        return (
+            <div className="flex items-center justify-center h-screen bg-gray-100">
+                <div className="text-center p-8">
+                    <svg className="animate-spin h-12 w-12 text-blue-600 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <h2 className="mt-6 text-xl font-semibold text-gray-700">กำลังซิงค์รูปภาพเมนู...</h2>
+                    <p className="text-gray-500 mt-2">เพื่อให้การใช้งานรวดเร็ว กรุณารอสักครู่</p>
+                </div>
+            </div>
+        );
+    }
+
 
     // Default fallback for admin if no branch is selected but edit mode is on?
     // Just ensure selectedBranch is set for POS operations.

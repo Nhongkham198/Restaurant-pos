@@ -1,7 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
+// FIX: Add missing import for firebase to provide types for the v8 compatibility API.
+import firebase from 'firebase/compat/app';
 import { db } from '../firebaseConfig';
-import { doc, onSnapshot, setDoc } from 'firebase/firestore';
-import type { Table } from '../types';
+import type { Table, User, Branch } from '../types';
+// Import defaults for self-healing logic
+import { DEFAULT_USERS, DEFAULT_BRANCHES } from '../constants';
 
 export function useFirestoreSync<T>(
     branchId: string | null,
@@ -28,12 +31,14 @@ export function useFirestoreSync<T>(
         const pathSegments = isBranchSpecific && branchId
             ? ['branches', branchId, collectionKey, 'data']
             : [collectionKey, 'data'];
+        
+        // Use v8 API: db.doc('path/to/doc')
+        const docRef = db.doc(pathSegments.join('/'));
 
-        const docRef = doc(db, ...pathSegments);
-
-        const unsubscribe = onSnapshot(docRef, 
-            (docSnapshot) => {
-                if (docSnapshot.exists()) {
+        // Use v8 API: docRef.onSnapshot(...)
+        const unsubscribe = docRef.onSnapshot(
+            (docSnapshot: firebase.firestore.DocumentSnapshot) => {
+                if (docSnapshot.exists) {
                     const data = docSnapshot.data();
                     if (data && typeof data.value !== 'undefined') {
                         let valueToSet = data.value;
@@ -46,7 +51,6 @@ export function useFirestoreSync<T>(
                             rawTablesFromDb.forEach(table => {
                                 if (table && table.name && table.floor) {
                                     const key = `${table.name.trim().toLowerCase()}-${table.floor.trim().toLowerCase()}`;
-                                    // Only add if it's the first time we see this key to preserve original IDs if possible
                                     if (!uniqueTablesMap.has(key)) {
                                         uniqueTablesMap.set(key, table);
                                     }
@@ -54,43 +58,39 @@ export function useFirestoreSync<T>(
                             });
                             const cleanedUniqueTables = Array.from(uniqueTablesMap.values());
 
-                            // If data corruption (duplicates) was detected, write the clean version back to Firestore.
                             if (rawTablesFromDb.length > cleanedUniqueTables.length) {
                                 console.warn(`[Firestore Sync] Found and removed ${rawTablesFromDb.length - cleanedUniqueTables.length} duplicate tables. Auto-correcting data in Firestore.`);
-                                // Fire and forget: update Firestore in the background without waiting.
-                                setDoc(docRef, { value: cleanedUniqueTables }).catch(err => {
+                                docRef.set({ value: cleanedUniqueTables }).catch(err => {
                                     console.error("Failed to write cleaned table data back to Firestore:", err);
                                 });
                             }
 
-                            // Always use the cleaned data for the local state.
                             valueToSet = cleanedUniqueTables;
                         }
 
-                        // Self-healing for 'users' collection
-                        if (collectionKey === 'users' && Array.isArray(valueToSet) && valueToSet.length === 0 && Array.isArray(currentInitialValue) && currentInitialValue.length > 0) {
-                            console.warn(`'users' collection is empty in Firestore. Re-initializing with default value.`);
-                            setDoc(docRef, { value: currentInitialValue });
-                            setValue(currentInitialValue);
-                        } else if (collectionKey === 'branches' && Array.isArray(valueToSet) && valueToSet.length === 0 && Array.isArray(currentInitialValue) && currentInitialValue.length > 0) {
-                            console.warn(`'branches' collection is empty in Firestore. Re-initializing with default value.`);
-                            setDoc(docRef, { value: currentInitialValue });
-                            setValue(currentInitialValue);
-                        } else {
-                            setValue(valueToSet as T);
+                        // Self-healing for 'users' and 'branches'
+                        if ((collectionKey === 'users' || collectionKey === 'branches') && Array.isArray(valueToSet) && valueToSet.length === 0) {
+                             console.warn(`'${collectionKey}' collection is empty in Firestore. Re-initializing with default value.`);
+                             const defaultValue = collectionKey === 'users' ? DEFAULT_USERS : DEFAULT_BRANCHES;
+                             docRef.set({ value: defaultValue });
+                             setValue(defaultValue as unknown as T);
+                             return; // Prevent setting the empty value momentarily
                         }
+                        
+                        setValue(valueToSet as T);
+                        
                     } else {
                         console.warn(`Document at ${pathSegments.join('/')} is malformed. Overwriting with initial value.`);
-                        setDoc(docRef, { value: currentInitialValue });
+                        docRef.set({ value: currentInitialValue });
                         setValue(currentInitialValue);
                     }
                 } else {
                     console.log(`Document at ${pathSegments.join('/')} not found. Creating...`);
-                    setDoc(docRef, { value: currentInitialValue });
+                    docRef.set({ value: currentInitialValue });
                     setValue(currentInitialValue);
                 }
             }, 
-            (error) => {
+            (error: Error) => {
                 console.error(`Error listening to document ${pathSegments.join('/')}:`, error);
             }
         );
@@ -119,9 +119,9 @@ export function useFirestoreSync<T>(
             ? ['branches', branchId, collectionKey, 'data']
             : [collectionKey, 'data'];
         
-        const docRef = doc(db, ...pathSegments);
+        const docRef = db.doc(pathSegments.join('/'));
 
-        setDoc(docRef, { value: newValue }).catch(error => {
+        docRef.set({ value: newValue }).catch(error => {
             console.error(`Error setting document ${pathSegments.join('/')}:`, error);
         });
     };
