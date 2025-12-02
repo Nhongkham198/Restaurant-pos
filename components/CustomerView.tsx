@@ -223,7 +223,9 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
             if (receiptRef.current) {
                 Swal.fire({ title: 'กำลังสร้างใบเสร็จ...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
                 try {
-                    const canvas = await html2canvas(receiptRef.current);
+                    // FIX: Add { useCORS: true } to handle cross-origin images (like the logo from Firebase Storage).
+                    // This is the standard fix for html2canvas failing on external images.
+                    const canvas = await html2canvas(receiptRef.current, { useCORS: true });
                     const link = document.createElement('a');
                     link.download = `receipt-T${table.name}-${Date.now()}.png`;
                     link.href = canvas.toDataURL('image/png');
@@ -231,6 +233,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                     Swal.close();
                     onStaffCall(table, customerName, 'ต้องการชำระเงิน');
                 } catch (err) {
+                    console.error("E-Receipt generation failed:", err); // Log the actual error for debugging.
                     Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถสร้าง E-Receipt ได้', 'error');
                 }
             } else {
