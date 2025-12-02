@@ -30,7 +30,7 @@
 
     <!-- PWA Manifest -->
     <link rel="manifest" href="/manifest.json">
-    <meta name="theme-color" content="#1e3a8a">
+    <meta name="theme-color" content="#D72828">
 
     <style>
       body {
@@ -38,14 +38,29 @@
         /* Prevent pull-to-refresh on mobile to feel more like an app */
         overscroll-behavior-y: none;
       }
-      /* Hide scrollbar for Chrome, Safari and Opera */
-      .custom-scrollbar::-webkit-scrollbar {
+      /* Hide scrollbar for all elements */
+      ::-webkit-scrollbar {
         display: none;
       }
-      /* Hide scrollbar for IE, Edge and Firefox */
-      .custom-scrollbar {
+      * {
         -ms-overflow-style: none;  /* IE and Edge */
         scrollbar-width: none;  /* Firefox */
+      }
+      
+      /* Shimmer effect for loading placeholders */
+      @keyframes shimmer-animation {
+        0% {
+          background-position: -200% 0;
+        }
+        100% {
+          background-position: 200% 0;
+        }
+      }
+
+      .shimmer-effect {
+        animation: shimmer-animation 1.5s infinite linear;
+        background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+        background-size: 200% 100%;
       }
     </style>
 
@@ -56,9 +71,10 @@
     "react/": "https://aistudiocdn.com/react@^19.2.0/",
     "react": "https://aistudiocdn.com/react@^19.2.0",
     "sweetalert2": "https://aistudiocdn.com/sweetalert2@^11.26.3",
-    "firebase/app": "https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js",
-    "firebase/firestore": "https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore.js",
-    "firebase/functions": "https://www.gstatic.com/firebasejs/9.22.1/firebase-functions.js",
+    "firebase/app": "https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js",
+    "firebase/firestore": "https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js",
+    "firebase/functions": "https://www.gstatic.com/firebasejs/9.22.1/firebase-functions-compat.js",
+    "firebase/messaging": "https://www.gstatic.com/firebasejs/9.22.1/firebase-messaging-compat.js",
     "@google/generative-ai": "https://esm.run/@google/generative-ai",
     "mqtt": "https://unpkg.com/mqtt@5.3.4/dist/mqtt.min.js",
     "firebase/": "https://aistudiocdn.com/firebase@^12.6.0/"

@@ -27,7 +27,6 @@ let functions: any = null; // Initialize functions as null
 
 if (isFirebaseConfigured) {
   try {
-    // FIX: Switched to v8 initialization syntax to resolve module loading error.
     if (!firebase.apps.length) {
       app = firebase.initializeApp(firebaseConfig);
     } else {

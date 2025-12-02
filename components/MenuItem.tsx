@@ -1,5 +1,6 @@
 import React from 'react';
 import type { MenuItem } from '../types';
+import { MenuItemImage } from './MenuItemImage';
 
 interface MenuItemCardProps {
     item: MenuItem;
@@ -13,6 +14,7 @@ interface MenuItemCardProps {
 }
 
 export const MenuItemCard: React.FC<MenuItemCardProps> = ({ item, onSelectItem, isEditMode, onEdit, onDelete, onDragStart, onDragEnter, onDragEnd }) => {
+
     const handleCardClick = () => {
         if (!isEditMode) {
             onSelectItem(item);
@@ -29,9 +31,11 @@ export const MenuItemCard: React.FC<MenuItemCardProps> = ({ item, onSelectItem, 
             onDragEnd={isEditMode ? onDragEnd : undefined}
             onDragOver={isEditMode ? (e) => e.preventDefault() : undefined}
         >
-            <div className="h-36 bg-gray-200">
-                <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" />
-            </div>
+            <MenuItemImage 
+                src={item.imageUrl}
+                alt={item.name}
+                className="h-36"
+            />
             <div className="p-2 flex flex-col flex-auto justify-between">
                 <h3 className="font-semibold text-gray-800 text-base leading-tight min-h-[40px]">{item.name}</h3>
                 <div className="flex justify-end items-baseline mt-1 pt-2 border-t border-gray-100">

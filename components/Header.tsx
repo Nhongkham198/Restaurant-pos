@@ -1,6 +1,5 @@
 
 
-
 import React, { useState, useEffect, useMemo } from 'react';
 import type { User, View } from '../types';
 
@@ -80,6 +79,7 @@ export const Header: React.FC<HeaderProps> = ({
             case 'branch-admin': return 'ผู้ดูแลสาขา';
             case 'pos': return 'พนักงาน POS';
             case 'kitchen': return 'พนักงานครัว';
+            case 'auditor': return 'Auditor';
             default: return '';
         }
     }, [currentUser]);
@@ -122,51 +122,45 @@ export const Header: React.FC<HeaderProps> = ({
                     <NavButton label="Dashboard" isActive={currentView === 'dashboard'} onClick={() => onViewChange('dashboard')} disabled={isKitchenStaff || isPosStaff} icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1-1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" /></svg>} activeClassName="bg-purple-600 hover:bg-purple-700 text-white shadow-md" />
                     <NavButton label="ประวัติ" isActive={currentView === 'history'} onClick={() => onViewChange('history')} icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" /></svg>} activeClassName="bg-teal-500 hover:bg-teal-600 text-white shadow-md" />
                     <NavButton label="สต็อก" isActive={currentView === 'stock'} onClick={() => onViewChange('stock')} icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>} activeClassName="bg-cyan-600 hover:bg-cyan-700 text-white shadow-md" />
-                    <NavButton label="วันลา" isActive={currentView === 'leave'} onClick={() => onViewChange('leave')} badge={leaveBadgeCount} icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>} activeClassName="bg-pink-600 hover:bg-pink-700 text-white shadow-md" />
+                    <NavButton 
+                        label="วันลา" 
+                        isActive={currentView === 'leave'} 
+                        onClick={() => onViewChange('leave')}
+                        icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>}
+                        badge={leaveBadgeCount}
+                        activeClassName="bg-indigo-600 hover:bg-indigo-700 text-white shadow-md"
+                    />
                 </nav>
 
-                <div className="flex items-center gap-2">
-                    <div className="text-right">
-                        <p className="text-base font-semibold text-gray-700">{currentUser?.username}</p>
-                        <p className="text-sm text-gray-500 capitalize">
-                             <span className={`font-semibold ${
-                                currentUser?.role === 'admin' ? 'text-red-600' :
-                                currentUser?.role === 'branch-admin' ? 'text-purple-600' :
-                                currentUser?.role === 'kitchen' ? 'text-orange-600' :
-                                'text-blue-600'
-                            }`}>{roleText}</span>
-                        </p>
+                <div className="flex items-center gap-4">
+                    <div className="relative group">
+                        <label className={`relative inline-flex items-center cursor-pointer ${!(currentUser.role === 'admin' || currentUser.role === 'branch-admin') ? 'opacity-50 pointer-events-none' : ''}`}>
+                          <input type="checkbox" checked={isEditMode} onChange={onToggleEditMode} className="sr-only peer" disabled={!(currentUser.role === 'admin' || currentUser.role === 'branch-admin')} />
+                          <div className="w-14 h-7 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-yellow-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-1 after:left-[4px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-yellow-400"></div>
+                          <span className="ml-3 text-sm font-medium text-gray-900 hidden lg:block">โหมดแก้ไข</span>
+                        </label>
+                        {!(currentUser.role === 'admin' || currentUser.role === 'branch-admin') && (
+                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max bg-gray-700 text-white text-xs rounded py-1 px-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                ไม่มีสิทธิ์
+                            </div>
+                        )}
                     </div>
                     
-                    <button onClick={onChangeBranch} className="p-2 rounded-full hover:bg-gray-200 transition-colors" title="เปลี่ยนสาขา">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-                        </svg>
-                    </button>
-                    
-                    {isAdmin && (
-                        <>
-                             <button onClick={onManageBranches} className="p-2 rounded-full hover:bg-gray-200 transition-colors" title="จัดการสาขา">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-600" viewBox="0 0 20 20" fill="currentColor">
-                                    <path d="M2 4.5A1.5 1.5 0 013.5 3h13A1.5 1.5 0 0118 4.5v2.755a3 3 0 01-1.5 2.599V15.5A1.5 1.5 0 0115 17h-1.5a1.5 1.5 0 01-1.5-1.5v-2.348a3 3 0 01-1.5-2.599V7.255a3 3 0 01-1.5 2.599V15.5A1.5 1.5 0 017.5 17H6a1.5 1.5 0 01-1.5-1.5v-5.146A3 3 0 013 7.255V4.5z" />
-                                </svg>
-                            </button>
-                            <button onClick={onOpenUserManager} className="p-2 rounded-full hover:bg-gray-200 transition-colors" title="จัดการผู้ใช้">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-600" viewBox="0 0 20 20" fill="currentColor"><path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zm-1.5 5.5a3 3 0 00-3 0V12a1 1 0 00-1 1v-1.5a.5.5 0 00-1 0V12a2 2 0 002 2h2.5a.5.5 0 00.5-.5V12a1 1 0 00-1-1h-.5zM17 6a3 3 0 11-6 0 3 3 0 016 0zm-1.5 5.5a3 3 0 00-3 0V12a1 1 0 00-1 1v-1.5a.5.5 0 00-1 0V12a2 2 0 002 2h2.5a.5.5 0 00.5-.5V12a1 1 0 00-1-1h-.5z" /></svg>
-                            </button>
-                            <button onClick={onToggleEditMode} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold transition-colors ${isEditMode ? 'bg-yellow-500 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`} >
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" /><path fillRule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clipRule="evenodd" /></svg>
-                                <span className="hidden md:inline">{isEditMode ? 'ปิดโหมดแก้ไข' : 'โหมดแก้ไข'}</span>
-                            </button>
-                             <button onClick={onOpenSettings} className="p-2 rounded-full hover:bg-gray-200 transition-colors" title="ตั้งค่า">
-                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924-1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                            </button>
-                        </>
-                    )}
-
-                    <button onClick={onLogout} className="p-2 rounded-full hover:bg-gray-200 transition-colors" title="ออกจากระบบ">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-red-500" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3 3a1 1 0 00-1 1v12a1 1 0 102 0V4a1 1 0 00-1-1zm10.293 9.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L14.586 9H7a1 1 0 100 2h7.586l-1.293 1.293z" clipRule="evenodd" /></svg>
-                    </button>
+                    <div className="flex items-center gap-2 border-l pl-4">
+                        <img src={currentUser.profilePictureUrl || "https://img.icons8.com/fluency/48/user-male-circle.png"} alt={currentUser.username} className="h-10 w-10 rounded-full object-cover" />
+                        <div>
+                            <p className="font-semibold text-gray-800">{currentUser.username}</p>
+                            <p className={`text-xs font-semibold ${
+                                currentUser.role === 'admin' ? 'text-red-600' :
+                                currentUser.role === 'branch-admin' ? 'text-purple-600' :
+                                currentUser.role === 'kitchen' ? 'text-orange-600' :
+                                'text-blue-600'
+                            }`}>{roleText}</p>
+                        </div>
+                        <button onClick={onLogout} className="p-2 text-gray-500 rounded-full hover:bg-gray-200" title="ออกจากระบบ">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+                        </button>
+                    </div>
                 </div>
             </div>
         </header>

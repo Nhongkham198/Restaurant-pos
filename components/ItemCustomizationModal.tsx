@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import type { MenuItem, MenuOption, OrderItem, MenuOptionGroup } from '../types';
 import Swal from 'sweetalert2';
+import { MenuItemImage } from './MenuItemImage';
 
 interface ItemCustomizationModalProps {
     isOpen: boolean;
@@ -109,7 +110,11 @@ export const ItemCustomizationModal: React.FC<ItemCustomizationModalProps> = ({ 
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4" onClick={onClose}>
             <div className="bg-white rounded-lg shadow-xl w-full max-w-lg transform transition-all flex flex-col" style={{maxHeight: '90vh'}} onClick={e => e.stopPropagation()}>
                 <header className="p-4 border-b flex items-center gap-4 relative">
-                    <img src={item.imageUrl} alt={item.name} className="w-20 h-20 rounded-md object-cover"/>
+                    <MenuItemImage
+                        src={item.imageUrl}
+                        alt={item.name}
+                        className="w-20 h-20 rounded-md flex-shrink-0"
+                    />
                     <div>
                         <h3 className="text-2xl font-bold text-gray-900">{item.name}</h3>
                         <p className="text-base text-gray-500">ราคาเริ่มต้น {item.price.toLocaleString()} ฿</p>
@@ -172,10 +177,9 @@ export const ItemCustomizationModal: React.FC<ItemCustomizationModalProps> = ({ 
                     </div>
                     <button 
                         onClick={handleConfirmClick}
-                        className="px-4 sm:px-6 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 font-bold text-base sm:text-lg flex items-center justify-center gap-x-3"
+                        className="px-4 sm:px-6 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 font-bold text-base sm:text-lg flex items-center justify-center"
                     >
                         <span>เพิ่มOrder</span>
-                        <span className="text-sm sm:text-base font-semibold bg-green-700/50 px-2 py-0.5 rounded">{(finalPrice * quantity).toLocaleString()} ฿</span>
                     </button>
                 </footer>
             </div>

@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useMemo } from 'react';
 import type { ActiveOrder, OrderItem, User } from '../types';
 
@@ -13,6 +14,8 @@ interface TableBillModalProps {
     onUpdateOrder: (orderId: number, items: OrderItem[], customerCount: number) => void;
     currentUser: User | null;
     onInitiateCancel: (order: ActiveOrder) => void;
+    activeOrderCount: number;
+    onInitiateMerge: (order: ActiveOrder) => void;
 }
 
 export const TableBillModal: React.FC<TableBillModalProps> = ({
@@ -26,6 +29,8 @@ export const TableBillModal: React.FC<TableBillModalProps> = ({
     onUpdateOrder,
     currentUser,
     onInitiateCancel,
+    activeOrderCount,
+    onInitiateMerge,
 }) => {
     const [editedItems, setEditedItems] = useState<OrderItem[]>([]);
     const [editedCustomerCount, setEditedCustomerCount] = useState(1);
@@ -64,7 +69,7 @@ export const TableBillModal: React.FC<TableBillModalProps> = ({
         onUpdateOrder(order.id, editedItems, editedCustomerCount);
     };
 
-    const canCancel = currentUser?.role === 'admin' || currentUser?.role === 'pos';
+    const canCancel = !!currentUser;
     // Only allow cancellation if status is 'waiting' (matching "Start Cooking" button in kitchen)
     const isCancelableStatus = order.status === 'waiting';
 
@@ -171,11 +176,14 @@ export const TableBillModal: React.FC<TableBillModalProps> = ({
                          </div>
                     ) : (
                         <div className="space-y-2 pt-2">
-                            <button onClick={() => onInitiateMove(order)} className="w-full bg-purple-500 hover:bg-purple-600 text-white font-bold py-3 px-4 rounded-lg transition-colors">ย้ายโต๊ะ</button>
                             <div className="grid grid-cols-2 gap-2">
+                                <button onClick={() => onInitiateMove(order)} className="bg-purple-500 hover:bg-purple-600 text-white font-bold py-3 px-4 rounded-lg transition-colors">ย้ายโต๊ะ</button>
                                 <button onClick={() => onSplit(order)} className="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-3 px-4 rounded-lg transition-colors">แยกบิล</button>
-                                <button onClick={() => onInitiatePayment(order)} className="bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg transition-colors">ชำระเงิน</button>
                             </div>
+                            {activeOrderCount > 1 && (
+                                <button onClick={() => onInitiateMerge(order)} className="w-full bg-teal-500 hover:bg-teal-600 text-white font-bold py-3 px-4 rounded-lg transition-colors">รวมบิล</button>
+                            )}
+                            <button onClick={() => onInitiatePayment(order)} className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg transition-colors">ชำระเงิน</button>
                             
                             {canCancel && isCancelableStatus ? (
                                 <div className="grid grid-cols-2 gap-2">

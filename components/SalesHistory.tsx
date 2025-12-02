@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import type { CompletedOrder, CancelledOrder, PrintHistoryEntry } from '../types';
+import type { CompletedOrder, CancelledOrder, PrintHistoryEntry, User } from '../types';
 import { CompletedOrderCard } from './CompletedOrderCard';
 import { CancelledOrderCard } from './CancelledOrderCard';
 import { PrintHistoryCard } from './PrintHistoryCard';
@@ -41,6 +41,8 @@ interface SalesHistoryProps {
     onEditOrder: (order: CompletedOrder) => void;
     onInitiateCashBill: (order: CompletedOrder) => void;
     onDeleteHistory: (completedIdsToDelete: number[], cancelledIdsToDelete: number[], printIdsToDelete: number[]) => void;
+    onVoidOrder: (order: CompletedOrder, user: User, reason: string, notes: string) => void;
+    currentUser: User | null;
 }
 
 // Helper to format date to YYYY-MM-DD for input[type=date]
@@ -65,7 +67,19 @@ const isSameDay = (d1: Date, d2: Date) => {
 };
 
 
-export const SalesHistory: React.FC<SalesHistoryProps> = ({ completedOrders, cancelledOrders, printHistory, onReprint, onSplitOrder, isEditMode, onEditOrder, onInitiateCashBill, onDeleteHistory }) => {
+export const SalesHistory: React.FC<SalesHistoryProps> = ({ 
+    completedOrders, 
+    cancelledOrders, 
+    printHistory, 
+    onReprint, 
+    onSplitOrder, 
+    isEditMode, 
+    onEditOrder, 
+    onInitiateCashBill, 
+    onDeleteHistory,
+    onVoidOrder,
+    currentUser
+ }) => {
     const [activeTab, setActiveTab] = useState<'completed' | 'cancelled' | 'print'>('completed');
     const [searchTerm, setSearchTerm] = useState('');
     const [filterType, setFilterType] = useState<'all' | 'date' | 'month' | 'year'>('all');
@@ -101,7 +115,11 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({ completedOrders, can
     };
 
     const filteredCompletedOrders = useMemo(() => {
-        const dateFiltered = completedOrders.filter(order => {
+        const visibleOrders = (currentUser?.role !== 'admin')
+            ? completedOrders.filter(order => !order.isHidden)
+            : completedOrders;
+
+        const dateFiltered = visibleOrders.filter(order => {
             const orderDate = new Date(order.completionTime);
             if (filterType === 'all') return isSameDay(orderDate, today);
             if (filterType === 'date') return orderDate.toDateString() === selectedDate.toDateString();
@@ -116,7 +134,7 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({ completedOrders, can
             String(order.orderNumber).includes(lowercasedTerm) ||
             order.tableName.toLowerCase().includes(lowercasedTerm)
         );
-    }, [completedOrders, searchTerm, filterType, selectedDate, today]);
+    }, [completedOrders, searchTerm, filterType, selectedDate, today, currentUser]);
     
     const filteredCancelledOrders = useMemo(() => {
         const dateFiltered = cancelledOrders.filter(order => {
@@ -209,8 +227,14 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({ completedOrders, can
 
 
     const handleExportHistory = () => {
-        if (filteredCompletedOrders.length === 0) {
-            alert("ไม่มีข้อมูลให้ Export");
+        const isAdmin = currentUser?.role === 'admin';
+        
+        // Admin gets all data including hidden, others get only visible data.
+        // The `filteredCompletedOrders` memo already handles this logic based on role.
+        const ordersToExport = filteredCompletedOrders;
+    
+        if (ordersToExport.length === 0) {
+            Swal.fire("ไม่มีข้อมูล", "ไม่พบข้อมูลการขายที่ตรงกับเงื่อนไขเพื่อส่งออก", "info");
             return;
         }
     
@@ -222,43 +246,85 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({ completedOrders, can
         const fileName = `ประวัติการขาย-${filterText}.csv`;
     
         const headers = [
-            'ID ออเดอร์', 'ID ออเดอร์ดั้งเดิม', 'เวลาที่เสิร์ฟ', 'ชั้น', 'โต๊ะ', 'จำนวนลูกค้า', 'รายการอาหาร', 'จำนวน', 'ราคาต่อหน่วย (บาท)', 'ยอดรวมรายการ (บาท)', 'ยอดรวมออเดอร์ (บาท)', 'วิธีชำระเงิน', 'รับเงินสด (บาท)', 'เงินทอน (บาท)', 'อัตราภาษี (%)', 'ภาษี (บาท)'
+            'ID ออเดอร์', 'ID ออเดอร์ดั้งเดิม', 'เวลาที่เสิร์ฟ', 'ชั้น', 'โต๊ะ', 'จำนวนลูกค้า', 
+            'รายการอาหาร', 'จำนวน', 'ราคาต่อหน่วย (บาท)', 'ยอดรวมรายการ (บาท)', 
+            'ยอดรวมออเดอร์ (บาท)', 'วิธีชำระเงิน', 'รับเงินสด (บาท)', 'เงินทอน (บาท)', 
+            'อัตราภาษี (%)', 'ภาษี (บาท)',
         ];
+        
+        // Add status columns only for admin export
+        if (isAdmin) {
+            headers.push('สถานะบิล', 'รายละเอียดสถานะ');
+        }
         
         const dataForCsv: (string | number)[][] = [headers];
     
-        filteredCompletedOrders.forEach(order => {
+        ordersToExport.forEach(order => {
             const subtotal = order.items.reduce((sum, item) => sum + item.price * item.quantity, 0);
             const total = subtotal + order.taxAmount;
             const completionDate = new Date(order.completionTime).toLocaleString('th-TH');
-            const floorText = order.floor === 'lower' ? 'ชั้นล่าง' : 'ชั้นบน';
             
             const paymentMethodText = order.paymentDetails.method === 'cash' ? 'เงินสด' : 'โอนจ่าย';
-            const cashReceived = order.paymentDetails.method === 'cash' ? order.paymentDetails.cashReceived.toFixed(2) : '';
-            const changeGiven = order.paymentDetails.method === 'cash' ? order.paymentDetails.changeGiven.toFixed(2) : '';
+            const cashReceived = order.paymentDetails.method === 'cash' ? order.paymentDetails.cashReceived?.toFixed(2) || '' : '';
+            const changeGiven = order.paymentDetails.method === 'cash' ? order.paymentDetails.changeGiven?.toFixed(2) || '' : '';
 
-            order.items.forEach((item, index) => {
-                const isFirstItem = index === 0;
+            // Determine bill status for admin export
+            let billStatus = 'ปกติ';
+            let statusDetail = '';
+            if (isAdmin) {
+                if (order.isHidden && order.hiddenInfo) {
+                    billStatus = 'ถูกซ่อน';
+                    statusDetail = `โดย ${order.hiddenInfo.hiddenBy} เมื่อ ${new Date(order.hiddenInfo.hiddenAt).toLocaleString('th-TH')}`;
+                } else if (order.voidedInfo) {
+                    billStatus = 'ยกเลิก';
+                    statusDetail = `โดย ${order.voidedInfo.voidedBy}: ${order.voidedInfo.reason} ${order.voidedInfo.notes ? `(${order.voidedInfo.notes})` : ''}`;
+                }
+            }
 
-                dataForCsv.push([
+            if (order.items.length === 0) {
+                const rowData = [
                     `'${order.orderNumber}`,
                     order.parentOrderId ? `'${String(order.parentOrderId).padStart(4, '0')}` : '',
                     completionDate,
-                    floorText,
+                    order.floor,
                     order.tableName,
                     order.customerCount,
-                    item.name,
-                    item.quantity,
-                    item.price.toFixed(2),
-                    (item.price * item.quantity).toFixed(2),
-                    isFirstItem ? total.toFixed(2) : '',
-                    isFirstItem ? paymentMethodText : '',
-                    isFirstItem ? cashReceived : '',
-                    isFirstItem ? changeGiven : '',
-                    isFirstItem ? order.taxRate.toFixed(2) : '',
-                    isFirstItem ? order.taxAmount.toFixed(2) : ''
-                ]);
-            });
+                    '(ไม่มีรายการ)', 0, 0, 0,
+                    total.toFixed(2),
+                    paymentMethodText, cashReceived, changeGiven,
+                    order.taxRate.toFixed(2), order.taxAmount.toFixed(2),
+                ];
+                if (isAdmin) {
+                    rowData.push(billStatus, statusDetail);
+                }
+                dataForCsv.push(rowData);
+            } else {
+                order.items.forEach((item, index) => {
+                    const isFirstItem = index === 0;
+                    const rowData = [
+                        isFirstItem ? `'${order.orderNumber}` : '',
+                        isFirstItem ? (order.parentOrderId ? `'${String(order.parentOrderId).padStart(4, '0')}` : '') : '',
+                        isFirstItem ? completionDate : '',
+                        isFirstItem ? order.floor : '',
+                        isFirstItem ? order.tableName : '',
+                        isFirstItem ? order.customerCount : '',
+                        item.name,
+                        item.quantity,
+                        item.price.toFixed(2),
+                        (item.price * item.quantity).toFixed(2),
+                        isFirstItem ? total.toFixed(2) : '',
+                        isFirstItem ? paymentMethodText : '',
+                        isFirstItem ? cashReceived : '',
+                        isFirstItem ? changeGiven : '',
+                        isFirstItem ? order.taxRate.toFixed(2) : '',
+                        isFirstItem ? order.taxAmount.toFixed(2) : '',
+                    ];
+                    if (isAdmin) {
+                        rowData.push(isFirstItem ? billStatus : '', isFirstItem ? statusDetail : '');
+                    }
+                    dataForCsv.push(rowData);
+                });
+            }
         });
         
         const csvContent = arrayToCsv(dataForCsv);
@@ -453,6 +519,8 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({ completedOrders, can
                                 onInitiateCashBill={onInitiateCashBill}
                                 isSelected={selectedCompletedIds.has(order.id)}
                                 onToggleSelection={(id) => handleToggleSelection(id, 'completed')}
+                                onVoidOrder={onVoidOrder}
+                                currentUser={currentUser}
                             />
                         ))
                     ) : (

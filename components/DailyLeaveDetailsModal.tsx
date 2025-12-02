@@ -1,5 +1,5 @@
 import React from 'react';
-import type { LeaveRequest } from '../types';
+import type { LeaveRequest, User } from '../types';
 
 interface DailyLeaveDetailsModalProps {
     isOpen: boolean;
@@ -7,6 +7,7 @@ interface DailyLeaveDetailsModalProps {
     date: Date | null;
     leaves: LeaveRequest[];
     onAddNew: () => void;
+    currentUser: User | null;
 }
 
 const getStatusBadge = (status: string) => {
@@ -27,7 +28,7 @@ const getTypeLabel = (type: string) => {
     }
 };
 
-export const DailyLeaveDetailsModal: React.FC<DailyLeaveDetailsModalProps> = ({ isOpen, onClose, date, leaves, onAddNew }) => {
+export const DailyLeaveDetailsModal: React.FC<DailyLeaveDetailsModalProps> = ({ isOpen, onClose, date, leaves, onAddNew, currentUser }) => {
     if (!isOpen || !date) return null;
 
     const formattedDate = date.toLocaleDateString('th-TH', {
@@ -61,17 +62,19 @@ export const DailyLeaveDetailsModal: React.FC<DailyLeaveDetailsModalProps> = ({ 
                 </div>
 
                 <div className="mt-6 pt-4 border-t flex justify-between items-center">
-                    <button
-                        type="button"
-                        onClick={onAddNew}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium flex items-center gap-2"
-                    >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
-                        </svg>
-                        ขอลาสำหรับวันนี้
-                    </button>
-                    <button type="button" onClick={onClose} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 font-medium">
+                    {currentUser?.role !== 'auditor' && (
+                        <button
+                            type="button"
+                            onClick={onAddNew}
+                            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium flex items-center gap-2"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+                            </svg>
+                            ขอลาสำหรับวันนี้
+                        </button>
+                    )}
+                    <button type="button" onClick={onClose} className={`px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 font-medium ${currentUser?.role === 'auditor' ? 'w-full' : ''}`}>
                         ปิด
                     </button>
                 </div>
