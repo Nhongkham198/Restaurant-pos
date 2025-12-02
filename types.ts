@@ -97,6 +97,19 @@ export interface CompletedOrder extends BaseOrder {
     orderTime: number;
     completionTime: number; // timestamp
     paymentDetails: PaymentDetails;
+    voidedInfo?: {
+        voidedAt: number;
+        voidedBy: string; // Username
+        voidedById: number; // User ID
+        reason: string;
+        notes?: string;
+    };
+    isHidden?: boolean;
+    hiddenInfo?: {
+        hiddenAt: number;
+        hiddenBy: string;
+        hiddenById: number;
+    };
 }
 
 export const CANCELLATION_REASONS = [

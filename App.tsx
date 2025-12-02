@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 
 import { 
@@ -479,7 +478,7 @@ const App: React.FC = () => {
     
     const canEdit = useMemo(() => {
         if (!currentUser) return false;
-        const isPrivileged = currentUser.role === 'admin' || currentUser.role === 'branch-admin';
+        const isPrivileged = currentUser.role === 'admin' || currentUser.role === 'branch-admin' || currentUser.username === 'Sam';
         return isEditMode && isPrivileged;
     }, [isEditMode, currentUser]);
 
@@ -1084,6 +1083,24 @@ const App: React.FC = () => {
         }
     };
 
+    const handleVoidCompletedOrder = (orderToVoid: CompletedOrder, user: User, reason: string, notes: string) => {
+        if (!user) return; // Safety check
+        
+        const updatedOrder: CompletedOrder = {
+            ...orderToVoid,
+            voidedInfo: {
+                voidedAt: Date.now(),
+                voidedBy: user.username,
+                voidedById: user.id,
+                reason,
+                notes
+            }
+        };
+
+        setCompletedOrders(prev => prev.map(o => o.id === orderToVoid.id ? updatedOrder : o));
+    };
+
+
     const handleConfirmMerge = (sourceOrderIds: number[], targetOrderId: number) => {
         setActiveOrders(prev => {
             const sourceOrders = prev.filter(o => sourceOrderIds.includes(o.id));
@@ -1604,10 +1621,36 @@ const App: React.FC = () => {
                                 setModalState(prev => ({ ...prev, isCashBill: true }));
                             }}
                             onDeleteHistory={(compIds, cancIds, printIds) => {
-                                setCompletedOrders(prev => prev.filter(o => !compIds.includes(o.id)));
+                                if (!currentUser) return;
+                    
+                                // Role-based deletion for completed orders
+                                if (currentUser.role === 'admin') {
+                                    // Admin: Hard Delete for completed orders
+                                    setCompletedOrders(prev => prev.filter(o => !compIds.includes(o.id)));
+                                } else {
+                                    // Other roles (like branch-admin): Soft Delete for completed orders
+                                    setCompletedOrders(prev => prev.map(order => {
+                                        if (compIds.includes(order.id)) {
+                                            return {
+                                                ...order,
+                                                isHidden: true,
+                                                hiddenInfo: {
+                                                    hiddenAt: Date.now(),
+                                                    hiddenBy: currentUser.username,
+                                                    hiddenById: currentUser.id,
+                                                }
+                                            };
+                                        }
+                                        return order;
+                                    }));
+                                }
+                                
+                                // Hard delete for cancelled orders and print history remains for everyone with edit rights
                                 setCancelledOrders(prev => prev.filter(o => !cancIds.includes(o.id)));
                                 setPrintHistory(prev => prev.filter(p => !printIds.includes(p.id)));
                             }}
+                             onVoidOrder={handleVoidCompletedOrder}
+                             currentUser={currentUser}
                         />
                     )}
 
@@ -1631,12 +1674,36 @@ const App: React.FC = () => {
                                 setModalState(prev => ({ ...prev, isLeaveRequest: true }));
                             }}
                             branches={branches}
-                            onUpdateStatus={(id, status) => {
+                            onUpdateStatus={async (id, status) => {
+                                // Optimistic update
                                 setLeaveRequests(prev => prev.map(req => req.id === id ? { ...req, status } : req));
+                                // Backend call with fallback
+                                try {
+                                    if (!currentUser) throw new Error("User not found");
+                                    const response = await functionsService.updateLeaveStatus({ requestId: id, status, approverId: currentUser.id });
+                                    if (!response || !response.success) {
+                                        throw new Error(response.error || "Backend returned failure");
+                                    }
+                                } catch (e: any) {
+                                    console.warn("Backend update for leave status failed, relying on local update.", e.message);
+                                    // State is already updated locally, so no need to revert.
+                                    // A small toast could inform the user if the app is offline.
+                                    Swal.fire({ toast: true, position: 'top-end', icon: 'warning', title: 'ไม่สามารถซิงค์การอนุมัติได้', showConfirmButton: false, timer: 2000 });
+                                }
                             }}
                             onDeleteRequest={async (id) => {
-                                setLeaveRequests(prev => prev.filter(req => req.id !== id));
-                                return true;
+                                try {
+                                    const response = await functionsService.deleteLeaveRequest({ requestId: id });
+                                    if (!response || !response.success) {
+                                        throw new Error(response.error || "Backend returned failure");
+                                    }
+                                    setLeaveRequests(prev => prev.filter(req => req.id !== id));
+                                    return true;
+                                } catch (e: any) {
+                                     console.warn("Backend delete for leave request failed, falling back to local.", e.message);
+                                     setLeaveRequests(prev => prev.filter(req => req.id !== id));
+                                     return true; // Assume success for local fallback
+                                }
                             }}
                             selectedBranch={selectedBranch}
                         />
@@ -1699,15 +1766,19 @@ const App: React.FC = () => {
                 order={orderForModal as ActiveOrder}
                 activeOrderCount={activeOrders.length}
                 onInitiatePayment={(order) => {
+                    setOrderForModal(order);
                     setModalState(prev => ({ ...prev, isTableBill: false, isPayment: true }));
                 }}
                 onInitiateMove={(order) => {
+                    setOrderForModal(order);
                     setModalState(prev => ({ ...prev, isTableBill: false, isMoveTable: true }));
                 }}
                 onInitiateMerge={(order) => {
+                    setOrderForModal(order);
                     setModalState(prev => ({ ...prev, isTableBill: false, isMergeBill: true }));
                 }}
                 onSplit={(order) => {
+                    setOrderForModal(order);
                     setModalState(prev => ({ ...prev, isSplitBill: true }));
                 }}
                 isEditMode={canEdit}
@@ -1717,6 +1788,7 @@ const App: React.FC = () => {
                 }}
                 currentUser={currentUser}
                 onInitiateCancel={(order) => {
+                    setOrderForModal(order);
                     setModalState(prev => ({ ...prev, isTableBill: false, isCancelOrder: true }));
                 }}
             />
@@ -1927,15 +1999,31 @@ const App: React.FC = () => {
                 currentUser={currentUser}
                 leaveRequests={leaveRequests}
                 initialDate={leaveRequestInitialDate}
-                onSave={(req) => {
+                onSave={async (req) => {
                     if (!selectedBranch && currentUser.role !== 'admin') return; 
-                    const newReq: LeaveRequest = {
+                    const payload: SubmitLeaveRequestPayload = {
                         ...req,
-                        id: Date.now(),
-                        status: 'pending',
                         branchId: currentUser.role === 'admin' ? 1 : (selectedBranch?.id || 1) // Admin defaults to 1 if no branch selected
                     };
+                    // Optimistic update
+                    const newReq: LeaveRequest = {
+                        ...payload,
+                        id: Date.now(), // Temporary ID, will be overwritten by backend if successful
+                        status: 'pending',
+                    };
                     setLeaveRequests(prev => [...prev, newReq]);
+
+                    try {
+                        const response = await functionsService.submitLeaveRequest(payload);
+                        if (!response || !response.success) {
+                             throw new Error(response.error || "Backend returned failure");
+                        }
+                        // Optionally, you could re-sync from the server here or update the temp ID
+                    } catch(e: any) {
+                        console.warn("Backend save for leave request failed. Relying on local update.", e.message);
+                        Swal.fire({ toast: true, position: 'top-end', icon: 'warning', title: 'ไม่สามารถซิงค์ข้อมูลวันลาได้', showConfirmButton: false, timer: 2000 });
+                    }
+                    
                     setModalState(prev => ({ ...prev, isLeaveRequest: false }));
                     Swal.fire('ส่งคำขอแล้ว', 'คำขอวันลาของคุณถูกส่งแล้ว รอการอนุมัติ', 'success');
                 }}

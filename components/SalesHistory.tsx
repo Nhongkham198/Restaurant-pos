@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import type { CompletedOrder, CancelledOrder, PrintHistoryEntry } from '../types';
+import type { CompletedOrder, CancelledOrder, PrintHistoryEntry, User } from '../types';
 import { CompletedOrderCard } from './CompletedOrderCard';
 import { CancelledOrderCard } from './CancelledOrderCard';
 import { PrintHistoryCard } from './PrintHistoryCard';
@@ -41,6 +41,8 @@ interface SalesHistoryProps {
     onEditOrder: (order: CompletedOrder) => void;
     onInitiateCashBill: (order: CompletedOrder) => void;
     onDeleteHistory: (completedIdsToDelete: number[], cancelledIdsToDelete: number[], printIdsToDelete: number[]) => void;
+    onVoidOrder: (order: CompletedOrder, user: User, reason: string, notes: string) => void;
+    currentUser: User | null;
 }
 
 // Helper to format date to YYYY-MM-DD for input[type=date]
@@ -65,7 +67,19 @@ const isSameDay = (d1: Date, d2: Date) => {
 };
 
 
-export const SalesHistory: React.FC<SalesHistoryProps> = ({ completedOrders, cancelledOrders, printHistory, onReprint, onSplitOrder, isEditMode, onEditOrder, onInitiateCashBill, onDeleteHistory }) => {
+export const SalesHistory: React.FC<SalesHistoryProps> = ({ 
+    completedOrders, 
+    cancelledOrders, 
+    printHistory, 
+    onReprint, 
+    onSplitOrder, 
+    isEditMode, 
+    onEditOrder, 
+    onInitiateCashBill, 
+    onDeleteHistory,
+    onVoidOrder,
+    currentUser
+ }) => {
     const [activeTab, setActiveTab] = useState<'completed' | 'cancelled' | 'print'>('completed');
     const [searchTerm, setSearchTerm] = useState('');
     const [filterType, setFilterType] = useState<'all' | 'date' | 'month' | 'year'>('all');
@@ -101,7 +115,11 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({ completedOrders, can
     };
 
     const filteredCompletedOrders = useMemo(() => {
-        const dateFiltered = completedOrders.filter(order => {
+        const visibleOrders = (currentUser?.role !== 'admin')
+            ? completedOrders.filter(order => !order.isHidden)
+            : completedOrders;
+
+        const dateFiltered = visibleOrders.filter(order => {
             const orderDate = new Date(order.completionTime);
             if (filterType === 'all') return isSameDay(orderDate, today);
             if (filterType === 'date') return orderDate.toDateString() === selectedDate.toDateString();
@@ -116,7 +134,7 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({ completedOrders, can
             String(order.orderNumber).includes(lowercasedTerm) ||
             order.tableName.toLowerCase().includes(lowercasedTerm)
         );
-    }, [completedOrders, searchTerm, filterType, selectedDate, today]);
+    }, [completedOrders, searchTerm, filterType, selectedDate, today, currentUser]);
     
     const filteredCancelledOrders = useMemo(() => {
         const dateFiltered = cancelledOrders.filter(order => {
@@ -453,6 +471,8 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({ completedOrders, can
                                 onInitiateCashBill={onInitiateCashBill}
                                 isSelected={selectedCompletedIds.has(order.id)}
                                 onToggleSelection={(id) => handleToggleSelection(id, 'completed')}
+                                onVoidOrder={onVoidOrder}
+                                currentUser={currentUser}
                             />
                         ))
                     ) : (
