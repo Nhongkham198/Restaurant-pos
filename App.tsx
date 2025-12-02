@@ -614,8 +614,11 @@ const App: React.FC = () => {
     useEffect(() => {
         // This single effect manages both audio and visual notifications for staff calls.
         
+        // FIX: Filter calls to only those relevant to the currently selected branch to prevent cross-branch notifications.
+        const relevantCalls = staffCalls.filter(call => call.branchId === selectedBranch?.id);
+    
         // 1. Audio Management
-        const shouldPlayAudio = staffCalls.length > 0 && staffCallSoundUrl && !isCustomerMode && currentUser && !['admin', 'branch-admin', 'auditor'].includes(currentUser.role);
+        const shouldPlayAudio = relevantCalls.length > 0 && staffCallSoundUrl && !isCustomerMode && currentUser && ['pos', 'kitchen'].includes(currentUser.role);
         
         if (shouldPlayAudio) {
             if (!staffCallAudioRef.current) {
@@ -629,24 +632,24 @@ const App: React.FC = () => {
             staffCallAudioRef.current.pause();
             staffCallAudioRef.current.currentTime = 0;
         }
-
+    
         // 2. Visual Notification Management (Swal)
         const showNextNotification = async () => {
             if (isCustomerMode || !currentUser || ['auditor'].includes(currentUser.role)) {
                 return;
             }
             
-            // Find the first call that hasn't been shown yet
-            const unnotifiedCall = staffCalls.find(c => !notifiedCallIdsRef.current.has(c.id));
-
+            // Find the first call from the RELEVANT list that hasn't been shown yet
+            const unnotifiedCall = relevantCalls.find(c => !notifiedCallIdsRef.current.has(c.id));
+    
             if (unnotifiedCall) {
                 // Mark this call as "seen" to prevent re-triggering
                 notifiedCallIdsRef.current.add(unnotifiedCall.id); 
-
+    
                 const messageText = unnotifiedCall.message 
                     ? `<br/><strong class="text-blue-600">${unnotifiedCall.message}</strong>` 
                     : '<br/>ต้องการความช่วยเหลือ';
-
+    
                 const result = await Swal.fire({
                     title: '🔔 ลูกค้าเรียกพนักงาน!',
                     html: `โต๊ะ <b>${unnotifiedCall.tableName}</b> (คุณ ${unnotifiedCall.customerName})${messageText}`,
@@ -663,7 +666,7 @@ const App: React.FC = () => {
                 }
             }
         };
-
+    
         showNextNotification();
         
         // Cleanup on unmount
@@ -672,7 +675,7 @@ const App: React.FC = () => {
                 staffCallAudioRef.current.pause();
             }
         };
-    }, [staffCalls, currentUser, isCustomerMode, staffCallSoundUrl, setStaffCalls]);
+    }, [staffCalls, currentUser, selectedBranch, isCustomerMode, staffCallSoundUrl, setStaffCalls]);
 
     // Cleanup notifiedCallIdsRef when user logs out
     useEffect(() => {
