@@ -658,9 +658,13 @@ const App: React.FC = () => {
                 const callToNotify = unnotifiedCalls[0];
                 notifiedCallIdsRef.current.add(callToNotify.id); 
 
+                const messageText = callToNotify.message 
+                    ? `<br/><strong class="text-blue-600">${callToNotify.message}</strong>` 
+                    : '<br/>ต้องการความช่วยเหลือ';
+
                 const result = await Swal.fire({
                     title: '🔔 ลูกค้าเรียกพนักงาน!',
-                    html: `โต๊ะ <b>${callToNotify.tableName}</b> (คุณ ${callToNotify.customerName})<br/>ต้องการความช่วยเหลือ`,
+                    html: `โต๊ะ <b>${callToNotify.tableName}</b> (คุณ ${callToNotify.customerName})${messageText}`,
                     icon: 'info',
                     confirmButtonText: 'รับทราบ',
                     timer: 15000,
@@ -1021,7 +1025,7 @@ const App: React.FC = () => {
         });
     };
 
-    const handleStaffCall = (table: Table, cName: string) => {
+    const handleStaffCall = (table: Table, cName: string, message?: string) => {
         if (!selectedBranch) return;
         const newCall: StaffCall = {
             id: Date.now(),
@@ -1029,7 +1033,8 @@ const App: React.FC = () => {
             tableName: table.name,
             customerName: cName,
             branchId: selectedBranch.id,
-            timestamp: Date.now()
+            timestamp: Date.now(),
+            message,
         };
         setStaffCalls(prev => [newCall, ...prev.slice(0, 49)]); // Keep last 50 calls
     };
@@ -1291,6 +1296,8 @@ const App: React.FC = () => {
                 allBranchOrders={activeOrders}
                 onPlaceOrder={handleCustomerPlaceOrder}
                 onStaffCall={handleStaffCall}
+                restaurantName={restaurantName}
+                logoUrl={logoUrl}
             />
          );
     }

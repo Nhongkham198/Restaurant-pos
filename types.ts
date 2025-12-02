@@ -206,6 +206,7 @@ export interface StaffCall {
     customerName: string;
     branchId: number;
     timestamp: number;
+    message?: string;
 }
 
 export type View = 'pos' | 'kitchen' | 'tables' | 'dashboard' | 'history' | 'stock' | 'leave';

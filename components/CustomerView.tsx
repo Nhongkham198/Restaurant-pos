@@ -1,8 +1,11 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import type { MenuItem, Table, OrderItem, ActiveOrder, StaffCall } from '../types';
 import { Menu } from './Menu';
 import { ItemCustomizationModal } from './ItemCustomizationModal';
 import Swal from 'sweetalert2';
+import { ReceiptPreview } from './ReceiptPreview';
+
+declare var html2canvas: any;
 
 interface CustomerViewProps {
     table: Table;
@@ -11,7 +14,9 @@ interface CustomerViewProps {
     activeOrders: ActiveOrder[];
     allBranchOrders: ActiveOrder[]; // Added to calculate global queue position
     onPlaceOrder: (items: OrderItem[], customerName: string, customerCount: number) => void;
-    onStaffCall: (table: Table, customerName: string) => void;
+    onStaffCall: (table: Table, customerName: string, message?: string) => void;
+    restaurantName: string;
+    logoUrl: string | null;
 }
 
 export const CustomerView: React.FC<CustomerViewProps> = ({
@@ -21,11 +26,14 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     activeOrders,
     allBranchOrders,
     onPlaceOrder,
-    onStaffCall
+    onStaffCall,
+    restaurantName,
+    logoUrl,
 }) => {
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [customerName, setCustomerName] = useState('');
     const [pinInput, setPinInput] = useState('');
+    const receiptRef = useRef<HTMLDivElement>(null);
     
     // --- CART PERSISTENCE ---
     const cartKey = `customer_cart_${table.id}`;
@@ -199,6 +207,40 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         });
     };
 
+    const handleRequestPayment = async () => {
+        const { isConfirmed, isDenied } = await Swal.fire({
+            title: 'เรียกชำระเงิน',
+            text: 'ต้องการบันทึกใบเสร็จ (E-Receipt) เป็นรูปภาพก่อนเรียกพนักงานหรือไม่?',
+            icon: 'question',
+            showDenyButton: true,
+            showCancelButton: true,
+            confirmButtonText: '💾 บันทึก & เรียก',
+            denyButtonText: 'เรียกเลย',
+            cancelButtonText: 'ยกเลิก',
+        });
+
+        if (isConfirmed) {
+            if (receiptRef.current) {
+                Swal.fire({ title: 'กำลังสร้างใบเสร็จ...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+                try {
+                    const canvas = await html2canvas(receiptRef.current);
+                    const link = document.createElement('a');
+                    link.download = `receipt-T${table.name}-${Date.now()}.png`;
+                    link.href = canvas.toDataURL('image/png');
+                    link.click();
+                    Swal.close();
+                    onStaffCall(table, customerName, 'ต้องการชำระเงิน');
+                } catch (err) {
+                    Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถสร้าง E-Receipt ได้', 'error');
+                }
+            } else {
+                 Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถสร้าง E-Receipt ได้', 'error');
+            }
+        } else if (isDenied) {
+            onStaffCall(table, customerName, 'ต้องการชำระเงิน');
+        }
+    };
+
     // Calculate Cart Totals
     const cartTotalAmount = useMemo(() => cartItems.reduce((sum, i) => sum + (i.finalPrice * i.quantity), 0), [cartItems]);
     const totalCartItemsCount = useMemo(() => cartItems.reduce((sum, i) => sum + i.quantity, 0), [cartItems]);
@@ -240,6 +282,19 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
 
         return { text: `รอคิว... (${queueAhead} คิว) ⏳`, color: 'bg-blue-100 text-blue-700 border-blue-200' };
     }, [activeOrders, allBranchOrders]);
+
+    const combinedOrderForReceipt: ActiveOrder | null = useMemo(() => {
+        if (activeOrders.length === 0) return null;
+        // Combine all items from all active orders for this table into a single "pseudo" order for the receipt.
+        const allItems = activeOrders.flatMap(o => o.items);
+        const taxAmount = activeOrders.reduce((sum, o) => sum + o.taxAmount, 0);
+        
+        return {
+            ...activeOrders[0], // Use the first order as a base
+            items: allItems,
+            taxAmount: taxAmount,
+        };
+    }, [activeOrders]);
 
 
     // --- LOGIN SCREEN ---
@@ -293,6 +348,16 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     // --- MENU SCREEN ---
     return (
         <div className="h-screen flex flex-col bg-gray-50 overflow-hidden">
+             {/* Hidden component for generating E-Receipt */}
+            <div style={{ position: 'fixed', left: '-9999px', top: 0 }}>
+                <ReceiptPreview 
+                    refProp={receiptRef} 
+                    order={combinedOrderForReceipt} 
+                    restaurantName={restaurantName} 
+                    logoUrl={logoUrl} 
+                />
+            </div>
+
             {/* Header */}
             <header className="bg-white shadow-sm px-4 py-3 z-10 relative">
                 <div className="flex justify-between items-start">
@@ -431,12 +496,20 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                             )}
                         </div>
 
-                        <div className="p-4 bg-gray-50 border-t">
+                        <div className="p-4 bg-gray-50 border-t space-y-3">
                             <div className="flex justify-between items-center text-lg font-bold text-gray-800">
                                 <span>ยอดรวมทั้งหมด</span>
                                 <span className="text-blue-600">{billTotal.toLocaleString()} ฿</span>
                             </div>
-                            <p className="text-xs text-gray-500 text-center mt-2">กรุณาชำระเงินที่เคาน์เตอร์เมื่อทานเสร็จ</p>
+                            <button 
+                                onClick={handleRequestPayment}
+                                className="w-full bg-green-600 text-white font-bold py-3 rounded-xl shadow-lg hover:bg-green-700 transition-colors text-base flex items-center justify-center gap-2"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                    <path d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2H4zm0 6a2 2 0 00-2 2v2a2 2 0 002 2h12a2 2 0 002-2v-2a2 2 0 00-2-2H4z" />
+                                </svg>
+                                เรียกเก็บเงิน
+                            </button>
                         </div>
                     </div>
                 </div>
