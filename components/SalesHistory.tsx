@@ -227,8 +227,14 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({
 
 
     const handleExportHistory = () => {
-        if (filteredCompletedOrders.length === 0) {
-            alert("ไม่มีข้อมูลให้ Export");
+        const isAdmin = currentUser?.role === 'admin';
+        
+        // Admin gets all data including hidden, others get only visible data.
+        // The `filteredCompletedOrders` memo already handles this logic based on role.
+        const ordersToExport = filteredCompletedOrders;
+    
+        if (ordersToExport.length === 0) {
+            Swal.fire("ไม่มีข้อมูล", "ไม่พบข้อมูลการขายที่ตรงกับเงื่อนไขเพื่อส่งออก", "info");
             return;
         }
     
@@ -240,43 +246,85 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({
         const fileName = `ประวัติการขาย-${filterText}.csv`;
     
         const headers = [
-            'ID ออเดอร์', 'ID ออเดอร์ดั้งเดิม', 'เวลาที่เสิร์ฟ', 'ชั้น', 'โต๊ะ', 'จำนวนลูกค้า', 'รายการอาหาร', 'จำนวน', 'ราคาต่อหน่วย (บาท)', 'ยอดรวมรายการ (บาท)', 'ยอดรวมออเดอร์ (บาท)', 'วิธีชำระเงิน', 'รับเงินสด (บาท)', 'เงินทอน (บาท)', 'อัตราภาษี (%)', 'ภาษี (บาท)'
+            'ID ออเดอร์', 'ID ออเดอร์ดั้งเดิม', 'เวลาที่เสิร์ฟ', 'ชั้น', 'โต๊ะ', 'จำนวนลูกค้า', 
+            'รายการอาหาร', 'จำนวน', 'ราคาต่อหน่วย (บาท)', 'ยอดรวมรายการ (บาท)', 
+            'ยอดรวมออเดอร์ (บาท)', 'วิธีชำระเงิน', 'รับเงินสด (บาท)', 'เงินทอน (บาท)', 
+            'อัตราภาษี (%)', 'ภาษี (บาท)',
         ];
+        
+        // Add status columns only for admin export
+        if (isAdmin) {
+            headers.push('สถานะบิล', 'รายละเอียดสถานะ');
+        }
         
         const dataForCsv: (string | number)[][] = [headers];
     
-        filteredCompletedOrders.forEach(order => {
+        ordersToExport.forEach(order => {
             const subtotal = order.items.reduce((sum, item) => sum + item.price * item.quantity, 0);
             const total = subtotal + order.taxAmount;
             const completionDate = new Date(order.completionTime).toLocaleString('th-TH');
-            const floorText = order.floor === 'lower' ? 'ชั้นล่าง' : 'ชั้นบน';
             
             const paymentMethodText = order.paymentDetails.method === 'cash' ? 'เงินสด' : 'โอนจ่าย';
-            const cashReceived = order.paymentDetails.method === 'cash' ? order.paymentDetails.cashReceived.toFixed(2) : '';
-            const changeGiven = order.paymentDetails.method === 'cash' ? order.paymentDetails.changeGiven.toFixed(2) : '';
+            const cashReceived = order.paymentDetails.method === 'cash' ? order.paymentDetails.cashReceived?.toFixed(2) || '' : '';
+            const changeGiven = order.paymentDetails.method === 'cash' ? order.paymentDetails.changeGiven?.toFixed(2) || '' : '';
 
-            order.items.forEach((item, index) => {
-                const isFirstItem = index === 0;
+            // Determine bill status for admin export
+            let billStatus = 'ปกติ';
+            let statusDetail = '';
+            if (isAdmin) {
+                if (order.isHidden && order.hiddenInfo) {
+                    billStatus = 'ถูกซ่อน';
+                    statusDetail = `โดย ${order.hiddenInfo.hiddenBy} เมื่อ ${new Date(order.hiddenInfo.hiddenAt).toLocaleString('th-TH')}`;
+                } else if (order.voidedInfo) {
+                    billStatus = 'ยกเลิก';
+                    statusDetail = `โดย ${order.voidedInfo.voidedBy}: ${order.voidedInfo.reason} ${order.voidedInfo.notes ? `(${order.voidedInfo.notes})` : ''}`;
+                }
+            }
 
-                dataForCsv.push([
+            if (order.items.length === 0) {
+                const rowData = [
                     `'${order.orderNumber}`,
                     order.parentOrderId ? `'${String(order.parentOrderId).padStart(4, '0')}` : '',
                     completionDate,
-                    floorText,
+                    order.floor,
                     order.tableName,
                     order.customerCount,
-                    item.name,
-                    item.quantity,
-                    item.price.toFixed(2),
-                    (item.price * item.quantity).toFixed(2),
-                    isFirstItem ? total.toFixed(2) : '',
-                    isFirstItem ? paymentMethodText : '',
-                    isFirstItem ? cashReceived : '',
-                    isFirstItem ? changeGiven : '',
-                    isFirstItem ? order.taxRate.toFixed(2) : '',
-                    isFirstItem ? order.taxAmount.toFixed(2) : ''
-                ]);
-            });
+                    '(ไม่มีรายการ)', 0, 0, 0,
+                    total.toFixed(2),
+                    paymentMethodText, cashReceived, changeGiven,
+                    order.taxRate.toFixed(2), order.taxAmount.toFixed(2),
+                ];
+                if (isAdmin) {
+                    rowData.push(billStatus, statusDetail);
+                }
+                dataForCsv.push(rowData);
+            } else {
+                order.items.forEach((item, index) => {
+                    const isFirstItem = index === 0;
+                    const rowData = [
+                        isFirstItem ? `'${order.orderNumber}` : '',
+                        isFirstItem ? (order.parentOrderId ? `'${String(order.parentOrderId).padStart(4, '0')}` : '') : '',
+                        isFirstItem ? completionDate : '',
+                        isFirstItem ? order.floor : '',
+                        isFirstItem ? order.tableName : '',
+                        isFirstItem ? order.customerCount : '',
+                        item.name,
+                        item.quantity,
+                        item.price.toFixed(2),
+                        (item.price * item.quantity).toFixed(2),
+                        isFirstItem ? total.toFixed(2) : '',
+                        isFirstItem ? paymentMethodText : '',
+                        isFirstItem ? cashReceived : '',
+                        isFirstItem ? changeGiven : '',
+                        isFirstItem ? order.taxRate.toFixed(2) : '',
+                        isFirstItem ? order.taxAmount.toFixed(2) : '',
+                    ];
+                    if (isAdmin) {
+                        rowData.push(isFirstItem ? billStatus : '', isFirstItem ? statusDetail : '');
+                    }
+                    dataForCsv.push(rowData);
+                });
+            }
         });
         
         const csvContent = arrayToCsv(dataForCsv);
