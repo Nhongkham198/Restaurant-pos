@@ -99,7 +99,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, order, onClo
                     <h3 className="text-2xl font-bold text-gray-800 text-center">ชำระเงิน</h3>
                     <p className="text-base text-gray-500 text-center mt-1">ออเดอร์ #{order.orderNumber}</p>
                 </header>
-                
+
                 <main className="flex-1 overflow-y-auto p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
                     {/* Left side: Order details */}
                     <div className="flex flex-col">

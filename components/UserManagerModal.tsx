@@ -78,17 +78,6 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
         return groups;
 
     }, [usersToDisplay, branches, currentUser]);
-    
-    const branchesToDisplayForAssignment = useMemo(() => {
-        if (currentUser.role === 'admin') {
-            return branches;
-        }
-        if (currentUser.role === 'branch-admin') {
-            const allowedIds = new Set(currentUser.allowedBranchIds || []);
-            return branches.filter(branch => allowedIds.has(branch.id));
-        }
-        return [];
-    }, [branches, currentUser]);
 
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -398,7 +387,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-2">กำหนดสิทธิ์สาขา:</label>
                                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 p-2 border rounded-md bg-white max-h-32 overflow-y-auto">
-                                            {branchesToDisplayForAssignment.map(branch => (
+                                            {branches.map(branch => (
                                                 <label key={branch.id} className="flex items-center gap-2 p-1.5 rounded hover:bg-gray-100">
                                                     <input 
                                                         type="checkbox"

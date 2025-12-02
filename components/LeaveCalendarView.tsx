@@ -45,8 +45,8 @@ export const LeaveCalendarView: React.FC<LeaveCalendarViewProps> = ({ leaveReque
     const visibleRequests = useMemo(() => {
         if (!currentUser) return [];
 
-        // Admin and Auditor see all requests.
-        if (currentUser.role === 'admin' || currentUser.role === 'auditor') {
+        // Admin sees all requests.
+        if (currentUser.role === 'admin') {
             return leaveRequests;
         }
 
@@ -83,7 +83,7 @@ export const LeaveCalendarView: React.FC<LeaveCalendarViewProps> = ({ leaveReque
         if (leavesOnDay.length > 0) {
             setSelectedDayDetails({ date: clickedDate, leaves: leavesOnDay });
             setIsDetailsModalOpen(true);
-        } else if (currentUser?.role !== 'auditor') {
+        } else {
             onOpenRequestModal(clickedDate);
         }
     };
@@ -208,17 +208,15 @@ export const LeaveCalendarView: React.FC<LeaveCalendarViewProps> = ({ leaveReque
                                 ส่งออก Excel
                             </button>
                         )}
-                        {currentUser?.role !== 'auditor' && (
-                            <button 
-                                onClick={() => onOpenRequestModal()}
-                                className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow hover:bg-blue-700 transition-colors flex items-center gap-2"
-                            >
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                    <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
-                                </svg>
-                                ขอวันลา
-                            </button>
-                        )}
+                        <button 
+                            onClick={() => onOpenRequestModal()}
+                            className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow hover:bg-blue-700 transition-colors flex items-center gap-2"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+                            </svg>
+                            ขอวันลา
+                        </button>
                     </div>
                 </div>
 
@@ -359,7 +357,6 @@ export const LeaveCalendarView: React.FC<LeaveCalendarViewProps> = ({ leaveReque
                 onClose={() => setIsDetailsModalOpen(false)}
                 date={selectedDayDetails?.date || null}
                 leaves={selectedDayDetails?.leaves || []}
-                currentUser={currentUser}
                 onAddNew={() => {
                     setIsDetailsModalOpen(false);
                     onOpenRequestModal(selectedDayDetails?.date);
