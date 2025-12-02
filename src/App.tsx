@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 
 import { 
@@ -610,17 +611,16 @@ const App: React.FC = () => {
         prevLeaveRequestsRef.current = leaveRequests;
     }, [leaveRequests, currentUser]);
 
-    // Reset the "seen" notifications when the user changes, so a new user can see pending calls.
+    // --- STAFF CALL NOTIFICATION & SOUND EFFECT (REFACTORED) ---
     useEffect(() => {
-        notifiedCallIdsRef.current.clear();
-    }, [currentUser]);
-
-    // --- STAFF CALL NOTIFICATION & SOUND EFFECT ---
-    // This effect manages ONLY the audio playback.
-    useEffect(() => {
-        // Only play sound for 'pos' and 'kitchen' roles. Mute for 'admin', 'branch-admin', and 'auditor'.
-        const shouldPlayAudio = staffCalls.length > 0 && staffCallSoundUrl && !isCustomerMode && currentUser?.role !== 'admin' && currentUser?.role !== 'branch-admin' && currentUser?.role !== 'auditor';
-
+        // This single effect manages both audio and visual notifications for staff calls.
+        
+        // FIX: Filter calls to only those relevant to the currently selected branch to prevent cross-branch notifications.
+        const relevantCalls = staffCalls.filter(call => call.branchId === selectedBranch?.id);
+    
+        // 1. Audio Management
+        const shouldPlayAudio = relevantCalls.length > 0 && staffCallSoundUrl && !isCustomerMode && currentUser && ['pos', 'kitchen'].includes(currentUser.role);
+        
         if (shouldPlayAudio) {
             if (!staffCallAudioRef.current) {
                 staffCallAudioRef.current = new Audio(staffCallSoundUrl);
@@ -633,62 +633,57 @@ const App: React.FC = () => {
             staffCallAudioRef.current.pause();
             staffCallAudioRef.current.currentTime = 0;
         }
-
+    
+        // 2. Visual Notification Management (Swal)
+        const showNextNotification = async () => {
+            if (isCustomerMode || !currentUser || ['auditor'].includes(currentUser.role)) {
+                return;
+            }
+            
+            // Find the first call from the RELEVANT list that hasn't been shown yet
+            const unnotifiedCall = relevantCalls.find(c => !notifiedCallIdsRef.current.has(c.id));
+    
+            if (unnotifiedCall) {
+                // Mark this call as "seen" to prevent re-triggering
+                notifiedCallIdsRef.current.add(unnotifiedCall.id); 
+    
+                const messageText = unnotifiedCall.message 
+                    ? `<br/><strong class="text-blue-600">${unnotifiedCall.message}</strong>` 
+                    : '<br/>ต้องการความช่วยเหลือ';
+    
+                const result = await Swal.fire({
+                    title: '🔔 ลูกค้าเรียกพนักงาน!',
+                    html: `โต๊ะ <b>${unnotifiedCall.tableName}</b> (คุณ ${unnotifiedCall.customerName})${messageText}`,
+                    icon: 'info',
+                    confirmButtonText: 'รับทราบ',
+                    allowOutsideClick: false, // Prevent dismissing by clicking outside
+                    allowEscapeKey: false
+                });
+                
+                // When acknowledged, remove it from the global state.
+                // This will trigger a re-render, and the loop continues if more calls are pending.
+                if (result.isConfirmed) {
+                    setStaffCalls(prev => prev.filter(call => call.id !== unnotifiedCall.id));
+                }
+            }
+        };
+    
+        showNextNotification();
+        
+        // Cleanup on unmount
         return () => {
             if (staffCallAudioRef.current) {
                 staffCallAudioRef.current.pause();
             }
         };
-    }, [staffCalls.length, staffCallSoundUrl, isCustomerMode, currentUser]);
+    }, [staffCalls, currentUser, selectedBranch, isCustomerMode, staffCallSoundUrl, setStaffCalls]);
 
-    // This effect manages ONLY showing the visual Swal notifications.
+    // Cleanup notifiedCallIdsRef when user logs out
     useEffect(() => {
-        const showNotifications = async () => {
-            if (isCustomerMode || !currentUser || !['pos', 'kitchen', 'admin', 'branch-admin', 'auditor'].includes(currentUser.role)) {
-                return;
-            }
-             // Do not show visual pop-up for auditors
-            if (currentUser.role === 'auditor') {
-                return;
-            }
-
-
-            const unnotifiedCalls = staffCalls.filter(c => !notifiedCallIdsRef.current.has(c.id));
-
-            if (unnotifiedCalls.length > 0) {
-                const callToNotify = unnotifiedCalls[0];
-                notifiedCallIdsRef.current.add(callToNotify.id); 
-
-                const messageText = callToNotify.message 
-                    ? `<br/><strong class="text-blue-600">${callToNotify.message}</strong>` 
-                    : '<br/>ต้องการความช่วยเหลือ';
-
-                const result = await Swal.fire({
-                    title: '🔔 ลูกค้าเรียกพนักงาน!',
-                    html: `โต๊ะ <b>${callToNotify.tableName}</b> (คุณ ${callToNotify.customerName})${messageText}`,
-                    icon: 'info',
-                    confirmButtonText: 'รับทราบ',
-                    timer: 15000,
-                    timerProgressBar: true,
-                    allowOutsideClick: false,
-                    allowEscapeKey: false
-                });
-                
-                if (result.isConfirmed || result.dismiss === Swal.DismissReason.timer) {
-                    setStaffCalls(prev => prev.filter(call => call.id !== callToNotify.id));
-                }
-            }
-            
-            const currentCallIds = new Set(staffCalls.map(c => c.id));
-            notifiedCallIdsRef.current.forEach(id => {
-                if (!currentCallIds.has(id)) {
-                    notifiedCallIdsRef.current.delete(id);
-                }
-            });
-        };
-
-        showNotifications();
-    }, [staffCalls, currentUser, isCustomerMode, setStaffCalls]);
+        if (!currentUser) {
+            notifiedCallIdsRef.current.clear();
+        }
+    }, [currentUser]);
 
 
     // --- ORDER TIMEOUT NOTIFICATION EFFECT ---
@@ -1852,6 +1847,7 @@ const App: React.FC = () => {
                     setModalState(prev => ({ ...prev, isTableBill: false, isMergeBill: true }));
                 }}
                 onSplit={(order) => {
+                    setOrderForModal(order);
                     setModalState(prev => ({ ...prev, isSplitBill: true }));
                 }}
                 isEditMode={canEdit}
@@ -1903,18 +1899,22 @@ const App: React.FC = () => {
                 onClose={() => setModalState(prev => ({ ...prev, isSplitBill: false }))}
                 order={orderForModal as ActiveOrder}
                 onConfirmSplit={(itemsToSplit) => {
-                    // Logic to split items into a new order
+                    // FIX: Use cartItemId to correctly update original order items.
                     const originalOrder = orderForModal as ActiveOrder;
                     if (!originalOrder) return;
 
+                    const splitItemsMap = new Map(itemsToSplit.map(i => [i.cartItemId, i.quantity]));
+
                     // 1. Update original order (remove items/quantities)
-                    const updatedOriginalItems = originalOrder.items.map(item => {
-                        const splitItem = itemsToSplit.find(si => si.id === item.id);
-                        if (splitItem) {
-                            return { ...item, quantity: item.quantity - splitItem.quantity };
-                        }
-                        return item;
-                    }).filter(item => item.quantity > 0);
+                    const updatedOriginalItems = originalOrder.items
+                        .map(item => {
+                            const splitQuantity = splitItemsMap.get(item.cartItemId);
+                            if (typeof splitQuantity === 'number') {
+                                return { ...item, quantity: item.quantity - splitQuantity };
+                            }
+                            return item;
+                        })
+                        .filter(item => item.quantity > 0);
 
                     // 2. Create new order
                     const newOrder: ActiveOrder = {
@@ -2035,14 +2035,17 @@ const App: React.FC = () => {
                 order={orderForModal as CompletedOrder}
                 onClose={() => setModalState(prev => ({ ...prev, isSplitCompleted: false }))}
                 onConfirmSplit={(itemsToSplit) => {
-                     // Similar logic to SplitBillModal but for completed orders (create new CompletedOrder)
-                     // For simplicity, we might just create a new CompletedOrder with current time
+                     // FIX: Use cartItemId to correctly update original order items.
                      const originalOrder = orderForModal as CompletedOrder;
                      if (!originalOrder) return;
-
+ 
+                     const splitItemsMap = new Map(itemsToSplit.map(i => [i.cartItemId, i.quantity]));
+ 
                      const updatedOriginalItems = originalOrder.items.map(item => {
-                        const splitItem = itemsToSplit.find(si => si.id === item.id);
-                        if (splitItem) return { ...item, quantity: item.quantity - splitItem.quantity };
+                        const splitQuantity = splitItemsMap.get(item.cartItemId);
+                        if (typeof splitQuantity === 'number') {
+                            return { ...item, quantity: item.quantity - splitQuantity };
+                        }
                         return item;
                     }).filter(item => item.quantity > 0);
 

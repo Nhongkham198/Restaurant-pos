@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 
 import { 
@@ -609,17 +610,13 @@ const App: React.FC = () => {
         prevLeaveRequestsRef.current = leaveRequests;
     }, [leaveRequests, currentUser]);
 
-    // Reset the "seen" notifications when the user changes, so a new user can see pending calls.
+    // --- STAFF CALL NOTIFICATION & SOUND EFFECT (REFACTORED) ---
     useEffect(() => {
-        notifiedCallIdsRef.current.clear();
-    }, [currentUser]);
-
-    // --- STAFF CALL NOTIFICATION & SOUND EFFECT ---
-    // This effect manages ONLY the audio playback.
-    useEffect(() => {
-        // Only play sound for 'pos' and 'kitchen' roles. Mute for 'admin', 'branch-admin', and 'auditor'.
-        const shouldPlayAudio = staffCalls.length > 0 && staffCallSoundUrl && !isCustomerMode && currentUser?.role !== 'admin' && currentUser?.role !== 'branch-admin' && currentUser?.role !== 'auditor';
-
+        // This single effect manages both audio and visual notifications for staff calls.
+        
+        // 1. Audio Management
+        const shouldPlayAudio = staffCalls.length > 0 && staffCallSoundUrl && !isCustomerMode && currentUser && !['admin', 'branch-admin', 'auditor'].includes(currentUser.role);
+        
         if (shouldPlayAudio) {
             if (!staffCallAudioRef.current) {
                 staffCallAudioRef.current = new Audio(staffCallSoundUrl);
@@ -633,61 +630,56 @@ const App: React.FC = () => {
             staffCallAudioRef.current.currentTime = 0;
         }
 
+        // 2. Visual Notification Management (Swal)
+        const showNextNotification = async () => {
+            if (isCustomerMode || !currentUser || ['auditor'].includes(currentUser.role)) {
+                return;
+            }
+            
+            // Find the first call that hasn't been shown yet
+            const unnotifiedCall = staffCalls.find(c => !notifiedCallIdsRef.current.has(c.id));
+
+            if (unnotifiedCall) {
+                // Mark this call as "seen" to prevent re-triggering
+                notifiedCallIdsRef.current.add(unnotifiedCall.id); 
+
+                const messageText = unnotifiedCall.message 
+                    ? `<br/><strong class="text-blue-600">${unnotifiedCall.message}</strong>` 
+                    : '<br/>ต้องการความช่วยเหลือ';
+
+                const result = await Swal.fire({
+                    title: '🔔 ลูกค้าเรียกพนักงาน!',
+                    html: `โต๊ะ <b>${unnotifiedCall.tableName}</b> (คุณ ${unnotifiedCall.customerName})${messageText}`,
+                    icon: 'info',
+                    confirmButtonText: 'รับทราบ',
+                    allowOutsideClick: false, // Prevent dismissing by clicking outside
+                    allowEscapeKey: false
+                });
+                
+                // When acknowledged, remove it from the global state.
+                // This will trigger a re-render, and the loop continues if more calls are pending.
+                if (result.isConfirmed) {
+                    setStaffCalls(prev => prev.filter(call => call.id !== unnotifiedCall.id));
+                }
+            }
+        };
+
+        showNextNotification();
+        
+        // Cleanup on unmount
         return () => {
             if (staffCallAudioRef.current) {
                 staffCallAudioRef.current.pause();
             }
         };
-    }, [staffCalls.length, staffCallSoundUrl, isCustomerMode, currentUser]);
+    }, [staffCalls, currentUser, isCustomerMode, staffCallSoundUrl, setStaffCalls]);
 
-    // This effect manages ONLY showing the visual Swal notifications.
+    // Cleanup notifiedCallIdsRef when user logs out
     useEffect(() => {
-        const showNotifications = async () => {
-            if (isCustomerMode || !currentUser || !['pos', 'kitchen', 'admin', 'branch-admin', 'auditor'].includes(currentUser.role)) {
-                return;
-            }
-             // Do not show visual pop-up for auditors
-            if (currentUser.role === 'auditor') {
-                return;
-            }
-
-
-            const unnotifiedCalls = staffCalls.filter(c => !notifiedCallIdsRef.current.has(c.id));
-
-            if (unnotifiedCalls.length > 0) {
-                const callToNotify = unnotifiedCalls[0];
-                notifiedCallIdsRef.current.add(callToNotify.id); 
-
-                const messageText = callToNotify.message 
-                    ? `<br/><strong class="text-blue-600">${callToNotify.message}</strong>` 
-                    : '<br/>ต้องการความช่วยเหลือ';
-
-                const result = await Swal.fire({
-                    title: '🔔 ลูกค้าเรียกพนักงาน!',
-                    html: `โต๊ะ <b>${callToNotify.tableName}</b> (คุณ ${callToNotify.customerName})${messageText}`,
-                    icon: 'info',
-                    confirmButtonText: 'รับทราบ',
-                    timer: 15000,
-                    timerProgressBar: true,
-                    allowOutsideClick: false,
-                    allowEscapeKey: false
-                });
-                
-                if (result.isConfirmed || result.dismiss === Swal.DismissReason.timer) {
-                    setStaffCalls(prev => prev.filter(call => call.id !== callToNotify.id));
-                }
-            }
-            
-            const currentCallIds = new Set(staffCalls.map(c => c.id));
-            notifiedCallIdsRef.current.forEach(id => {
-                if (!currentCallIds.has(id)) {
-                    notifiedCallIdsRef.current.delete(id);
-                }
-            });
-        };
-
-        showNotifications();
-    }, [staffCalls, currentUser, isCustomerMode, setStaffCalls]);
+        if (!currentUser) {
+            notifiedCallIdsRef.current.clear();
+        }
+    }, [currentUser]);
 
 
     // --- ORDER TIMEOUT NOTIFICATION EFFECT ---
@@ -1198,72 +1190,91 @@ const App: React.FC = () => {
 
 
     const handleSaveLeaveRequest = async (req: Omit<LeaveRequest, 'id' | 'status' | 'branchId'>) => {
-        if (!selectedBranch && currentUser?.role !== 'admin') {
-             Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถระบุสาขาได้', 'error');
-             return;
-        }
-        const payload: SubmitLeaveRequestPayload = {
-            ...req,
-            branchId: currentUser?.role === 'admin' ? 1 : (selectedBranch?.id || 1) // Admin defaults to branch 1 if none selected
+        const fallbackSave = () => {
+            if (!selectedBranch && currentUser?.role !== 'admin') {
+                Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถระบุสาขาได้', 'error');
+                return;
+            }
+            const newReq: LeaveRequest = {
+                ...req,
+                id: Date.now(),
+                status: 'pending',
+                branchId: currentUser?.role === 'admin' ? 1 : (selectedBranch?.id || 1) // Admin defaults to branch 1 if none selected
+            };
+            setLeaveRequests(prev => [...prev, newReq]);
+            setModalState(prev => ({ ...prev, isLeaveRequest: false }));
+            Swal.fire('ส่งคำขอแล้ว', 'คำขอวันลาของคุณถูกส่งแล้ว รอการอนุมัติ', 'success');
         };
-    
-        // Optimistic update
-        const tempId = Date.now();
-        const newReq: LeaveRequest = { ...payload, id: tempId, status: 'pending' };
-        setLeaveRequests(prev => [...prev, newReq]);
-    
+
+        if (!functionsService.submitLeaveRequest) {
+            fallbackSave();
+            return;
+        }
+
         try {
+            const payload: SubmitLeaveRequestPayload = {
+                ...req,
+                branchId: currentUser?.role === 'admin' ? 1 : (selectedBranch?.id || 1)
+            };
             const response = await functionsService.submitLeaveRequest(payload);
             if (!response || !response.success) {
                 throw new Error(response?.error || "Backend returned failure");
             }
-            // Optional: You could update the tempId with the real ID from the backend if it returns one.
+             // Let Firestore sync handle the update
+             setModalState(prev => ({ ...prev, isLeaveRequest: false }));
+             Swal.fire('ส่งคำขอแล้ว', 'คำขอวันลาของคุณถูกส่งแล้ว รอการอนุมัติ', 'success');
         } catch (e: any) {
             console.warn("Backend save for leave request failed, falling back to local.", e.message);
-            // The optimistic update is our fallback. We can show a toast.
-             Swal.fire({ toast: true, position: 'top-end', icon: 'warning', title: 'ไม่สามารถซิงค์ข้อมูลวันลาได้ (Offline)', showConfirmButton: false, timer: 3000 });
+            fallbackSave();
+        }
+    };
+
+    const handleUpdateLeaveStatus = async (id: number, status: 'approved' | 'rejected') => {
+        const fallbackUpdate = () => {
+            setLeaveRequests(prev => prev.map(req => req.id === id ? { ...req, status } : req));
+        };
+    
+        if (!functionsService.updateLeaveStatus || !currentUser) {
+            fallbackUpdate();
+            return;
         }
         
-        setModalState(prev => ({ ...prev, isLeaveRequest: false }));
-        Swal.fire('ส่งคำขอแล้ว', 'คำขอวันลาของคุณถูกส่งแล้ว รอการอนุมัติ', 'success');
-    };
-    
-    const handleUpdateLeaveStatus = async (id: number, status: 'approved' | 'rejected') => {
-        // Optimistic update
-        setLeaveRequests(prev => prev.map(req => req.id === id ? { ...req, status } : req));
-    
         try {
-            if (!currentUser) throw new Error("User not found");
             const response = await functionsService.updateLeaveStatus({ requestId: id, status, approverId: currentUser.id });
-             if (!response || !response.success) {
+            if (!response || !response.success) {
                 throw new Error(response?.error || "Backend returned failure");
             }
+            // Success, Firestore sync will update the state.
         } catch (e: any) {
-             console.warn("Backend update for leave status failed, relying on local update.", e.message);
-            // Revert state if backend fails
-            // setLeaveRequests(prev => prev.map(req => req.id === id ? { ...req, status: 'pending' } : req)); 
-            // Note: We don't revert to avoid a confusing UX. A warning is better.
+            console.warn("Backend update for leave status failed, relying on local update.", e.message);
+            fallbackUpdate(); // Fallback to local update
             Swal.fire({ toast: true, position: 'top-end', icon: 'warning', title: 'ไม่สามารถซิงค์การอนุมัติได้ (Offline)', showConfirmButton: false, timer: 3000 });
         }
     };
     
-    const handleDeleteLeaveRequest = async (id: number) => {
+    const handleDeleteLeaveRequest = async (id: number): Promise<boolean> => {
+        const fallbackDelete = () => {
+            setLeaveRequests(prev => prev.filter(req => req.id !== id));
+            return true;
+        };
+        
+        if (!functionsService.deleteLeaveRequest) {
+            return fallbackDelete();
+        }
+
         try {
             const response = await functionsService.deleteLeaveRequest({ requestId: id });
             if (!response || !response.success) {
                  throw new Error(response?.error || "Backend returned failure");
             }
-             setLeaveRequests(prev => prev.filter(req => req.id !== id));
-             return true;
+            // Success, let Firestore handle the update
+            return true;
         } catch (e: any) {
              console.warn("Backend delete for leave request failed, falling back to local.", e.message);
-             // Fallback to local delete
-             setLeaveRequests(prev => prev.filter(req => req.id !== id));
-             return true;
+             return fallbackDelete();
         }
     };
     
-
     // Missing local handlers for POS
     const handleQuantityChange = (cartItemId: string, newQuantity: number) => {
         if (newQuantity <= 0) {
@@ -1884,18 +1895,22 @@ const App: React.FC = () => {
                 onClose={() => setModalState(prev => ({ ...prev, isSplitBill: false }))}
                 order={orderForModal as ActiveOrder}
                 onConfirmSplit={(itemsToSplit) => {
-                    // Logic to split items into a new order
+                    // FIX: Use cartItemId to correctly update original order items.
                     const originalOrder = orderForModal as ActiveOrder;
                     if (!originalOrder) return;
 
+                    const splitItemsMap = new Map(itemsToSplit.map(i => [i.cartItemId, i.quantity]));
+
                     // 1. Update original order (remove items/quantities)
-                    const updatedOriginalItems = originalOrder.items.map(item => {
-                        const splitItem = itemsToSplit.find(si => si.id === item.id);
-                        if (splitItem) {
-                            return { ...item, quantity: item.quantity - splitItem.quantity };
-                        }
-                        return item;
-                    }).filter(item => item.quantity > 0);
+                    const updatedOriginalItems = originalOrder.items
+                        .map(item => {
+                            const splitQuantity = splitItemsMap.get(item.cartItemId);
+                            if (typeof splitQuantity === 'number') {
+                                return { ...item, quantity: item.quantity - splitQuantity };
+                            }
+                            return item;
+                        })
+                        .filter(item => item.quantity > 0);
 
                     // 2. Create new order
                     const newOrder: ActiveOrder = {
@@ -2016,14 +2031,17 @@ const App: React.FC = () => {
                 order={orderForModal as CompletedOrder}
                 onClose={() => setModalState(prev => ({ ...prev, isSplitCompleted: false }))}
                 onConfirmSplit={(itemsToSplit) => {
-                     // Similar logic to SplitBillModal but for completed orders (create new CompletedOrder)
-                     // For simplicity, we might just create a new CompletedOrder with current time
+                     // FIX: Use cartItemId to correctly update original order items.
                      const originalOrder = orderForModal as CompletedOrder;
                      if (!originalOrder) return;
-
+ 
+                     const splitItemsMap = new Map(itemsToSplit.map(i => [i.cartItemId, i.quantity]));
+ 
                      const updatedOriginalItems = originalOrder.items.map(item => {
-                        const splitItem = itemsToSplit.find(si => si.id === item.id);
-                        if (splitItem) return { ...item, quantity: item.quantity - splitItem.quantity };
+                        const splitQuantity = splitItemsMap.get(item.cartItemId);
+                        if (typeof splitQuantity === 'number') {
+                            return { ...item, quantity: item.quantity - splitQuantity };
+                        }
                         return item;
                     }).filter(item => item.quantity > 0);
 
