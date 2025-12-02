@@ -1,7 +1,7 @@
 
-import firebase from "firebase/compat/app";
-import "firebase/compat/firestore";
-import "firebase/compat/functions";
+import firebase from "firebase/app";
+import "firebase/firestore";
+import "firebase/functions";
 
 // TODO: Replace the following with your app's Firebase project configuration
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional
@@ -33,6 +33,8 @@ if (isFirebaseConfigured) {
       app = firebase.app();
     }
     db = firebase.firestore();
+    // FIX: Enable long polling to prevent "Could not reach Cloud Firestore backend" errors
+    db.settings({ experimentalForceLongPolling: true });
     functions = firebase.functions();
   } catch (e) {
     console.error("Error initializing Firebase. Please check your config.", e);

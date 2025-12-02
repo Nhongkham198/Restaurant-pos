@@ -1,6 +1,7 @@
+
 import React, { useState, useEffect, useRef } from 'react';
-// FIX: Add missing import for firebase to provide types for the v8 compatibility API.
-import firebase from 'firebase/compat/app';
+// FIX: Update import to match importmap key (using v9 compat mode via 'firebase/app')
+import firebase from 'firebase/app';
 import { db } from '../firebaseConfig';
 import type { Table, User, Branch } from '../types';
 // Import defaults for self-healing logic
