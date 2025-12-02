@@ -35,8 +35,8 @@ import { useFirestoreSync } from './hooks/useFirestoreSync';
 import { functionsService } from './services/firebaseFunctionsService';
 import { printerService } from './services/printerService';
 // FIX: Correct Firebase imports to match importmap keys (v9 compat)
-import firebase from 'firebase/app';
-import 'firebase/messaging';
+import firebase from 'firebase/compat/app';
+import 'firebase/compat/messaging';
 import { isFirebaseConfigured, db } from './firebaseConfig';
 // FIX: Removed unused v9 firestore and messaging imports
 // import { doc, runTransaction } from 'firebase/firestore';
@@ -323,7 +323,6 @@ const App: React.FC = () => {
 
 
     // --- CUSTOMER MODE INITIALIZATION ---
-    // Part 1: Detect customer mode from URL on initial load. Runs only once.
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
         if (params.get('mode') === 'customer' && params.get('tableId')) {
@@ -332,18 +331,25 @@ const App: React.FC = () => {
         }
     }, []);
 
-    // Part 2: Auto-select branch for customer mode once branch data is available AND persist it.
     useEffect(() => {
-        // This effect runs when isCustomerMode, branches, or selectedBranch changes.
-        // It ensures that if we are in customer mode and branches are loaded,
-        // the correct branch is selected, preventing a race condition on refresh.
         if (isCustomerMode && !selectedBranch && branches.length > 0) {
-            // For customer mode, assuming a single branch setup for simplicity.
-            // In a multi-branch setup, the branch ID would need to be in the URL.
-            const branchForCustomer = branches[0];
-            setSelectedBranch(branchForCustomer);
-            // Persist this choice specifically for customer mode to solve refresh issues
-            localStorage.setItem('customerSelectedBranch', JSON.stringify(branchForCustomer));
+            const params = new URLSearchParams(window.location.search);
+            const urlBranchId = params.get('branchId');
+            let branchForCustomer: Branch | undefined;
+
+            if (urlBranchId) {
+                branchForCustomer = branches.find(b => b.id === Number(urlBranchId));
+            }
+            
+            if (!branchForCustomer) {
+                console.warn("Branch ID not found in URL for customer mode, defaulting to first branch.");
+                branchForCustomer = branches[0];
+            }
+            
+            if (branchForCustomer) {
+                setSelectedBranch(branchForCustomer);
+                localStorage.setItem('customerSelectedBranch', JSON.stringify(branchForCustomer));
+            }
         }
     }, [isCustomerMode, branches, selectedBranch]);
 
@@ -1061,13 +1067,19 @@ const App: React.FC = () => {
     };
 
     const handleStaffCall = (table: Table, cName: string, message?: string) => {
-        if (!selectedBranch) return;
+        // Fallback to find the first branch if selectedBranch is somehow null
+        const branchToCall = selectedBranch || (branches.length > 0 ? branches[0] : null);
+        if (!branchToCall) {
+            console.error("Staff call failed: No branch could be determined.");
+            return;
+        }
+
         const newCall: StaffCall = {
             id: Date.now(),
             tableId: table.id,
             tableName: table.name,
             customerName: cName,
-            branchId: selectedBranch.id,
+            branchId: branchToCall.id,
             timestamp: Date.now(),
             message,
         };
@@ -1748,6 +1760,7 @@ const App: React.FC = () => {
                             currentUser={currentUser}
                             printerConfig={printerConfig}
                             floors={floors}
+                            branchId={selectedBranch?.id ?? null}
                         />
                     )}
 
