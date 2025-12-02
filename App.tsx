@@ -261,6 +261,7 @@ const App: React.FC = () => {
     const prevLeaveRequestsRef = useRef<LeaveRequest[] | undefined>(undefined);
     const notifiedCallIdsRef = useRef<Set<number>>(new Set());
     const staffCallAudioRef = useRef<HTMLAudioElement | null>(null);
+    const isNotificationActiveRef = useRef(false);
     const prevUserRef = useRef<User | null>(null);
 
     // --- SESSION PERSISTENCE ---
@@ -610,69 +611,74 @@ const App: React.FC = () => {
         prevLeaveRequestsRef.current = leaveRequests;
     }, [leaveRequests, currentUser]);
 
-    // --- STAFF CALL NOTIFICATION & SOUND EFFECT (REFACTORED) ---
+    // --- PERMANENT FIX for Staff Call Notifications ---
+    // Effect 1: Manages the visual notification (Swal) queue to prevent race conditions.
     useEffect(() => {
-        // This single effect manages both audio and visual notifications for staff calls.
-        
-        // 1. Audio Management
-        const shouldPlayAudio = staffCalls.length > 0 && staffCallSoundUrl && !isCustomerMode && currentUser && !['admin', 'branch-admin', 'auditor'].includes(currentUser.role);
-        
-        if (shouldPlayAudio) {
-            if (!staffCallAudioRef.current) {
-                staffCallAudioRef.current = new Audio(staffCallSoundUrl);
-                staffCallAudioRef.current.loop = true;
+        const processNotificationQueue = async () => {
+            if (isNotificationActiveRef.current || isCustomerMode || !currentUser) {
+                return; // Don't show a new popup if one is already active or in customer mode
             }
-            if (staffCallAudioRef.current.paused) {
-                staffCallAudioRef.current.play().catch(e => console.error("Error playing staff call sound:", e));
-            }
-        } else if (staffCallAudioRef.current && !staffCallAudioRef.current.paused) {
-            staffCallAudioRef.current.pause();
-            staffCallAudioRef.current.currentTime = 0;
-        }
 
-        // 2. Visual Notification Management (Swal)
-        const showNextNotification = async () => {
-            if (isCustomerMode || !currentUser || ['auditor'].includes(currentUser.role)) {
-                return;
-            }
-            
-            // Find the first call that hasn't been shown yet
-            const unnotifiedCall = staffCalls.find(c => !notifiedCallIdsRef.current.has(c.id));
+            const callToShow = staffCalls.find(call => !notifiedCallIdsRef.current.has(call.id));
 
-            if (unnotifiedCall) {
-                // Mark this call as "seen" to prevent re-triggering
-                notifiedCallIdsRef.current.add(unnotifiedCall.id); 
+            if (callToShow) {
+                isNotificationActiveRef.current = true; // Acquire lock
+                notifiedCallIdsRef.current.add(callToShow.id); // Mark as "in-progress"
 
-                const messageText = unnotifiedCall.message 
-                    ? `<br/><strong class="text-blue-600">${unnotifiedCall.message}</strong>` 
+                const messageText = callToShow.message 
+                    ? `<br/><strong class="text-blue-600">${callToShow.message}</strong>` 
                     : '<br/>ต้องการความช่วยเหลือ';
 
-                const result = await Swal.fire({
+                await Swal.fire({
                     title: '🔔 ลูกค้าเรียกพนักงาน!',
-                    html: `โต๊ะ <b>${unnotifiedCall.tableName}</b> (คุณ ${unnotifiedCall.customerName})${messageText}`,
+                    html: `โต๊ะ <b>${callToShow.tableName}</b> (คุณ ${callToShow.customerName})${messageText}`,
                     icon: 'info',
                     confirmButtonText: 'รับทราบ',
-                    allowOutsideClick: false, // Prevent dismissing by clicking outside
-                    allowEscapeKey: false
+                    allowOutsideClick: false,
+                    allowEscapeKey: false,
                 });
-                
-                // When acknowledged, remove it from the global state.
-                // This will trigger a re-render, and the loop continues if more calls are pending.
-                if (result.isConfirmed) {
-                    setStaffCalls(prev => prev.filter(call => call.id !== unnotifiedCall.id));
-                }
+
+                // After user confirms, remove the call and release the lock
+                setStaffCalls(prev => prev.filter(call => call.id !== callToShow.id));
+                isNotificationActiveRef.current = false; // Release lock
             }
         };
 
-        showNextNotification();
-        
-        // Cleanup on unmount
+        processNotificationQueue();
+    }, [staffCalls, currentUser, isCustomerMode, setStaffCalls]);
+
+    // Effect 2: Manages the audio playback based on the state of the staff call queue.
+    useEffect(() => {
+        const hasPendingCalls = staffCalls.length > 0;
+        const canPlayAudio = hasPendingCalls && staffCallSoundUrl && !isCustomerMode && currentUser && !['admin', 'branch-admin', 'auditor'].includes(currentUser.role);
+
+        if (canPlayAudio) {
+            if (!staffCallAudioRef.current) {
+                staffCallAudioRef.current = new Audio(staffCallSoundUrl);
+                staffCallAudioRef.current.loop = true;
+            } else if (staffCallAudioRef.current.src !== staffCallSoundUrl) {
+                // If sound URL changes, update the audio source
+                staffCallAudioRef.current.src = staffCallSoundUrl;
+            }
+
+            if (staffCallAudioRef.current.paused) {
+                staffCallAudioRef.current.play().catch(e => console.error("Error playing staff call sound:", e));
+            }
+        } else {
+            if (staffCallAudioRef.current && !staffCallAudioRef.current.paused) {
+                staffCallAudioRef.current.pause();
+                staffCallAudioRef.current.currentTime = 0;
+            }
+        }
+
+        // Cleanup audio object on component unmount
         return () => {
             if (staffCallAudioRef.current) {
                 staffCallAudioRef.current.pause();
             }
         };
-    }, [staffCalls, currentUser, isCustomerMode, staffCallSoundUrl, setStaffCalls]);
+    }, [staffCalls.length, staffCallSoundUrl, currentUser, isCustomerMode]);
+
 
     // Cleanup notifiedCallIdsRef when user logs out
     useEffect(() => {

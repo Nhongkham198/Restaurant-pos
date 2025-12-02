@@ -94,9 +94,9 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     useEffect(() => {
         // If user is logged in, but the table's PIN is suddenly cleared (Payment Confirmed)
         // or changed (Staff reset PIN), force logout immediately.
-        // We add `table.activePin !== undefined` to prevent a race condition on refresh
-        // where this effect runs before the table data is fully loaded from Firestore.
-        if (isAuthenticated && table.activePin !== undefined) {
+        // The session persistence useEffect handles the initial race condition on refresh.
+        if (isAuthenticated) {
+            // This condition triggers if the pin is changed OR if it becomes undefined (after payment).
             if (table.activePin !== pinInput) {
                 // 1. Clear All Customer Data from localStorage
                 const sessionKey = `customer_session_${table.id}`;
