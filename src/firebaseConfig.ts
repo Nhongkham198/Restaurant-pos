@@ -1,7 +1,4 @@
-<<<<<<< HEAD
 
-=======
->>>>>>> f73113c3cdad676b71adb671543960d98f7459e8
 import firebase from "firebase/compat/app";
 import "firebase/compat/firestore";
 import "firebase/compat/functions";
@@ -43,8 +40,4 @@ if (isFirebaseConfigured) {
   }
 }
 
-<<<<<<< HEAD
 export { db, functions };
-=======
-export { db, functions };
->>>>>>> f73113c3cdad676b71adb671543960d98f7459e8

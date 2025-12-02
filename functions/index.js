@@ -95,8 +95,4 @@ exports.sendHighPriorityOrderNotification = functions.region('asia-southeast1').
         }
         
         return null;
-<<<<<<< HEAD
     });
-=======
-    });
->>>>>>> f73113c3cdad676b71adb671543960d98f7459e8

@@ -610,7 +610,6 @@ const App: React.FC = () => {
         prevLeaveRequestsRef.current = leaveRequests;
     }, [leaveRequests, currentUser]);
 
-<<<<<<< HEAD
     // --- STAFF CALL NOTIFICATION & SOUND EFFECT (REFACTORED) ---
     useEffect(() => {
         // This single effect manages both audio and visual notifications for staff calls.
@@ -618,19 +617,6 @@ const App: React.FC = () => {
         // 1. Audio Management
         const shouldPlayAudio = staffCalls.length > 0 && staffCallSoundUrl && !isCustomerMode && currentUser && !['admin', 'branch-admin', 'auditor'].includes(currentUser.role);
         
-=======
-    // Reset the "seen" notifications when the user changes, so a new user can see pending calls.
-    useEffect(() => {
-        notifiedCallIdsRef.current.clear();
-    }, [currentUser]);
-
-    // --- STAFF CALL NOTIFICATION & SOUND EFFECT ---
-    // This effect manages ONLY the audio playback.
-    useEffect(() => {
-        // Only play sound for 'pos' and 'kitchen' roles. Mute for 'admin', 'branch-admin', and 'auditor'.
-        const shouldPlayAudio = staffCalls.length > 0 && staffCallSoundUrl && !isCustomerMode && currentUser?.role !== 'admin' && currentUser?.role !== 'branch-admin' && currentUser?.role !== 'auditor';
-
->>>>>>> f73113c3cdad676b71adb671543960d98f7459e8
         if (shouldPlayAudio) {
             if (!staffCallAudioRef.current) {
                 staffCallAudioRef.current = new Audio(staffCallSoundUrl);
@@ -644,7 +630,6 @@ const App: React.FC = () => {
             staffCallAudioRef.current.currentTime = 0;
         }
 
-<<<<<<< HEAD
         // 2. Visual Notification Management (Swal)
         const showNextNotification = async () => {
             if (isCustomerMode || !currentUser || ['auditor'].includes(currentUser.role)) {
@@ -682,14 +667,11 @@ const App: React.FC = () => {
         showNextNotification();
         
         // Cleanup on unmount
-=======
->>>>>>> f73113c3cdad676b71adb671543960d98f7459e8
         return () => {
             if (staffCallAudioRef.current) {
                 staffCallAudioRef.current.pause();
             }
         };
-<<<<<<< HEAD
     }, [staffCalls, currentUser, isCustomerMode, staffCallSoundUrl, setStaffCalls]);
 
     // Cleanup notifiedCallIdsRef when user logs out
@@ -698,58 +680,6 @@ const App: React.FC = () => {
             notifiedCallIdsRef.current.clear();
         }
     }, [currentUser]);
-=======
-    }, [staffCalls.length, staffCallSoundUrl, isCustomerMode, currentUser]);
-
-    // This effect manages ONLY showing the visual Swal notifications.
-    useEffect(() => {
-        const showNotifications = async () => {
-            if (isCustomerMode || !currentUser || !['pos', 'kitchen', 'admin', 'branch-admin', 'auditor'].includes(currentUser.role)) {
-                return;
-            }
-             // Do not show visual pop-up for auditors
-            if (currentUser.role === 'auditor') {
-                return;
-            }
-
-
-            const unnotifiedCalls = staffCalls.filter(c => !notifiedCallIdsRef.current.has(c.id));
-
-            if (unnotifiedCalls.length > 0) {
-                const callToNotify = unnotifiedCalls[0];
-                notifiedCallIdsRef.current.add(callToNotify.id); 
-
-                const messageText = callToNotify.message 
-                    ? `<br/><strong class="text-blue-600">${callToNotify.message}</strong>` 
-                    : '<br/>ต้องการความช่วยเหลือ';
-
-                const result = await Swal.fire({
-                    title: '🔔 ลูกค้าเรียกพนักงาน!',
-                    html: `โต๊ะ <b>${callToNotify.tableName}</b> (คุณ ${callToNotify.customerName})${messageText}`,
-                    icon: 'info',
-                    confirmButtonText: 'รับทราบ',
-                    timer: 15000,
-                    timerProgressBar: true,
-                    allowOutsideClick: false,
-                    allowEscapeKey: false
-                });
-                
-                if (result.isConfirmed || result.dismiss === Swal.DismissReason.timer) {
-                    setStaffCalls(prev => prev.filter(call => call.id !== callToNotify.id));
-                }
-            }
-            
-            const currentCallIds = new Set(staffCalls.map(c => c.id));
-            notifiedCallIdsRef.current.forEach(id => {
-                if (!currentCallIds.has(id)) {
-                    notifiedCallIdsRef.current.delete(id);
-                }
-            });
-        };
-
-        showNotifications();
-    }, [staffCalls, currentUser, isCustomerMode, setStaffCalls]);
->>>>>>> f73113c3cdad676b71adb671543960d98f7459e8
 
 
     // --- ORDER TIMEOUT NOTIFICATION EFFECT ---
@@ -1913,10 +1843,7 @@ const App: React.FC = () => {
                     setModalState(prev => ({ ...prev, isTableBill: false, isMergeBill: true }));
                 }}
                 onSplit={(order) => {
-<<<<<<< HEAD
                     setOrderForModal(order);
-=======
->>>>>>> f73113c3cdad676b71adb671543960d98f7459e8
                     setModalState(prev => ({ ...prev, isSplitBill: true }));
                 }}
                 isEditMode={canEdit}
@@ -1968,7 +1895,6 @@ const App: React.FC = () => {
                 onClose={() => setModalState(prev => ({ ...prev, isSplitBill: false }))}
                 order={orderForModal as ActiveOrder}
                 onConfirmSplit={(itemsToSplit) => {
-<<<<<<< HEAD
                     // FIX: Use cartItemId to correctly update original order items.
                     const originalOrder = orderForModal as ActiveOrder;
                     if (!originalOrder) return;
@@ -1985,20 +1911,6 @@ const App: React.FC = () => {
                             return item;
                         })
                         .filter(item => item.quantity > 0);
-=======
-                    // Logic to split items into a new order
-                    const originalOrder = orderForModal as ActiveOrder;
-                    if (!originalOrder) return;
-
-                    // 1. Update original order (remove items/quantities)
-                    const updatedOriginalItems = originalOrder.items.map(item => {
-                        const splitItem = itemsToSplit.find(si => si.id === item.id);
-                        if (splitItem) {
-                            return { ...item, quantity: item.quantity - splitItem.quantity };
-                        }
-                        return item;
-                    }).filter(item => item.quantity > 0);
->>>>>>> f73113c3cdad676b71adb671543960d98f7459e8
 
                     // 2. Create new order
                     const newOrder: ActiveOrder = {
@@ -2119,7 +2031,6 @@ const App: React.FC = () => {
                 order={orderForModal as CompletedOrder}
                 onClose={() => setModalState(prev => ({ ...prev, isSplitCompleted: false }))}
                 onConfirmSplit={(itemsToSplit) => {
-<<<<<<< HEAD
                      // FIX: Use cartItemId to correctly update original order items.
                      const originalOrder = orderForModal as CompletedOrder;
                      if (!originalOrder) return;
@@ -2131,16 +2042,6 @@ const App: React.FC = () => {
                         if (typeof splitQuantity === 'number') {
                             return { ...item, quantity: item.quantity - splitQuantity };
                         }
-=======
-                     // Similar logic to SplitBillModal but for completed orders (create new CompletedOrder)
-                     // For simplicity, we might just create a new CompletedOrder with current time
-                     const originalOrder = orderForModal as CompletedOrder;
-                     if (!originalOrder) return;
-
-                     const updatedOriginalItems = originalOrder.items.map(item => {
-                        const splitItem = itemsToSplit.find(si => si.id === item.id);
-                        if (splitItem) return { ...item, quantity: item.quantity - splitItem.quantity };
->>>>>>> f73113c3cdad676b71adb671543960d98f7459e8
                         return item;
                     }).filter(item => item.quantity > 0);
 
@@ -2187,8 +2088,4 @@ const App: React.FC = () => {
     );
 };
 
-<<<<<<< HEAD
 export default App;
-=======
-export default App;
->>>>>>> f73113c3cdad676b71adb671543960d98f7459e8
