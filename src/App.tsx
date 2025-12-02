@@ -1,6 +1,3 @@
-
-
-
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 
 import { 
@@ -612,48 +609,40 @@ const App: React.FC = () => {
         prevLeaveRequestsRef.current = leaveRequests;
     }, [leaveRequests, currentUser]);
 
-    // --- ROBUST Staff Call Notification System ---
+    // --- PERMANENT FIX for Staff Call Notifications ---
     // This single, centralized useEffect manages both audio and visual notifications for staff calls.
     // By handling them in one place, it eliminates race conditions and ensures reliability.
     useEffect(() => {
         const audio = staffCallAudioRef.current;
         const hasPendingCalls = staffCalls.length > 0;
-        // Notifications are only for operational staff (POS, kitchen)
         const canNotify = !isCustomerMode && currentUser && ['pos', 'kitchen'].includes(currentUser.role);
 
-        // --- 1. Audio Management ---
-        // Play audio if there are pending calls and conditions are met.
+        // 1. Audio Management
         if (hasPendingCalls && canNotify && staffCallSoundUrl) {
             if (!audio) {
-                // Create and configure the audio element for the first time
                 const newAudio = new Audio(staffCallSoundUrl);
                 newAudio.loop = true;
                 staffCallAudioRef.current = newAudio;
-                newAudio.play().catch(e => console.error("Error playing staff call sound:", e));
+                newAudio.play().catch(e => console.error("Staff Call Audio Playback Failed:", e));
             } else if (audio.paused) {
-                // If audio exists but is paused, play it.
-                audio.play().catch(e => console.error("Error playing staff call sound:", e));
+                audio.play().catch(e => console.error("Staff Call Audio Playback Failed:", e));
             }
         } else {
-            // Stop audio if there are no calls or conditions are not met.
             if (audio && !audio.paused) {
                 audio.pause();
                 audio.currentTime = 0;
             }
         }
 
-        // --- 2. Visual Notification Management (Swal) ---
-        // This function processes one notification from the queue at a time.
+        // 2. Visual Notification Management (Swal)
         const showNextNotification = async () => {
-            // Guard clauses: exit if a popup is already active or if conditions aren't met.
             if (isNotificationActiveRef.current || !hasPendingCalls || !canNotify) {
                 return;
             }
 
-            // Always process the first call in the queue.
             const callToShow = staffCalls[0];
             
-            isNotificationActiveRef.current = true; // Acquire lock to prevent multiple popups.
+            isNotificationActiveRef.current = true;
             
             const messageText = callToShow.message 
                 ? `<br/><strong class="text-blue-600">${callToShow.message}</strong>` 
@@ -668,22 +657,23 @@ const App: React.FC = () => {
                 allowEscapeKey: false,
             });
 
-            // After user confirms, remove the call from the state.
-            // This will trigger a re-run of the useEffect hook.
             if(swalResult.isConfirmed) {
                 setStaffCalls(prev => prev.filter(call => call.id !== callToShow.id));
-                isNotificationActiveRef.current = false; // Release lock
+                isNotificationActiveRef.current = false;
             }
         };
 
         showNextNotification();
         
-        // The main cleanup function for the component unmount.
+        // 3. Cleanup Logic
         return () => {
             if (staffCallAudioRef.current) {
                 staffCallAudioRef.current.pause();
                 staffCallAudioRef.current.currentTime = 0;
             }
+            // PERMANENT FIX: Ensure the notification lock is always released when the component
+            // unmounts or dependencies change. This prevents the system from getting stuck.
+            isNotificationActiveRef.current = false;
         };
     }, [staffCalls, currentUser, isCustomerMode, staffCallSoundUrl, setStaffCalls]);
 
@@ -756,6 +746,16 @@ const App: React.FC = () => {
         }
 
         if (user) {
+            // FIX: Prime the audio context on user interaction (login). This satisfies browser policy that requires a user gesture before playing audio, preventing the staff call sound from being blocked.
+            if (staffCallSoundUrl) {
+                const audio = new Audio(staffCallSoundUrl);
+                // Attempt to play and immediately pause. This is enough to "unlock" the audio context.
+                // The catch block prevents errors if playback fails for any reason (e.g., bad URL).
+                audio.play().catch(() => {});
+                audio.pause();
+                audio.currentTime = 0;
+            }
+
             setCurrentUser(user);
             localStorage.setItem('currentUser', JSON.stringify(user));
             setIsEditMode(false); // Ensure edit mode is off on login
