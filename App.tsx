@@ -1865,8 +1865,6 @@ const App: React.FC = () => {
                 isEditMode={isEditMode}
                 onOpenSettings={() => setModalState(prev => ({ ...prev, isSettings: true, isPayment: false }))}
                 isConfirmingPayment={isConfirmingPayment}
-                restaurantName={restaurantName}
-                logoUrl={logoUrl}
             />
 
             <PaymentSuccessModal

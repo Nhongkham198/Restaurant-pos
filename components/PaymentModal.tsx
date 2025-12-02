@@ -1,9 +1,6 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import type { ActiveOrder, PaymentDetails } from '../types';
 import Swal from 'sweetalert2';
-import { ReceiptPreview } from './ReceiptPreview';
-
-declare var html2canvas: any;
 
 interface PaymentModalProps {
     isOpen: boolean;
@@ -14,8 +11,6 @@ interface PaymentModalProps {
     isEditMode: boolean; // Not used in payment, but passed down
     onOpenSettings: () => void;
     isConfirmingPayment: boolean;
-    restaurantName: string;
-    logoUrl: string | null;
 }
 
 const NumpadButton: React.FC<{ value: string; onClick: (value: string) => void; className?: string }> = ({ value, onClick, className = '' }) => (
@@ -24,11 +19,9 @@ const NumpadButton: React.FC<{ value: string; onClick: (value: string) => void; 
     </button>
 );
 
-export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, order, onClose, onConfirmPayment, qrCodeUrl, onOpenSettings, isConfirmingPayment, restaurantName, logoUrl }) => {
-    const [step, setStep] = useState<'receipt' | 'payment'>('receipt');
+export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, order, onClose, onConfirmPayment, qrCodeUrl, onOpenSettings, isConfirmingPayment }) => {
     const [paymentMethod, setPaymentMethod] = useState<'cash' | 'transfer'>('cash');
     const [cashReceived, setCashReceived] = useState('');
-    const receiptRef = useRef<HTMLDivElement>(null);
 
     const total = useMemo(() => {
         if (!order) return 0;
@@ -62,7 +55,6 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, order, onClo
         if (isOpen) {
             setCashReceived(''); // Start with empty string
             setPaymentMethod('cash');
-            setStep('receipt'); // Reset to receipt view
         }
     }, [isOpen, order]);
 
@@ -100,149 +92,112 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, order, onClo
         }
     };
 
-    const handleSaveEReceipt = () => {
-        if (receiptRef.current) {
-            html2canvas(receiptRef.current).then((canvas) => {
-                const link = document.createElement('a');
-                link.download = `receipt-${order?.orderNumber}.png`;
-                link.href = canvas.toDataURL('image/png');
-                link.click();
-                setStep('payment');
-            }).catch(err => {
-                console.error("Error generating e-receipt:", err);
-                Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถสร้าง E-Receipt ได้', 'error');
-                setStep('payment');
-            });
-        } else {
-            setStep('payment');
-        }
-    };
-
     return (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4" onClick={onClose}>
             <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl transform transition-all flex flex-col" style={{maxHeight: '95vh'}} onClick={e => e.stopPropagation()}>
                 <header className="p-6 border-b bg-gray-50 rounded-t-lg">
-                    <h3 className="text-2xl font-bold text-gray-800 text-center">{step === 'receipt' ? 'ตรวจสอบใบเสร็จ (E-Receipt)' : 'ชำระเงิน'}</h3>
+                    <h3 className="text-2xl font-bold text-gray-800 text-center">ชำระเงิน</h3>
                     <p className="text-base text-gray-500 text-center mt-1">ออเดอร์ #{order.orderNumber}</p>
                 </header>
-                {step === 'receipt' ? (
-                    <>
-                        <div className="flex-1 overflow-y-auto">
-                            <ReceiptPreview refProp={receiptRef} order={order} restaurantName={restaurantName} logoUrl={logoUrl} />
+                
+                <main className="flex-1 overflow-y-auto p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
+                    {/* Left side: Order details */}
+                    <div className="flex flex-col">
+                        <div className="mb-4 space-y-2 p-4 border rounded-lg bg-gray-50">
+                            <div className="flex justify-between text-lg text-gray-700">
+                                <span>ยอดรวม (ก่อนภาษี)</span>
+                                <span className="font-mono">{subtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })} ฿</span>
+                            </div>
+                            {order.taxAmount > 0 && (
+                                <div className="flex justify-between text-lg text-gray-700">
+                                    <span>ภาษี ({order.taxRate}%)</span>
+                                    <span className="font-mono">{order.taxAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} ฿</span>
+                                </div>
+                            )}
+                            <div className="flex justify-between text-3xl font-bold text-blue-600 pt-2 border-t-2 border-dashed border-gray-300">
+                                <span>ยอดสุทธิ</span>
+                                <span className="font-mono">{total.toLocaleString(undefined, { minimumFractionDigits: 2 })} ฿</span>
+                            </div>
                         </div>
-                        <footer className="p-4 bg-gray-50 rounded-b-lg grid grid-cols-2 gap-4">
-                            <button onClick={() => setStep('payment')} className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-3 px-4 rounded-lg transition-colors text-base">ข้าม & ชำระเงินเลย</button>
-                            <button onClick={handleSaveEReceipt} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition-colors text-base flex justify-center items-center gap-2">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                    <path d="M5.5 13a3.5 3.5 0 01-.369-6.98 4 4 0 117.738 0A3.5 3.5 0 0114.5 13H5.5z" />
-                                    <path d="M9 13.5a1 1 0 011 1v1.5a1 1 0 11-2 0V14.5a1 1 0 011-1z" />
-                                </svg>
-                                บันทึก & ชำระเงิน
-                            </button>
-                        </footer>
-                    </>
-                ) : (
-                    <>
-                        <main className="flex-1 overflow-y-auto p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
-                            {/* Left side: Order details */}
-                            <div className="flex flex-col">
-                                <div className="mb-4 space-y-2 p-4 border rounded-lg bg-gray-50">
-                                    <div className="flex justify-between text-lg text-gray-700">
-                                        <span>ยอดรวม (ก่อนภาษี)</span>
-                                        <span className="font-mono">{subtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })} ฿</span>
-                                    </div>
-                                    {order.taxAmount > 0 && (
-                                        <div className="flex justify-between text-lg text-gray-700">
-                                            <span>ภาษี ({order.taxRate}%)</span>
-                                            <span className="font-mono">{order.taxAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} ฿</span>
-                                        </div>
+                        <div className="border rounded-lg p-4 bg-white flex-1 overflow-y-auto">
+                            <h4 className="text-lg font-semibold text-gray-700 mb-3">รายการอาหาร</h4>
+                            <ul className="space-y-2">
+                                {order.items.map(item => (
+                                     <li key={item.cartItemId} className="flex justify-between text-base text-gray-700 py-1">
+                                        <span className="pr-2">{item.quantity}x {item.name} {item.isTakeaway && <span className="text-purple-600 text-sm font-medium">(กลับบ้าน)</span>}</span>
+                                        <span className="font-mono flex-shrink-0">{(item.quantity * item.finalPrice).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    </div>
+
+                    {/* Right side: Payment method */}
+                    <div>
+                        <div className="grid grid-cols-2 gap-2 mb-4">
+                            <button onClick={() => setPaymentMethod('cash')} className={`py-3 px-4 rounded-lg text-base font-semibold transition-colors ${paymentMethod === 'cash' ? 'bg-blue-600 text-white' : 'bg-gray-200 hover:bg-gray-300'}`}>เงินสด</button>
+                            <button onClick={() => setPaymentMethod('transfer')} className={`py-3 px-4 rounded-lg text-base font-semibold transition-colors ${paymentMethod === 'transfer' ? 'bg-blue-600 text-white' : 'bg-gray-200 hover:bg-gray-300'}`}>โอนจ่าย</button>
+                        </div>
+
+                        {paymentMethod === 'cash' ? (
+                            <div className="space-y-3">
+                                <div className="p-3 border rounded-lg text-right bg-gray-100">
+                                    <label className="text-sm text-gray-500">รับเงินมา</label>
+                                    <p className="text-4xl font-mono font-bold text-gray-800 h-12">{(parseFloat(cashReceived) || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                                </div>
+                                
+                                <div className="grid grid-cols-3 gap-2 pt-2">
+                                    {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map(val => 
+                                        <NumpadButton key={val} value={val} onClick={handleNumpadInput} />
                                     )}
-                                    <div className="flex justify-between text-3xl font-bold text-blue-600 pt-2 border-t-2 border-dashed border-gray-300">
-                                        <span>ยอดสุทธิ</span>
-                                        <span className="font-mono">{total.toLocaleString(undefined, { minimumFractionDigits: 2 })} ฿</span>
-                                    </div>
+                                     <NumpadButton value="C" onClick={handleNumpadInput} className="text-red-600" />
+                                     <NumpadButton value="0" onClick={handleNumpadInput} />
+                                     <NumpadButton value="." onClick={handleNumpadInput} />
                                 </div>
-                                <div className="border rounded-lg p-4 bg-white flex-1 overflow-y-auto">
-                                    <h4 className="text-lg font-semibold text-gray-700 mb-3">รายการอาหาร</h4>
-                                    <ul className="space-y-2">
-                                        {order.items.map(item => (
-                                             <li key={item.cartItemId} className="flex justify-between text-base text-gray-700 py-1">
-                                                <span className="pr-2">{item.quantity}x {item.name} {item.isTakeaway && <span className="text-purple-600 text-sm font-medium">(กลับบ้าน)</span>}</span>
-                                                <span className="font-mono flex-shrink-0">{(item.quantity * item.finalPrice).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                                            </li>
-                                        ))}
-                                    </ul>
+                                 <div className="grid grid-cols-1">
+                                     <button onClick={() => handleNumpadInput('backspace')} className="py-3 text-xl font-bold text-gray-800 bg-gray-200 rounded-lg hover:bg-gray-300 flex items-center justify-center">
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2M3 12l6.414 6.414a2 2 0 002.828 0L21 12M3 12l6.414-6.414a2 2 0 012.828 0L21 12" /></svg>
+                                    </button>
+                                 </div>
+                                <div className="flex justify-between items-center text-xl p-3 bg-green-50 rounded-lg">
+                                    <span className="font-medium text-green-800">เงินทอน</span>
+                                    <span className="font-bold text-green-700 font-mono text-3xl">{changeGiven.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ฿</span>
                                 </div>
                             </div>
-
-                            {/* Right side: Payment method */}
-                            <div>
-                                <div className="grid grid-cols-2 gap-2 mb-4">
-                                    <button onClick={() => setPaymentMethod('cash')} className={`py-3 px-4 rounded-lg text-base font-semibold transition-colors ${paymentMethod === 'cash' ? 'bg-blue-600 text-white' : 'bg-gray-200 hover:bg-gray-300'}`}>เงินสด</button>
-                                    <button onClick={() => setPaymentMethod('transfer')} className={`py-3 px-4 rounded-lg text-base font-semibold transition-colors ${paymentMethod === 'transfer' ? 'bg-blue-600 text-white' : 'bg-gray-200 hover:bg-gray-300'}`}>โอนจ่าย</button>
-                                </div>
-
-                                {paymentMethod === 'cash' ? (
-                                    <div className="space-y-3">
-                                        <div className="p-3 border rounded-lg text-right bg-gray-100">
-                                            <label className="text-sm text-gray-500">รับเงินมา</label>
-                                            <p className="text-4xl font-mono font-bold text-gray-800 h-12">{(parseFloat(cashReceived) || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
-                                        </div>
-                                        
-                                        <div className="grid grid-cols-3 gap-2 pt-2">
-                                            {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map(val => 
-                                                <NumpadButton key={val} value={val} onClick={handleNumpadInput} />
-                                            )}
-                                             <NumpadButton value="C" onClick={handleNumpadInput} className="text-red-600" />
-                                             <NumpadButton value="0" onClick={handleNumpadInput} />
-                                             <NumpadButton value="." onClick={handleNumpadInput} />
-                                        </div>
-                                         <div className="grid grid-cols-1">
-                                             <button onClick={() => handleNumpadInput('backspace')} className="py-3 text-xl font-bold text-gray-800 bg-gray-200 rounded-lg hover:bg-gray-300 flex items-center justify-center">
-                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2M3 12l6.414 6.414a2 2 0 002.828 0L21 12M3 12l6.414-6.414a2 2 0 012.828 0L21 12" /></svg>
-                                            </button>
-                                         </div>
-                                        <div className="flex justify-between items-center text-xl p-3 bg-green-50 rounded-lg">
-                                            <span className="font-medium text-green-800">เงินทอน</span>
-                                            <span className="font-bold text-green-700 font-mono text-3xl">{changeGiven.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ฿</span>
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <div className="text-center">
-                                        {qrCodeUrl ? (
-                                            <>
-                                                <p className="text-gray-600 mb-2">สแกน QR Code เพื่อชำระเงิน</p>
-                                                <img src={qrCodeUrl} alt="QR Code" className="mx-auto w-48 h-48 rounded-lg border p-1" />
-                                            </>
-                                        ) : (
-                                            <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-yellow-800">
-                                                <p>ยังไม่ได้ตั้งค่า QR Code</p>
-                                                <button onClick={onOpenSettings} className="mt-2 text-sm font-semibold underline">ไปที่ตั้งค่า</button>
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
-                            </div>
-                        </main>
-
-                        <footer className="p-4 bg-gray-50 rounded-b-lg grid grid-cols-2 gap-4">
-                             <button onClick={onClose} className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-3 px-4 rounded-lg transition-colors text-base">ยกเลิก</button>
-                             <button onClick={handleConfirm} disabled={isConfirmDisabled || isConfirmingPayment} className="bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed text-base flex justify-center items-center">
-                                {isConfirmingPayment ? (
+                        ) : (
+                            <div className="text-center">
+                                {qrCodeUrl ? (
                                     <>
-                                        <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                        </svg>
-                                        กำลังดำเนินการ...
+                                        <p className="text-gray-600 mb-2">สแกน QR Code เพื่อชำระเงิน</p>
+                                        <img src={qrCodeUrl} alt="QR Code" className="mx-auto w-48 h-48 rounded-lg border p-1" />
                                     </>
                                 ) : (
-                                    'ยืนยันการชำระเงิน'
+                                    <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-yellow-800">
+                                        <p>ยังไม่ได้ตั้งค่า QR Code</p>
+                                        <button onClick={onOpenSettings} className="mt-2 text-sm font-semibold underline">ไปที่ตั้งค่า</button>
+                                    </div>
                                 )}
-                             </button>
-                        </footer>
-                    </>
-                )}
+                            </div>
+                        )}
+                    </div>
+                </main>
+
+                <footer className="p-4 bg-gray-50 rounded-b-lg grid grid-cols-2 gap-4">
+                     <button onClick={onClose} className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-3 px-4 rounded-lg transition-colors text-base">ยกเลิก</button>
+                     <button onClick={handleConfirm} disabled={isConfirmDisabled || isConfirmingPayment} className="bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed text-base flex justify-center items-center">
+                        {isConfirmingPayment ? (
+                            <>
+                                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                กำลังดำเนินการ...
+                            </>
+                        ) : (
+                            'ยืนยันการชำระเงิน'
+                        )}
+                     </button>
+                </footer>
             </div>
         </div>
     );
