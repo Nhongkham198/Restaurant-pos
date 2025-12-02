@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import type { MenuItem, Table, OrderItem, ActiveOrder, StaffCall } from '../types';
 import { Menu } from './Menu';

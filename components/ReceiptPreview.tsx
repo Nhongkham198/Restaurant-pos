@@ -1,4 +1,3 @@
-
 import React from 'react';
 import type { ActiveOrder } from '../types';
 
@@ -19,8 +18,7 @@ export const ReceiptPreview: React.FC<ReceiptPreviewProps> = ({ order, restauran
     <div ref={refProp} className="bg-white p-6 text-black">
       {/* Header */}
       <div className="text-center mb-6">
-        {/* FIX: Add crossOrigin="anonymous" to allow html2canvas to render the image from another domain. */}
-        {logoUrl && <img src={logoUrl} alt="Logo" className="h-16 w-auto mx-auto mb-4" crossOrigin="anonymous" />}
+        {logoUrl && <img src={logoUrl} alt="Logo" className="h-16 w-auto mx-auto mb-4" />}
         <h2 className="text-2xl font-bold">{restaurantName}</h2>
         <p className="text-sm text-gray-600">E-Receipt</p>
       </div>

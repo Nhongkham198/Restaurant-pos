@@ -1,6 +1,4 @@
 
-
-// FIX: Update imports to use v9 compat mode to make namespaced APIs available.
 import firebase from "firebase/compat/app";
 import "firebase/compat/firestore";
 import "firebase/compat/functions";
@@ -29,14 +27,13 @@ let functions: any = null; // Initialize functions as null
 
 if (isFirebaseConfigured) {
   try {
+    // FIX: Switched to v8 initialization syntax to resolve module loading error.
     if (!firebase.apps.length) {
       app = firebase.initializeApp(firebaseConfig);
     } else {
       app = firebase.app();
     }
     db = firebase.firestore();
-    // FIX: Enable long polling to prevent "Could not reach Cloud Firestore backend" errors
-    db.settings({ experimentalForceLongPolling: true });
     functions = firebase.functions();
   } catch (e) {
     console.error("Error initializing Firebase. Please check your config.", e);

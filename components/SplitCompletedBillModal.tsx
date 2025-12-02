@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect } from 'react';
 import type { OrderItem, CompletedOrder } from '../types';
 
@@ -10,8 +11,7 @@ interface SplitCompletedBillModalProps {
 }
 
 export const SplitCompletedBillModal: React.FC<SplitCompletedBillModalProps> = ({ isOpen, order, onClose, onConfirmSplit }) => {
-    // FIX: Use cartItemId (string) as the key for the map to ensure uniqueness for items with options.
-    const [itemsToSplit, setItemsToSplit] = useState<Map<string, number>>(new Map());
+    const [itemsToSplit, setItemsToSplit] = useState<Map<number, number>>(new Map());
 
     useEffect(() => {
         if (order) {
@@ -19,18 +19,18 @@ export const SplitCompletedBillModal: React.FC<SplitCompletedBillModalProps> = (
         }
     }, [order]);
 
-    // FIX: Update function signature to use cartItemId and originalQuantity for accurate clamping.
-    const handleQuantityChange = (cartItemId: string, originalQuantity: number, newQuantity: number) => {
-        const clampedQuantity = Math.max(0, Math.min(newQuantity, originalQuantity));
+    const handleQuantityChange = (itemId: number, newQuantity: number) => {
+        const originalItem = order?.items.find(item => item.id === itemId);
+        if (!originalItem) return;
+
+        const clampedQuantity = Math.max(0, Math.min(newQuantity, originalItem.quantity));
 
         setItemsToSplit(prevMap => {
             const newMap = new Map(prevMap);
             if (clampedQuantity > 0) {
-                // FIX: Use cartItemId as the key.
-                newMap.set(cartItemId, clampedQuantity);
+                newMap.set(itemId, clampedQuantity);
             } else {
-                // FIX: Use cartItemId to delete from the map.
-                newMap.delete(cartItemId);
+                newMap.delete(itemId);
             }
             return newMap;
         });
@@ -40,10 +40,8 @@ export const SplitCompletedBillModal: React.FC<SplitCompletedBillModalProps> = (
         if (!order) return;
         
         const splitItemsArray: OrderItem[] = [];
-        // FIX: Iterate through the map using the correct cartItemId key.
-        itemsToSplit.forEach((quantity, cartItemId) => {
-            // FIX: Find the original item using its unique cartItemId.
-            const originalItem = order.items.find(item => item.cartItemId === cartItemId);
+        itemsToSplit.forEach((quantity, itemId) => {
+            const originalItem = order.items.find(item => item.id === itemId);
             if (originalItem) {
                 splitItemsArray.push({ ...originalItem, quantity });
             }
@@ -56,6 +54,7 @@ export const SplitCompletedBillModal: React.FC<SplitCompletedBillModalProps> = (
         }
     };
 
+    // FIX: Add isOpen check to prevent rendering when not open
     if (!isOpen || !order) return null;
 
     return (
@@ -70,11 +69,9 @@ export const SplitCompletedBillModal: React.FC<SplitCompletedBillModalProps> = (
                 
                 <div className="p-6 space-y-4 overflow-y-auto flex-1">
                     {order.items.map(item => {
-                        // FIX: Get quantity to split using unique cartItemId.
-                        const quantityToSplit = itemsToSplit.get(item.cartItemId) || 0;
+                        const quantityToSplit = itemsToSplit.get(item.id) || 0;
                         return (
-                            // FIX: Use unique cartItemId for the key.
-                            <div key={item.cartItemId} className="flex items-center bg-gray-50 p-3 rounded-lg">
+                            <div key={item.id} className="flex items-center bg-gray-50 p-3 rounded-lg">
                                 <img src={item.imageUrl} alt={item.name} className="w-14 h-14 rounded-md object-cover mr-4" />
                                 <div className="flex-grow">
                                     <p className="font-semibold text-gray-800">{item.name}</p>
@@ -82,16 +79,14 @@ export const SplitCompletedBillModal: React.FC<SplitCompletedBillModalProps> = (
                                 </div>
                                 <div className="flex items-center gap-2 text-gray-800">
                                     <button
-                                        // FIX: Pass cartItemId, original quantity, and new quantity to the handler.
-                                        onClick={() => handleQuantityChange(item.cartItemId, item.quantity, quantityToSplit - 1)}
+                                        onClick={() => handleQuantityChange(item.id, quantityToSplit - 1)}
                                         className="w-8 h-8 rounded-full bg-gray-200 hover:bg-gray-300 transition-colors flex items-center justify-center font-bold"
                                     >
                                         -
                                     </button>
                                     <span className="w-10 text-center font-bold text-lg">{quantityToSplit}</span>
                                     <button
-                                        // FIX: Pass cartItemId, original quantity, and new quantity to the handler.
-                                        onClick={() => handleQuantityChange(item.cartItemId, item.quantity, quantityToSplit + 1)}
+                                        onClick={() => handleQuantityChange(item.id, quantityToSplit + 1)}
                                         className="w-8 h-8 rounded-full bg-gray-200 hover:bg-gray-300 transition-colors flex items-center justify-center font-bold"
                                     >
                                         +

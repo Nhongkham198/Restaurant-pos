@@ -1,4 +1,3 @@
-
 import { functions } from '../firebaseConfig';
 import type { PaymentDetails, OrderItem, LeaveRequest, StockItem } from '../types';
 
