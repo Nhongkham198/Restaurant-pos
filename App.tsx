@@ -375,7 +375,7 @@ const App: React.FC = () => {
     // --- AUDITOR VIEW ENFORCEMENT ---
     useEffect(() => {
         if (currentUser?.role === 'auditor') {
-            const allowedViews: View[] = ['dashboard', 'history'];
+            const allowedViews: View[] = ['dashboard', 'history', 'leave'];
             if (!allowedViews.includes(currentView)) {
                 setCurrentView('dashboard');
             }
@@ -1155,6 +1155,110 @@ const App: React.FC = () => {
         Swal.fire('รวมบิลสำเร็จ!', 'รายการอาหารถูกรวมเรียบร้อยแล้ว', 'success');
     };
 
+    const handleDeleteHistory = (completedIdsToDelete: number[], cancelledIdsToDelete: number[], printIdsToDelete: number[]) => {
+        if (!currentUser) return;
+
+        // --- Completed Orders ---
+        if (completedIdsToDelete.length > 0) {
+            if (currentUser.role === 'admin') {
+                // Admin: Hard Delete
+                setCompletedOrders(prev => prev.filter(o => !completedIdsToDelete.includes(o.id)));
+            } else {
+                // Other roles (e.g., branch-admin): Soft Delete
+                setCompletedOrders(prev => prev.map(order => {
+                    if (completedIdsToDelete.includes(order.id)) {
+                        return {
+                            ...order,
+                            isHidden: true,
+                            hiddenInfo: {
+                                hiddenAt: Date.now(),
+                                hiddenBy: currentUser.username,
+                                hiddenById: currentUser.id,
+                            }
+                        };
+                    }
+                    return order;
+                }));
+            }
+        }
+
+        // --- Cancelled Orders & Print History (Always Hard Delete) ---
+        if (cancelledIdsToDelete.length > 0) {
+            setCancelledOrders(prev => prev.filter(o => !cancelledIdsToDelete.includes(o.id)));
+        }
+        if (printIdsToDelete.length > 0) {
+            setPrintHistory(prev => prev.filter(p => !printIdsToDelete.includes(p.id)));
+        }
+    };
+
+
+    const handleSaveLeaveRequest = async (req: Omit<LeaveRequest, 'id' | 'status' | 'branchId'>) => {
+        if (!selectedBranch && currentUser?.role !== 'admin') {
+             Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถระบุสาขาได้', 'error');
+             return;
+        }
+        const payload: SubmitLeaveRequestPayload = {
+            ...req,
+            branchId: currentUser?.role === 'admin' ? 1 : (selectedBranch?.id || 1) // Admin defaults to branch 1 if none selected
+        };
+    
+        // Optimistic update
+        const tempId = Date.now();
+        const newReq: LeaveRequest = { ...payload, id: tempId, status: 'pending' };
+        setLeaveRequests(prev => [...prev, newReq]);
+    
+        try {
+            const response = await functionsService.submitLeaveRequest(payload);
+            if (!response || !response.success) {
+                throw new Error(response?.error || "Backend returned failure");
+            }
+            // Optional: You could update the tempId with the real ID from the backend if it returns one.
+        } catch (e: any) {
+            console.warn("Backend save for leave request failed, falling back to local.", e.message);
+            // The optimistic update is our fallback. We can show a toast.
+             Swal.fire({ toast: true, position: 'top-end', icon: 'warning', title: 'ไม่สามารถซิงค์ข้อมูลวันลาได้ (Offline)', showConfirmButton: false, timer: 3000 });
+        }
+        
+        setModalState(prev => ({ ...prev, isLeaveRequest: false }));
+        Swal.fire('ส่งคำขอแล้ว', 'คำขอวันลาของคุณถูกส่งแล้ว รอการอนุมัติ', 'success');
+    };
+    
+    const handleUpdateLeaveStatus = async (id: number, status: 'approved' | 'rejected') => {
+        // Optimistic update
+        setLeaveRequests(prev => prev.map(req => req.id === id ? { ...req, status } : req));
+    
+        try {
+            if (!currentUser) throw new Error("User not found");
+            const response = await functionsService.updateLeaveStatus({ requestId: id, status, approverId: currentUser.id });
+             if (!response || !response.success) {
+                throw new Error(response?.error || "Backend returned failure");
+            }
+        } catch (e: any) {
+             console.warn("Backend update for leave status failed, relying on local update.", e.message);
+            // Revert state if backend fails
+            // setLeaveRequests(prev => prev.map(req => req.id === id ? { ...req, status: 'pending' } : req)); 
+            // Note: We don't revert to avoid a confusing UX. A warning is better.
+            Swal.fire({ toast: true, position: 'top-end', icon: 'warning', title: 'ไม่สามารถซิงค์การอนุมัติได้ (Offline)', showConfirmButton: false, timer: 3000 });
+        }
+    };
+    
+    const handleDeleteLeaveRequest = async (id: number) => {
+        try {
+            const response = await functionsService.deleteLeaveRequest({ requestId: id });
+            if (!response || !response.success) {
+                 throw new Error(response?.error || "Backend returned failure");
+            }
+             setLeaveRequests(prev => prev.filter(req => req.id !== id));
+             return true;
+        } catch (e: any) {
+             console.warn("Backend delete for leave request failed, falling back to local.", e.message);
+             // Fallback to local delete
+             setLeaveRequests(prev => prev.filter(req => req.id !== id));
+             return true;
+        }
+    };
+    
+
     // Missing local handlers for POS
     const handleQuantityChange = (cartItemId: string, newQuantity: number) => {
         if (newQuantity <= 0) {
@@ -1245,7 +1349,7 @@ const App: React.FC = () => {
                 { id: 'dashboard', label: 'Dashboard', icon: <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>, view: 'dashboard' as View },
                 { id: 'history', label: 'ประวัติ', icon: <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>, view: 'history' as View },
                 { id: 'stock', label: 'สต็อก', icon: <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>, view: 'stock' as View, disabled: currentUser?.role === 'auditor' },
-                { id: 'leave', label: 'วันลา', icon: <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>, view: 'leave' as View, disabled: currentUser?.role === 'auditor' },
+                { id: 'leave', label: 'วันลา', icon: <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>, view: 'leave' as View },
                 { id: 'settings', label: 'ตั้งค่า', icon: <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924-1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /></svg>, onClick: () => setModalState(prev => ({ ...prev, isSettings: true })), disabled: currentUser?.role === 'auditor' },
                 { id: 'logout', label: 'ออกจากระบบ', icon: <svg className="w-5 h-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>, onClick: handleLogout }
             ].filter(item => !item.disabled)
@@ -1620,35 +1724,7 @@ const App: React.FC = () => {
                                 setOrderForModal(order);
                                 setModalState(prev => ({ ...prev, isCashBill: true }));
                             }}
-                            onDeleteHistory={(compIds, cancIds, printIds) => {
-                                if (!currentUser) return;
-                    
-                                // Role-based deletion for completed orders
-                                if (currentUser.role === 'admin') {
-                                    // Admin: Hard Delete for completed orders
-                                    setCompletedOrders(prev => prev.filter(o => !compIds.includes(o.id)));
-                                } else {
-                                    // Other roles (like branch-admin): Soft Delete for completed orders
-                                    setCompletedOrders(prev => prev.map(order => {
-                                        if (compIds.includes(order.id)) {
-                                            return {
-                                                ...order,
-                                                isHidden: true,
-                                                hiddenInfo: {
-                                                    hiddenAt: Date.now(),
-                                                    hiddenBy: currentUser.username,
-                                                    hiddenById: currentUser.id,
-                                                }
-                                            };
-                                        }
-                                        return order;
-                                    }));
-                                }
-                                
-                                // Hard delete for cancelled orders and print history remains for everyone with edit rights
-                                setCancelledOrders(prev => prev.filter(o => !cancIds.includes(o.id)));
-                                setPrintHistory(prev => prev.filter(p => !printIds.includes(p.id)));
-                            }}
+                            onDeleteHistory={handleDeleteHistory}
                              onVoidOrder={handleVoidCompletedOrder}
                              currentUser={currentUser}
                         />
@@ -1674,37 +1750,8 @@ const App: React.FC = () => {
                                 setModalState(prev => ({ ...prev, isLeaveRequest: true }));
                             }}
                             branches={branches}
-                            onUpdateStatus={async (id, status) => {
-                                // Optimistic update
-                                setLeaveRequests(prev => prev.map(req => req.id === id ? { ...req, status } : req));
-                                // Backend call with fallback
-                                try {
-                                    if (!currentUser) throw new Error("User not found");
-                                    const response = await functionsService.updateLeaveStatus({ requestId: id, status, approverId: currentUser.id });
-                                    if (!response || !response.success) {
-                                        throw new Error(response.error || "Backend returned failure");
-                                    }
-                                } catch (e: any) {
-                                    console.warn("Backend update for leave status failed, relying on local update.", e.message);
-                                    // State is already updated locally, so no need to revert.
-                                    // A small toast could inform the user if the app is offline.
-                                    Swal.fire({ toast: true, position: 'top-end', icon: 'warning', title: 'ไม่สามารถซิงค์การอนุมัติได้', showConfirmButton: false, timer: 2000 });
-                                }
-                            }}
-                            onDeleteRequest={async (id) => {
-                                try {
-                                    const response = await functionsService.deleteLeaveRequest({ requestId: id });
-                                    if (!response || !response.success) {
-                                        throw new Error(response.error || "Backend returned failure");
-                                    }
-                                    setLeaveRequests(prev => prev.filter(req => req.id !== id));
-                                    return true;
-                                } catch (e: any) {
-                                     console.warn("Backend delete for leave request failed, falling back to local.", e.message);
-                                     setLeaveRequests(prev => prev.filter(req => req.id !== id));
-                                     return true; // Assume success for local fallback
-                                }
-                            }}
+                            onUpdateStatus={handleUpdateLeaveStatus}
+                            onDeleteRequest={handleDeleteLeaveRequest}
                             selectedBranch={selectedBranch}
                         />
                     )}
@@ -1811,6 +1858,8 @@ const App: React.FC = () => {
                 isEditMode={isEditMode}
                 onOpenSettings={() => setModalState(prev => ({ ...prev, isSettings: true, isPayment: false }))}
                 isConfirmingPayment={isConfirmingPayment}
+                restaurantName={restaurantName}
+                logoUrl={logoUrl}
             />
 
             <PaymentSuccessModal
@@ -1999,34 +2048,7 @@ const App: React.FC = () => {
                 currentUser={currentUser}
                 leaveRequests={leaveRequests}
                 initialDate={leaveRequestInitialDate}
-                onSave={async (req) => {
-                    if (!selectedBranch && currentUser.role !== 'admin') return; 
-                    const payload: SubmitLeaveRequestPayload = {
-                        ...req,
-                        branchId: currentUser.role === 'admin' ? 1 : (selectedBranch?.id || 1) // Admin defaults to 1 if no branch selected
-                    };
-                    // Optimistic update
-                    const newReq: LeaveRequest = {
-                        ...payload,
-                        id: Date.now(), // Temporary ID, will be overwritten by backend if successful
-                        status: 'pending',
-                    };
-                    setLeaveRequests(prev => [...prev, newReq]);
-
-                    try {
-                        const response = await functionsService.submitLeaveRequest(payload);
-                        if (!response || !response.success) {
-                             throw new Error(response.error || "Backend returned failure");
-                        }
-                        // Optionally, you could re-sync from the server here or update the temp ID
-                    } catch(e: any) {
-                        console.warn("Backend save for leave request failed. Relying on local update.", e.message);
-                        Swal.fire({ toast: true, position: 'top-end', icon: 'warning', title: 'ไม่สามารถซิงค์ข้อมูลวันลาได้', showConfirmButton: false, timer: 2000 });
-                    }
-                    
-                    setModalState(prev => ({ ...prev, isLeaveRequest: false }));
-                    Swal.fire('ส่งคำขอแล้ว', 'คำขอวันลาของคุณถูกส่งแล้ว รอการอนุมัติ', 'success');
-                }}
+                onSave={handleSaveLeaveRequest}
             />
 
             <MenuSearchModal
