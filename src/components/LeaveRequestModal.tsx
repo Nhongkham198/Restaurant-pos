@@ -1,5 +1,8 @@
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> 70520eec38d1dd20287b3330fce7fc34596218cd
 import React, { useState, useMemo, useEffect } from 'react';
 import type { LeaveRequest, User } from '../types';
 import Swal from 'sweetalert2';
@@ -232,4 +235,8 @@ export const LeaveRequestModal: React.FC<LeaveRequestModalProps> = ({ isOpen, on
             </div>
         </div>
     );
+<<<<<<< HEAD
 };
+=======
+};
+>>>>>>> 70520eec38d1dd20287b3330fce7fc34596218cd

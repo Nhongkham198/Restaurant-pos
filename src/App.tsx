@@ -35,9 +35,11 @@ import type {
 import { useFirestoreSync } from './hooks/useFirestoreSync';
 import { functionsService } from './services/firebaseFunctionsService';
 import { printerService } from './services/printerService';
-// FIX: Correct Firebase v8 compatibility imports for 'app' and 'messaging'.
+// FIX: Correct Firebase imports to match importmap keys (v9 compat)
 import firebase from 'firebase/compat/app';
 import 'firebase/compat/messaging';
+// FIX: Add firestore compat import to correctly type Firestore-related objects and methods.
+import 'firebase/compat/firestore';
 import { isFirebaseConfigured, db } from './firebaseConfig';
 // FIX: Removed unused v9 firestore and messaging imports
 // import { doc, runTransaction } from 'firebase/firestore';
@@ -260,8 +262,8 @@ const App: React.FC = () => {
     // --- REFS ---
     const prevActiveOrdersRef = useRef<ActiveOrder[] | undefined>(undefined);
     const prevLeaveRequestsRef = useRef<LeaveRequest[] | undefined>(undefined);
-    const notifiedCallIdsRef = useRef<Set<number>>(new Set());
     const staffCallAudioRef = useRef<HTMLAudioElement | null>(null);
+    const isNotificationActiveRef = useRef(false);
     const prevUserRef = useRef<User | null>(null);
 
     // --- SESSION PERSISTENCE ---
@@ -324,7 +326,6 @@ const App: React.FC = () => {
 
 
     // --- CUSTOMER MODE INITIALIZATION ---
-    // Part 1: Detect customer mode from URL on initial load. Runs only once.
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
         if (params.get('mode') === 'customer' && params.get('tableId')) {
@@ -333,18 +334,25 @@ const App: React.FC = () => {
         }
     }, []);
 
-    // Part 2: Auto-select branch for customer mode once branch data is available AND persist it.
     useEffect(() => {
-        // This effect runs when isCustomerMode, branches, or selectedBranch changes.
-        // It ensures that if we are in customer mode and branches are loaded,
-        // the correct branch is selected, preventing a race condition on refresh.
         if (isCustomerMode && !selectedBranch && branches.length > 0) {
-            // For customer mode, assuming a single branch setup for simplicity.
-            // In a multi-branch setup, the branch ID would need to be in the URL.
-            const branchForCustomer = branches[0];
-            setSelectedBranch(branchForCustomer);
-            // Persist this choice specifically for customer mode to solve refresh issues
-            localStorage.setItem('customerSelectedBranch', JSON.stringify(branchForCustomer));
+            const params = new URLSearchParams(window.location.search);
+            const urlBranchId = params.get('branchId');
+            let branchForCustomer: Branch | undefined;
+
+            if (urlBranchId) {
+                branchForCustomer = branches.find(b => b.id === Number(urlBranchId));
+            }
+            
+            if (!branchForCustomer) {
+                console.warn("Branch ID not found in URL for customer mode, defaulting to first branch.");
+                branchForCustomer = branches[0];
+            }
+            
+            if (branchForCustomer) {
+                setSelectedBranch(branchForCustomer);
+                localStorage.setItem('customerSelectedBranch', JSON.stringify(branchForCustomer));
+            }
         }
     }, [isCustomerMode, branches, selectedBranch]);
 
@@ -611,6 +619,7 @@ const App: React.FC = () => {
         prevLeaveRequestsRef.current = leaveRequests;
     }, [leaveRequests, currentUser]);
 
+<<<<<<< HEAD
     // --- STAFF CALL NOTIFICATION & SOUND EFFECT (REFACTORED) ---
     useEffect(() => {
         // This single effect manages both audio and visual notifications for staff calls.
@@ -622,17 +631,33 @@ const App: React.FC = () => {
         const shouldPlayAudio = relevantCalls.length > 0 && staffCallSoundUrl && !isCustomerMode && currentUser && ['pos', 'kitchen'].includes(currentUser.role);
         
         if (shouldPlayAudio) {
+=======
+    // --- 100% RELIABLE STAFF CALL NOTIFICATION LOGIC ---
+    // This consolidated effect manages both audio and visual notifications to prevent race conditions.
+    useEffect(() => {
+        const hasPendingCalls = staffCalls.length > 0;
+        const canNotify = !isCustomerMode && currentUser && ['pos', 'kitchen'].includes(currentUser.role);
+
+        // --- 1. Audio Management ---
+        if (canNotify && hasPendingCalls && staffCallSoundUrl) {
+>>>>>>> 70520eec38d1dd20287b3330fce7fc34596218cd
             if (!staffCallAudioRef.current) {
                 staffCallAudioRef.current = new Audio(staffCallSoundUrl);
                 staffCallAudioRef.current.loop = true;
             }
-            if (staffCallAudioRef.current.paused) {
-                staffCallAudioRef.current.play().catch(e => console.error("Error playing staff call sound:", e));
+            if (staffCallAudioRef.current.src !== staffCallSoundUrl) {
+                staffCallAudioRef.current.src = staffCallSoundUrl;
             }
-        } else if (staffCallAudioRef.current && !staffCallAudioRef.current.paused) {
-            staffCallAudioRef.current.pause();
-            staffCallAudioRef.current.currentTime = 0;
+            if (staffCallAudioRef.current.paused) {
+                staffCallAudioRef.current.play().catch(e => console.error("Staff call audio playback failed:", e));
+            }
+        } else {
+            if (staffCallAudioRef.current && !staffCallAudioRef.current.paused) {
+                staffCallAudioRef.current.pause();
+                staffCallAudioRef.current.currentTime = 0;
+            }
         }
+<<<<<<< HEAD
     
         // 2. Visual Notification Management (Swal)
         const showNextNotification = async () => {
@@ -684,6 +709,38 @@ const App: React.FC = () => {
             notifiedCallIdsRef.current.clear();
         }
     }, [currentUser]);
+=======
+
+        // --- 2. Visual Notification (Pop-up) Management ---
+        const showNextNotification = async () => {
+            if (isNotificationActiveRef.current || !hasPendingCalls || !canNotify) {
+                return;
+            }
+
+            const callToShow = staffCalls[0]; // Always process the first call in the queue (FIFO)
+            isNotificationActiveRef.current = true; // Set a lock
+
+            const messageText = callToShow.message 
+                ? `<br/><strong class="text-blue-600">${callToShow.message}</strong>` 
+                : '<br/>ต้องการความช่วยเหลือ';
+
+            await Swal.fire({
+                title: '🔔 ลูกค้าเรียกพนักงาน!',
+                html: `โต๊ะ <b>${callToShow.tableName}</b> (คุณ ${callToShow.customerName})${messageText}`,
+                icon: 'info',
+                confirmButtonText: 'รับทราบ',
+                allowOutsideClick: false,
+                allowEscapeKey: false,
+            });
+
+            setStaffCalls(prevCalls => prevCalls.filter(call => call.id !== callToShow.id));
+            isNotificationActiveRef.current = false; // Release the lock
+        };
+
+        showNextNotification();
+
+    }, [staffCalls, currentUser, isCustomerMode, staffCallSoundUrl, setStaffCalls]);
+>>>>>>> 70520eec38d1dd20287b3330fce7fc34596218cd
 
 
     // --- ORDER TIMEOUT NOTIFICATION EFFECT ---
@@ -754,6 +811,14 @@ const App: React.FC = () => {
         }
 
         if (user) {
+            // Prime audio context on explicit login action as well
+            if (staffCallSoundUrl) {
+                const audio = new Audio(staffCallSoundUrl);
+                audio.play().catch(() => {});
+                audio.pause();
+                audio.currentTime = 0;
+            }
+
             setCurrentUser(user);
             localStorage.setItem('currentUser', JSON.stringify(user));
             setIsEditMode(false); // Ensure edit mode is off on login
@@ -841,8 +906,9 @@ const App: React.FC = () => {
                 let currentCount = 0;
                 if (counterDoc.exists) {
                     const data = counterDoc.data();
-                    if (data && typeof data.count === 'number') {
-                        currentCount = data.count;
+                    // FIX: The compiler infers `data` as `unknown`, so we cast to `any` to access the `count` property safely.
+                    if (data && typeof (data as any).count === 'number') {
+                        currentCount = (data as any).count;
                     }
                 }
                 const newCount = currentCount + 1;
@@ -1022,13 +1088,19 @@ const App: React.FC = () => {
     };
 
     const handleStaffCall = (table: Table, cName: string, message?: string) => {
-        if (!selectedBranch) return;
+        // Fallback to find the first branch if selectedBranch is somehow null
+        const branchToCall = selectedBranch || (branches.length > 0 ? branches[0] : null);
+        if (!branchToCall) {
+            console.error("Staff call failed: No branch could be determined.");
+            return;
+        }
+
         const newCall: StaffCall = {
             id: Date.now(),
             tableId: table.id,
             tableName: table.name,
             customerName: cName,
-            branchId: selectedBranch.id,
+            branchId: branchToCall.id,
             timestamp: Date.now(),
             message,
         };
@@ -1709,6 +1781,7 @@ const App: React.FC = () => {
                             currentUser={currentUser}
                             printerConfig={printerConfig}
                             floors={floors}
+                            branchId={selectedBranch?.id ?? null}
                         />
                     )}
 

@@ -1,5 +1,8 @@
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> 70520eec38d1dd20287b3330fce7fc34596218cd
 import React, { useState, useEffect } from 'react';
 import type { OrderItem, CompletedOrder } from '../types';
 
@@ -119,4 +122,8 @@ export const SplitCompletedBillModal: React.FC<SplitCompletedBillModalProps> = (
             </div>
         </div>
     );
+<<<<<<< HEAD
 };
+=======
+};
+>>>>>>> 70520eec38d1dd20287b3330fce7fc34596218cd

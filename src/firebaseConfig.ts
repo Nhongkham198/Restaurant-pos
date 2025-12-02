@@ -1,4 +1,9 @@
 
+<<<<<<< HEAD
+=======
+
+// FIX: Update imports to use v9 compat mode to make namespaced APIs available.
+>>>>>>> 70520eec38d1dd20287b3330fce7fc34596218cd
 import firebase from "firebase/compat/app";
 import "firebase/compat/firestore";
 import "firebase/compat/functions";
@@ -33,6 +38,8 @@ if (isFirebaseConfigured) {
       app = firebase.app();
     }
     db = firebase.firestore();
+    // FIX: Enable long polling to prevent "Could not reach Cloud Firestore backend" errors
+    db.settings({ experimentalForceLongPolling: true });
     functions = firebase.functions();
   } catch (e) {
     console.error("Error initializing Firebase. Please check your config.", e);

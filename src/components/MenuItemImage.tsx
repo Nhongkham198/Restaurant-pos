@@ -1,3 +1,7 @@
+<<<<<<< HEAD
+=======
+
+>>>>>>> 70520eec38d1dd20287b3330fce7fc34596218cd
 import React, { useState, useEffect, useRef } from 'react';
 
 interface MenuItemImageProps {
@@ -100,4 +104,8 @@ export const MenuItemImage: React.FC<MenuItemImageProps> = ({ src, alt, classNam
             )}
         </div>
     );
+<<<<<<< HEAD
 };
+=======
+};
+>>>>>>> 70520eec38d1dd20287b3330fce7fc34596218cd

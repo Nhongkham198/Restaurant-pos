@@ -1,3 +1,7 @@
+<<<<<<< HEAD
+=======
+
+>>>>>>> 70520eec38d1dd20287b3330fce7fc34596218cd
 import React from 'react';
 import type { ActiveOrder } from '../types';
 
@@ -72,4 +76,8 @@ export const ReceiptPreview: React.FC<ReceiptPreviewProps> = ({ order, restauran
       <p className="text-center text-xs text-gray-500 mt-6">ขอบคุณที่ใช้บริการ</p>
     </div>
   );
+<<<<<<< HEAD
 };
+=======
+};
+>>>>>>> 70520eec38d1dd20287b3330fce7fc34596218cd
