@@ -241,4 +241,8 @@ export const functionsService = {
         } catch (error: any) { throw new Error(error.message || "Backend error"); }
     }
 
+<<<<<<< HEAD
 };
+=======
+};
+>>>>>>> f73113c3cdad676b71adb671543960d98f7459e8
