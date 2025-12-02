@@ -12,9 +12,10 @@ interface TableCardProps {
     onGeneratePin: (tableId: number) => void;
     currentUser: User | null;
     printerConfig: PrinterConfig | null;
+    branchId: number | null;
 }
 
-const TableCard: React.FC<TableCardProps> = ({ table, orders, onTableSelect, onShowBill, onGeneratePin, currentUser, printerConfig }) => {
+const TableCard: React.FC<TableCardProps> = ({ table, orders, onTableSelect, onShowBill, onGeneratePin, currentUser, printerConfig, branchId }) => {
     const isOccupied = orders.length > 0;
     const hasSplitBill = orders.length > 1;
     const mainOrder = orders[0];
@@ -72,9 +73,7 @@ const TableCard: React.FC<TableCardProps> = ({ table, orders, onTableSelect, onS
     const handleShowStaticQr = (e: React.MouseEvent) => {
         e.stopPropagation();
         // Use window.location.origin for the base URL.
-        // WARNING: If localhost, this generates localhost link which won't work on mobile.
-        // Users should open the app via Vercel domain to print valid QR codes.
-        const customerUrl = `${window.location.origin}?mode=customer&tableId=${table.id}`;
+        const customerUrl = `${window.location.origin}?mode=customer&tableId=${table.id}${branchId ? `&branchId=${branchId}` : ''}`;
         const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(customerUrl)}`;
 
         Swal.fire({
@@ -246,9 +245,10 @@ interface TableLayoutProps {
     currentUser: User | null;
     printerConfig: PrinterConfig | null;
     floors: string[];
+    branchId: number | null;
 }
 
-export const TableLayout: React.FC<TableLayoutProps> = ({ tables, activeOrders, onTableSelect, onShowBill, onGeneratePin, currentUser, printerConfig, floors }) => {
+export const TableLayout: React.FC<TableLayoutProps> = ({ tables, activeOrders, onTableSelect, onShowBill, onGeneratePin, currentUser, printerConfig, floors, branchId }) => {
     const [selectedFloor, setSelectedFloor] = useState<string>('');
 
     useEffect(() => {
@@ -294,6 +294,7 @@ export const TableLayout: React.FC<TableLayoutProps> = ({ tables, activeOrders, 
                                 onGeneratePin={onGeneratePin}
                                 currentUser={currentUser}
                                 printerConfig={printerConfig}
+                                branchId={branchId}
                             />
                         );
                     })}

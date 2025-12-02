@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 
 interface MenuItemImageProps {
@@ -69,7 +70,9 @@ export const MenuItemImage: React.FC<MenuItemImageProps> = ({ src, alt, classNam
         if (img && img.complete && !isLoaded) {
             handleLoad();
         }
-    }); // No dependency array, runs after every render to check the image's status.
+    // FIX: Add dependencies to prevent this effect from running on every single render,
+    // which was causing a performance bottleneck on the menu screen.
+    }, [src, isLoaded]);
 
     // Determine what to render
     const shouldShowImage = src && !hasError;

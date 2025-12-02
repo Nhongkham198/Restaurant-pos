@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect } from 'react';
 import type { OrderItem, ActiveOrder } from '../types';
 import Swal from 'sweetalert2';
@@ -12,26 +11,28 @@ interface SplitBillModalProps {
 }
 
 export const SplitBillModal: React.FC<SplitBillModalProps> = ({ isOpen, order, onClose, onConfirmSplit }) => {
-    const [itemsToSplit, setItemsToSplit] = useState<Map<number, number>>(new Map());
+    // FIX: Use cartItemId (string) as the key to uniquely identify items with different options.
+    const [itemsToSplit, setItemsToSplit] = useState<Map<string, number>>(new Map());
 
     useEffect(() => {
         // Reset state when a new order is passed in or when modal is closed
         setItemsToSplit(new Map());
     }, [order]);
 
-    const handleQuantityChange = (itemId: number, newQuantity: number) => {
-        const originalItem = order?.items.find(item => item.id === itemId);
-        if (!originalItem) return;
-
+    // FIX: Update function signature to take cartItemId and originalQuantity.
+    const handleQuantityChange = (cartItemId: string, originalQuantity: number, newQuantity: number) => {
         // Clamp quantity between 0 and the available quantity in the original order
-        const clampedQuantity = Math.max(0, Math.min(newQuantity, originalItem.quantity));
+        // FIX: Use originalQuantity for clamping.
+        const clampedQuantity = Math.max(0, Math.min(newQuantity, originalQuantity));
 
         setItemsToSplit(prevMap => {
             const newMap = new Map(prevMap);
             if (clampedQuantity > 0) {
-                newMap.set(itemId, clampedQuantity);
+                // FIX: Use cartItemId as the key.
+                newMap.set(cartItemId, clampedQuantity);
             } else {
-                newMap.delete(itemId); // Remove from map if quantity is 0
+                // FIX: Use cartItemId to delete from the map.
+                newMap.delete(cartItemId);
             }
             return newMap;
         });
@@ -41,8 +42,10 @@ export const SplitBillModal: React.FC<SplitBillModalProps> = ({ isOpen, order, o
         if (!order) return;
         
         const splitItemsArray: OrderItem[] = [];
-        itemsToSplit.forEach((quantity, itemId) => {
-            const originalItem = order.items.find(item => item.id === itemId);
+        // FIX: Iterate map using cartItemId.
+        itemsToSplit.forEach((quantity, cartItemId) => {
+            // FIX: Find item using unique cartItemId.
+            const originalItem = order.items.find(item => item.cartItemId === cartItemId);
             if (originalItem) {
                 splitItemsArray.push({ ...originalItem, quantity });
             }
@@ -54,8 +57,9 @@ export const SplitBillModal: React.FC<SplitBillModalProps> = ({ isOpen, order, o
         }
 
         // Check if we are trying to split all items
+        // FIX: Use cartItemId to check for splitting all items.
         const isSplittingAll = order.items.every(origItem => {
-            const splitItem = splitItemsArray.find(si => si.id === origItem.id);
+            const splitItem = splitItemsArray.find(si => si.cartItemId === origItem.cartItemId);
             return splitItem && splitItem.quantity === origItem.quantity;
         }) && order.items.length === splitItemsArray.length;
 
@@ -94,9 +98,11 @@ export const SplitBillModal: React.FC<SplitBillModalProps> = ({ isOpen, order, o
                 
                 <div className="p-6 space-y-4 overflow-y-auto flex-1">
                     {order.items.map(item => {
-                        const quantityToSplit = itemsToSplit.get(item.id) || 0;
+                        // FIX: Get quantity to split using unique cartItemId.
+                        const quantityToSplit = itemsToSplit.get(item.cartItemId) || 0;
                         return (
-                            <div key={item.id} className="flex items-center bg-gray-50 p-3 rounded-lg">
+                            // FIX: Use unique cartItemId for the key.
+                            <div key={item.cartItemId} className="flex items-center bg-gray-50 p-3 rounded-lg">
                                 <img src={item.imageUrl} alt={item.name} className="w-14 h-14 rounded-md object-cover mr-4" />
                                 <div className="flex-grow">
                                     <p className="font-semibold text-gray-800">{item.name}</p>
@@ -104,14 +110,16 @@ export const SplitBillModal: React.FC<SplitBillModalProps> = ({ isOpen, order, o
                                 </div>
                                 <div className="flex items-center gap-2 text-gray-800">
                                     <button
-                                        onClick={() => handleQuantityChange(item.id, quantityToSplit - 1)}
+                                        // FIX: Pass cartItemId, original quantity, and new quantity to the handler.
+                                        onClick={() => handleQuantityChange(item.cartItemId, item.quantity, quantityToSplit - 1)}
                                         className="w-8 h-8 rounded-full bg-gray-200 hover:bg-gray-300 transition-colors flex items-center justify-center font-bold"
                                     >
                                         -
                                     </button>
                                     <span className="w-10 text-center font-bold text-lg">{quantityToSplit}</span>
                                     <button
-                                        onClick={() => handleQuantityChange(item.id, quantityToSplit + 1)}
+                                        // FIX: Pass cartItemId, original quantity, and new quantity to the handler.
+                                        onClick={() => handleQuantityChange(item.cartItemId, item.quantity, quantityToSplit + 1)}
                                         className="w-8 h-8 rounded-full bg-gray-200 hover:bg-gray-300 transition-colors flex items-center justify-center font-bold"
                                     >
                                         +

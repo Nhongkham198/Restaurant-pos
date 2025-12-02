@@ -1,7 +1,9 @@
 
-import firebase from "firebase/app";
-import "firebase/firestore";
-import "firebase/functions";
+
+// FIX: Update imports to use v9 compat mode to make namespaced APIs available.
+import firebase from "firebase/compat/app";
+import "firebase/compat/firestore";
+import "firebase/compat/functions";
 
 // TODO: Replace the following with your app's Firebase project configuration
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional

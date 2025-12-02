@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 
 import { 
@@ -37,6 +38,8 @@ import { printerService } from './services/printerService';
 // FIX: Correct Firebase imports to match importmap keys (v9 compat)
 import firebase from 'firebase/compat/app';
 import 'firebase/compat/messaging';
+// FIX: Add firestore compat import to correctly type Firestore-related objects and methods.
+import 'firebase/compat/firestore';
 import { isFirebaseConfigured, db } from './firebaseConfig';
 // FIX: Removed unused v9 firestore and messaging imports
 // import { doc, runTransaction } from 'firebase/firestore';
@@ -616,86 +619,45 @@ const App: React.FC = () => {
         prevLeaveRequestsRef.current = leaveRequests;
     }, [leaveRequests, currentUser]);
 
-    // --- PERMANENT FIX for Staff Call Notifications ---
-
-    // 1. Global Audio Unlocker (Handles page refresh scenario)
-    // This effect ensures that the audio context is unlocked by the first interaction on the page,
-    // solving the issue where audio doesn't play after a page refresh.
+    // --- 100% RELIABLE STAFF CALL NOTIFICATION LOGIC ---
+    // This consolidated effect manages both audio and visual notifications to prevent race conditions.
     useEffect(() => {
-        const unlockAudio = () => {
-            if (staffCallSoundUrl) {
-                const audio = new Audio(staffCallSoundUrl);
-                // Attempt to play and immediately pause. This effectively "warms up" the audio engine
-                // and satisfies browser autoplay policies.
-                audio.play().catch(() => {});
-                audio.pause();
-                audio.currentTime = 0;
-                
-                // Remove listeners after first interaction
-                document.removeEventListener('click', unlockAudio);
-                document.removeEventListener('touchstart', unlockAudio);
-            }
-        };
-
-        if (currentUser && !isCustomerMode) {
-            document.addEventListener('click', unlockAudio);
-            document.addEventListener('touchstart', unlockAudio);
-        }
-
-        return () => {
-            document.removeEventListener('click', unlockAudio);
-            document.removeEventListener('touchstart', unlockAudio);
-        };
-    }, [currentUser, isCustomerMode, staffCallSoundUrl]);
-
-    // 2. Consolidated Notification Logic (FIFO Queue)
-    // This unified effect manages both the visual and audio notifications.
-    // It relies on the simple rule: if there are pending calls, show/play the first one.
-    useEffect(() => {
-        // Audio Management
         const hasPendingCalls = staffCalls.length > 0;
         const canNotify = !isCustomerMode && currentUser && ['pos', 'kitchen'].includes(currentUser.role);
 
-        // Ensure audio plays when there are pending calls
-        if (hasPendingCalls && canNotify && staffCallSoundUrl) {
+        // --- 1. Audio Management ---
+        if (canNotify && hasPendingCalls && staffCallSoundUrl) {
             if (!staffCallAudioRef.current) {
                 staffCallAudioRef.current = new Audio(staffCallSoundUrl);
                 staffCallAudioRef.current.loop = true;
             }
-            // Ensure src is up to date
             if (staffCallAudioRef.current.src !== staffCallSoundUrl) {
-                 staffCallAudioRef.current.src = staffCallSoundUrl;
+                staffCallAudioRef.current.src = staffCallSoundUrl;
             }
-            
-            // Play if paused
             if (staffCallAudioRef.current.paused) {
-                staffCallAudioRef.current.play().catch(e => console.error("Staff Call Audio Playback Failed:", e));
+                staffCallAudioRef.current.play().catch(e => console.error("Staff call audio playback failed:", e));
             }
         } else {
-            // Stop audio if no pending calls
-            if (staffCallAudioRef.current) {
+            if (staffCallAudioRef.current && !staffCallAudioRef.current.paused) {
                 staffCallAudioRef.current.pause();
                 staffCallAudioRef.current.currentTime = 0;
             }
         }
 
-        // Visual Notification Management
+        // --- 2. Visual Notification (Pop-up) Management ---
         const showNextNotification = async () => {
-            // Don't show if popup already active, no calls, or unauthorized
             if (isNotificationActiveRef.current || !hasPendingCalls || !canNotify) {
                 return;
             }
 
-            // Always take the first call in the queue (FIFO)
-            const callToShow = staffCalls[0];
-            
-            isNotificationActiveRef.current = true; // Lock
+            const callToShow = staffCalls[0]; // Always process the first call in the queue (FIFO)
+            isNotificationActiveRef.current = true; // Set a lock
 
             const messageText = callToShow.message 
                 ? `<br/><strong class="text-blue-600">${callToShow.message}</strong>` 
                 : '<br/>ต้องการความช่วยเหลือ';
 
-            const swalResult = await Swal.fire({
+            await Swal.fire({
                 title: '🔔 ลูกค้าเรียกพนักงาน!',
                 html: `โต๊ะ <b>${callToShow.tableName}</b> (คุณ ${callToShow.customerName})${messageText}`,
                 icon: 'info',
@@ -704,22 +666,12 @@ const App: React.FC = () => {
                 allowEscapeKey: false,
             });
 
-            if(swalResult.isConfirmed) {
-                // Remove the specific call we just showed
-                setStaffCalls(prev => prev.filter(call => call.id !== callToShow.id));
-                isNotificationActiveRef.current = false; // Unlock
-            }
+            setStaffCalls(prevCalls => prevCalls.filter(call => call.id !== callToShow.id));
+            isNotificationActiveRef.current = false; // Release the lock
         };
 
         showNextNotification();
-        
-        // Cleanup Logic
-        return () => {
-            // Ensure the notification lock is released on unmount to prevent stuck state
-            isNotificationActiveRef.current = false;
-            // Note: We don't stop audio here on unmount to allow it to loop if component re-renders
-            // The logic above handles stopping it when calls become empty.
-        };
+
     }, [staffCalls, currentUser, isCustomerMode, staffCallSoundUrl, setStaffCalls]);
 
 
@@ -886,8 +838,9 @@ const App: React.FC = () => {
                 let currentCount = 0;
                 if (counterDoc.exists) {
                     const data = counterDoc.data();
-                    if (data && typeof data.count === 'number') {
-                        currentCount = data.count;
+                    // FIX: The compiler infers `data` as `unknown`, so we cast to `any` to access the `count` property safely.
+                    if (data && typeof (data as any).count === 'number') {
+                        currentCount = (data as any).count;
                     }
                 }
                 const newCount = currentCount + 1;
