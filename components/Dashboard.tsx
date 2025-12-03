@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import type { CompletedOrder, CancelledOrder } from '../types';
+import type { CompletedOrder, CancelledOrder, User } from '../types';
 import { SalesChart } from './SalesChart';
 import PieChart from './PieChart';
 
@@ -8,6 +8,7 @@ interface DashboardProps {
     cancelledOrders: CancelledOrder[];
     openingTime: string;
     closingTime: string;
+    currentUser: User | null;
 }
 
 const StatCard: React.FC<{ title: string; value: string; icon: React.ReactNode; color: string }> = ({ title, value, icon, color }) => (
@@ -20,7 +21,7 @@ const StatCard: React.FC<{ title: string; value: string; icon: React.ReactNode; 
     </div>
 );
 
-export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelledOrders, openingTime, closingTime }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelledOrders, openingTime, closingTime, currentUser }) => {
     // Initialize with today's date
     const [selectedDate, setSelectedDate] = useState(new Date());
 
@@ -40,24 +41,38 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
         }
     };
 
-    // Filter orders based on the selected local date
+    // Filter orders based on the selected local date AND role visibility
     const filteredCompletedOrders = useMemo(() => {
-        return completedOrders.filter(order => {
+        let orders = completedOrders;
+        
+        // Soft delete logic: hide deleted items for non-admins
+        if (currentUser?.role !== 'admin') {
+            orders = orders.filter(o => !o.isDeleted);
+        }
+
+        return orders.filter(order => {
             const orderDate = new Date(order.completionTime);
             return orderDate.getDate() === selectedDate.getDate() &&
                    orderDate.getMonth() === selectedDate.getMonth() &&
                    orderDate.getFullYear() === selectedDate.getFullYear();
         });
-    }, [completedOrders, selectedDate]);
+    }, [completedOrders, selectedDate, currentUser]);
 
     const filteredCancelledOrders = useMemo(() => {
-        return cancelledOrders.filter(order => {
+        let orders = cancelledOrders;
+
+        // Soft delete logic: hide deleted items for non-admins
+        if (currentUser?.role !== 'admin') {
+            orders = orders.filter(o => !o.isDeleted);
+        }
+
+        return orders.filter(order => {
             const orderDate = new Date(order.cancellationTime);
             return orderDate.getDate() === selectedDate.getDate() &&
                    orderDate.getMonth() === selectedDate.getMonth() &&
                    orderDate.getFullYear() === selectedDate.getFullYear();
         });
-    }, [cancelledOrders, selectedDate]);
+    }, [cancelledOrders, selectedDate, currentUser]);
 
     const dailyStats = useMemo(() => {
         const totalSales = filteredCompletedOrders.reduce((sum, order) => {

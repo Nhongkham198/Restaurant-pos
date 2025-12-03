@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 
 import { 
     DEFAULT_BRANCHES, 
@@ -36,7 +36,7 @@ import { functionsService } from './services/firebaseFunctionsService';
 import { printerService } from './services/printerService';
 import firebase from 'firebase/compat/app';
 import 'firebase/compat/messaging';
-import { db } from './firebaseConfig';
+import { isFirebaseConfigured, db } from './firebaseConfig';
 
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
@@ -913,6 +913,7 @@ const App: React.FC = () => {
         const newRequest: LeaveRequest = { ...payload, id: Date.now(), status: 'pending', acknowledgedBy: [] };
 
         try {
+            // Using a generic try-catch block for the API call to ensure fallback on any failure
             const result = await functionsService.submitLeaveRequest(payload);
             if (!result.success) throw new Error(result.error);
              setLeaveRequests(prev => [...prev, newRequest]); // Optimistic update
@@ -931,6 +932,7 @@ const App: React.FC = () => {
         setLeaveRequests(prev => prev.map(req => req.id === requestId ? { ...req, status } : req)); // Optimistic update
         
         try {
+            // Unconditional fallback on any error
             const result = await functionsService.updateLeaveStatus({ requestId, status, approverId: currentUser.id });
             if (!result.success) throw new Error(result.error);
         } catch (error: any) {
@@ -943,6 +945,7 @@ const App: React.FC = () => {
         setLeaveRequests(prev => prev.filter(req => req.id !== requestId)); // Optimistic update
 
         try {
+            // Unconditional fallback on any error
             const result = await functionsService.deleteLeaveRequest({ requestId });
             if (!result.success) throw new Error(result.error);
             return true;
@@ -969,6 +972,11 @@ const App: React.FC = () => {
             setCompletedOrders(prev => prev.map(o => completedIdsToDelete.includes(o.id) ? { ...o, isDeleted: true, deletedBy: currentUser.username } : o));
             setCancelledOrders(prev => prev.map(o => cancelledIdsToDelete.includes(o.id) ? { ...o, isDeleted: true, deletedBy: currentUser.username } : o));
             setPrintHistory(prev => prev.map(p => printIdsToDelete.includes(p.id) ? { ...p, isDeleted: true, deletedBy: currentUser.username } : p));
+        }
+        
+        // Show simplified success message for non-admins to mimic hard delete
+        if (!isAdmin) {
+             Swal.fire('ลบแล้ว', 'รายการที่เลือกถูกลบเรียบร้อยแล้ว', 'success');
         }
     };
     
@@ -1092,7 +1100,7 @@ const App: React.FC = () => {
             case 'tables':
                 return <TableLayout tables={cleanedTables} activeOrders={activeOrders} onTableSelect={(tableId) => { setSelectedTableId(tableId); setCurrentView('pos'); }} onShowBill={handleShowBill} onGeneratePin={(tableId) => setTables(tbls => tbls.map(t => t.id === tableId ? { ...t, activePin: (Math.floor(100 + Math.random() * 900)).toString() } : t))} currentUser={currentUser} printerConfig={printerConfig} floors={floors} />;
             case 'dashboard':
-                return <Dashboard completedOrders={completedOrders} cancelledOrders={cancelledOrders} openingTime={openingTime || '10:00'} closingTime={closingTime || '22:00'} />;
+                return <Dashboard completedOrders={completedOrders} cancelledOrders={cancelledOrders} openingTime={openingTime || '10:00'} closingTime={closingTime || '22:00'} currentUser={currentUser} />;
             case 'history':
                 return <SalesHistory completedOrders={completedOrders} cancelledOrders={cancelledOrders} printHistory={printHistory} onReprint={(orderNum) => {}} onSplitOrder={handleInitiateSplitCompleted} isEditMode={canEdit} onEditOrder={handleEditCompletedOrder} onInitiateCashBill={handleInitiateCashBill} onDeleteHistory={onDeleteHistory} currentUser={currentUser} />;
             case 'stock':
