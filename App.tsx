@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 
 import { 
     DEFAULT_BRANCHES, 
@@ -36,7 +36,7 @@ import { functionsService } from './services/firebaseFunctionsService';
 import { printerService } from './services/printerService';
 import firebase from 'firebase/compat/app';
 import 'firebase/compat/messaging';
-import { isFirebaseConfigured, db } from './firebaseConfig';
+import { db } from './firebaseConfig';
 
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
@@ -478,7 +478,7 @@ const App: React.FC = () => {
                     const orderToShow = newOrders[0];
                     Swal.fire({
                         title: '🔔 มีออเดอร์ใหม่!',
-                        html: `<b>โต๊ะ ${orderToShow.tableName}</b> (ออเดอร์ #${String(orderToShow.orderNumber).padStart(3, '0')})`,
+                        html: `<b>โต๊ะ ${orderToShow.tableName}</b> (ออเดอร์ #${orderToShow.orderNumber.toString().padStart(3, '0')})`,
                         icon: 'info',
                         confirmButtonText: 'รับทราบ',
                         allowOutsideClick: false,
@@ -504,7 +504,7 @@ const App: React.FC = () => {
                 
                 Swal.fire({
                     title: '🔔 มีออเดอร์รออยู่ในคิว!',
-                    html: `มี <b>${waitingOrders.length}</b> ออเดอร์ที่ยังไม่ได้รับ<br/>ออเดอร์แรกคือ <b>#${String(oldestWaitingOrder.orderNumber).padStart(3, '0')}</b>`,
+                    html: `มี <b>${waitingOrders.length}</b> ออเดอร์ที่ยังไม่ได้รับ<br/>ออเดอร์แรกคือ <b>#${oldestWaitingOrder.orderNumber.toString().padStart(3, '0')}</b>`,
                     icon: 'info',
                     confirmButtonText: 'รับทราบ',
                     allowOutsideClick: false,
@@ -615,7 +615,14 @@ const App: React.FC = () => {
                 });
                 
                 if (result.isConfirmed || result.dismiss === Swal.DismissReason.timer) {
-                    setStaffCalls(prev => prev.filter(call => call.id !== callToNotify.id));
+                    setStaffCalls(prev => {
+                        // If this is the last call being removed, imperatively stop the audio.
+                        if (prev.length === 1 && staffCallAudioRef.current) {
+                            staffCallAudioRef.current.pause();
+                            staffCallAudioRef.current.currentTime = 0;
+                        }
+                        return prev.filter(call => call.id !== callToNotify.id);
+                    });
                 }
             }
             
@@ -671,7 +678,7 @@ const App: React.FC = () => {
 
                     Swal.fire({
                         title: '🔔 ลูกค้ารอนานเกินไป!',
-                        html: `ออเดอร์ #${String(order.orderNumber).padStart(3, '0')} (โต๊ะ ${order.tableName})<br/>รออาหารนานเกิน ${ORDER_TIMEOUT_MINUTES} นาทีแล้ว`,
+                        html: `ออเดอร์ #${order.orderNumber.toString().padStart(3, '0')} (โต๊ะ ${order.tableName})<br/>รออาหารนานเกิน ${ORDER_TIMEOUT_MINUTES} นาทีแล้ว`,
                         icon: 'warning',
                         confirmButtonText: 'รับทราบ',
                     });
@@ -797,8 +804,7 @@ const App: React.FC = () => {
         };
 
         let newOrder: ActiveOrder | null = null;
-        let backendError = false;
-
+        
         try {
             const result = await functionsService.placeOrder(payload);
             if (!result.success || !result.orderNumber) {
@@ -814,8 +820,7 @@ const App: React.FC = () => {
             };
             
         } catch (error: any) {
-             console.warn("placeOrder function failed or unavailable, falling back to client-side logic.", error);
-             backendError = true;
+             console.warn("placeOrder function failed, falling back to client-side logic.", error);
              const nextOrderNumber = (Math.max(0, ...activeOrders.map(o => o.orderNumber), ...completedOrders.map(c => c.orderNumber)) + 1);
              newOrder = {
                 ...payload,
@@ -825,13 +830,11 @@ const App: React.FC = () => {
                 status: 'waiting',
                 orderTime: Date.now()
              };
+             // Directly update state in fallback
+             setActiveOrders(prev => [...prev, newOrder!]);
         }
         
         if (newOrder) {
-            if (backendError) {
-                setActiveOrders(prev => [...prev, newOrder!]);
-            }
-
             if (sendToKitchen && printerConfig?.kitchen) {
                 try {
                     await printerService.printKitchenOrder(newOrder, printerConfig.kitchen);
@@ -864,8 +867,6 @@ const App: React.FC = () => {
             paymentDetails
         };
         
-        let backendError = false;
-
         try {
             const payload = { branchId: selectedBranch.id.toString(), orderId: orderToComplete.id, paymentDetails };
             const result = await functionsService.confirmPayment(payload);
@@ -873,13 +874,19 @@ const App: React.FC = () => {
                 throw new Error(result.error || "Backend returned unsuccessful response.");
             }
         } catch (error: any) {
-            console.warn("confirmPayment function failed or unavailable, falling back to client-side logic.", error);
-            backendError = true;
-        }
-
-        if (backendError) {
+            console.warn("confirmPayment function failed, falling back to client-side logic.", error);
+            // Fallback: Directly update local state
             setCompletedOrders(prev => [...prev, completedOrder]);
             setActiveOrders(prev => prev.filter(o => o.id !== orderId));
+        }
+
+        const tableToClear = tables.find(t => t.name === orderToComplete.tableName && t.floor === orderToComplete.floor);
+        if (tableToClear) {
+            setTables(prevTables => 
+                prevTables.map(t => 
+                    t.id === tableToClear.id ? { ...t, activePin: undefined } : t
+                )
+            );
         }
 
         setModalState(prev => ({ ...prev, isTableBill: false, isPayment: false, isPaymentSuccess: true }));
@@ -908,9 +915,8 @@ const App: React.FC = () => {
         try {
             const result = await functionsService.submitLeaveRequest(payload);
             if (!result.success) throw new Error(result.error);
-            // If function succeeds, Firestore listener will add the new request.
+             setLeaveRequests(prev => [...prev, newRequest]); // Optimistic update
         } catch (error: any) {
-            // Fallback for ANY error
             console.warn("submitLeaveRequest function failed, falling back to client-side logic.", error);
             setLeaveRequests(prev => [...prev, newRequest]);
         }
@@ -922,26 +928,29 @@ const App: React.FC = () => {
     const handleUpdateLeaveStatus = async (requestId: number, status: 'approved' | 'rejected') => {
         if (!currentUser) return;
         
+        setLeaveRequests(prev => prev.map(req => req.id === requestId ? { ...req, status } : req)); // Optimistic update
+        
         try {
             const result = await functionsService.updateLeaveStatus({ requestId, status, approverId: currentUser.id });
             if (!result.success) throw new Error(result.error);
         } catch (error: any) {
-            // Fallback for ANY error
             console.warn("updateLeaveStatus function failed, falling back to client-side logic.", error);
-             setLeaveRequests(prev => prev.map(req => req.id === requestId ? { ...req, status } : req));
+            // Optimistic update already happened
         }
     };
     
     const handleDeleteLeaveRequest = async (requestId: number): Promise<boolean> => {
+        setLeaveRequests(prev => prev.filter(req => req.id !== requestId)); // Optimistic update
+
         try {
             const result = await functionsService.deleteLeaveRequest({ requestId });
             if (!result.success) throw new Error(result.error);
+            return true;
         } catch (error: any) {
-            // Fallback for ANY error
             console.warn("deleteLeaveRequest function failed, falling back to client-side logic.", error);
-            setLeaveRequests(prev => prev.filter(req => req.id !== requestId));
+            // Optimistic update already happened
+            return true;
         }
-        return true;
     };
     
     // --- HISTORY MANAGEMENT ---
@@ -951,28 +960,15 @@ const App: React.FC = () => {
         const isAdmin = currentUser.role === 'admin';
 
         if (isAdmin) {
-            Swal.fire({
-                title: 'ยืนยันการลบถาวร?',
-                html: `คุณเป็น Admin และกำลังจะลบ <b>${completedIdsToDelete.length + cancelledIdsToDelete.length + printIdsToDelete.length}</b> รายการออกจากระบบอย่างถาวร<br/><br/><b class="text-red-600">การกระทำนี้ไม่สามารถย้อนกลับได้!</b>`,
-                icon: 'warning',
-                showCancelButton: true,
-                confirmButtonColor: '#d33',
-                cancelButtonColor: '#3085d6',
-                confirmButtonText: 'ใช่, ลบถาวร!',
-                cancelButtonText: 'ยกเลิก'
-            }).then((result) => {
-                if(result.isConfirmed) {
-                    setCompletedOrders(prev => prev.filter(o => !completedIdsToDelete.includes(o.id)));
-                    setCancelledOrders(prev => prev.filter(o => !cancelledIdsToDelete.includes(o.id)));
-                    setPrintHistory(prev => prev.filter(p => !printIdsToDelete.includes(p.id)));
-                    Swal.fire('ลบถาวรแล้ว', 'รายการที่เลือกถูกลบออกจากระบบเรียบร้อยแล้ว', 'success');
-                }
-            });
+            // ADMIN: HARD DELETE
+            setCompletedOrders(prev => prev.filter(o => !completedIdsToDelete.includes(o.id)));
+            setCancelledOrders(prev => prev.filter(o => !cancelledIdsToDelete.includes(o.id)));
+            setPrintHistory(prev => prev.filter(p => !printIdsToDelete.includes(p.id)));
         } else {
+            // NON-ADMIN: SOFT DELETE
             setCompletedOrders(prev => prev.map(o => completedIdsToDelete.includes(o.id) ? { ...o, isDeleted: true, deletedBy: currentUser.username } : o));
             setCancelledOrders(prev => prev.map(o => cancelledIdsToDelete.includes(o.id) ? { ...o, isDeleted: true, deletedBy: currentUser.username } : o));
             setPrintHistory(prev => prev.map(p => printIdsToDelete.includes(p.id) ? { ...p, isDeleted: true, deletedBy: currentUser.username } : p));
-            Swal.fire('ลบแล้ว', 'รายการที่เลือกถูกลบเรียบร้อยแล้ว', 'success');
         }
     };
     
@@ -1094,7 +1090,7 @@ const App: React.FC = () => {
             case 'kitchen':
                 return <KitchenView activeOrders={activeOrders} onCompleteOrder={handleCompleteOrder} onStartCooking={handleStartCooking} />;
             case 'tables':
-                return <TableLayout tables={cleanedTables} activeOrders={activeOrders} onTableSelect={(tableId) => { setSelectedTableId(tableId); setCurrentView('pos'); }} onShowBill={handleShowBill} onGeneratePin={(tableId) => setTables(tbls => tbls.map(t => t.id === tableId ? { ...t, activePin: String(Math.floor(100 + Math.random() * 900)) } : t))} currentUser={currentUser} printerConfig={printerConfig} floors={floors} />;
+                return <TableLayout tables={cleanedTables} activeOrders={activeOrders} onTableSelect={(tableId) => { setSelectedTableId(tableId); setCurrentView('pos'); }} onShowBill={handleShowBill} onGeneratePin={(tableId) => setTables(tbls => tbls.map(t => t.id === tableId ? { ...t, activePin: (Math.floor(100 + Math.random() * 900)).toString() } : t))} currentUser={currentUser} printerConfig={printerConfig} floors={floors} />;
             case 'dashboard':
                 return <Dashboard completedOrders={completedOrders} cancelledOrders={cancelledOrders} openingTime={openingTime || '10:00'} closingTime={closingTime || '22:00'} />;
             case 'history':
@@ -1196,14 +1192,19 @@ const App: React.FC = () => {
                     <div className="flex-1 overflow-y-auto min-w-0">
                         {mainContent}
                     </div>
+                    {/* Sidebar Logic: Show ONLY on POS and Tables views */}
                     {(currentView === 'pos' || currentView === 'tables') && (
-                        <div className="relative h-full">
+                        <div className="relative h-full flex">
                             <button
                                 onClick={() => setIsOrderSidebarVisible(!isOrderSidebarVisible)}
-                                className={`absolute top-1/2 -left-5 -translate-y-1/2 z-10 bg-gray-800 text-white p-2 rounded-l-xl shadow-xl hover:bg-gray-700 transition-colors border border-gray-700 border-r-0`}
-                                style={{paddingTop: '3rem', paddingBottom: '3rem'}}
+                                className={`absolute top-1/2 -left-6 z-20 bg-gray-800 text-white p-2 rounded-l-xl shadow-xl hover:bg-gray-700 transition-colors border border-gray-700 border-r-0 flex items-center justify-center`}
+                                style={{
+                                    transform: 'translateY(-50%)',
+                                    height: '120px',
+                                    width: '32px'
+                                }}
                             >
-                                <div className="w-1.5 h-10 bg-gray-400 rounded-full"></div>
+                                <div className="w-1.5 h-16 bg-gray-400 rounded-full"></div>
                             </button>
                             {orderSummarySidebar}
                         </div>
