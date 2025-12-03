@@ -904,17 +904,14 @@ const App: React.FC = () => {
 
         const payload: SubmitLeaveRequestPayload = { ...request, branchId: selectedBranch.id };
         const newRequest: LeaveRequest = { ...payload, id: Date.now(), status: 'pending', acknowledgedBy: [] };
-        let backendError = false;
 
         try {
             const result = await functionsService.submitLeaveRequest(payload);
-            if (!result.success) throw { code: 'internal', message: result.error || "Backend returned unsuccessful response." };
+            if (!result.success) throw new Error(result.error);
+            // If function succeeds, Firestore listener will add the new request.
         } catch (error: any) {
-            console.warn("Error submitting leave request (using fallback):", error);
-            backendError = true;
-        }
-
-        if (backendError) {
+            // Fallback for ANY error
+            console.warn("submitLeaveRequest function failed, falling back to client-side logic.", error);
             setLeaveRequests(prev => [...prev, newRequest]);
         }
 
@@ -924,32 +921,24 @@ const App: React.FC = () => {
 
     const handleUpdateLeaveStatus = async (requestId: number, status: 'approved' | 'rejected') => {
         if (!currentUser) return;
-        let backendError = false;
         
         try {
             const result = await functionsService.updateLeaveStatus({ requestId, status, approverId: currentUser.id });
-            if (!result.success) throw { code: 'internal', message: result.error || "Backend returned unsuccessful response." };
+            if (!result.success) throw new Error(result.error);
         } catch (error: any) {
-            console.warn("Error updating leave status (using fallback):", error);
-            backendError = true;
-        }
-
-        if (backendError) {
+            // Fallback for ANY error
+            console.warn("updateLeaveStatus function failed, falling back to client-side logic.", error);
              setLeaveRequests(prev => prev.map(req => req.id === requestId ? { ...req, status } : req));
         }
     };
     
     const handleDeleteLeaveRequest = async (requestId: number): Promise<boolean> => {
-        let backendError = false;
         try {
             const result = await functionsService.deleteLeaveRequest({ requestId });
-            if (!result.success) throw { code: 'internal', message: result.error || "Backend returned unsuccessful response." };
+            if (!result.success) throw new Error(result.error);
         } catch (error: any) {
-            console.warn("Error deleting leave request (using fallback):", error);
-            backendError = true;
-        }
-
-        if (backendError) {
+            // Fallback for ANY error
+            console.warn("deleteLeaveRequest function failed, falling back to client-side logic.", error);
             setLeaveRequests(prev => prev.filter(req => req.id !== requestId));
         }
         return true;
@@ -962,10 +951,23 @@ const App: React.FC = () => {
         const isAdmin = currentUser.role === 'admin';
 
         if (isAdmin) {
-            setCompletedOrders(prev => prev.filter(o => !completedIdsToDelete.includes(o.id)));
-            setCancelledOrders(prev => prev.filter(o => !cancelledIdsToDelete.includes(o.id)));
-            setPrintHistory(prev => prev.filter(p => !printIdsToDelete.includes(p.id)));
-            Swal.fire('ลบถาวรแล้ว', 'รายการที่เลือกถูกลบออกจากระบบเรียบร้อยแล้ว', 'success');
+            Swal.fire({
+                title: 'ยืนยันการลบถาวร?',
+                html: `คุณเป็น Admin และกำลังจะลบ <b>${completedIdsToDelete.length + cancelledIdsToDelete.length + printIdsToDelete.length}</b> รายการออกจากระบบอย่างถาวร<br/><br/><b class="text-red-600">การกระทำนี้ไม่สามารถย้อนกลับได้!</b>`,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                cancelButtonColor: '#3085d6',
+                confirmButtonText: 'ใช่, ลบถาวร!',
+                cancelButtonText: 'ยกเลิก'
+            }).then((result) => {
+                if(result.isConfirmed) {
+                    setCompletedOrders(prev => prev.filter(o => !completedIdsToDelete.includes(o.id)));
+                    setCancelledOrders(prev => prev.filter(o => !cancelledIdsToDelete.includes(o.id)));
+                    setPrintHistory(prev => prev.filter(p => !printIdsToDelete.includes(p.id)));
+                    Swal.fire('ลบถาวรแล้ว', 'รายการที่เลือกถูกลบออกจากระบบเรียบร้อยแล้ว', 'success');
+                }
+            });
         } else {
             setCompletedOrders(prev => prev.map(o => completedIdsToDelete.includes(o.id) ? { ...o, isDeleted: true, deletedBy: currentUser.username } : o));
             setCancelledOrders(prev => prev.map(o => cancelledIdsToDelete.includes(o.id) ? { ...o, isDeleted: true, deletedBy: currentUser.username } : o));
@@ -1068,15 +1070,12 @@ const App: React.FC = () => {
         return <LoginScreen onLogin={handleLogin} />;
     }
 
-    if (!selectedBranch && currentUser.role !== 'admin') {
+    if (!selectedBranch) {
         const userBranches = branches.filter(b => currentUser.allowedBranchIds?.includes(b.id));
-        if (userBranches.length === 1) {
+        if (userBranches.length === 1 && currentUser.role !== 'admin') {
             handleSelectBranch(userBranches[0]);
             return null; // Render will be triggered again
         }
-    }
-    
-    if (!selectedBranch) {
          return (
             <BranchSelectionScreen 
                 onSelectBranch={handleSelectBranch}
@@ -1089,31 +1088,28 @@ const App: React.FC = () => {
     }
 
     const mainContent = (() => {
-        const commonProps = {
-            menuItems,
-            categories,
-            onSelectItem: handleAddItemToOrder,
-            isEditMode: canEdit,
-            onEditItem: (item: MenuItem) => { setItemToEdit(item); setModalState(prev => ({ ...prev, isMenuItem: true })); },
-            onAddNewItem: () => { setItemToEdit(null); setModalState(prev => ({ ...prev, isMenuItem: true })); },
-            onDeleteItem: (id: number) => setMenuItems(menuItems.filter(item => item.id !== id)),
-        };
-
-        const viewMap: Record<View, React.ReactNode> = {
-            pos: <Menu {...commonProps} setMenuItems={setMenuItems} onUpdateCategory={(o, n) => setCategories(cats => cats.map(c => c === o ? n : c))} onDeleteCategory={(n) => setCategories(cats => cats.filter(c => c !== n))} onAddCategory={n => setCategories(cats => [...cats, n])} onImportMenu={(items, newCats) => { setMenuItems(items); setCategories(cats => Array.from(new Set([...cats, ...newCats]))); }} />,
-            kitchen: <KitchenView activeOrders={activeOrders} onCompleteOrder={handleCompleteOrder} onStartCooking={handleStartCooking} />,
-            tables: <TableLayout tables={cleanedTables} activeOrders={activeOrders} onTableSelect={(tableId) => { setSelectedTableId(tableId); setCurrentView('pos'); }} onShowBill={handleShowBill} onGeneratePin={(tableId) => setTables(tbls => tbls.map(t => t.id === tableId ? { ...t, activePin: String(Math.floor(100 + Math.random() * 900)) } : t))} currentUser={currentUser} printerConfig={printerConfig} floors={floors} />,
-            dashboard: <Dashboard completedOrders={completedOrders} cancelledOrders={cancelledOrders} openingTime={openingTime || '10:00'} closingTime={closingTime || '22:00'} />,
-            history: <SalesHistory completedOrders={completedOrders} cancelledOrders={cancelledOrders} printHistory={printHistory} onReprint={(orderNum) => {}} onSplitOrder={handleInitiateSplitCompleted} isEditMode={canEdit} onEditOrder={handleEditCompletedOrder} onInitiateCashBill={handleInitiateCashBill} onDeleteHistory={onDeleteHistory} currentUser={currentUser} />,
-            stock: <StockManagement stockItems={stockItems} setStockItems={setStockItems} stockCategories={stockCategories} setStockCategories={setStockCategories} stockUnits={stockUnits} setStockUnits={setStockUnits} />,
-            leave: <LeaveCalendarView leaveRequests={leaveRequests} currentUser={currentUser} onOpenRequestModal={(date) => { setLeaveRequestInitialDate(date || null); setModalState(prev => ({...prev, isLeaveRequest: true})); }} branches={branches} onUpdateStatus={handleUpdateLeaveStatus} onDeleteRequest={handleDeleteLeaveRequest} selectedBranch={selectedBranch} />
-        };
-
-        return viewMap[currentView] || <div>View not found</div>;
+        switch(currentView) {
+            case 'pos':
+                return <Menu menuItems={menuItems} setMenuItems={setMenuItems} categories={categories} onSelectItem={handleAddItemToOrder} isEditMode={canEdit} onEditItem={(item: MenuItem) => { setItemToEdit(item); setModalState(prev => ({ ...prev, isMenuItem: true })); }} onAddNewItem={() => { setItemToEdit(null); setModalState(prev => ({ ...prev, isMenuItem: true })); }} onDeleteItem={(id: number) => setMenuItems(menuItems.filter(item => item.id !== id))} onUpdateCategory={(o, n) => setCategories(cats => cats.map(c => c === o ? n : c))} onDeleteCategory={(n) => setCategories(cats => cats.filter(c => c !== n))} onAddCategory={n => setCategories(cats => [...cats, n])} onImportMenu={(items, newCats) => { setMenuItems(items); setCategories(cats => Array.from(new Set([...cats, ...newCats]))); }} />;
+            case 'kitchen':
+                return <KitchenView activeOrders={activeOrders} onCompleteOrder={handleCompleteOrder} onStartCooking={handleStartCooking} />;
+            case 'tables':
+                return <TableLayout tables={cleanedTables} activeOrders={activeOrders} onTableSelect={(tableId) => { setSelectedTableId(tableId); setCurrentView('pos'); }} onShowBill={handleShowBill} onGeneratePin={(tableId) => setTables(tbls => tbls.map(t => t.id === tableId ? { ...t, activePin: String(Math.floor(100 + Math.random() * 900)) } : t))} currentUser={currentUser} printerConfig={printerConfig} floors={floors} />;
+            case 'dashboard':
+                return <Dashboard completedOrders={completedOrders} cancelledOrders={cancelledOrders} openingTime={openingTime || '10:00'} closingTime={closingTime || '22:00'} />;
+            case 'history':
+                return <SalesHistory completedOrders={completedOrders} cancelledOrders={cancelledOrders} printHistory={printHistory} onReprint={(orderNum) => {}} onSplitOrder={handleInitiateSplitCompleted} isEditMode={canEdit} onEditOrder={handleEditCompletedOrder} onInitiateCashBill={handleInitiateCashBill} onDeleteHistory={onDeleteHistory} currentUser={currentUser} />;
+            case 'stock':
+                return <StockManagement stockItems={stockItems} setStockItems={setStockItems} stockCategories={stockCategories} setStockCategories={setStockCategories} stockUnits={stockUnits} setStockUnits={setStockUnits} />;
+            case 'leave':
+                return <LeaveCalendarView leaveRequests={leaveRequests} currentUser={currentUser} onOpenRequestModal={(date) => { setLeaveRequestInitialDate(date || null); setModalState(prev => ({...prev, isLeaveRequest: true})); }} branches={branches} onUpdateStatus={handleUpdateLeaveStatus} onDeleteRequest={handleDeleteLeaveRequest} selectedBranch={selectedBranch} />;
+            default:
+                return <div>View not found</div>;
+        }
     })();
 
     const orderSummarySidebar = (
-        <div className={`relative transition-all duration-300 ease-in-out ${isOrderSidebarVisible ? 'w-full md:w-[400px]' : 'w-0'}`}>
+        <div className={`relative transition-all duration-300 ease-in-out h-full ${isOrderSidebarVisible ? 'w-full md:w-[400px]' : 'w-0'}`}>
             <Sidebar
                 currentOrderItems={currentOrderItems}
                 onQuantityChange={(cartItemId, newQuantity) => setCurrentOrderItems(prev => prev.map(i => i.cartItemId === cartItemId ? {...i, quantity: newQuantity} : i).filter(i => i.quantity > 0))}
@@ -1200,16 +1196,13 @@ const App: React.FC = () => {
                     <div className="flex-1 overflow-y-auto min-w-0">
                         {mainContent}
                     </div>
-                     {/* Only show sidebar on POS and Tables views, regardless of user role */}
                     {(currentView === 'pos' || currentView === 'tables') && (
-                        <div className="relative">
+                        <div className="relative h-full">
                             <button
                                 onClick={() => setIsOrderSidebarVisible(!isOrderSidebarVisible)}
-                                // Removed 'hidden' logic so button is always visible. Increased padding and size.
                                 className={`absolute top-1/2 -left-5 -translate-y-1/2 z-10 bg-gray-800 text-white p-2 rounded-l-xl shadow-xl hover:bg-gray-700 transition-colors border border-gray-700 border-r-0`}
-                                style={{paddingTop: '3rem', paddingBottom: '3rem', writingMode: 'vertical-rl', textOrientation: 'mixed'}}
+                                style={{paddingTop: '3rem', paddingBottom: '3rem'}}
                             >
-                                {/* Thicker handle */}
                                 <div className="w-1.5 h-10 bg-gray-400 rounded-full"></div>
                             </button>
                             {orderSummarySidebar}

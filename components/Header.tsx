@@ -133,18 +133,15 @@ export const Header: React.FC<HeaderProps> = ({
                 </nav>
 
                 <div className="flex items-center gap-4">
-                    <div className="relative group">
-                        <label className={`relative inline-flex items-center cursor-pointer ${!(currentUser.role === 'admin' || currentUser.role === 'branch-admin') ? 'opacity-50 pointer-events-none' : ''}`}>
-                          <input type="checkbox" checked={isEditMode} onChange={onToggleEditMode} className="sr-only peer" disabled={!(currentUser.role === 'admin' || currentUser.role === 'branch-admin')} />
-                          <div className="w-14 h-7 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-yellow-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-1 after:left-[4px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-yellow-400"></div>
-                          <span className="ml-3 text-sm font-medium text-gray-900 hidden lg:block">โหมดแก้ไข</span>
-                        </label>
-                        {!(currentUser.role === 'admin' || currentUser.role === 'branch-admin') && (
-                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max bg-gray-700 text-white text-xs rounded py-1 px-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                ไม่มีสิทธิ์
-                            </div>
-                        )}
-                    </div>
+                    {(currentUser.role === 'admin' || currentUser.role === 'branch-admin') && (
+                        <div className="relative group">
+                            <label className="relative inline-flex items-center cursor-pointer">
+                              <input type="checkbox" checked={isEditMode} onChange={onToggleEditMode} className="sr-only peer" />
+                              <div className="w-14 h-7 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-yellow-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-1 after:left-[4px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-yellow-400"></div>
+                              <span className="ml-3 text-sm font-medium text-gray-900 hidden lg:block">โหมดแก้ไข</span>
+                            </label>
+                        </div>
+                    )}
                     
                     <div className="flex items-center gap-2 border-l pl-4">
                         <img src={currentUser.profilePictureUrl || "https://img.icons8.com/fluency/48/user-male-circle.png"} alt={currentUser.username} className="h-10 w-10 rounded-full object-cover" />
