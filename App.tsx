@@ -916,6 +916,7 @@ const App: React.FC = () => {
             acknowledgedBy: [currentUser.id] // The user submitting it has "acknowledged" it.
         };
     
+        // Optimistic UI update
         setLeaveRequests(prev => [...prev, newRequest]);
         setModalState(prev => ({ ...prev, isLeaveRequest: false }));
         Swal.fire('ส่งคำขอสำเร็จ', 'คำขอวันลาของคุณถูกส่งเรียบร้อยแล้ว', 'success');
@@ -930,6 +931,7 @@ const App: React.FC = () => {
     const handleUpdateLeaveStatus = async (requestId: number, status: 'approved' | 'rejected') => {
         if (!currentUser) return;
         
+        // Optimistic UI update
         setLeaveRequests(prev => prev.map(req => req.id === requestId ? { ...req, status } : req));
         
         try {
@@ -940,6 +942,7 @@ const App: React.FC = () => {
     };
     
     const handleDeleteLeaveRequest = async (requestId: number): Promise<boolean> => {
+        // Optimistic UI update
         setLeaveRequests(prev => prev.filter(req => req.id !== requestId));
         
         try {
@@ -957,33 +960,16 @@ const App: React.FC = () => {
 
         const isAdmin = currentUser.role === 'admin';
 
-        Swal.fire({
-            title: isAdmin ? 'ยืนยันการลบถาวร?' : 'ยืนยันการลบรายการ?',
-            html: isAdmin
-                ? `คุณเป็น Admin และกำลังจะลบ <b>${completedIdsToDelete.length + cancelledIdsToDelete.length + printIdsToDelete.length}</b> รายการออกจากระบบอย่างถาวร<br/><br/><b class="text-red-600">การกระทำนี้ไม่สามารถย้อนกลับได้!</b>`
-                : `คุณกำลังจะลบข้อมูล <b>${completedIdsToDelete.length + cancelledIdsToDelete.length + printIdsToDelete.length}</b> รายการที่เลือก<br/><br/>รายการเหล่านี้จะถูกลบข้อมูลถาวรและไม่สามารถกู้คืนได้`,
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonColor: '#d33',
-            cancelButtonColor: '#3085d6',
-            confirmButtonText: isAdmin ? 'ใช่, ลบถาวร!' : 'ใช่, ลบเลย!',
-            cancelButtonText: 'ยกเลิก'
-        }).then((result) => {
-            if (result.isConfirmed) {
-                if (isAdmin) {
-                    // ADMIN: HARD DELETE
-                    setCompletedOrders(prev => prev.filter(o => !completedIdsToDelete.includes(o.id)));
-                    setCancelledOrders(prev => prev.filter(o => !cancelledIdsToDelete.includes(o.id)));
-                    setPrintHistory(prev => prev.filter(p => !printIdsToDelete.includes(p.id)));
-                } else {
-                    // NON-ADMIN: SOFT DELETE
-                    setCompletedOrders(prev => prev.map(o => completedIdsToDelete.includes(o.id) ? { ...o, isDeleted: true, deletedBy: currentUser.username } : o));
-                    setCancelledOrders(prev => prev.map(o => cancelledIdsToDelete.includes(o.id) ? { ...o, isDeleted: true, deletedBy: currentUser.username } : o));
-                    setPrintHistory(prev => prev.map(p => printIdsToDelete.includes(p.id) ? { ...p, isDeleted: true, deletedBy: currentUser.username } : p));
-                }
-                 Swal.fire('ลบแล้ว', 'รายการที่เลือกถูกลบเรียบร้อยแล้ว', 'success');
-            }
-        });
+        if (isAdmin) {
+            setCompletedOrders(prev => prev.filter(o => !completedIdsToDelete.includes(o.id)));
+            setCancelledOrders(prev => prev.filter(o => !cancelledIdsToDelete.includes(o.id)));
+            setPrintHistory(prev => prev.filter(p => !printIdsToDelete.includes(p.id)));
+        } else {
+            setCompletedOrders(prev => prev.map(o => completedIdsToDelete.includes(o.id) ? { ...o, isDeleted: true, deletedBy: currentUser.username } : o));
+            setCancelledOrders(prev => prev.map(o => cancelledIdsToDelete.includes(o.id) ? { ...o, isDeleted: true, deletedBy: currentUser.username } : o));
+            setPrintHistory(prev => prev.map(p => printIdsToDelete.includes(p.id) ? { ...p, isDeleted: true, deletedBy: currentUser.username } : p));
+        }
+        Swal.fire('ลบแล้ว', 'รายการที่เลือกถูกลบเรียบร้อยแล้ว', 'success');
     };
     
     // --- MODAL HANDLERS ---
@@ -1080,11 +1066,13 @@ const App: React.FC = () => {
         return <LoginScreen onLogin={handleLogin} />;
     }
 
-    if (!selectedBranch && currentUser.role !== 'admin') {
-        const userBranches = branches.filter(b => currentUser.allowedBranchIds?.includes(b.id));
-        if (userBranches.length === 1) {
-            handleSelectBranch(userBranches[0]);
-            return null; // Render will be triggered again
+    if (!selectedBranch) {
+        if (currentUser.role !== 'admin') {
+            const userBranches = branches.filter(b => currentUser.allowedBranchIds?.includes(b.id));
+            if (userBranches.length === 1) {
+                handleSelectBranch(userBranches[0]);
+                return null; // Render will be triggered again
+            }
         }
          return (
             <BranchSelectionScreen 
@@ -1177,27 +1165,110 @@ const App: React.FC = () => {
         }
     }, [currentUser]);
 
-    return (
-        <div className="h-screen w-screen flex flex-col bg-gray-100 overflow-hidden">
-             {/* Mobile User Profile Bar */}
-             {layoutType === 'staff' && currentUser && (
-                <div className="md:hidden bg-white shadow-sm p-2 flex justify-between items-center sticky top-0 z-30 border-b">
-                    <div className="flex items-center gap-3">
-                        <img src={currentUser.profilePictureUrl || "https://img.icons8.com/fluency/48/user-male-circle.png"} alt={currentUser.username} className="h-9 w-9 rounded-full object-cover" />
-                        <div>
-                            <p className="font-semibold text-gray-800 text-sm leading-tight">{currentUser.username}</p>
-                            <p className={`text-xs font-semibold leading-tight ${
-                                currentUser.role === 'kitchen' ? 'text-orange-600' : 'text-blue-600'
-                            }`}>{roleText}</p>
+    // --- RENDER ---
+    const modals = (
+        <>
+            <ItemCustomizationModal isOpen={modalState.isCustomization} onClose={handleModalClose} item={itemToCustomize} onConfirm={handleConfirmCustomization} />
+            <OrderSuccessModal isOpen={modalState.isOrderSuccess} onClose={handleModalClose} orderId={lastPlacedOrderId!} />
+            <TableBillModal isOpen={modalState.isTableBill} onClose={handleModalClose} order={orderForModal as ActiveOrder} onInitiatePayment={handleInitiatePayment} onInitiateMove={handleInitiateMove} onSplit={handleInitiateSplit} isEditMode={canEdit} onUpdateOrder={(orderId, items, customerCount) => setActiveOrders(prev => prev.map(o => o.id === orderId ? {...o, items, customerCount} : o))} currentUser={currentUser} onInitiateCancel={handleInitiateCancel} activeOrderCount={activeOrders.length} onInitiateMerge={handleInitiateMerge} />
+            <PaymentModal isOpen={modalState.isPayment} onClose={handleModalClose} order={orderForModal as ActiveOrder} onConfirmPayment={handleConfirmPayment} qrCodeUrl={qrCodeUrl} isEditMode={canEdit} onOpenSettings={handleOpenSettings} isConfirmingPayment={isConfirmingPayment} />
+            <PaymentSuccessModal isOpen={modalState.isPaymentSuccess} onClose={(shouldPrint) => { if(shouldPrint && printerConfig?.cashier && orderForModal) { printerService.printReceipt(orderForModal as CompletedOrder, printerConfig.cashier, restaurantName).catch(e => Swal.fire('Print Error', e.message, 'error')); } handleModalClose(); }} orderId={orderForModal?.orderNumber!} />
+            <SettingsModal isOpen={modalState.isSettings} onClose={handleModalClose} onSave={(qr, sound, staffSound, printer, open, close) => { setQrCodeUrl(qr); setNotificationSoundUrl(sound); setStaffCallSoundUrl(staffSound); setPrinterConfig(printer); setOpeningTime(open); setClosingTime(close); handleModalClose(); }} currentQrCodeUrl={qrCodeUrl} currentNotificationSoundUrl={notificationSoundUrl} currentStaffCallSoundUrl={staffCallSoundUrl} currentPrinterConfig={printerConfig} currentOpeningTime={openingTime} currentClosingTime={closingTime} onSavePrinterConfig={setPrinterConfig} />
+            <UserManagerModal isOpen={modalState.isUserManager} onClose={handleModalClose} users={users} setUsers={setUsers} currentUser={currentUser!} branches={branches} isEditMode={canEdit} />
+            <BranchManagerModal isOpen={modalState.isBranchManager} onClose={handleModalClose} branches={branches} setBranches={setBranches} />
+            <MenuItemModal isOpen={modalState.isMenuItem} onClose={handleModalClose} onSave={(item) => { const saveItem = {...item, id: item.id || Date.now()}; setMenuItems(prev => item.id ? prev.map(i => i.id === item.id ? saveItem : i) : [...prev, saveItem]); handleModalClose(); }} itemToEdit={itemToEdit} categories={categories} onAddCategory={name => setCategories(prev => [...prev, name])} />
+            <LeaveRequestModal isOpen={modalState.isLeaveRequest} onClose={handleModalClose} currentUser={currentUser} onSave={handleSaveLeaveRequest} leaveRequests={leaveRequests} initialDate={leaveRequestInitialDate} />
+            <MenuSearchModal isOpen={modalState.isMenuSearch} onClose={handleModalClose} menuItems={menuItems} onSelectItem={handleAddItemToOrder} />
+            <MoveTableModal isOpen={modalState.isMoveTable} onClose={handleModalClose} order={orderForModal as ActiveOrder} tables={cleanedTables} activeOrders={activeOrders} onConfirmMove={(orderId, newTableId) => { const newTable = tables.find(t=>t.id===newTableId); if(!newTable) return; setActiveOrders(prev => prev.map(o => o.id === orderId ? {...o, tableName: newTable.name, floor: newTable.floor} : o)); handleModalClose(); }} floors={floors} />
+            <SplitBillModal isOpen={modalState.isSplitBill} onClose={handleModalClose} order={orderForModal as ActiveOrder} onConfirmSplit={(itemsToSplit) => { const newOrderNumber = Math.max(0, ...activeOrders.map(o=>o.orderNumber), ...completedOrders.map(o=>o.orderNumber)) + 1; const newOrder:ActiveOrder = {...(orderForModal as ActiveOrder), id: Date.now(), orderNumber: newOrderNumber, items: itemsToSplit, parentOrderId: orderForModal!.orderNumber}; setActiveOrders(prev => [...prev.map(o => o.id === orderForModal!.id ? {...o, items: o.items.map(i => { const split = itemsToSplit.find(si=>si.id===i.id); return split ? {...i, quantity: i.quantity - split.quantity} : i; }).filter(i => i.quantity > 0) } : o), newOrder]); handleModalClose(); }} />
+            <SplitCompletedBillModal isOpen={modalState.isSplitCompleted} onClose={handleModalClose} order={orderForModal as CompletedOrder} onConfirmSplit={(itemsToSplit) => { const newOrderNumber = Math.max(0, ...activeOrders.map(o=>o.orderNumber), ...completedOrders.map(o=>o.orderNumber)) + 1; const newOrder:CompletedOrder = {...(orderForModal as CompletedOrder), id: Date.now(), orderNumber: newOrderNumber, items: itemsToSplit, parentOrderId: orderForModal!.orderNumber}; setCompletedOrders(prev => [...prev.map(o => o.id === orderForModal!.id ? {...o, items: o.items.map(i => { const split = itemsToSplit.find(si=>si.id===i.id); return split ? {...i, quantity: i.quantity - split.quantity} : i; }).filter(i => i.quantity > 0) } : o), newOrder]); handleModalClose(); }} />
+            <CancelOrderModal isOpen={modalState.isCancelOrder} onClose={handleModalClose} order={orderForModal as ActiveOrder} onConfirm={(order, reason, notes) => { const cancelled: CancelledOrder = {...order, status: 'cancelled', cancellationTime: Date.now(), cancelledBy: currentUser!.username, cancellationReason: reason, cancellationNotes: notes}; setCancelledOrders(prev => [...prev, cancelled]); setActiveOrders(prev => prev.filter(o => o.id !== order.id)); handleModalClose(); }} />
+            <CashBillModal isOpen={modalState.isCashBill} onClose={handleModalClose} order={orderForModal as CompletedOrder} restaurantName={restaurantName} logoUrl={logoUrl} />
+            <EditCompletedOrderModal isOpen={modalState.isEditCompleted} onClose={handleModalClose} order={orderForModal as CompletedOrder} onSave={(updated) => {setCompletedOrders(prev => prev.map(o => o.id === updated.id ? {...o, items: updated.items} : o)); handleModalClose(); }} menuItems={menuItems} />
+            <MergeBillModal isOpen={modalState.isMergeBill} onClose={handleModalClose} order={orderForModal as ActiveOrder} allActiveOrders={activeOrders} tables={cleanedTables} onConfirmMerge={(sourceIds, targetId) => { const targetOrder = activeOrders.find(o => o.id === targetId)!; const sourceOrders = activeOrders.filter(o => sourceIds.includes(o.id)); const allItems = [...targetOrder.items, ...sourceOrders.flatMap(o => o.items)]; setActiveOrders(prev => [...prev.filter(o => !sourceIds.includes(o.id) && o.id !== targetId), {...targetOrder, items: allItems}]); handleModalClose(); }} />
+        </>
+    );
+
+    if (layoutType === 'admin') {
+        return (
+            <>
+                <div className="h-screen w-screen flex bg-gray-100 overflow-hidden">
+                    <AdminSidebar 
+                        isCollapsed={isAdminSidebarCollapsed}
+                        onToggleCollapse={() => setIsAdminSidebarCollapsed(!isAdminSidebarCollapsed)}
+                        logoUrl={logoUrl}
+                        restaurantName={restaurantName}
+                        branchName={selectedBranch.name}
+                        currentUser={currentUser}
+                        onViewChange={setCurrentView}
+                        currentView={currentView}
+                        onToggleEditMode={() => setIsEditMode(!isEditMode)}
+                        isEditMode={canEdit}
+                        onOpenSettings={handleOpenSettings}
+                        onOpenUserManager={handleOpenUserManager}
+                        onManageBranches={handleOpenBranchManager}
+                        onChangeBranch={() => setSelectedBranch(null)}
+                        onLogout={handleLogout}
+                        kitchenBadgeCount={kitchenBadgeCount}
+                        tablesBadgeCount={tablesBadgeCount}
+                        leaveBadgeCount={leaveBadgeCount}
+                        onUpdateCurrentUser={(updates) => setUsers(prev => prev.map(u => u.id === currentUser.id ? {...u, ...updates} : u))}
+                        onUpdateLogoUrl={setLogoUrl}
+                        onUpdateRestaurantName={setRestaurantName}
+                    />
+                    <main className={`flex-1 flex flex-col overflow-hidden transition-all duration-300 ${isAdminSidebarCollapsed ? 'md:pl-20' : 'md:pl-64'}`}>
+                        <div className="flex-1 flex overflow-hidden min-w-0 h-full">
+                            <div className="flex-1 overflow-y-auto min-w-0">
+                                {mainContent}
+                            </div>
+                            {(currentView === 'pos' || currentView === 'tables') && (
+                                <div className="relative h-full flex">
+                                    <button
+                                        onClick={() => setIsOrderSidebarVisible(!isOrderSidebarVisible)}
+                                        className={`absolute top-1/2 -left-6 z-20 bg-gray-800 text-white p-2 rounded-l-xl shadow-xl hover:bg-gray-700 transition-colors border border-gray-700 border-r-0 flex items-center justify-center`}
+                                        style={{ transform: 'translateY(-50%)', height: '120px', width: '32px' }}
+                                    >
+                                        <div className="w-1.5 h-16 bg-gray-400 rounded-full"></div>
+                                    </button>
+                                    {orderSummarySidebar}
+                                </div>
+                            )}
                         </div>
-                    </div>
-                    <button onClick={handleLogout} className="p-2 text-gray-500 rounded-full hover:bg-gray-100" title="ออกจากระบบ">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
-                    </button>
+                        {totalItems > 0 && !isOrderSidebarVisible && (currentView === 'pos' || currentView === 'tables') && (
+                             <button
+                                onClick={() => setIsOrderSidebarVisible(true)}
+                                className="fixed bottom-6 right-6 z-30 bg-blue-600 text-white w-16 h-16 rounded-full shadow-lg flex items-center justify-center animate-pulse"
+                            >
+                                <span className="absolute -top-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-red-500 text-sm font-bold">{totalItems}</span>
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+                            </button>
+                        )}
+                    </main>
                 </div>
-            )}
-            
-            {layoutType === 'staff' ? (
+                {modals}
+            </>
+        );
+    }
+    
+    // --- STAFF LAYOUT ---
+    return (
+        <>
+            <div className="h-screen w-screen flex flex-col bg-gray-100 overflow-hidden">
+                {currentUser && (
+                    <div className="md:hidden bg-white shadow-sm p-2 flex justify-between items-center sticky top-0 z-30 border-b">
+                        <div className="flex items-center gap-3">
+                            <img src={currentUser.profilePictureUrl || "https://img.icons8.com/fluency/48/user-male-circle.png"} alt={currentUser.username} className="h-9 w-9 rounded-full object-cover" />
+                            <div>
+                                <p className="font-semibold text-gray-800 text-sm leading-tight">{currentUser.username}</p>
+                                <p className={`text-xs font-semibold leading-tight ${currentUser.role === 'kitchen' ? 'text-orange-600' : 'text-blue-600'}`}>{roleText}</p>
+                            </div>
+                        </div>
+                        <button onClick={handleLogout} className="p-2 text-gray-500 rounded-full hover:bg-gray-100" title="ออกจากระบบ">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+                        </button>
+                    </div>
+                )}
+                
                 <Header 
                     currentView={currentView}
                     onViewChange={setCurrentView}
@@ -1215,54 +1286,31 @@ const App: React.FC = () => {
                     onLogoChangeClick={() => {}}
                     restaurantName={restaurantName}
                     onRestaurantNameChange={(name) => setRestaurantName(name)}
-                    branchName={selectedBranch.name}
+                    branchName={selectedBranch!.name}
                     onChangeBranch={() => setSelectedBranch(null)}
                     onManageBranches={handleOpenBranchManager}
                 />
-            ) : (
-                <AdminSidebar 
-                    isCollapsed={isAdminSidebarCollapsed}
-                    onToggleCollapse={() => setIsAdminSidebarCollapsed(!isAdminSidebarCollapsed)}
-                    logoUrl={logoUrl}
-                    restaurantName={restaurantName}
-                    branchName={selectedBranch.name}
-                    currentUser={currentUser}
-                    onViewChange={setCurrentView}
-                    currentView={currentView}
-                    onToggleEditMode={() => setIsEditMode(!isEditMode)}
-                    isEditMode={canEdit}
-                    onOpenSettings={handleOpenSettings}
-                    onOpenUserManager={handleOpenUserManager}
-                    onManageBranches={handleOpenBranchManager}
-                    onChangeBranch={() => setSelectedBranch(null)}
-                    onLogout={handleLogout}
-                    kitchenBadgeCount={kitchenBadgeCount}
-                    tablesBadgeCount={tablesBadgeCount}
-                    leaveBadgeCount={leaveBadgeCount}
-                    onUpdateCurrentUser={(updates) => setUsers(prev => prev.map(u => u.id === currentUser.id ? {...u, ...updates} : u))}
-                    onUpdateLogoUrl={setLogoUrl}
-                    onUpdateRestaurantName={setRestaurantName}
-                />
-            )}
-
-            <main className={`flex flex-1 overflow-hidden ${layoutType === 'admin' ? (isAdminSidebarCollapsed ? 'md:pl-20' : 'md:pl-64') : ''}`}>
-                <div className={`flex-1 flex overflow-hidden min-w-0 h-full`}>
-                    <div className="flex-1 overflow-y-auto min-w-0 pb-24 md:pb-0">
-                        {mainContent}
-                    </div>
-                    {(currentView === 'pos' || currentView === 'tables') && (
-                        <div className="relative h-full flex">
-                            <button
-                                onClick={() => setIsOrderSidebarVisible(!isOrderSidebarVisible)}
-                                className={`absolute top-1/2 -left-6 z-20 bg-gray-800 text-white p-2 rounded-l-xl shadow-xl hover:bg-gray-700 transition-colors border border-gray-700 border-r-0 flex items-center justify-center`}
-                                style={{ transform: 'translateY(-50%)', height: '120px', width: '32px' }}
-                            >
-                                <div className="w-1.5 h-16 bg-gray-400 rounded-full"></div>
-                            </button>
-                            {orderSummarySidebar}
+                
+                <main className="flex flex-1 overflow-hidden">
+                    <div className="flex-1 flex overflow-hidden min-w-0 h-full">
+                        <div className="flex-1 overflow-y-auto min-w-0 pb-24 md:pb-0">
+                            {mainContent}
                         </div>
-                    )}
-                </div>
+                        {(currentView === 'pos' || currentView === 'tables') && (
+                            <div className="relative h-full flex">
+                                <button
+                                    onClick={() => setIsOrderSidebarVisible(!isOrderSidebarVisible)}
+                                    className={`absolute top-1/2 -left-6 z-20 bg-gray-800 text-white p-2 rounded-l-xl shadow-xl hover:bg-gray-700 transition-colors border border-gray-700 border-r-0 flex items-center justify-center`}
+                                    style={{ transform: 'translateY(-50%)', height: '120px', width: '32px' }}
+                                >
+                                    <div className="w-1.5 h-16 bg-gray-400 rounded-full"></div>
+                                </button>
+                                {orderSummarySidebar}
+                            </div>
+                        )}
+                    </div>
+                </main>
+
                 {totalItems > 0 && !isOrderSidebarVisible && (currentView === 'pos' || currentView === 'tables') && (
                      <button
                         onClick={() => setIsOrderSidebarVisible(true)}
@@ -1272,31 +1320,11 @@ const App: React.FC = () => {
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
                     </button>
                 )}
-            </main>
-            
-            {layoutType === 'staff' && (
+                
                 <BottomNavBar items={bottomNavItems} currentView={currentView} onViewChange={setCurrentView} />
-            )}
-
-            <ItemCustomizationModal isOpen={modalState.isCustomization} onClose={handleModalClose} item={itemToCustomize} onConfirm={handleConfirmCustomization} />
-            <OrderSuccessModal isOpen={modalState.isOrderSuccess} onClose={handleModalClose} orderId={lastPlacedOrderId!} />
-            <TableBillModal isOpen={modalState.isTableBill} onClose={handleModalClose} order={orderForModal as ActiveOrder} onInitiatePayment={handleInitiatePayment} onInitiateMove={handleInitiateMove} onSplit={handleInitiateSplit} isEditMode={canEdit} onUpdateOrder={(orderId, items, customerCount) => setActiveOrders(prev => prev.map(o => o.id === orderId ? {...o, items, customerCount} : o))} currentUser={currentUser} onInitiateCancel={handleInitiateCancel} activeOrderCount={activeOrders.length} onInitiateMerge={handleInitiateMerge} />
-            <PaymentModal isOpen={modalState.isPayment} onClose={handleModalClose} order={orderForModal as ActiveOrder} onConfirmPayment={handleConfirmPayment} qrCodeUrl={qrCodeUrl} isEditMode={canEdit} onOpenSettings={handleOpenSettings} isConfirmingPayment={isConfirmingPayment} />
-            <PaymentSuccessModal isOpen={modalState.isPaymentSuccess} onClose={(shouldPrint) => { if(shouldPrint && printerConfig?.cashier && orderForModal) { printerService.printReceipt(orderForModal as CompletedOrder, printerConfig.cashier, restaurantName).catch(e => Swal.fire('Print Error', e.message, 'error')); } handleModalClose(); }} orderId={orderForModal?.orderNumber!} />
-            <SettingsModal isOpen={modalState.isSettings} onClose={handleModalClose} onSave={(qr, sound, staffSound, printer, open, close) => { setQrCodeUrl(qr); setNotificationSoundUrl(sound); setStaffCallSoundUrl(staffSound); setPrinterConfig(printer); setOpeningTime(open); setClosingTime(close); handleModalClose(); }} currentQrCodeUrl={qrCodeUrl} currentNotificationSoundUrl={notificationSoundUrl} currentStaffCallSoundUrl={staffCallSoundUrl} currentPrinterConfig={printerConfig} currentOpeningTime={openingTime} currentClosingTime={closingTime} onSavePrinterConfig={setPrinterConfig} />
-            <UserManagerModal isOpen={modalState.isUserManager} onClose={handleModalClose} users={users} setUsers={setUsers} currentUser={currentUser} branches={branches} isEditMode={canEdit} />
-            <BranchManagerModal isOpen={modalState.isBranchManager} onClose={handleModalClose} branches={branches} setBranches={setBranches} />
-            <MenuItemModal isOpen={modalState.isMenuItem} onClose={handleModalClose} onSave={(item) => { const saveItem = {...item, id: item.id || Date.now()}; setMenuItems(prev => item.id ? prev.map(i => i.id === item.id ? saveItem : i) : [...prev, saveItem]); handleModalClose(); }} itemToEdit={itemToEdit} categories={categories} onAddCategory={name => setCategories(prev => [...prev, name])} />
-            <LeaveRequestModal isOpen={modalState.isLeaveRequest} onClose={handleModalClose} currentUser={currentUser} onSave={handleSaveLeaveRequest} leaveRequests={leaveRequests} initialDate={leaveRequestInitialDate} />
-            <MenuSearchModal isOpen={modalState.isMenuSearch} onClose={handleModalClose} menuItems={menuItems} onSelectItem={handleAddItemToOrder} />
-            <MoveTableModal isOpen={modalState.isMoveTable} onClose={handleModalClose} order={orderForModal as ActiveOrder} tables={cleanedTables} activeOrders={activeOrders} onConfirmMove={(orderId, newTableId) => { const newTable = tables.find(t=>t.id===newTableId); if(!newTable) return; setActiveOrders(prev => prev.map(o => o.id === orderId ? {...o, tableName: newTable.name, floor: newTable.floor} : o)); handleModalClose(); }} floors={floors} />
-            <SplitBillModal isOpen={modalState.isSplitBill} onClose={handleModalClose} order={orderForModal as ActiveOrder} onConfirmSplit={(itemsToSplit) => { const newOrderNumber = Math.max(0, ...activeOrders.map(o=>o.orderNumber), ...completedOrders.map(o=>o.orderNumber)) + 1; const newOrder:ActiveOrder = {...(orderForModal as ActiveOrder), id: Date.now(), orderNumber: newOrderNumber, items: itemsToSplit, parentOrderId: orderForModal!.orderNumber}; setActiveOrders(prev => [...prev.map(o => o.id === orderForModal!.id ? {...o, items: o.items.map(i => { const split = itemsToSplit.find(si=>si.id===i.id); return split ? {...i, quantity: i.quantity - split.quantity} : i; }).filter(i => i.quantity > 0) } : o), newOrder]); handleModalClose(); }} />
-            <SplitCompletedBillModal isOpen={modalState.isSplitCompleted} onClose={handleModalClose} order={orderForModal as CompletedOrder} onConfirmSplit={(itemsToSplit) => { const newOrderNumber = Math.max(0, ...activeOrders.map(o=>o.orderNumber), ...completedOrders.map(o=>o.orderNumber)) + 1; const newOrder:CompletedOrder = {...(orderForModal as CompletedOrder), id: Date.now(), orderNumber: newOrderNumber, items: itemsToSplit, parentOrderId: orderForModal!.orderNumber}; setCompletedOrders(prev => [...prev.map(o => o.id === orderForModal!.id ? {...o, items: o.items.map(i => { const split = itemsToSplit.find(si=>si.id===i.id); return split ? {...i, quantity: i.quantity - split.quantity} : i; }).filter(i => i.quantity > 0) } : o), newOrder]); handleModalClose(); }} />
-            <CancelOrderModal isOpen={modalState.isCancelOrder} onClose={handleModalClose} order={orderForModal as ActiveOrder} onConfirm={(order, reason, notes) => { const cancelled: CancelledOrder = {...order, status: 'cancelled', cancellationTime: Date.now(), cancelledBy: currentUser.username, cancellationReason: reason, cancellationNotes: notes}; setCancelledOrders(prev => [...prev, cancelled]); setActiveOrders(prev => prev.filter(o => o.id !== order.id)); handleModalClose(); }} />
-            <CashBillModal isOpen={modalState.isCashBill} onClose={handleModalClose} order={orderForModal as CompletedOrder} restaurantName={restaurantName} logoUrl={logoUrl} />
-            <EditCompletedOrderModal isOpen={modalState.isEditCompleted} onClose={handleModalClose} order={orderForModal as CompletedOrder} onSave={(updated) => {setCompletedOrders(prev => prev.map(o => o.id === updated.id ? {...o, items: updated.items} : o)); handleModalClose(); }} menuItems={menuItems} />
-            <MergeBillModal isOpen={modalState.isMergeBill} onClose={handleModalClose} order={orderForModal as ActiveOrder} allActiveOrders={activeOrders} tables={cleanedTables} onConfirmMerge={(sourceIds, targetId) => { const targetOrder = activeOrders.find(o => o.id === targetId)!; const sourceOrders = activeOrders.filter(o => sourceIds.includes(o.id)); const allItems = [...targetOrder.items, ...sourceOrders.flatMap(o => o.items)]; setActiveOrders(prev => [...prev.filter(o => !sourceIds.includes(o.id) && o.id !== targetId), {...targetOrder, items: allItems}]); handleModalClose(); }} />
-        </div>
+            </div>
+            {modals}
+        </>
     );
 };
 
