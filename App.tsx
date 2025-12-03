@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 
 import { 
     DEFAULT_BRANCHES, 
@@ -36,7 +36,7 @@ import { functionsService } from './services/firebaseFunctionsService';
 import { printerService } from './services/printerService';
 import firebase from 'firebase/compat/app';
 import 'firebase/compat/messaging';
-import { isFirebaseConfigured, db } from './firebaseConfig';
+import { db } from './firebaseConfig';
 
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
@@ -804,6 +804,7 @@ const App: React.FC = () => {
         };
 
         let newOrder: ActiveOrder | null = null;
+        let fallbackUsed = false;
         
         try {
             const result = await functionsService.placeOrder(payload);
@@ -820,6 +821,7 @@ const App: React.FC = () => {
             };
             
         } catch (error: any) {
+             fallbackUsed = true;
              console.warn("placeOrder function failed, falling back to client-side logic.", error);
              const nextOrderNumber = (Math.max(0, ...activeOrders.map(o => o.orderNumber), ...completedOrders.map(c => c.orderNumber)) + 1);
              newOrder = {
@@ -830,14 +832,14 @@ const App: React.FC = () => {
                 status: 'waiting',
                 orderTime: Date.now()
              };
-             // Directly update state in fallback
              setActiveOrders(prev => [...prev, newOrder!]);
         }
         
         if (newOrder) {
             if (sendToKitchen && printerConfig?.kitchen) {
+                const orderWithCorrectTax = { ...newOrder, taxAmount };
                 try {
-                    await printerService.printKitchenOrder(newOrder, printerConfig.kitchen);
+                    await printerService.printKitchenOrder(orderWithCorrectTax, printerConfig.kitchen);
                 } catch (printError) {
                     Swal.fire('คำเตือน', 'ออเดอร์ถูกบันทึกแล้ว แต่ไม่สามารถสั่งพิมพ์ได้', 'warning');
                 }
@@ -875,7 +877,6 @@ const App: React.FC = () => {
             }
         } catch (error: any) {
             console.warn("confirmPayment function failed, falling back to client-side logic.", error);
-            // Fallback: Directly update local state
             setCompletedOrders(prev => [...prev, completedOrder]);
             setActiveOrders(prev => prev.filter(o => o.id !== orderId));
         }
@@ -903,55 +904,54 @@ const App: React.FC = () => {
     };
     
     // --- LEAVE MANAGEMENT ---
-    const handleSaveLeaveRequest = async (request: Omit<LeaveRequest, 'id' | 'status' | 'branchId'>) => {
-        if (!selectedBranch) {
-            Swal.fire('ข้อผิดพลาด', 'ไม่สามารถระบุสาขาได้', 'error');
+    const handleSaveLeaveRequest = async (request: Omit<LeaveRequest, 'id' | 'status' | 'branchId' | 'acknowledgedBy'>) => {
+        if (!selectedBranch || !currentUser) {
+            Swal.fire('ข้อผิดพลาด', 'ไม่สามารถระบุสาขาหรือผู้ใช้ได้', 'error');
             return;
         }
-
-        const payload: SubmitLeaveRequestPayload = { ...request, branchId: selectedBranch.id };
-        const newRequest: LeaveRequest = { ...payload, id: Date.now(), status: 'pending', acknowledgedBy: [] };
-
-        try {
-            // Using a generic try-catch block for the API call to ensure fallback on any failure
-            const result = await functionsService.submitLeaveRequest(payload);
-            if (!result.success) throw new Error(result.error);
-             setLeaveRequests(prev => [...prev, newRequest]); // Optimistic update
-        } catch (error: any) {
-            console.warn("submitLeaveRequest function failed, falling back to client-side logic.", error);
-            setLeaveRequests(prev => [...prev, newRequest]);
-        }
-
+    
+        const newRequest: LeaveRequest = {
+            ...request,
+            id: Date.now(),
+            status: 'pending',
+            branchId: selectedBranch.id,
+            acknowledgedBy: [currentUser.id] // The user submitting it has "acknowledged" it.
+        };
+    
+        // Optimistically update the UI first for a responsive feel
+        setLeaveRequests(prev => [...prev, newRequest]);
         setModalState(prev => ({ ...prev, isLeaveRequest: false }));
         Swal.fire('ส่งคำขอสำเร็จ', 'คำขอวันลาของคุณถูกส่งเรียบร้อยแล้ว', 'success');
+    
+        try {
+            await functionsService.submitLeaveRequest(newRequest);
+        } catch (error: any) {
+            console.warn("submitLeaveRequest function failed, using client-side fallback (already updated).", error);
+        }
     };
-
+    
     const handleUpdateLeaveStatus = async (requestId: number, status: 'approved' | 'rejected') => {
         if (!currentUser) return;
         
-        setLeaveRequests(prev => prev.map(req => req.id === requestId ? { ...req, status } : req)); // Optimistic update
+        // Optimistic update
+        setLeaveRequests(prev => prev.map(req => req.id === requestId ? { ...req, status } : req));
         
         try {
-            // Unconditional fallback on any error
-            const result = await functionsService.updateLeaveStatus({ requestId, status, approverId: currentUser.id });
-            if (!result.success) throw new Error(result.error);
+            await functionsService.updateLeaveStatus({ requestId, status, approverId: currentUser.id });
         } catch (error: any) {
-            console.warn("updateLeaveStatus function failed, falling back to client-side logic.", error);
-            // Optimistic update already happened
+            console.warn("updateLeaveStatus function failed, using client-side fallback (already updated).", error);
         }
     };
     
     const handleDeleteLeaveRequest = async (requestId: number): Promise<boolean> => {
-        setLeaveRequests(prev => prev.filter(req => req.id !== requestId)); // Optimistic update
-
+        // Optimistic update
+        setLeaveRequests(prev => prev.filter(req => req.id !== requestId));
+        
         try {
-            // Unconditional fallback on any error
-            const result = await functionsService.deleteLeaveRequest({ requestId });
-            if (!result.success) throw new Error(result.error);
+            await functionsService.deleteLeaveRequest({ requestId });
             return true;
         } catch (error: any) {
-            console.warn("deleteLeaveRequest function failed, falling back to client-side logic.", error);
-            // Optimistic update already happened
+            console.warn("deleteLeaveRequest function failed, using client-side fallback (already updated).", error);
             return true;
         }
     };
@@ -962,22 +962,33 @@ const App: React.FC = () => {
 
         const isAdmin = currentUser.role === 'admin';
 
-        if (isAdmin) {
-            // ADMIN: HARD DELETE
-            setCompletedOrders(prev => prev.filter(o => !completedIdsToDelete.includes(o.id)));
-            setCancelledOrders(prev => prev.filter(o => !cancelledIdsToDelete.includes(o.id)));
-            setPrintHistory(prev => prev.filter(p => !printIdsToDelete.includes(p.id)));
-        } else {
-            // NON-ADMIN: SOFT DELETE
-            setCompletedOrders(prev => prev.map(o => completedIdsToDelete.includes(o.id) ? { ...o, isDeleted: true, deletedBy: currentUser.username } : o));
-            setCancelledOrders(prev => prev.map(o => cancelledIdsToDelete.includes(o.id) ? { ...o, isDeleted: true, deletedBy: currentUser.username } : o));
-            setPrintHistory(prev => prev.map(p => printIdsToDelete.includes(p.id) ? { ...p, isDeleted: true, deletedBy: currentUser.username } : p));
-        }
-        
-        // Show simplified success message for non-admins to mimic hard delete
-        if (!isAdmin) {
-             Swal.fire('ลบแล้ว', 'รายการที่เลือกถูกลบเรียบร้อยแล้ว', 'success');
-        }
+        Swal.fire({
+            title: isAdmin ? 'ยืนยันการลบถาวร?' : 'ยืนยันการลบรายการ?',
+            html: isAdmin
+                ? `คุณเป็น Admin และกำลังจะลบ <b>${completedIdsToDelete.length + cancelledIdsToDelete.length + printIdsToDelete.length}</b> รายการออกจากระบบอย่างถาวร<br/><br/><b class="text-red-600">การกระทำนี้ไม่สามารถย้อนกลับได้!</b>`
+                : `คุณกำลังจะลบข้อมูล <b>${completedIdsToDelete.length + cancelledIdsToDelete.length + printIdsToDelete.length}</b> รายการที่เลือก<br/><br/>รายการเหล่านี้จะถูกลบข้อมูลถาวรและไม่สามารถกู้คืนได้`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#3085d6',
+            confirmButtonText: isAdmin ? 'ใช่, ลบถาวร!' : 'ใช่, ลบเลย!',
+            cancelButtonText: 'ยกเลิก'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                if (isAdmin) {
+                    // ADMIN: HARD DELETE
+                    setCompletedOrders(prev => prev.filter(o => !completedIdsToDelete.includes(o.id)));
+                    setCancelledOrders(prev => prev.filter(o => !cancelledIdsToDelete.includes(o.id)));
+                    setPrintHistory(prev => prev.filter(p => !printIdsToDelete.includes(p.id)));
+                } else {
+                    // NON-ADMIN: SOFT DELETE
+                    setCompletedOrders(prev => prev.map(o => completedIdsToDelete.includes(o.id) ? { ...o, isDeleted: true, deletedBy: currentUser.username } : o));
+                    setCancelledOrders(prev => prev.map(o => cancelledIdsToDelete.includes(o.id) ? { ...o, isDeleted: true, deletedBy: currentUser.username } : o));
+                    setPrintHistory(prev => prev.map(p => printIdsToDelete.includes(p.id) ? { ...p, isDeleted: true, deletedBy: currentUser.username } : p));
+                }
+                 Swal.fire('ลบแล้ว', 'รายการที่เลือกถูกลบเรียบร้อยแล้ว', 'success');
+            }
+        });
     };
     
     // --- MODAL HANDLERS ---
@@ -1145,8 +1156,52 @@ const App: React.FC = () => {
         </div>
     );
     
+    // --- Define Bottom Nav Items ---
+    const bottomNavItems: NavItem[] = [
+        { id: 'pos', label: 'POS', view: 'pos', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path d="M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4z" /><path fillRule="evenodd" d="M18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h2a1 1 0 100-2H9z" clipRule="evenodd" /></svg> },
+        { id: 'kitchen', label: 'ครัว', view: 'kitchen', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M17.707 9.293a1 1 0 010 1.414l-7 7a1 1 0 01-1.414 0l-7-7A.997.997 0 012 10V5a3 3 0 013-3h10a3 3 0 013 3v5a.997.997 0 01-.293.707zM5 6a1 1 0 100 2 1 1 0 000-2zm3 0a1 1 0 100 2 1 1 0 000-2zm3 0a1 1 0 100 2 1 1 0 000-2z" clipRule="evenodd" /></svg>, badge: kitchenBadgeCount },
+        { id: 'tables', label: 'โต๊ะ', view: 'tables', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path d="M2 5a2 2 0 012-2h12a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V5zm2 1v8h8V6H4z" /></svg>, badge: tablesBadgeCount },
+        { id: 'leave', label: 'วันลา', view: 'leave', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg> },
+        { id: 'more', label: 'เพิ่มเติม', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" /></svg>,
+            subItems: [
+                { id: 'history', label: 'ประวัติ', view: 'history', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> },
+                { id: 'stock', label: 'สต็อก', view: 'stock', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg> },
+            ]
+        },
+    ];
+
+    const roleText = useMemo(() => {
+        if (!currentUser) return '';
+        switch (currentUser.role) {
+            case 'admin': return 'ผู้ดูแลระบบ';
+            case 'branch-admin': return 'ผู้ดูแลสาขา';
+            case 'pos': return 'พนักงาน POS';
+            case 'kitchen': return 'พนักงานครัว';
+            case 'auditor': return 'Auditor';
+            default: return '';
+        }
+    }, [currentUser]);
+
     return (
         <div className="h-screen w-screen flex flex-col bg-gray-100 overflow-hidden">
+             {/* Mobile User Profile Bar */}
+             {layoutType === 'staff' && currentUser && (
+                <div className="md:hidden bg-white shadow-sm p-2 flex justify-between items-center sticky top-0 z-30 border-b">
+                    <div className="flex items-center gap-3">
+                        <img src={currentUser.profilePictureUrl || "https://img.icons8.com/fluency/48/user-male-circle.png"} alt={currentUser.username} className="h-9 w-9 rounded-full object-cover" />
+                        <div>
+                            <p className="font-semibold text-gray-800 text-sm leading-tight">{currentUser.username}</p>
+                            <p className={`text-xs font-semibold leading-tight ${
+                                currentUser.role === 'kitchen' ? 'text-orange-600' : 'text-blue-600'
+                            }`}>{roleText}</p>
+                        </div>
+                    </div>
+                    <button onClick={handleLogout} className="p-2 text-gray-500 rounded-full hover:bg-gray-100" title="ออกจากระบบ">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+                    </button>
+                </div>
+            )}
+            
             {layoutType === 'staff' ? (
                 <Header 
                     currentView={currentView}
@@ -1196,21 +1251,16 @@ const App: React.FC = () => {
             )}
 
             <main className={`flex flex-1 overflow-hidden ${layoutType === 'admin' ? (isAdminSidebarCollapsed ? 'md:pl-20' : 'md:pl-64') : ''}`}>
-                <div className={`flex-1 flex overflow-hidden min-w-0`}>
-                    <div className="flex-1 overflow-y-auto min-w-0">
+                <div className={`flex-1 flex overflow-hidden min-w-0 h-full`}>
+                    <div className="flex-1 overflow-y-auto min-w-0 pb-24 md:pb-0">
                         {mainContent}
                     </div>
-                    {/* Sidebar Logic: Show ONLY on POS and Tables views */}
                     {(currentView === 'pos' || currentView === 'tables') && (
                         <div className="relative h-full flex">
                             <button
                                 onClick={() => setIsOrderSidebarVisible(!isOrderSidebarVisible)}
                                 className={`absolute top-1/2 -left-6 z-20 bg-gray-800 text-white p-2 rounded-l-xl shadow-xl hover:bg-gray-700 transition-colors border border-gray-700 border-r-0 flex items-center justify-center`}
-                                style={{
-                                    transform: 'translateY(-50%)',
-                                    height: '120px',
-                                    width: '32px'
-                                }}
+                                style={{ transform: 'translateY(-50%)', height: '120px', width: '32px' }}
                             >
                                 <div className="w-1.5 h-16 bg-gray-400 rounded-full"></div>
                             </button>
@@ -1221,7 +1271,7 @@ const App: React.FC = () => {
                 {totalItems > 0 && !isOrderSidebarVisible && (currentView === 'pos' || currentView === 'tables') && (
                      <button
                         onClick={() => setIsOrderSidebarVisible(true)}
-                        className="fixed bottom-6 right-6 z-30 bg-blue-600 text-white w-16 h-16 rounded-full shadow-lg flex items-center justify-center animate-pulse"
+                        className="fixed bottom-24 right-6 z-30 bg-blue-600 text-white w-16 h-16 rounded-full shadow-lg flex items-center justify-center animate-pulse"
                     >
                         <span className="absolute -top-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-red-500 text-sm font-bold">{totalItems}</span>
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
@@ -1229,6 +1279,10 @@ const App: React.FC = () => {
                 )}
             </main>
             
+            {layoutType === 'staff' && (
+                <BottomNavBar items={bottomNavItems} currentView={currentView} onViewChange={setCurrentView} />
+            )}
+
             <ItemCustomizationModal isOpen={modalState.isCustomization} onClose={handleModalClose} item={itemToCustomize} onConfirm={handleConfirmCustomization} />
             <OrderSuccessModal isOpen={modalState.isOrderSuccess} onClose={handleModalClose} orderId={lastPlacedOrderId!} />
             <TableBillModal isOpen={modalState.isTableBill} onClose={handleModalClose} order={orderForModal as ActiveOrder} onInitiatePayment={handleInitiatePayment} onInitiateMove={handleInitiateMove} onSplit={handleInitiateSplit} isEditMode={canEdit} onUpdateOrder={(orderId, items, customerCount) => setActiveOrders(prev => prev.map(o => o.id === orderId ? {...o, items, customerCount} : o))} currentUser={currentUser} onInitiateCancel={handleInitiateCancel} activeOrderCount={activeOrders.length} onInitiateMerge={handleInitiateMerge} />
