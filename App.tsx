@@ -804,7 +804,6 @@ const App: React.FC = () => {
         };
 
         let newOrder: ActiveOrder | null = null;
-        let fallbackUsed = false;
         
         try {
             const result = await functionsService.placeOrder(payload);
@@ -821,7 +820,6 @@ const App: React.FC = () => {
             };
             
         } catch (error: any) {
-             fallbackUsed = true;
              console.warn("placeOrder function failed, falling back to client-side logic.", error);
              const nextOrderNumber = (Math.max(0, ...activeOrders.map(o => o.orderNumber), ...completedOrders.map(c => c.orderNumber)) + 1);
              newOrder = {
@@ -918,7 +916,6 @@ const App: React.FC = () => {
             acknowledgedBy: [currentUser.id] // The user submitting it has "acknowledged" it.
         };
     
-        // Optimistically update the UI first for a responsive feel
         setLeaveRequests(prev => [...prev, newRequest]);
         setModalState(prev => ({ ...prev, isLeaveRequest: false }));
         Swal.fire('ส่งคำขอสำเร็จ', 'คำขอวันลาของคุณถูกส่งเรียบร้อยแล้ว', 'success');
@@ -926,14 +923,13 @@ const App: React.FC = () => {
         try {
             await functionsService.submitLeaveRequest(newRequest);
         } catch (error: any) {
-            console.warn("submitLeaveRequest function failed, using client-side fallback (already updated).", error);
+            console.warn("submitLeaveRequest function failed, falling back to client-side logic (already updated).", error);
         }
     };
     
     const handleUpdateLeaveStatus = async (requestId: number, status: 'approved' | 'rejected') => {
         if (!currentUser) return;
         
-        // Optimistic update
         setLeaveRequests(prev => prev.map(req => req.id === requestId ? { ...req, status } : req));
         
         try {
@@ -944,7 +940,6 @@ const App: React.FC = () => {
     };
     
     const handleDeleteLeaveRequest = async (requestId: number): Promise<boolean> => {
-        // Optimistic update
         setLeaveRequests(prev => prev.filter(req => req.id !== requestId));
         
         try {
@@ -1085,9 +1080,9 @@ const App: React.FC = () => {
         return <LoginScreen onLogin={handleLogin} />;
     }
 
-    if (!selectedBranch) {
+    if (!selectedBranch && currentUser.role !== 'admin') {
         const userBranches = branches.filter(b => currentUser.allowedBranchIds?.includes(b.id));
-        if (userBranches.length === 1 && currentUser.role !== 'admin') {
+        if (userBranches.length === 1) {
             handleSelectBranch(userBranches[0]);
             return null; // Render will be triggered again
         }
@@ -1164,7 +1159,7 @@ const App: React.FC = () => {
         { id: 'leave', label: 'วันลา', view: 'leave', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg> },
         { id: 'more', label: 'เพิ่มเติม', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" /></svg>,
             subItems: [
-                { id: 'history', label: 'ประวัติ', view: 'history', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> },
+                { id: 'history', label: 'ประวัติ', view: 'history', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> },
                 { id: 'stock', label: 'สต็อก', view: 'stock', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg> },
             ]
         },
@@ -1197,7 +1192,7 @@ const App: React.FC = () => {
                         </div>
                     </div>
                     <button onClick={handleLogout} className="p-2 text-gray-500 rounded-full hover:bg-gray-100" title="ออกจากระบบ">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
                     </button>
                 </div>
             )}
