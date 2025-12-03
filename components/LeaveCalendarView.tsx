@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import type { LeaveRequest, User, Branch } from '../types';
 import Swal from 'sweetalert2';
@@ -50,8 +51,8 @@ export const LeaveCalendarView: React.FC<LeaveCalendarViewProps> = ({ leaveReque
             return leaveRequests;
         }
 
-        // Branch Admin sees requests for their assigned branches.
-        if (currentUser.role === 'branch-admin') {
+        // Branch Admin and Auditors see requests for their assigned branches.
+        if (currentUser.role === 'branch-admin' || currentUser.role === 'auditor') {
             return leaveRequests.filter(req => currentUser.allowedBranchIds?.includes(req.branchId));
         }
 
@@ -121,8 +122,8 @@ export const LeaveCalendarView: React.FC<LeaveCalendarViewProps> = ({ leaveReque
             return true;
         }
 
-        // Branch Admins can approve requests for their allowed branches.
-        if (currentUser.role === 'branch-admin' && currentUser.allowedBranchIds?.includes(req.branchId)) {
+        // Branch Admins and Auditors can approve requests for their allowed branches.
+        if ((currentUser.role === 'branch-admin' || currentUser.role === 'auditor') && currentUser.allowedBranchIds?.includes(req.branchId)) {
             return true;
         }
         

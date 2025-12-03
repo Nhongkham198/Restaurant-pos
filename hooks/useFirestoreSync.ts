@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { db } from '../firebaseConfig';
 import type { Table } from '../types';
 
@@ -9,11 +9,16 @@ export function useFirestoreSync<T>(
 ): [T, React.Dispatch<React.SetStateAction<T>>] {
     const [value, setValue] = useState<T>(initialValue);
     const initialValueRef = useRef(initialValue);
+    
+    const valueRef = useRef(value);
+    useEffect(() => {
+        valueRef.current = value;
+    }, [value]);
 
     useEffect(() => {
         if (!db) {
             console.error("Firestore is not initialized.");
-            return;
+            return () => {};
         }
 
         const isBranchSpecific = !['users', 'branches', 'leaveRequests'].includes(collectionKey);
@@ -21,17 +26,15 @@ export function useFirestoreSync<T>(
 
         if (isBranchSpecific && !branchId) {
             setValue(currentInitialValue);
-            return;
+            return () => {};
         }
 
         const pathSegments = isBranchSpecific && branchId
             ? ['branches', branchId, collectionKey, 'data']
             : [collectionKey, 'data'];
         
-        // FIX: Use v8 API: db.doc('path/to/doc')
         const docRef = db.doc(pathSegments.join('/'));
 
-        // FIX: Use v8 API: docRef.onSnapshot(...)
         const unsubscribe = docRef.onSnapshot(
             (docSnapshot) => {
                 if (docSnapshot.exists) {
@@ -39,7 +42,6 @@ export function useFirestoreSync<T>(
                     if (data && typeof data.value !== 'undefined') {
                         let valueToSet = data.value;
 
-                        // More robust deduplication for 'tables' with self-healing
                         if (collectionKey === 'tables' && Array.isArray(valueToSet)) {
                             const rawTablesFromDb = valueToSet as Table[];
                             const uniqueTablesMap = new Map<string, Table>();
@@ -47,7 +49,6 @@ export function useFirestoreSync<T>(
                             rawTablesFromDb.forEach(table => {
                                 if (table && table.name && table.floor) {
                                     const key = `${table.name.trim().toLowerCase()}-${table.floor.trim().toLowerCase()}`;
-                                    // Only add if it's the first time we see this key to preserve original IDs if possible
                                     if (!uniqueTablesMap.has(key)) {
                                         uniqueTablesMap.set(key, table);
                                     }
@@ -55,28 +56,22 @@ export function useFirestoreSync<T>(
                             });
                             const cleanedUniqueTables = Array.from(uniqueTablesMap.values());
 
-                            // If data corruption (duplicates) was detected, write the clean version back to Firestore.
                             if (rawTablesFromDb.length > cleanedUniqueTables.length) {
                                 console.warn(`[Firestore Sync] Found and removed ${rawTablesFromDb.length - cleanedUniqueTables.length} duplicate tables. Auto-correcting data in Firestore.`);
-                                // Fire and forget: update Firestore in the background without waiting.
-                                // FIX: Use v8 API: docRef.set(...)
                                 docRef.set({ value: cleanedUniqueTables }).catch(err => {
                                     console.error("Failed to write cleaned table data back to Firestore:", err);
                                 });
                             }
 
-                            // Always use the cleaned data for the local state.
                             valueToSet = cleanedUniqueTables;
                         }
 
-                        // Self-healing for 'users' collection
                         if (collectionKey === 'users' && Array.isArray(valueToSet) && valueToSet.length === 0 && Array.isArray(currentInitialValue) && currentInitialValue.length > 0) {
                             console.warn(`'users' collection is empty in Firestore. Re-initializing with default value.`);
                             docRef.set({ value: currentInitialValue });
                             setValue(currentInitialValue);
                         } else if (collectionKey === 'branches' && Array.isArray(valueToSet) && valueToSet.length === 0 && Array.isArray(currentInitialValue) && currentInitialValue.length > 0) {
                             console.warn(`'branches' collection is empty in Firestore. Re-initializing with default value.`);
-                            // FIX: Use v8 API: docRef.set(...)
                             docRef.set({ value: currentInitialValue });
                             setValue(currentInitialValue);
                         } else {
@@ -84,13 +79,11 @@ export function useFirestoreSync<T>(
                         }
                     } else {
                         console.warn(`Document at ${pathSegments.join('/')} is malformed. Overwriting with initial value.`);
-                        // FIX: Use v8 API: docRef.set(...)
                         docRef.set({ value: currentInitialValue });
                         setValue(currentInitialValue);
                     }
                 } else {
                     console.log(`Document at ${pathSegments.join('/')} not found. Creating...`);
-                    // FIX: Use v8 API: docRef.set(...)
                     docRef.set({ value: currentInitialValue });
                     setValue(currentInitialValue);
                 }
@@ -103,35 +96,34 @@ export function useFirestoreSync<T>(
         return () => unsubscribe();
     }, [branchId, collectionKey]);
 
-    const setFirestoreValue: React.Dispatch<React.SetStateAction<T>> = (newValueAction) => {
-        const newValue = newValueAction instanceof Function ? newValueAction(value) : newValueAction;
+    const setFirestoreValue: React.Dispatch<React.SetStateAction<T>> = useCallback((newValueAction) => {
+        const newValue = newValueAction instanceof Function ? newValueAction(valueRef.current) : newValueAction;
         
+        // Optimistically update local state right away.
         setValue(newValue);
-
+        
         if (!db) {
-            console.error("Firestore is not initialized. Cannot save data.");
+            console.error("Firestore is not initialized.");
             return;
         }
 
         const isBranchSpecific = !['users', 'branches', 'leaveRequests'].includes(collectionKey);
         
         if (isBranchSpecific && !branchId) {
-            console.warn(`Cannot save to ${collectionKey} without a branchId. Data is only local.`);
+            console.warn(`Attempted to set value for branch-specific collection '${collectionKey}' without a branchId.`);
             return;
         }
-        
+
         const pathSegments = isBranchSpecific && branchId
             ? ['branches', branchId, collectionKey, 'data']
             : [collectionKey, 'data'];
         
-        // FIX: Use v8 API: db.doc('path/to/doc')
         const docRef = db.doc(pathSegments.join('/'));
-
-        // FIX: Use v8 API: docRef.set(...)
+        
         docRef.set({ value: newValue }).catch(error => {
-            console.error(`Error setting document ${pathSegments.join('/')}:`, error);
+            console.error(`Error writing document ${pathSegments.join('/')}:`, error);
         });
-    };
+    }, [branchId, collectionKey]);
 
     return [value, setFirestoreValue];
 }

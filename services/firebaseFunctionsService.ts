@@ -16,10 +16,11 @@ This file serves as the definitive "API Contract" for backend developers.
 
 
 // Types for function payloads and responses
-interface PlaceOrderPayload {
+// FIX: Export PlaceOrderPayload and change floor type to string
+export interface PlaceOrderPayload {
     branchId: string;
     tableName: string;
-    floor: 'lower' | 'upper';
+    floor: string;
     customerCount: number;
     items: OrderItem[]; // Use full OrderItem for now to support the fallback logic
     orderType: 'dine-in' | 'takeaway';
@@ -130,18 +131,15 @@ export const functionsService = {
     placeOrder: async (payload: PlaceOrderPayload): Promise<PlaceOrderResponse> => {
         if (!placeOrderFunction) {
              console.error("Attempted to call 'placeOrder' but Firebase Functions is not initialized.");
-            // Return a failure that will trigger the frontend fallback logic.
-            return { success: false, error: "Firebase Functions not initialized." };
+             throw { code: 'internal', message: 'Firebase Functions not initialized.' };
         }
         try {
             const result = await placeOrderFunction(payload);
             // FIX: Cast result data to the correct type for v8 API.
             return result.data as PlaceOrderResponse;
-        } catch (error) {
-            console.error("Error calling placeOrder function:", error);
-            const httpsError = error as { code: string, message: string };
-            // Propagate the error to be caught by the calling function, triggering the fallback.
-            throw new Error(httpsError.message || 'An unexpected error occurred calling the function.');
+        } catch (error: any) {
+            // Propagate the original error to be caught by the calling function, triggering the fallback.
+            throw error;
         }
     },
 
@@ -151,16 +149,14 @@ export const functionsService = {
     confirmPayment: async (payload: ConfirmPaymentPayload): Promise<ConfirmPaymentResponse> => {
         if (!confirmPaymentFunction) {
              console.error("Attempted to call 'confirmPayment' but Firebase Functions is not initialized.");
-            return { success: false, error: "Firebase Functions not initialized." };
+             throw { code: 'internal', message: 'Firebase Functions not initialized.' };
         }
         try {
             const result = await confirmPaymentFunction(payload);
             // FIX: Cast result data to the correct type for v8 API.
             return result.data as ConfirmPaymentResponse;
-        } catch (error) {
-            console.error("Error calling confirmPayment function:", error);
-            const httpsError = error as { code: string, message: string };
-            throw new Error(httpsError.message || 'An unexpected error occurred calling the function.');
+        } catch (error: any) {
+            throw error;
         }
     },
 
@@ -169,15 +165,14 @@ export const functionsService = {
      */
     submitLeaveRequest: async (payload: SubmitLeaveRequestPayload): Promise<GenericResponse> => {
         if (!submitLeaveRequestFunction) {
-            return { success: false, error: "Functions not initialized" };
+            throw { code: 'internal', message: 'Firebase Functions not initialized.' };
         }
         try {
             const result = await submitLeaveRequestFunction(payload);
             // FIX: Cast result data to the correct type for v8 API.
             return result.data as GenericResponse;
         } catch (error: any) {
-            console.error("Error submitting leave request:", error);
-            throw new Error(error.message || "Backend error");
+            throw error;
         }
     },
 
@@ -186,15 +181,14 @@ export const functionsService = {
      */
     updateLeaveStatus: async (payload: UpdateLeaveStatusPayload): Promise<GenericResponse> => {
         if (!updateLeaveStatusFunction) {
-            return { success: false, error: "Functions not initialized" };
+            throw { code: 'internal', message: 'Firebase Functions not initialized.' };
         }
         try {
             const result = await updateLeaveStatusFunction(payload);
             // FIX: Cast result data to the correct type for v8 API.
             return result.data as GenericResponse;
         } catch (error: any) {
-            console.error("Error updating leave status:", error);
-            throw new Error(error.message || "Backend error");
+            throw error;
         }
     },
 
@@ -203,54 +197,53 @@ export const functionsService = {
      */
     deleteLeaveRequest: async (payload: DeleteLeaveRequestPayload): Promise<GenericResponse> => {
         if (!deleteLeaveRequestFunction) {
-            return { success: false, error: "Functions not initialized" };
+            throw { code: 'internal', message: 'Firebase Functions not initialized.' };
         }
         try {
             const result = await deleteLeaveRequestFunction(payload);
             // FIX: Cast result data to the correct type for v8 API.
             return result.data as GenericResponse;
         } catch (error: any) {
-            console.error("Error deleting leave request:", error);
-            throw new Error(error.message || "Backend error");
+            throw error;
         }
     },
 
     // --- Stock Functions ---
 
     addStockItem: async (payload: AddStockItemPayload): Promise<GenericResponse> => {
-        if (!addStockItemFunction) return { success: false, error: "Functions not initialized" };
+        if (!addStockItemFunction) throw { code: 'internal', message: "Functions not initialized" };
         try {
             const result = await addStockItemFunction(payload);
             // FIX: Cast result data to the correct type for v8 API.
             return result.data as GenericResponse;
-        } catch (error: any) { throw new Error(error.message || "Backend error"); }
+        } catch (error: any) { throw error; }
     },
 
     updateStockItem: async (payload: UpdateStockItemPayload): Promise<GenericResponse> => {
-        if (!updateStockItemFunction) return { success: false, error: "Functions not initialized" };
+        if (!updateStockItemFunction) throw { code: 'internal', message: "Functions not initialized" };
         try {
             const result = await updateStockItemFunction(payload);
             // FIX: Cast result data to the correct type for v8 API.
             return result.data as GenericResponse;
-        } catch (error: any) { throw new Error(error.message || "Backend error"); }
+        } catch (error: any) { throw error; }
     },
 
     adjustStockQuantity: async (payload: AdjustStockQuantityPayload): Promise<GenericResponse> => {
-        if (!adjustStockQuantityFunction) return { success: false, error: "Functions not initialized" };
+        if (!adjustStockQuantityFunction) throw { code: 'internal', message: "Functions not initialized" };
         try {
             const result = await adjustStockQuantityFunction(payload);
             // FIX: Cast result data to the correct type for v8 API.
             return result.data as GenericResponse;
-        } catch (error: any) { throw new Error(error.message || "Backend error"); }
+        } catch (error: any) { throw error; }
     },
 
     deleteStockItem: async (payload: DeleteStockItemPayload): Promise<GenericResponse> => {
-        if (!deleteStockItemFunction) return { success: false, error: "Functions not initialized" };
+        if (!deleteStockItemFunction) throw { code: 'internal', message: "Functions not initialized" };
         try {
             const result = await deleteStockItemFunction(payload);
             // FIX: Cast result data to the correct type for v8 API.
             return result.data as GenericResponse;
-        } catch (error: any) { throw new Error(error.message || "Backend error"); }
+        } catch (error: any) { throw error; }
     }
 
 };

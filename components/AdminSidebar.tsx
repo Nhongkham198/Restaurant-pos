@@ -150,6 +150,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({
     };
 
     const canEdit = currentUser.role === 'admin' || currentUser.role === 'branch-admin';
+    const isAuditor = currentUser.role === 'auditor';
 
     return (
         <aside className={`fixed top-0 left-0 z-40 h-screen bg-gray-800 border-r border-gray-700 transition-all duration-300 ${isCollapsed ? 'w-20' : 'w-64'} hidden md:block`}>
@@ -168,14 +169,14 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({
                                         </svg>
                                     </div>
                                 )}
-                                {isEditMode && (
+                                {isEditMode && !isAuditor && (
                                     <button onClick={handleLogoEdit} className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 flex items-center justify-center rounded-md transition-opacity cursor-pointer" title="เปลี่ยนโลโก้">
                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white opacity-0 group-hover:opacity-100" viewBox="0 0 20 20" fill="currentColor"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" /></svg>
                                     </button>
                                 )}
                             </div>
                             <div className="overflow-hidden">
-                                {isEditMode ? (
+                                {isEditMode && !isAuditor ? (
                                     <input
                                         type="text"
                                         value={restaurantName}
@@ -199,7 +200,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({
                     <div className={`flex items-center gap-3 ${isCollapsed ? 'justify-center' : ''}`}>
                         <div className="relative group">
                             <img className="h-12 w-12 rounded-full object-cover" src={currentUser.profilePictureUrl || "https://img.icons8.com/fluency/48/user-male-circle.png"} alt="User"/>
-                            {isEditMode && (
+                            {isEditMode && !isAuditor && (
                                 <button onClick={handleProfilePictureEdit} className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 flex items-center justify-center rounded-full transition-opacity cursor-pointer" title="เปลี่ยนรูปโปรไฟล์">
                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white opacity-0 group-hover:opacity-100" viewBox="0 0 20 20" fill="currentColor">
                                         <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
@@ -217,8 +218,8 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({
                         )}
                     </div>
                     {/* Edit Mode Toggle */}
-                    {canEdit && (
-                        <div className={`flex ${isCollapsed ? 'justify-center' : ''}`}>
+                    {canEdit && !isAuditor && (
+                        <div className={`flex ${isCollapsed ? 'justify-center' : 'items-center'}`}>
                             <label className="relative inline-flex items-center cursor-pointer">
                                 <input type="checkbox" checked={isEditMode} onChange={onToggleEditMode} className="sr-only peer" />
                                 <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-yellow-400"></div>
@@ -239,7 +240,36 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({
                 {/* Navigation */}
                 <nav className="flex-1 px-3 py-4 overflow-y-auto overflow-x-hidden">
                     <ul className="space-y-1">
-                        {currentUser.role !== 'auditor' && (
+                        {/* --- Auditor Menu --- */}
+                        {isAuditor && (
+                            <>
+                                <NavItem
+                                    icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>}
+                                    text="Dashboard"
+                                    isCollapsed={isCollapsed}
+                                    isActive={currentView === 'dashboard'}
+                                    onClick={() => onViewChange('dashboard')}
+                                />
+                                <NavItem
+                                    icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
+                                    text="ประวัติ"
+                                    isCollapsed={isCollapsed}
+                                    isActive={currentView === 'history'}
+                                    onClick={() => onViewChange('history')}
+                                />
+                                <NavItem
+                                    icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>}
+                                    text="วันลา"
+                                    isCollapsed={isCollapsed}
+                                    isActive={currentView === 'leave'}
+                                    onClick={() => onViewChange('leave')}
+                                    badge={leaveBadgeCount}
+                                />
+                            </>
+                        )}
+
+                        {/* --- Admin & Branch Admin Menu --- */}
+                        {!isAuditor && (
                             <>
                                 <NavItem
                                     icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path d="M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4z" /><path fillRule="evenodd" d="M18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h2a1 1 0 100-2H9z" clipRule="evenodd" /></svg>}
@@ -272,35 +302,28 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({
                                     isActive={currentView === 'dashboard'}
                                     onClick={() => onViewChange('dashboard')}
                                 />
-                            </>
-                        )}
-                        <NavItem
-                            icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
-                            text="ประวัติ"
-                            isCollapsed={isCollapsed}
-                            isActive={currentView === 'history'}
-                            onClick={() => onViewChange('history')}
-                        />
-                        {currentUser.role !== 'auditor' && (
-                            <NavItem
-                                icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>}
-                                text="สต็อก"
-                                isCollapsed={isCollapsed}
-                                isActive={currentView === 'stock'}
-                                onClick={() => onViewChange('stock')}
-                            />
-                        )}
-                        <NavItem
-                            icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>}
-                            text="วันลา"
-                            isCollapsed={isCollapsed}
-                            isActive={currentView === 'leave'}
-                            onClick={() => onViewChange('leave')}
-                            badge={leaveBadgeCount}
-                        />
-
-                        {currentUser.role !== 'auditor' && (
-                            <>
+                                <NavItem
+                                    icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
+                                    text="ประวัติ"
+                                    isCollapsed={isCollapsed}
+                                    isActive={currentView === 'history'}
+                                    onClick={() => onViewChange('history')}
+                                />
+                                <NavItem
+                                    icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>}
+                                    text="สต็อก"
+                                    isCollapsed={isCollapsed}
+                                    isActive={currentView === 'stock'}
+                                    onClick={() => onViewChange('stock')}
+                                />
+                                <NavItem
+                                    icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>}
+                                    text="วันลา"
+                                    isCollapsed={isCollapsed}
+                                    isActive={currentView === 'leave'}
+                                    onClick={() => onViewChange('leave')}
+                                    badge={leaveBadgeCount}
+                                />
                                 <hr className="my-4 border-gray-700" />
                                 <NavItem
                                     icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924-1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /></svg>}
@@ -309,13 +332,13 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({
                                     onClick={onOpenSettings}
                                 />
                                 <NavItem
-                                    icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>}
+                                    icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>}
                                     text="จัดการผู้ใช้"
                                     isCollapsed={isCollapsed}
                                     onClick={onOpenUserManager}
                                 />
                                 <NavItem
-                                    icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>}
+                                    icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>}
                                     text="จัดการสาขา"
                                     isCollapsed={isCollapsed}
                                     onClick={onManageBranches}
@@ -327,7 +350,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({
                         
                         {/* Change Branch */}
                         <NavItem
-                            icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>}
+                            icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>}
                             text="เปลี่ยนสาขา"
                             isCollapsed={isCollapsed}
                             onClick={onChangeBranch}
@@ -335,7 +358,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({
 
                         {/* Logout */}
                         <NavItem
-                            icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>}
+                            icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>}
                             text="ออกจากระบบ"
                             isCollapsed={isCollapsed}
                             onClick={onLogout}

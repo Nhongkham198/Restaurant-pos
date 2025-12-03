@@ -83,6 +83,9 @@ interface BaseOrder {
     // Kept for legacy compatibility, but new logic uses item-level cutlery
     takeawayCutlery?: TakeawayCutleryOption[];
     takeawayCutleryNotes?: string;
+    // FIX: Add soft delete properties
+    isDeleted?: boolean; // Soft delete flag
+    deletedBy?: string; // Username of the person who deleted it
 }
 
 export interface ActiveOrder extends BaseOrder {
@@ -184,6 +187,7 @@ export interface LeaveRequest {
     reason: string;
     status: 'pending' | 'approved' | 'rejected';
     isHalfDay?: boolean; // Added support for half-day leave
+    acknowledgedBy?: number[]; // IDs of admins/managers who have seen the notification
 }
 
 export interface StaffCall {
@@ -219,4 +223,7 @@ export interface PrintHistoryEntry {
     errorMessage: string | null;
     orderItemsPreview: string[];
     isReprint: boolean;
+    // FIX: Add soft delete properties
+    isDeleted?: boolean; // Soft delete flag
+    deletedBy?: string; // Username of the person who deleted it
 }

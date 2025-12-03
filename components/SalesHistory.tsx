@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import type { CompletedOrder, CancelledOrder, PrintHistoryEntry } from '../types';
+import type { CompletedOrder, CancelledOrder, PrintHistoryEntry, User } from '../types';
+// FIX: Corrected paths to be relative since the components are in the same folder.
 import { CompletedOrderCard } from './CompletedOrderCard';
 import { CancelledOrderCard } from './CancelledOrderCard';
 import { PrintHistoryCard } from './PrintHistoryCard';
@@ -41,6 +42,7 @@ interface SalesHistoryProps {
     onEditOrder: (order: CompletedOrder) => void;
     onInitiateCashBill: (order: CompletedOrder) => void;
     onDeleteHistory: (completedIdsToDelete: number[], cancelledIdsToDelete: number[], printIdsToDelete: number[]) => void;
+    currentUser: User | null;
 }
 
 // Helper to format date to YYYY-MM-DD for input[type=date]
@@ -65,7 +67,7 @@ const isSameDay = (d1: Date, d2: Date) => {
 };
 
 
-export const SalesHistory: React.FC<SalesHistoryProps> = ({ completedOrders, cancelledOrders, printHistory, onReprint, onSplitOrder, isEditMode, onEditOrder, onInitiateCashBill, onDeleteHistory }) => {
+export const SalesHistory: React.FC<SalesHistoryProps> = ({ completedOrders, cancelledOrders, printHistory, onReprint, onSplitOrder, isEditMode, onEditOrder, onInitiateCashBill, onDeleteHistory, currentUser }) => {
     const [activeTab, setActiveTab] = useState<'completed' | 'cancelled' | 'print'>('completed');
     const [searchTerm, setSearchTerm] = useState('');
     const [filterType, setFilterType] = useState<'all' | 'date' | 'month' | 'year'>('all');
@@ -76,7 +78,6 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({ completedOrders, can
     
     const today = useMemo(() => new Date(), []);
 
-    // Clear selections when filter changes
     useEffect(() => {
         setSelectedCompletedIds(new Set());
         setSelectedCancelledIds(new Set());
@@ -101,7 +102,13 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({ completedOrders, can
     };
 
     const filteredCompletedOrders = useMemo(() => {
-        const dateFiltered = completedOrders.filter(order => {
+        let list = completedOrders;
+        
+        if (currentUser?.role !== 'admin') {
+            list = list.filter(o => !o.isDeleted);
+        }
+
+        const dateFiltered = list.filter(order => {
             const orderDate = new Date(order.completionTime);
             if (filterType === 'all') return isSameDay(orderDate, today);
             if (filterType === 'date') return orderDate.toDateString() === selectedDate.toDateString();
@@ -116,10 +123,16 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({ completedOrders, can
             String(order.orderNumber).includes(lowercasedTerm) ||
             order.tableName.toLowerCase().includes(lowercasedTerm)
         );
-    }, [completedOrders, searchTerm, filterType, selectedDate, today]);
+    }, [completedOrders, searchTerm, filterType, selectedDate, today, currentUser]);
     
     const filteredCancelledOrders = useMemo(() => {
-        const dateFiltered = cancelledOrders.filter(order => {
+        let list = cancelledOrders;
+
+        if (currentUser?.role !== 'admin') {
+            list = list.filter(o => !o.isDeleted);
+        }
+
+        const dateFiltered = list.filter(order => {
             const orderDate = new Date(order.cancellationTime);
             if (filterType === 'all') return isSameDay(orderDate, today);
             if (filterType === 'date') return orderDate.toDateString() === selectedDate.toDateString();
@@ -136,10 +149,16 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({ completedOrders, can
             order.cancellationReason.toLowerCase().includes(lowercasedTerm) ||
             order.cancelledBy.toLowerCase().includes(lowercasedTerm)
         );
-    }, [cancelledOrders, searchTerm, filterType, selectedDate, today]);
+    }, [cancelledOrders, searchTerm, filterType, selectedDate, today, currentUser]);
 
     const filteredPrintHistory = useMemo(() => {
-        const dateFiltered = printHistory.filter(entry => {
+        let list = printHistory;
+
+        if (currentUser?.role !== 'admin') {
+            list = list.filter(o => !o.isDeleted);
+        }
+
+        const dateFiltered = list.filter(entry => {
             const entryDate = new Date(entry.timestamp);
             if (filterType === 'all') return isSameDay(entryDate, today);
             if (filterType === 'date') return entryDate.toDateString() === selectedDate.toDateString();
@@ -155,7 +174,7 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({ completedOrders, can
             entry.tableName.toLowerCase().includes(lowercasedTerm) ||
             entry.printedBy.toLowerCase().includes(lowercasedTerm)
         );
-    }, [printHistory, searchTerm, filterType, selectedDate, today]);
+    }, [printHistory, searchTerm, filterType, selectedDate, today, currentUser]);
 
 
     const handleToggleSelection = (id: number, type: 'completed' | 'cancelled' | 'print') => {
@@ -222,7 +241,7 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({ completedOrders, can
         const fileName = `ประวัติการขาย-${filterText}.csv`;
     
         const headers = [
-            'ID ออเดอร์', 'ID ออเดอร์ดั้งเดิม', 'เวลาที่เสิร์ฟ', 'ชั้น', 'โต๊ะ', 'จำนวนลูกค้า', 'รายการอาหาร', 'จำนวน', 'ราคาต่อหน่วย (บาท)', 'ยอดรวมรายการ (บาท)', 'ยอดรวมออเดอร์ (บาท)', 'วิธีชำระเงิน', 'รับเงินสด (บาท)', 'เงินทอน (บาท)', 'อัตราภาษี (%)', 'ภาษี (บาท)'
+            'ID ออเดอร์', 'ID ออเดอร์ดั้งเดิม', 'เวลาที่เสิร์ฟ', 'ชั้น', 'โต๊ะ', 'จำนวนลูกค้า', 'รายการอาหาร', 'จำนวน', 'ราคาต่อหน่วย (บาท)', 'ยอดรวมรายการ (บาท)', 'ยอดรวมออเดอร์ (บาท)', 'วิธีชำระเงิน', 'รับเงินสด (บาท)', 'เงินทอน (บาท)', 'อัตราภาษี (%)', 'ภาษี (บาท)', 'สถานะ'
         ];
         
         const dataForCsv: (string | number)[][] = [headers];
@@ -234,8 +253,9 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({ completedOrders, can
             const floorText = order.floor === 'lower' ? 'ชั้นล่าง' : 'ชั้นบน';
             
             const paymentMethodText = order.paymentDetails.method === 'cash' ? 'เงินสด' : 'โอนจ่าย';
-            const cashReceived = order.paymentDetails.method === 'cash' ? order.paymentDetails.cashReceived.toFixed(2) : '';
-            const changeGiven = order.paymentDetails.method === 'cash' ? order.paymentDetails.changeGiven.toFixed(2) : '';
+            const cashReceived = order.paymentDetails.method === 'cash' ? order.paymentDetails.cashReceived?.toFixed(2) || '' : '';
+            const changeGiven = order.paymentDetails.method === 'cash' ? order.paymentDetails.changeGiven?.toFixed(2) || '' : '';
+            const statusText = order.isDeleted ? `ถูกลบ (โดย: ${order.deletedBy || 'Unknown'})` : 'ปกติ';
 
             order.items.forEach((item, index) => {
                 const isFirstItem = index === 0;
@@ -256,7 +276,8 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({ completedOrders, can
                     isFirstItem ? cashReceived : '',
                     isFirstItem ? changeGiven : '',
                     isFirstItem ? order.taxRate.toFixed(2) : '',
-                    isFirstItem ? order.taxAmount.toFixed(2) : ''
+                    isFirstItem ? order.taxAmount.toFixed(2) : '',
+                    statusText
                 ]);
             });
         });
@@ -279,13 +300,14 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({ completedOrders, can
         const fileName = `ประวัติการยกเลิก-${filterText}.csv`;
 
         const headers = [
-            'ID ออเดอร์', 'เวลาที่ยกเลิก', 'โต๊ะ', 'ชั้น', 'เหตุผล', 'หมายเหตุ', 'ยกเลิกโดย', 'มูลค่าออเดอร์ (บาท)'
+            'ID ออเดอร์', 'เวลาที่ยกเลิก', 'โต๊ะ', 'ชั้น', 'เหตุผล', 'หมายเหตุ', 'ยกเลิกโดย', 'มูลค่าออเดอร์ (บาท)', 'สถานะ'
         ];
         
         const dataForCsv: (string | number)[][] = [headers];
         
         filteredCancelledOrders.forEach(order => {
             const totalValue = order.items.reduce((sum, item) => sum + item.price * item.quantity, 0) + order.taxAmount;
+            const statusText = order.isDeleted ? `ถูกลบ (โดย: ${order.deletedBy || 'Unknown'})` : 'ปกติ';
             dataForCsv.push([
                 `'${order.orderNumber}`,
                 new Date(order.cancellationTime).toLocaleString('th-TH'),
@@ -294,7 +316,8 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({ completedOrders, can
                 order.cancellationReason,
                 order.cancellationNotes || '',
                 order.cancelledBy,
-                totalValue.toFixed(2)
+                totalValue.toFixed(2),
+                statusText
             ]);
         });
         
@@ -310,25 +333,38 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({ completedOrders, can
             return;
         }
 
+        const isAdmin = currentUser?.role === 'admin';
+        let title, html, confirmButtonText;
+
+        if (isAdmin) {
+            title = 'ยืนยันการลบถาวร?';
+            html = `คุณเป็น Admin และกำลังจะลบ <b>${totalSelected}</b> รายการออกจากระบบอย่างถาวร<br/><br/><b class="text-red-600">การกระทำนี้ไม่สามารถย้อนกลับได้!</b>`;
+            confirmButtonText = 'ใช่, ลบถาวร!';
+        } else {
+            // Apply user's requested changes for non-admins for psychological effect
+            title = 'ยืนยันการลบรายการ?';
+            html = `คุณกำลังจะลบข้อมูล <b>${totalSelected}</b> รายการที่เลือก<br/><br/>รายการเหล่านี้จะถูกลบข้อมูลถาวรและไม่สามารถกู้คืนได้`;
+            confirmButtonText = 'ใช่, ลบเลย!';
+        }
+
         Swal.fire({
-            title: 'คุณแน่ใจหรือไม่?',
-            html: `คุณกำลังจะลบ <b>${totalSelected}</b> รายการที่เลือกอย่างถาวร<br/><br/>การกระทำนี้ไม่สามารถย้อนกลับได้!`,
+            title: title,
+            html: html,
             icon: 'warning',
             showCancelButton: true,
             confirmButtonColor: '#d33',
             cancelButtonColor: '#3085d6',
-            confirmButtonText: 'ใช่, ลบเลย!',
+            confirmButtonText: confirmButtonText,
             cancelButtonText: 'ยกเลิก'
         }).then((result) => {
             if (result.isConfirmed) {
                 onDeleteHistory(Array.from(selectedCompletedIds), Array.from(selectedCancelledIds), Array.from(selectedPrintIds));
-                // Clear selection after deletion
                 handleDeselectAll();
             }
         });
     };
 
-    if (completedOrders.length === 0 && cancelledOrders.length === 0) {
+    if (completedOrders.length === 0 && cancelledOrders.length === 0 && printHistory.length === 0) {
         return (
             <div className="w-full flex-1 flex flex-col items-center justify-center text-center text-gray-500">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -345,13 +381,13 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({ completedOrders, can
             <div className="sticky top-0 bg-gray-100/95 backdrop-blur-sm py-4 z-10 space-y-4 rounded-b-lg flex-shrink-0">
                 <div className="flex justify-center bg-gray-200 rounded-full p-1 max-w-xl mx-auto">
                     <button onClick={() => setActiveTab('completed')} className={`w-full py-2 px-4 rounded-full font-semibold transition-colors ${activeTab === 'completed' ? 'bg-white text-teal-600 shadow' : 'text-gray-600'}`}>
-                        ประวัติการขาย ({completedOrders.length})
+                        ประวัติการขาย ({filteredCompletedOrders.length})
                     </button>
                     <button onClick={() => setActiveTab('cancelled')} className={`w-full py-2 px-4 rounded-full font-semibold transition-colors ${activeTab === 'cancelled' ? 'bg-white text-red-600 shadow' : 'text-gray-600'}`}>
-                        ประวัติการยกเลิก ({cancelledOrders.length})
+                        ประวัติการยกเลิก ({filteredCancelledOrders.length})
                     </button>
                     <button onClick={() => setActiveTab('print')} className={`w-full py-2 px-4 rounded-full font-semibold transition-colors ${activeTab === 'print' ? 'bg-white text-blue-600 shadow' : 'text-gray-600'}`}>
-                        ประวัติการพิมพ์ ({printHistory.length})
+                        ประวัติการพิมพ์ ({filteredPrintHistory.length})
                     </button>
                 </div>
                 
