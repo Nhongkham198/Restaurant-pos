@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../firebaseConfig';
-import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 import type { Table } from '../types';
 
 export function useFirestoreSync<T>(
@@ -28,12 +27,14 @@ export function useFirestoreSync<T>(
         const pathSegments = isBranchSpecific && branchId
             ? ['branches', branchId, collectionKey, 'data']
             : [collectionKey, 'data'];
+        
+        // FIX: Use v8 API: db.doc('path/to/doc')
+        const docRef = db.doc(pathSegments.join('/'));
 
-        const docRef = doc(db, ...pathSegments);
-
-        const unsubscribe = onSnapshot(docRef, 
+        // FIX: Use v8 API: docRef.onSnapshot(...)
+        const unsubscribe = docRef.onSnapshot(
             (docSnapshot) => {
-                if (docSnapshot.exists()) {
+                if (docSnapshot.exists) {
                     const data = docSnapshot.data();
                     if (data && typeof data.value !== 'undefined') {
                         let valueToSet = data.value;
@@ -58,7 +59,8 @@ export function useFirestoreSync<T>(
                             if (rawTablesFromDb.length > cleanedUniqueTables.length) {
                                 console.warn(`[Firestore Sync] Found and removed ${rawTablesFromDb.length - cleanedUniqueTables.length} duplicate tables. Auto-correcting data in Firestore.`);
                                 // Fire and forget: update Firestore in the background without waiting.
-                                setDoc(docRef, { value: cleanedUniqueTables }).catch(err => {
+                                // FIX: Use v8 API: docRef.set(...)
+                                docRef.set({ value: cleanedUniqueTables }).catch(err => {
                                     console.error("Failed to write cleaned table data back to Firestore:", err);
                                 });
                             }
@@ -70,23 +72,26 @@ export function useFirestoreSync<T>(
                         // Self-healing for 'users' collection
                         if (collectionKey === 'users' && Array.isArray(valueToSet) && valueToSet.length === 0 && Array.isArray(currentInitialValue) && currentInitialValue.length > 0) {
                             console.warn(`'users' collection is empty in Firestore. Re-initializing with default value.`);
-                            setDoc(docRef, { value: currentInitialValue });
+                            docRef.set({ value: currentInitialValue });
                             setValue(currentInitialValue);
                         } else if (collectionKey === 'branches' && Array.isArray(valueToSet) && valueToSet.length === 0 && Array.isArray(currentInitialValue) && currentInitialValue.length > 0) {
                             console.warn(`'branches' collection is empty in Firestore. Re-initializing with default value.`);
-                            setDoc(docRef, { value: currentInitialValue });
+                            // FIX: Use v8 API: docRef.set(...)
+                            docRef.set({ value: currentInitialValue });
                             setValue(currentInitialValue);
                         } else {
                             setValue(valueToSet as T);
                         }
                     } else {
                         console.warn(`Document at ${pathSegments.join('/')} is malformed. Overwriting with initial value.`);
-                        setDoc(docRef, { value: currentInitialValue });
+                        // FIX: Use v8 API: docRef.set(...)
+                        docRef.set({ value: currentInitialValue });
                         setValue(currentInitialValue);
                     }
                 } else {
                     console.log(`Document at ${pathSegments.join('/')} not found. Creating...`);
-                    setDoc(docRef, { value: currentInitialValue });
+                    // FIX: Use v8 API: docRef.set(...)
+                    docRef.set({ value: currentInitialValue });
                     setValue(currentInitialValue);
                 }
             }, 
@@ -119,9 +124,11 @@ export function useFirestoreSync<T>(
             ? ['branches', branchId, collectionKey, 'data']
             : [collectionKey, 'data'];
         
-        const docRef = doc(db, ...pathSegments);
+        // FIX: Use v8 API: db.doc('path/to/doc')
+        const docRef = db.doc(pathSegments.join('/'));
 
-        setDoc(docRef, { value: newValue }).catch(error => {
+        // FIX: Use v8 API: docRef.set(...)
+        docRef.set({ value: newValue }).catch(error => {
             console.error(`Error setting document ${pathSegments.join('/')}:`, error);
         });
     };

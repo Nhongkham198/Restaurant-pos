@@ -83,6 +83,8 @@ interface BaseOrder {
     // Kept for legacy compatibility, but new logic uses item-level cutlery
     takeawayCutlery?: TakeawayCutleryOption[];
     takeawayCutleryNotes?: string;
+    isDeleted?: boolean; // Soft delete flag
+    deletedBy?: string; // Username of the person who deleted it
 }
 
 export interface ActiveOrder extends BaseOrder {
@@ -219,4 +221,6 @@ export interface PrintHistoryEntry {
     errorMessage: string | null;
     orderItemsPreview: string[];
     isReprint: boolean;
+    isDeleted?: boolean; // Soft delete flag
+    deletedBy?: string; // Username of the person who deleted it
 }

@@ -33,9 +33,13 @@ import type {
 import { useFirestoreSync } from './hooks/useFirestoreSync';
 import { functionsService } from './services/firebaseFunctionsService';
 import { printerService } from './services/printerService';
+// FIX: Correct Firebase v8 compatibility imports for 'app' and 'messaging'.
+import firebase from 'firebase/compat/app';
+import 'firebase/compat/messaging';
 import { isFirebaseConfigured, db } from './firebaseConfig';
-import { doc, runTransaction } from 'firebase/firestore';
-import { getMessaging, getToken, onMessage } from 'firebase/messaging';
+// FIX: Removed unused v9 firestore and messaging imports
+// import { doc, runTransaction } from 'firebase/firestore';
+// import { getMessaging, getToken, onMessage } from 'firebase/messaging';
 
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
@@ -247,6 +251,9 @@ const App: React.FC = () => {
     // --- ASYNC OPERATION STATE ---
     const [isPlacingOrder, setIsPlacingOrder] = useState(false);
     const [isConfirmingPayment, setIsConfirmingPayment] = useState(false);
+    const [isCachingImages, setIsCachingImages] = useState(false);
+    const imageCacheTriggeredRef = useRef(false);
+
 
     // --- REFS ---
     const prevActiveOrdersRef = useRef<ActiveOrder[] | undefined>(undefined);
@@ -271,6 +278,47 @@ const App: React.FC = () => {
         // Save current view to localStorage whenever it changes to persist on refresh
         localStorage.setItem('currentView', currentView);
     }, [currentView]);
+
+    // --- PROACTIVE IMAGE CACHING ---
+    useEffect(() => {
+        if ('serviceWorker' in navigator && navigator.serviceWorker.controller && currentUser && !isCustomerMode && menuItems && menuItems.length > 0 && !imageCacheTriggeredRef.current) {
+            
+            setIsCachingImages(true);
+            imageCacheTriggeredRef.current = true; // Mark as triggered for this session
+
+            const imageUrls = [...new Set(menuItems.map(item => item.imageUrl).filter(Boolean))];
+            if (imageUrls.length > 0) {
+                console.log(`[App] Sending ${imageUrls.length} image URLs to Service Worker for precaching.`);
+                navigator.serviceWorker.controller.postMessage({
+                    type: 'CACHE_IMAGES',
+                    urls: imageUrls
+                });
+            } else {
+                // No images to cache, so end the loading state immediately.
+                setIsCachingImages(false);
+            }
+        }
+    }, [menuItems, currentUser, isCustomerMode]);
+
+    useEffect(() => {
+        const handleServiceWorkerMessage = (event: MessageEvent) => {
+            if (event.data && event.data.type === 'CACHE_IMAGES_COMPLETE') {
+                console.log('[App] Received CACHE_IMAGES_COMPLETE from Service Worker.');
+                setIsCachingImages(false);
+            }
+        };
+
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.addEventListener('message', handleServiceWorkerMessage);
+        }
+
+        return () => {
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.removeEventListener('message', handleServiceWorkerMessage);
+            }
+        };
+    }, []);
+
 
 
     // --- CUSTOMER MODE INITIALIZATION ---
@@ -327,9 +375,9 @@ const App: React.FC = () => {
     // --- AUDITOR VIEW ENFORCEMENT ---
     useEffect(() => {
         if (currentUser?.role === 'auditor') {
-            const allowedViews: View[] = ['dashboard', 'history'];
+            const allowedViews: View[] = ['history', 'leave'];
             if (!allowedViews.includes(currentView)) {
-                setCurrentView('dashboard');
+                setCurrentView('history');
             }
         }
     }, [currentUser, currentView]);
@@ -344,10 +392,11 @@ const App: React.FC = () => {
             }
 
             try {
-                const messaging = getMessaging(db.app);
+                // FIX: Use v8 messaging API.
+                const messaging = firebase.messaging();
 
                 // Add an event listener for messages received while the app is in the foreground.
-                onMessage(messaging, (payload) => {
+                messaging.onMessage((payload) => {
                     console.log('Message received. ', payload);
                     const notificationTitle = payload.notification?.title || 'แจ้งเตือนใหม่';
                     const notificationBody = payload.notification?.body || 'คุณมีข้อความใหม่';
@@ -363,7 +412,8 @@ const App: React.FC = () => {
                     console.log('Notification permission granted.');
                     
                     const vapidKey = 'BMIo7v3beGbvOlEciEL3TN5lFAZBZ-52zkg-vqgo8gudi4QW4UyIR4HDEk17Q2pYb3FFDCgzyq5oYFKIGXGfpJU'; 
-                    const currentToken = await getToken(messaging, { vapidKey });
+                    // FIX: Use v8 messaging API.
+                    const currentToken = await messaging.getToken({ vapidKey });
                     setCurrentFcmToken(currentToken); // Store the token for this device to use on logout
 
                     if (currentToken) {
@@ -593,9 +643,14 @@ const App: React.FC = () => {
     // This effect manages ONLY showing the visual Swal notifications.
     useEffect(() => {
         const showNotifications = async () => {
-            if (isCustomerMode || !currentUser || !['pos', 'kitchen', 'admin', 'branch-admin'].includes(currentUser.role)) {
+            if (isCustomerMode || !currentUser || !['pos', 'kitchen', 'admin', 'branch-admin', 'auditor'].includes(currentUser.role)) {
                 return;
             }
+             // Do not show visual pop-up for auditors
+            if (currentUser.role === 'auditor') {
+                return;
+            }
+
 
             const unnotifiedCalls = staffCalls.filter(c => !notifiedCallIdsRef.current.has(c.id));
 
@@ -706,7 +761,7 @@ const App: React.FC = () => {
             if (user.role === 'kitchen') {
                 setCurrentView('kitchen');
             } else if (user.role === 'auditor') {
-                setCurrentView('dashboard');
+                setCurrentView('history');
             }
             else {
                 setCurrentView('pos');
@@ -1075,6 +1130,34 @@ const App: React.FC = () => {
         
         Swal.fire('รวมบิลสำเร็จ!', 'รายการอาหารถูกรวมเรียบร้อยแล้ว', 'success');
     };
+    
+    const onDeleteHistory = (completedIdsToDelete: number[], cancelledIdsToDelete: number[], printIdsToDelete: number[]) => {
+        const isHardDelete = currentUser?.role === 'admin';
+
+        if (isHardDelete) {
+            // Admin performs a hard delete
+            setCompletedOrders(prev => prev.filter(o => !completedIdsToDelete.includes(o.id)));
+            setCancelledOrders(prev => prev.filter(o => !cancelledIdsToDelete.includes(o.id)));
+            setPrintHistory(prev => prev.filter(p => !printIdsToDelete.includes(p.id)));
+        } else {
+            // Other roles perform a soft delete
+            const deleter = currentUser?.username || 'Unknown';
+            setCompletedOrders(prev => prev.map(o => completedIdsToDelete.includes(o.id) ? { ...o, isDeleted: true, deletedBy: deleter } : o));
+            setCancelledOrders(prev => prev.map(o => cancelledIdsToDelete.includes(o.id) ? { ...o, isDeleted: true, deletedBy: deleter } : o));
+            setPrintHistory(prev => prev.map(p => printIdsToDelete.includes(p.id) ? { ...p, isDeleted: true, deletedBy: deleter } : p));
+        }
+
+        const message = isHardDelete ? 'ลบข้อมูลถาวรแล้ว' : 'ซ่อนรายการเรียบร้อยแล้ว';
+        Swal.fire({
+            toast: true,
+            position: 'top-end',
+            icon: 'success',
+            title: message,
+            showConfirmButton: false,
+            timer: 1500
+        });
+    };
+
 
     // Missing local handlers for POS
     const handleQuantityChange = (cartItemId: string, newQuantity: number) => {
@@ -1133,6 +1216,23 @@ const App: React.FC = () => {
             onLogout={handleLogout}
         />;
     }
+    
+    // Proactive Image Caching Loading Screen
+    if (isCachingImages) {
+        return (
+            <div className="flex items-center justify-center h-screen bg-gray-100">
+                <div className="text-center p-8">
+                    <svg className="animate-spin h-12 w-12 text-blue-600 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <h2 className="mt-6 text-xl font-semibold text-gray-700">กำลังซิงค์รูปภาพเมนู...</h2>
+                    <p className="text-gray-500 mt-2">เพื่อให้การใช้งานรวดเร็ว กรุณารอสักครู่</p>
+                </div>
+            </div>
+        );
+    }
+
 
     // Default fallback for admin if no branch is selected but edit mode is on?
     // Just ensure selectedBranch is set for POS operations.
@@ -1149,7 +1249,7 @@ const App: React.FC = () => {
                 { id: 'dashboard', label: 'Dashboard', icon: <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>, view: 'dashboard' as View },
                 { id: 'history', label: 'ประวัติ', icon: <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>, view: 'history' as View },
                 { id: 'stock', label: 'สต็อก', icon: <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>, view: 'stock' as View, disabled: currentUser?.role === 'auditor' },
-                { id: 'leave', label: 'วันลา', icon: <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>, view: 'leave' as View, disabled: currentUser?.role === 'auditor' },
+                { id: 'leave', label: 'วันลา', icon: <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>, view: 'leave' as View },
                 { id: 'settings', label: 'ตั้งค่า', icon: <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924-1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /></svg>, onClick: () => setModalState(prev => ({ ...prev, isSettings: true })), disabled: currentUser?.role === 'auditor' },
                 { id: 'logout', label: 'ออกจากระบบ', icon: <svg className="w-5 h-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>, onClick: handleLogout }
             ].filter(item => !item.disabled)
@@ -1524,11 +1624,8 @@ const App: React.FC = () => {
                                 setOrderForModal(order);
                                 setModalState(prev => ({ ...prev, isCashBill: true }));
                             }}
-                            onDeleteHistory={(compIds, cancIds, printIds) => {
-                                setCompletedOrders(prev => prev.filter(o => !compIds.includes(o.id)));
-                                setCancelledOrders(prev => prev.filter(o => !cancIds.includes(o.id)));
-                                setPrintHistory(prev => prev.filter(p => !printIds.includes(p.id)));
-                            }}
+                            onDeleteHistory={onDeleteHistory}
+                            currentUser={currentUser}
                         />
                     )}
 
