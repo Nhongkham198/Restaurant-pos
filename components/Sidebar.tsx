@@ -321,7 +321,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             `}</style>
             
             {/* Header */}
-            <div className="p-4 flex justify-between items-center border-b border-gray-800 flex-shrink-0 bg-gray-900">
+            <div className="p-4 flex justify-between items-center border-b border-gray-800 flex-shrink-0 bg-gray-900 lg:hidden">
                 <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-full bg-gray-700 overflow-hidden border border-gray-600">
                          <img src={currentUser?.profilePictureUrl || "https://img.icons8.com/fluency/48/user-male-circle.png"} alt="Profile" className="w-full h-full object-cover" />
@@ -513,7 +513,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 )}
 
                 {/* Quick Navigation Footer */}
-                <div className="pt-4 border-t border-gray-800 mt-2">
+                <div className="pt-4 border-t border-gray-800 mt-2 lg:hidden">
                     <div className="grid grid-cols-6 gap-1">
                         <NavButton 
                             label="POS" 

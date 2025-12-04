@@ -1,3 +1,5 @@
+
+
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 
 import { 
@@ -913,6 +915,9 @@ const App: React.FC = () => {
     // 5. RENDER HELPERS
     // ============================================================================
     
+    const showAdminSidebar = !isCustomerMode && currentUser && ['admin', 'branch-admin', 'auditor'].includes(currentUser.role);
+    const showStaffHeader = !isCustomerMode && currentUser && ['pos', 'kitchen'].includes(currentUser.role);
+
     // Sidebar for Order Summary - always visible now
     const orderSummarySidebar = (
         <Sidebar
@@ -989,7 +994,7 @@ const App: React.FC = () => {
     return (
         <div className="flex h-screen overflow-hidden bg-gray-100">
             {/* Admin/Main Navigation Sidebar (Left) */}
-            {!isCustomerMode && (
+            {showAdminSidebar && (
                 <AdminSidebar
                     isCollapsed={isAdminSidebarCollapsed}
                     onToggleCollapse={() => setIsAdminSidebarCollapsed(!isAdminSidebarCollapsed)}
@@ -1016,28 +1021,30 @@ const App: React.FC = () => {
             )}
 
             {/* Main Content Area */}
-            <div className={`flex-1 flex flex-col min-w-0 overflow-hidden relative transition-all duration-300 ${!isCustomerMode && (isAdminSidebarCollapsed ? 'md:ml-20' : 'md:ml-64')}`}>
-                <Header
-                    currentView={currentView}
-                    onViewChange={setCurrentView}
-                    isEditMode={isEditMode}
-                    onToggleEditMode={() => setIsEditMode(!isEditMode)}
-                    onOpenSettings={() => setModalState(prev => ({ ...prev, isSettings: true }))}
-                    kitchenBadgeCount={kitchenBadgeCount}
-                    tablesBadgeCount={tablesBadgeCount}
-                    vacantTablesBadgeCount={vacantTablesBadgeCount}
-                    leaveBadgeCount={leaveBadgeCount}
-                    currentUser={currentUser}
-                    onLogout={handleLogout}
-                    onOpenUserManager={() => setModalState(prev => ({ ...prev, isUserManager: true }))}
-                    logoUrl={logoUrl}
-                    onLogoChangeClick={() => {}} // Placeholder
-                    restaurantName={restaurantName}
-                    onRestaurantNameChange={setRestaurantName}
-                    branchName={selectedBranch?.name || ''}
-                    onChangeBranch={() => setSelectedBranch(null)}
-                    onManageBranches={() => setModalState(prev => ({ ...prev, isBranchManager: true }))}
-                />
+            <div className={`flex-1 flex flex-col min-w-0 overflow-hidden relative transition-all duration-300 ${showAdminSidebar && (isAdminSidebarCollapsed ? 'md:ml-20' : 'md:ml-64')}`}>
+                {showStaffHeader && (
+                    <Header
+                        currentView={currentView}
+                        onViewChange={setCurrentView}
+                        isEditMode={isEditMode}
+                        onToggleEditMode={() => setIsEditMode(!isEditMode)}
+                        onOpenSettings={() => setModalState(prev => ({ ...prev, isSettings: true }))}
+                        kitchenBadgeCount={kitchenBadgeCount}
+                        tablesBadgeCount={tablesBadgeCount}
+                        vacantTablesBadgeCount={vacantTablesBadgeCount}
+                        leaveBadgeCount={leaveBadgeCount}
+                        currentUser={currentUser}
+                        onLogout={handleLogout}
+                        onOpenUserManager={() => setModalState(prev => ({ ...prev, isUserManager: true }))}
+                        logoUrl={logoUrl}
+                        onLogoChangeClick={() => {}} // Placeholder
+                        restaurantName={restaurantName}
+                        onRestaurantNameChange={setRestaurantName}
+                        branchName={selectedBranch?.name || ''}
+                        onChangeBranch={() => setSelectedBranch(null)}
+                        onManageBranches={() => setModalState(prev => ({ ...prev, isBranchManager: true }))}
+                    />
+                )}
                 
                 <main className="flex-1 overflow-hidden relative">
                     {currentView === 'pos' && (
