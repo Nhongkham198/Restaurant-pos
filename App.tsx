@@ -1071,25 +1071,16 @@ const App: React.FC = () => {
         />
     );
 
-    if (!currentUser) {
-        return <LoginScreen onLogin={handleLogin} />;
-    }
-
-    if (!selectedBranch && !isCustomerMode) {
-        return (
-            <BranchSelectionScreen
-                onSelectBranch={handleBranchSelect}
-                currentUser={currentUser}
-                branches={branches}
-                onManageBranches={() => setModalState(prev => ({ ...prev, isBranchManager: true }))}
-                onLogout={handleLogout}
-            />
-        );
-    }
-
     if (isCustomerMode) {
         const table = tables.find(t => t.id === customerTableId);
-        if (!table) return <div className="p-8 text-center text-xl font-bold text-red-600">Table Not Found (ID: {customerTableId})</div>;
+        if (!table) return (
+            <div className="h-screen w-screen flex items-center justify-center bg-gray-100 text-center">
+                <div>
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+                    <p className="mt-4 text-xl font-semibold text-gray-700">กำลังโหลดข้อมูลโต๊ะ...</p>
+                </div>
+            </div>
+        );
 
         return (
             <CustomerView
@@ -1102,6 +1093,22 @@ const App: React.FC = () => {
                 onStaffCall={(t, n) => {
                     // Staff call logic
                 }}
+            />
+        );
+    }
+
+    if (!currentUser) {
+        return <LoginScreen onLogin={handleLogin} />;
+    }
+
+    if (!selectedBranch) {
+        return (
+            <BranchSelectionScreen
+                onSelectBranch={handleBranchSelect}
+                currentUser={currentUser}
+                branches={branches}
+                onManageBranches={() => setModalState(prev => ({ ...prev, isBranchManager: true }))}
+                onLogout={handleLogout}
             />
         );
     }
@@ -1301,18 +1308,18 @@ const App: React.FC = () => {
 
             {/* Right Sidebar and Toggle Button Wrapper */}
             {!isCustomerMode && (
-                <div className="hidden lg:flex flex-shrink-0 relative">
+                <div className="hidden lg:flex flex-shrink-0">
                     {/* Toggle Button */}
                     <button
                         onClick={() => setIsOrderSidebarVisible(!isOrderSidebarVisible)}
-                        className="absolute top-1/2 -left-4 z-30 -translate-y-1/2 w-8 h-24 bg-gray-800/80 text-white rounded-lg hover:bg-gray-700/90 transition-all duration-300 backdrop-blur-sm relative flex items-center justify-center"
+                        className="absolute top-0 -left-4 z-30 h-full w-8 bg-gray-800/80 text-white hover:bg-gray-700/90 transition-all duration-300 backdrop-blur-sm flex items-center justify-center group"
                         title={isOrderSidebarVisible ? 'ซ่อนรายการออเดอร์' : 'แสดงรายการออเดอร์'}
                     >
                         <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 transition-transform duration-300 ${isOrderSidebarVisible ? '' : 'rotate-180'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
                         </svg>
                          <span
-                            className={`absolute -top-2 -right-2 flex h-6 w-6 items-center justify-center rounded-full border-2 border-gray-800 bg-red-500 text-xs font-bold text-white transition-all duration-300 ease-in-out transform
+                            className={`absolute top-2 right-0 flex h-6 w-6 items-center justify-center rounded-full border-2 border-gray-800 bg-red-500 text-xs font-bold text-white transition-all duration-300 ease-in-out transform group-hover:scale-110
                                 ${!isOrderSidebarVisible && totalItems > 0 ? 'scale-100 opacity-100' : 'scale-0 opacity-0'}
                                 ${isBadgeAnimating ? 'animate-bounce' : ''}
                             `}

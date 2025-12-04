@@ -253,7 +253,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                         </svg>
                     </div>
                     <h1 className="text-2xl font-bold text-gray-800 mb-2">สวัสดีครับ/ค่ะ 🙏</h1>
-                    <p className="text-gray-600 mb-6">โต๊ะ: <span className="font-bold text-blue-600 text-xl">{table.name}</span></p>
+                    <p className="text-gray-600 mb-6">โต๊ะ: <span className="font-bold text-blue-600 text-xl">{table.name} ({table.floor})</span></p>
                     
                     <form onSubmit={handleLogin} className="space-y-4 text-left">
                         <div>
@@ -358,6 +358,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                     onDeleteCategory={() => {}}
                     onAddCategory={() => {}}
                     onImportMenu={() => {}}
+                    totalItems={totalCartItemsCount}
                 />
             </div>
 
