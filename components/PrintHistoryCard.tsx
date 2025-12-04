@@ -79,7 +79,7 @@ export const PrintHistoryCard: React.FC<PrintHistoryCardProps> = ({ entry, isEdi
                         </div>
                     )}
                     <div className="mt-4 pt-4 border-t flex justify-end">
-                        <button onClick={() => onReprint(entry.orderNumber)} className="px-4 py-2 bg-blue-100 text-blue-800 text-base font-semibold rounded-md hover:bg-blue-200" disabled={entry.isDeleted}>
+                        <button onClick={() => onReprint(entry.orderNumber)} className="px-4 py-2 bg-blue-100 text-blue-800 text-base font-semibold rounded-md hover:bg-blue-200 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed" disabled={entry.isDeleted}>
                             พิมพ์อีกครั้ง
                         </button>
                     </div>

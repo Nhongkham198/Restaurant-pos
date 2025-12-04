@@ -83,7 +83,7 @@ interface BaseOrder {
     // Kept for legacy compatibility, but new logic uses item-level cutlery
     takeawayCutlery?: TakeawayCutleryOption[];
     takeawayCutleryNotes?: string;
-    // FIX: Add soft delete properties
+    // ADD: Add soft delete properties
     isDeleted?: boolean; // Soft delete flag
     deletedBy?: string; // Username of the person who deleted it
 }
@@ -223,7 +223,7 @@ export interface PrintHistoryEntry {
     errorMessage: string | null;
     orderItemsPreview: string[];
     isReprint: boolean;
-    // FIX: Add soft delete properties
+    // ADD: Add soft delete properties
     isDeleted?: boolean; // Soft delete flag
     deletedBy?: string; // Username of the person who deleted it
 }

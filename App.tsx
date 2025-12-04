@@ -31,7 +31,8 @@ import type {
     Reservation,
     LeaveRequest,
     StaffCall,
-    PaymentDetails
+    PaymentDetails,
+    CancellationReason
 } from './types';
 import { useFirestoreSync } from './hooks/useFirestoreSync';
 import { functionsService } from './services/firebaseFunctionsService';
@@ -395,51 +396,93 @@ const App: React.FC = () => {
 
     const handlePlaceOrder = async (itemsToOrder = currentOrderItems, orderCustomerName = customerName, orderCustomerCount = customerCount) => {
         if (!selectedBranch) return;
+        if (itemsToOrder.length === 0) return;
+    
         setIsPlacingOrder(true);
-
-        const table = tables.find(t => t.id === selectedTableId);
         
+        const tableFromSelection = tables.find(t => t.id === selectedTableId);
+        // Customer mode uses a different table object from URL params
+        const finalTable = isCustomerMode ? tables.find(t => t.id === customerTableId) : tableFromSelection;
+    
+        if (!finalTable) {
+            Swal.fire('เกิดข้อผิดพลาด', isCustomerMode ? 'ไม่พบข้อมูลโต๊ะ' : 'กรุณาเลือกโต๊ะก่อนสั่งอาหาร', 'error');
+            setIsPlacingOrder(false);
+            return;
+        }
+    
         try {
-            // Use the fallback-enabled service wrapper
-            const result = await functionsService.placeOrder({
-                branchId: selectedBranch.id.toString(),
-                tableName: table ? table.name : 'Unknown',
-                floor: table ? table.floor : 'Unknown',
+            // --- Client-side Implementation for Order Placement ---
+            const subtotal = itemsToOrder.reduce((sum, item) => sum + item.finalPrice * item.quantity, 0);
+            const effectiveTaxRate = isTaxEnabled ? taxRate : 0;
+            const taxAmount = subtotal * (effectiveTaxRate / 100);
+    
+            // Find the highest existing order number to generate a new one.
+            const allOrderNumbers = [
+                ...activeOrders.map(o => o.orderNumber),
+                ...completedOrders.map(o => o.orderNumber)
+            ];
+            const maxOrderNumber = allOrderNumbers.length > 0 ? Math.max(...allOrderNumbers) : 0;
+            const newOrderNumber = maxOrderNumber + 1;
+            
+            const newId = Date.now(); // Using timestamp for a unique ID
+    
+            const newOrder: ActiveOrder = {
+                id: newId,
+                orderNumber: newOrderNumber,
+                tableName: finalTable.name,
+                floor: finalTable.floor,
+                customerName: orderCustomerName,
                 customerCount: orderCustomerCount,
                 items: itemsToOrder,
-                orderType: 'dine-in', // Default to dine-in, specific items handle takeaway flag
-                taxRate: isTaxEnabled ? taxRate : 0,
+                orderType: 'dine-in', // Default type
+                taxRate: effectiveTaxRate,
+                taxAmount: taxAmount,
                 placedBy: currentUser ? currentUser.username : (isCustomerMode ? 'Customer' : 'Staff'),
-                sendToKitchen: sendToKitchen,
-            });
-
-            if (result.success && result.orderNumber) {
-                // Success path
-                setLastPlacedOrderId(result.orderNumber);
-                if (!isCustomerMode) {
-                    setModalState(prev => ({ ...prev, isOrderSuccess: true }));
-                    setCurrentOrderItems([]);
-                    setCustomerName('');
-                    setCustomerCount(1);
-                    setSelectedTableId(null);
-                    setNotSentToKitchenDetails(null); 
-                    setSendToKitchen(true);
-                } else {
+                status: 'waiting',
+                orderTime: Date.now(),
+            };
+    
+            // Update state (which triggers Firestore update via useFirestoreSync)
+            setActiveOrders(prevOrders => [...prevOrders, newOrder]);
+    
+            // --- Success Path ---
+            setLastPlacedOrderId(newOrderNumber);
+            if (!isCustomerMode) {
+                setModalState(prev => ({ ...prev, isOrderSuccess: true }));
+                setCurrentOrderItems([]);
+                setCustomerName('');
+                setCustomerCount(1);
+                setSelectedTableId(null);
+                setNotSentToKitchenDetails(null); 
+                setSendToKitchen(true); // Reset send to kitchen toggle
+            } else {
+                 Swal.fire({
+                    icon: 'success',
+                    title: 'สั่งอาหารสำเร็จ!',
+                    text: `ออเดอร์ #${newOrderNumber} ถูกส่งไปที่ครัวแล้ว`,
+                    timer: 2000,
+                    showConfirmButton: false
+                });
+                // In customer mode, the cart is cleared by the CustomerView component itself.
+            }
+    
+            // If kitchen printing is enabled and configured, trigger it
+            if (sendToKitchen && printerConfig?.kitchen) {
+                try {
+                    await printerService.printKitchenOrder(newOrder, printerConfig.kitchen);
+                } catch (printError) {
+                    console.error("Kitchen print failed:", printError);
                     Swal.fire({
-                        icon: 'success',
-                        title: 'สั่งอาหารสำเร็จ!',
-                        text: `ออเดอร์ #${result.orderNumber} ถูกส่งไปที่ครัวแล้ว`,
-                        timer: 2000,
-                        showConfirmButton: false
+                        icon: 'warning',
+                        title: 'สั่งอาหารสำเร็จ แต่พิมพ์ไม่สำเร็จ',
+                        text: 'ออเดอร์ถูกส่งเข้าระบบแล้ว แต่ไม่สามารถพิมพ์ใบสั่งอาหารได้ กรุณาตรวจสอบเครื่องพิมพ์',
                     });
                 }
-            } else {
-                throw new Error(result.error || 'Unknown error');
             }
-
+            
         } catch (error: any) {
-            console.error("Error placing order:", error);
-            Swal.fire('เกิดข้อผิดพลาด', `ไม่สามารถสั่งอาหารได้: ${error.message}`, 'error');
+            console.error("Critical error during client-side order placement:", error);
+            Swal.fire('เกิดข้อผิดพลาดร้ายแรง', `ไม่สามารถสั่งอาหารได้: ${error.message}`, 'error');
         } finally {
             setIsPlacingOrder(false);
         }
@@ -505,27 +548,41 @@ const App: React.FC = () => {
         if (!selectedBranch) return;
         setIsConfirmingPayment(true);
         try {
-            const order = activeOrders.find(o => o.id === orderId);
-            if (!order) {
-                throw new Error("Order not found");
+            const orderToComplete = activeOrders.find(o => o.id === orderId);
+            if (!orderToComplete) {
+                throw new Error("Order not found in active orders.");
             }
-            
-            await functionsService.confirmPayment({
-                branchId: selectedBranch.id.toString(),
-                orderId: orderId,
-                paymentDetails
-            });
     
-            // Reset the PIN for the paid table
+            // --- Client-side Implementation for Payment Confirmation ---
+    
+            // 1. Create the completed order object
+            const completedOrder: CompletedOrder = {
+                ...orderToComplete,
+                status: 'completed',
+                completionTime: Date.now(),
+                paymentDetails: paymentDetails,
+            };
+    
+            // 2. Update active orders state (remove the completed one)
+            setActiveOrders(prevOrders => prevOrders.filter(o => o.id !== orderId));
+            
+            // 3. Update completed orders state (add the new one)
+            setCompletedOrders(prevOrders => [...prevOrders, completedOrder]);
+    
+            // 4. Reset the PIN for the paid table
             setTables(prevTables => 
                 prevTables.map(table => {
-                    if (table.name === order.tableName && table.floor === order.floor) {
-                        return { ...table, activePin: undefined };
+                    if (table.name === orderToComplete.tableName && table.floor === orderToComplete.floor) {
+                        // Create a new object without the activePin property to avoid 'undefined' issues with Firestore.
+                        const newTable = { ...table };
+                        delete newTable.activePin;
+                        return newTable;
                     }
                     return table;
                 })
             );
     
+            // 5. Update modal state
             setModalState(prev => ({ ...prev, isPayment: false, isPaymentSuccess: true }));
             
         } catch (error: any) {
@@ -577,6 +634,72 @@ const App: React.FC = () => {
                 table.id === tableId ? { ...table, activePin: newPin } : table
             )
         );
+    };
+
+    const handleStartCooking = (orderId: number) => {
+        setActiveOrders(prevOrders =>
+            prevOrders.map(order =>
+                order.id === orderId
+                    ? { ...order, status: 'cooking', cookingStartTime: Date.now() }
+                    : order
+            )
+        );
+    };
+    
+    const handleCompleteOrder = (orderId: number) => {
+        setActiveOrders(prevOrders =>
+            prevOrders.map(order =>
+                order.id === orderId
+                    ? { ...order, status: 'served' }
+                    : order
+            )
+        );
+    };
+    
+    const handleCancelOrder = (orderToCancel: ActiveOrder, reason: CancellationReason, notes?: string) => {
+        if (!currentUser) return;
+    
+        const cancelledOrder: CancelledOrder = {
+            ...orderToCancel,
+            status: 'cancelled',
+            cancellationTime: Date.now(),
+            cancelledBy: currentUser.username,
+            cancellationReason: reason,
+            cancellationNotes: notes,
+        };
+    
+        setActiveOrders(prev => prev.filter(o => o.id !== orderToCancel.id));
+        setCancelledOrders(prev => [...prev, cancelledOrder]);
+    
+        setModalState(prev => ({ ...prev, isCancelOrder: false }));
+        setOrderForModal(null);
+    
+        Swal.fire('ยกเลิกแล้ว', `ออเดอร์ #${orderToCancel.orderNumber} ถูกยกเลิกเรียบร้อย`, 'success');
+    };
+
+    const handleDeleteHistory = (completedIdsToDelete: number[], cancelledIdsToDelete: number[], printIdsToDelete: number[]) => {
+        if (!currentUser) return;
+    
+        if (currentUser.role === 'admin') {
+            // Admin performs a hard delete.
+            setCompletedOrders(prev => prev.filter(o => !completedIdsToDelete.includes(o.id)));
+            setCancelledOrders(prev => prev.filter(o => !cancelledIdsToDelete.includes(o.id)));
+            setPrintHistory(prev => prev.filter(p => !printIdsToDelete.includes(p.id)));
+            Swal.fire('ลบถาวรแล้ว!', 'รายการถูกลบออกจากระบบเรียบร้อย', 'success');
+        } else { 
+            // Other roles with permission (like branch-admin) perform a soft delete.
+            const username = currentUser.username;
+            setCompletedOrders(prev => prev.map(o => 
+                completedIdsToDelete.includes(o.id) ? { ...o, isDeleted: true, deletedBy: username } : o
+            ));
+            setCancelledOrders(prev => prev.map(o => 
+                cancelledIdsToDelete.includes(o.id) ? { ...o, isDeleted: true, deletedBy: username } : o
+            ));
+            setPrintHistory(prev => prev.map(p => 
+                printIdsToDelete.includes(p.id) ? { ...p, isDeleted: true, deletedBy: username } : p
+            ));
+            Swal.fire('ลบรายการแล้ว', 'รายการที่เลือกถูกลบถาวรเรียบร้อย', 'success');
+        }
     };
 
     // ============================================================================
@@ -823,28 +946,39 @@ const App: React.FC = () => {
         prevActiveOrdersRef.current = activeOrders;
     }, [activeOrders, currentUser, notificationSoundUrl]);
 
-    // --- KITCHEN LOGIN REMINDER EFFECT ---
+    // --- KITCHEN LOGIN REMINDER & DEFAULT VIEW EFFECT ---
     useEffect(() => {
-        if (currentUser?.role === 'kitchen' && prevUserRef.current?.id !== currentUser.id) {
-            const waitingOrders = activeOrders.filter(o => o.status === 'waiting');
-            if (waitingOrders.length > 0) {
-                const oldestWaitingOrder = waitingOrders.sort((a, b) => a.orderTime - b.orderTime)[0];
-
-                if (notificationSoundUrl) {
-                    const audio = new Audio(notificationSoundUrl);
-                    audio.play().catch(error => console.error("Error playing login reminder sound:", error));
+        const isNewLogin = currentUser && prevUserRef.current?.id !== currentUser.id;
+    
+        if (isNewLogin) {
+            // Set default view on new login based on role
+            if (currentUser.role === 'kitchen') {
+                setCurrentView('kitchen');
+    
+                // Existing kitchen login reminder logic
+                const waitingOrders = activeOrders.filter(o => o.status === 'waiting');
+                if (waitingOrders.length > 0) {
+                    const oldestWaitingOrder = waitingOrders.sort((a, b) => a.orderTime - b.orderTime)[0];
+    
+                    if (notificationSoundUrl) {
+                        const audio = new Audio(notificationSoundUrl);
+                        audio.play().catch(error => console.error("Error playing login reminder sound:", error));
+                    }
+                    
+                    Swal.fire({
+                        title: '🔔 มีออเดอร์รออยู่ในคิว!',
+                        html: `มี <b>${waitingOrders.length}</b> ออเดอร์ที่ยังไม่ได้รับ<br/>ออเดอร์แรกคือ <b>#${oldestWaitingOrder.orderNumber.toString().padStart(3, '0')}</b>`,
+                        icon: 'info',
+                        confirmButtonText: 'รับทราบ',
+                        allowOutsideClick: false,
+                        allowEscapeKey: false,
+                    });
                 }
-                
-                Swal.fire({
-                    title: '🔔 มีออเดอร์รออยู่ในคิว!',
-                    html: `มี <b>${waitingOrders.length}</b> ออเดอร์ที่ยังไม่ได้รับ<br/>ออเดอร์แรกคือ <b>#${oldestWaitingOrder.orderNumber.toString().padStart(3, '0')}</b>`,
-                    icon: 'info',
-                    confirmButtonText: 'รับทราบ',
-                    allowOutsideClick: false,
-                    allowEscapeKey: false,
-                });
+            } else if (currentUser.role === 'pos') {
+                setCurrentView('pos');
             }
         }
+    
         prevUserRef.current = currentUser;
     }, [currentUser, activeOrders, notificationSoundUrl]);
 
@@ -975,13 +1109,13 @@ const App: React.FC = () => {
         const checkOverdueOrders = () => {
             const now = Date.now();
             const overdueLimit = ORDER_TIMEOUT_MINUTES * 60 * 1000;
-            
+    
             const newlyOverdueOrders: ActiveOrder[] = [];
             const orderIdsToMarkAsOverdue: number[] = [];
     
             activeOrders.forEach(order => {
-                if (order.status === 'waiting' || order.status === 'cooking') {
-                    const startTime = order.cookingStartTime || order.orderTime;
+                if (order.status === 'cooking' && order.cookingStartTime) {
+                    const startTime = order.cookingStartTime;
                     const elapsedTime = now - startTime;
     
                     if (elapsedTime > overdueLimit) {
@@ -1006,7 +1140,7 @@ const App: React.FC = () => {
             if (newlyOverdueOrders.length > 0) {
                 newlyOverdueOrders.forEach(order => {
                     if (isCustomerMode) return; 
-
+    
                     Swal.fire({
                         title: '🔔 ลูกค้ารอนานเกินไป!',
                         html: `ออเดอร์ #${order.orderNumber.toString().padStart(3, '0')} (โต๊ะ ${order.tableName})<br/>รออาหารนานเกิน ${ORDER_TIMEOUT_MINUTES} นาทีแล้ว`,
@@ -1090,8 +1224,17 @@ const App: React.FC = () => {
                 activeOrders={activeOrders.filter(o => o.tableName === table.name && o.floor === table.floor)}
                 allBranchOrders={activeOrders}
                 onPlaceOrder={(items, name, count) => handlePlaceOrder(items, name, count)}
-                onStaffCall={(t, n) => {
-                    // Staff call logic
+                onStaffCall={(tableToCall, name) => {
+                    if (!selectedBranch) return;
+                    const newCall: StaffCall = {
+                        id: Date.now(),
+                        tableId: tableToCall.id,
+                        tableName: tableToCall.name,
+                        customerName: name,
+                        branchId: selectedBranch.id,
+                        timestamp: Date.now()
+                    };
+                    setStaffCalls(prev => [...prev, newCall]);
                 }}
             />
         );
@@ -1220,8 +1363,8 @@ const App: React.FC = () => {
                     {currentView === 'kitchen' && (
                         <KitchenView 
                             activeOrders={activeOrders}
-                            onCompleteOrder={() => {}} // Placeholder
-                            onStartCooking={() => {}} // Placeholder
+                            onCompleteOrder={handleCompleteOrder}
+                            onStartCooking={handleStartCooking}
                         />
                     )}
                     {currentView === 'tables' && (
@@ -1262,7 +1405,7 @@ const App: React.FC = () => {
                             isEditMode={canEdit}
                             onEditOrder={() => {}} // Placeholder
                             onInitiateCashBill={() => {}} // Placeholder
-                            onDeleteHistory={() => {}} // Placeholder
+                            onDeleteHistory={handleDeleteHistory} 
                             currentUser={currentUser}
                         />
                     )}
@@ -1308,18 +1451,18 @@ const App: React.FC = () => {
 
             {/* Right Sidebar and Toggle Button Wrapper */}
             {!isCustomerMode && (
-                <div className="hidden lg:flex flex-shrink-0">
+                <div className="hidden lg:flex flex-shrink-0 relative">
                     {/* Toggle Button */}
                     <button
                         onClick={() => setIsOrderSidebarVisible(!isOrderSidebarVisible)}
-                        className="absolute top-0 -left-4 z-30 h-full w-8 bg-gray-800/80 text-white hover:bg-gray-700/90 transition-all duration-300 backdrop-blur-sm flex items-center justify-center group"
+                        className="absolute top-1/2 -translate-y-1/2 -left-4 z-30 h-24 w-8 bg-gray-800/80 text-white hover:bg-gray-700/90 transition-all duration-300 backdrop-blur-sm flex items-center justify-center group rounded-l-lg"
                         title={isOrderSidebarVisible ? 'ซ่อนรายการออเดอร์' : 'แสดงรายการออเดอร์'}
                     >
                         <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 transition-transform duration-300 ${isOrderSidebarVisible ? '' : 'rotate-180'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
                         </svg>
                          <span
-                            className={`absolute top-2 right-0 flex h-6 w-6 items-center justify-center rounded-full border-2 border-gray-800 bg-red-500 text-xs font-bold text-white transition-all duration-300 ease-in-out transform group-hover:scale-110
+                            className={`absolute -top-2 -right-2 flex h-6 w-6 items-center justify-center rounded-full border-2 border-white bg-red-500 text-xs font-bold text-white transition-all duration-300 ease-in-out transform group-hover:scale-110
                                 ${!isOrderSidebarVisible && totalItems > 0 ? 'scale-100 opacity-100' : 'scale-0 opacity-0'}
                                 ${isBadgeAnimating ? 'animate-bounce' : ''}
                             `}
@@ -1331,7 +1474,7 @@ const App: React.FC = () => {
                     <div
                         className={`transition-all duration-300 ease-in-out overflow-hidden ${isOrderSidebarVisible ? (isAdminSidebarCollapsed ? 'w-96' : 'w-80') : 'w-0'}`}
                     >
-                        <div className={isAdminSidebarCollapsed ? 'w-96' : 'w-80'}>
+                        <div className={`h-full ${isAdminSidebarCollapsed ? 'w-96' : 'w-80'}`}>
                             {orderSummarySidebar}
                         </div>
                     </div>
@@ -1392,6 +1535,12 @@ const App: React.FC = () => {
                 onInitiateCancel={() => setModalState(prev => ({ ...prev, isCancelOrder: true, isTableBill: false }))}
                 activeOrderCount={activeOrders.filter(o => o.tableName === orderForModal?.tableName && o.floor === orderForModal?.floor).length}
                 onInitiateMerge={() => setModalState(prev => ({ ...prev, isMergeBill: true, isTableBill: false }))}
+            />
+            <CancelOrderModal
+                isOpen={modalState.isCancelOrder}
+                onClose={() => setModalState(prev => ({ ...prev, isCancelOrder: false }))}
+                order={orderForModal as ActiveOrder}
+                onConfirm={handleCancelOrder}
             />
             <SettingsModal 
                 isOpen={modalState.isSettings}
