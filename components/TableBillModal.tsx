@@ -180,9 +180,7 @@ export const TableBillModal: React.FC<TableBillModalProps> = ({
                                 <button onClick={() => onInitiateMove(order)} className="bg-purple-500 hover:bg-purple-600 text-white font-bold py-3 px-4 rounded-lg transition-colors">ย้ายโต๊ะ</button>
                                 <button onClick={() => onSplit(order)} className="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-3 px-4 rounded-lg transition-colors">แยกบิล</button>
                             </div>
-                            {activeOrderCount > 1 && (
-                                <button onClick={() => onInitiateMerge(order)} className="w-full bg-teal-500 hover:bg-teal-600 text-white font-bold py-3 px-4 rounded-lg transition-colors">รวมบิล</button>
-                            )}
+                            <button onClick={() => onInitiateMerge(order)} className="w-full bg-teal-500 hover:bg-teal-600 text-white font-bold py-3 px-4 rounded-lg transition-colors">รวมบิล</button>
                             <button onClick={() => onInitiatePayment(order)} className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg transition-colors">ชำระเงิน</button>
                             
                             {canCancel && isCancelableStatus ? (

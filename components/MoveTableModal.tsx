@@ -23,21 +23,24 @@ export const MoveTableModal: React.FC<MoveTableModalProps> = ({
     const [selectedFloor, setSelectedFloor] = useState<string>('');
     const [selectedTableId, setSelectedTableId] = useState<number | null>(null);
 
-    // Determine which tables are currently occupied by creating a unique key for each occupied table (name + floor).
-    const occupiedTableKeys = useMemo(() => {
-        // A table is considered occupied if it has any active order.
-        // We create a Set of unique keys for all tables associated with active orders.
-        return new Set(activeOrders.map(o => `${o.tableName}-${o.floor}`));
-    }, [activeOrders]);
+    const occupiedTableIds = useMemo(() => {
+        const tableIds = new Set<number>();
+        for (const o of activeOrders) {
+            // Find the table object corresponding to the order to get its unique ID
+            const tableForOrder = tables.find(t => t.name === o.tableName && t.floor === o.floor);
+            if (tableForOrder) {
+                tableIds.add(tableForOrder.id);
+            }
+        }
+        return tableIds;
+    }, [activeOrders, tables]);
 
     // Filter tables to show only vacant ones on the selected floor
     const availableTables = useMemo(() => {
-        // A table is available if it's on the selected floor AND its unique key is not in the set of occupied keys.
-        // This correctly distinguishes between tables with the same name on different floors.
         return tables.filter(
-            t => t.floor === selectedFloor && !occupiedTableKeys.has(`${t.name}-${t.floor}`)
+            t => t.floor === selectedFloor && !occupiedTableIds.has(t.id)
         );
-    }, [tables, selectedFloor, occupiedTableKeys]);
+    }, [tables, selectedFloor, occupiedTableIds]);
 
 
     // Reset state when modal opens or order changes

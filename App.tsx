@@ -165,7 +165,7 @@ const App: React.FC = () => {
     const [customerTableId, setCustomerTableId] = useState<number | null>(null);
     
     // --- BRANCH-SPECIFIC STATE (SYNCED WITH FIRESTORE) ---
-    const branchId = selectedBranch?.id.toString() ?? null;
+    const branchId = selectedBranch ? selectedBranch.id.toString() : null;
     const [menuItems, setMenuItems] = useFirestoreSync<MenuItem[]>(branchId, 'menuItems', DEFAULT_MENU_ITEMS);
     const [categories, setCategories] = useFirestoreSync<string[]>(branchId, 'categories', DEFAULT_CATEGORIES);
     const [tables, setTables] = useFirestoreSync<Table[]>(branchId, 'tables', DEFAULT_TABLES);
@@ -225,41 +225,22 @@ const App: React.FC = () => {
     // --- REFS ---
     const prevActiveOrdersRef = useRef<ActiveOrder[] | undefined>(undefined);
     const isShowingLeaveAlertRef = useRef(false);
-    const notifiedCallIdsRef = useRef<Set<number>>(new Set());
     const staffCallAudioRef = useRef<HTMLAudioElement | null>(null);
     const prevUserRef = useRef<User | null>(null);
+    const activeCallRef = useRef<StaffCall | null>(null);
 
     // ============================================================================
     // 2. COMPUTED VALUES (MEMO)
     // ============================================================================
 
-    const cleanedTables = useMemo(() => {
-        const normalizeString = (str: string | undefined | null): string => {
-            if (!str) return '';
-            return str.replace(/[\s\u200B-\u200D\uFEFF]/g, '').toLowerCase();
-        };
-
-        const uniqueTablesMap = new Map<string, Table>();
-        (tables || []).forEach(table => {
-            if (table && table.name && table.floor) {
-                const key = `${normalizeString(table.name)}-${normalizeString(table.floor)}`;
-                if (!uniqueTablesMap.has(key)) {
-                    uniqueTablesMap.set(key, table);
-                }
-            }
-        });
-        return Array.from(uniqueTablesMap.values());
-    }, [tables]);
-
     const kitchenBadgeCount = useMemo(() => activeOrders.filter(o => o.status === 'waiting').length, [activeOrders]);
-    const occupiedTablesCount = useMemo(() => new Set(activeOrders.map(o => `${o.tableName}-${o.floor}`)).size, [activeOrders]);
+    const occupiedTablesCount = useMemo(() => new Set(activeOrders.map(o => o.tableId)).size, [activeOrders]);
     const tablesBadgeCount = occupiedTablesCount > 0 ? occupiedTablesCount : 0;
     
     const vacantTablesBadgeCount = useMemo(() => {
-        let totalTables = cleanedTables.length;
-        if (totalTables > 6) totalTables = 6;
+        const totalTables = tables.length;
         return Math.max(0, totalTables - occupiedTablesCount);
-    }, [cleanedTables.length, occupiedTablesCount]);
+    }, [tables.length, occupiedTablesCount]);
 
     const layoutType = useMemo(() => {
         if (currentUser?.role === 'admin' || currentUser?.role === 'branch-admin' || currentUser?.role === 'auditor') {
@@ -429,6 +410,7 @@ const App: React.FC = () => {
             const newOrder: ActiveOrder = {
                 id: newId,
                 orderNumber: newOrderNumber,
+                tableId: finalTable.id,
                 tableName: finalTable.name,
                 floor: finalTable.floor,
                 customerName: orderCustomerName,
@@ -522,7 +504,7 @@ const App: React.FC = () => {
         const tableNumbers = tablesOnFloor.map(t => ({...t, num: parseInt(t.name.replace(/[^0-9]/g, ''), 10)}));
         const lastTable = tableNumbers.sort((a, b) => b.num - a.num)[0];
     
-        const hasActiveOrder = activeOrders.some(order => order.tableName === lastTable.name && order.floor === lastTable.floor);
+        const hasActiveOrder = activeOrders.some(order => order.tableId === lastTable.id);
     
         if (hasActiveOrder) {
             Swal.fire('ไม่สามารถลบได้', `โต๊ะ ${lastTable.name} (${lastTable.floor}) มีออเดอร์ค้างอยู่`, 'error');
@@ -572,7 +554,7 @@ const App: React.FC = () => {
             // 4. Reset the PIN for the paid table
             setTables(prevTables => 
                 prevTables.map(table => {
-                    if (table.name === orderToComplete.tableName && table.floor === orderToComplete.floor) {
+                    if (table.id === orderToComplete.tableId) {
                         // Create a new object without the activePin property to avoid 'undefined' issues with Firestore.
                         const newTable = { ...table };
                         delete newTable.activePin;
@@ -699,6 +681,247 @@ const App: React.FC = () => {
                 printIdsToDelete.includes(p.id) ? { ...p, isDeleted: true, deletedBy: username } : p
             ));
             Swal.fire('ลบรายการแล้ว', 'รายการที่เลือกถูกลบถาวรเรียบร้อย', 'success');
+        }
+    };
+
+    const handleSaveSettings = (
+        newQrCodeUrl: string,
+        newSoundUrl: string,
+        newStaffCallSoundUrl: string,
+        newPrinterConfig: PrinterConfig,
+        newOpeningTime: string,
+        newClosingTime: string
+    ) => {
+        setQrCodeUrl(newQrCodeUrl);
+        setNotificationSoundUrl(newSoundUrl);
+        setStaffCallSoundUrl(newStaffCallSoundUrl);
+        setPrinterConfig(newPrinterConfig);
+        setOpeningTime(newOpeningTime);
+        setClosingTime(newClosingTime);
+        setModalState(prev => ({ ...prev, isSettings: false }));
+        Swal.fire({
+            toast: true,
+            position: 'top-end',
+            icon: 'success',
+            title: 'บันทึกการตั้งค่าทั้งหมดแล้ว',
+            showConfirmButton: false,
+            timer: 2000
+        });
+    };
+
+    const handleSavePrinterConfig = (newPrinterConfig: PrinterConfig) => {
+        setPrinterConfig(newPrinterConfig);
+    };
+
+    const handleMoveTable = (orderId: number, newTableId: number) => {
+        const orderToMove = activeOrders.find(o => o.id === orderId);
+        const newTable = tables.find(t => t.id === newTableId);
+    
+        if (!orderToMove || !newTable) {
+            Swal.fire('เกิดข้อผิดพลาด', 'ไม่พบออเดอร์หรือโต๊ะที่เลือก', 'error');
+            return;
+        }
+    
+        setActiveOrders(prev => prev.map(o => 
+            o.id === orderId ? { ...o, tableId: newTable.id, tableName: newTable.name, floor: newTable.floor } : o
+        ));
+        
+        setModalState(prev => ({ ...prev, isMoveTable: false }));
+        setOrderForModal(null);
+        Swal.fire('สำเร็จ', `ย้ายออเดอร์ #${orderToMove.orderNumber} ไปที่โต๊ะ ${newTable.name} แล้ว`, 'success');
+    };
+    
+    const handleConfirmSplit = (itemsToSplit: OrderItem[]) => {
+        if (!orderForModal || orderForModal.status === 'completed') return;
+        const originalOrder = orderForModal as ActiveOrder;
+    
+        const maxOrderNumber = Math.max(0, ...activeOrders.map(o => o.orderNumber), ...completedOrders.map(o => o.orderNumber));
+        const newOrderNumber = maxOrderNumber + 1;
+        const newId = Date.now();
+    
+        const subtotal = itemsToSplit.reduce((sum, item) => sum + item.finalPrice * item.quantity, 0);
+        const taxAmount = subtotal * (originalOrder.taxRate / 100);
+    
+        const newSplitOrder: ActiveOrder = {
+            ...originalOrder,
+            id: newId,
+            orderNumber: newOrderNumber,
+            items: itemsToSplit,
+            taxAmount: taxAmount,
+            parentOrderId: originalOrder.id,
+            orderTime: Date.now(),
+            status: 'served', // Assume only served items can be split
+        };
+    
+        const updatedOriginalItems: OrderItem[] = [];
+        for (const originalItem of originalOrder.items) {
+            const splitItem = itemsToSplit.find(si => si.cartItemId === originalItem.cartItemId);
+            if (splitItem) {
+                const remainingQuantity = originalItem.quantity - splitItem.quantity;
+                if (remainingQuantity > 0) {
+                    updatedOriginalItems.push({ ...originalItem, quantity: remainingQuantity });
+                }
+            } else {
+                updatedOriginalItems.push(originalItem);
+            }
+        }
+    
+        const updatedOriginalOrder = { ...originalOrder, items: updatedOriginalItems };
+        const originalSubtotal = updatedOriginalOrder.items.reduce((sum, item) => sum + item.finalPrice * item.quantity, 0);
+        updatedOriginalOrder.taxAmount = originalSubtotal * (updatedOriginalOrder.taxRate / 100);
+    
+        setActiveOrders(prev => {
+            const otherOrders = prev.filter(o => o.id !== originalOrder.id);
+            return updatedOriginalOrder.items.length > 0
+                ? [...otherOrders, updatedOriginalOrder, newSplitOrder]
+                : [...otherOrders, newSplitOrder];
+        });
+    
+        setModalState(prev => ({ ...prev, isSplitBill: false }));
+        setOrderForModal(null);
+        Swal.fire('สำเร็จ', `แยกบิล #${newSplitOrder.orderNumber} เรียบร้อย`, 'success');
+    };
+    
+    const handleConfirmMerge = (sourceOrderIds: number[], targetOrderId: number) => {
+        const targetOrder = activeOrders.find(o => o.id === targetOrderId);
+        const sourceOrders = activeOrders.filter(o => sourceOrderIds.includes(o.id));
+    
+        if (!targetOrder || sourceOrders.length === 0) {
+            Swal.fire('เกิดข้อผิดพลาด', 'ไม่พบออเดอร์ที่ต้องการรวม', 'error');
+            return;
+        }
+    
+        const combinedItems = [...targetOrder.items];
+        
+        const isInterTableMerge = sourceOrders.some(so => so.tableId !== targetOrder.tableId);
+        
+        let totalCustomerCount = targetOrder.customerCount;
+        if (isInterTableMerge) {
+            totalCustomerCount += sourceOrders.reduce((sum, o) => sum + o.customerCount, 0);
+        }
+    
+        for (const sourceOrder of sourceOrders) {
+            for (const sourceItem of sourceOrder.items) {
+                const existingItemIndex = combinedItems.findIndex(ci => ci.cartItemId === sourceItem.cartItemId);
+                if (existingItemIndex > -1) {
+                    combinedItems[existingItemIndex].quantity += sourceItem.quantity;
+                } else {
+                    combinedItems.push(sourceItem);
+                }
+            }
+        }
+    
+        const updatedTargetOrder = { ...targetOrder, items: combinedItems, customerCount: totalCustomerCount };
+        const subtotal = updatedTargetOrder.items.reduce((sum, item) => sum + item.finalPrice * item.quantity, 0);
+        updatedTargetOrder.taxAmount = subtotal * (updatedTargetOrder.taxRate / 100);
+    
+        setActiveOrders(prev => {
+            const remainingOrders = prev.filter(o => !sourceOrderIds.includes(o.id) && o.id !== targetOrderId);
+            return [...remainingOrders, updatedTargetOrder];
+        });
+    
+        setModalState(prev => ({ ...prev, isMergeBill: false }));
+        setOrderForModal(null);
+        Swal.fire('สำเร็จ', 'รวมบิลเรียบร้อยแล้ว', 'success');
+    };
+
+    const handleInitiateCashBill = (order: CompletedOrder) => {
+        setOrderForModal(order);
+        setModalState(prev => ({ ...prev, isCashBill: true }));
+    };
+
+    const handleSaveLeaveRequest = (requestData: Omit<LeaveRequest, 'id' | 'status' | 'branchId'>) => {
+        if (!selectedBranch) {
+            Swal.fire('เกิดข้อผิดพลาด', 'กรุณาเลือกสาขาก่อนส่งคำขอ', 'error');
+            return;
+        }
+
+        const newLeaveRequest: LeaveRequest = {
+            ...requestData,
+            id: Date.now(), // Use timestamp for a unique ID
+            status: 'pending',
+            branchId: selectedBranch.id,
+            acknowledgedBy: [], // Initialize acknowledgedBy
+        };
+
+        setLeaveRequests(prevRequests => [...prevRequests, newLeaveRequest]);
+        
+        setModalState(prev => ({...prev, isLeaveRequest: false}));
+
+        Swal.fire({
+            icon: 'success',
+            title: 'ส่งคำขอสำเร็จ!',
+            text: 'คำขอวันลาของคุณได้ถูกส่งเข้าระบบเรียบร้อยแล้ว',
+            timer: 2000,
+            showConfirmButton: false,
+        });
+    };
+    
+    const handleUpdateLeaveStatus = (requestId: number, status: 'approved' | 'rejected') => {
+        const request = leaveRequests.find(r => r.id === requestId);
+        if (!request) {
+            Swal.fire('เกิดข้อผิดพลาด', 'ไม่พบคำขอลา', 'error');
+            return;
+        }
+    
+        const user = users.find(u => u.id === request.userId);
+        if (!user) {
+            Swal.fire('เกิดข้อผิดพลาด', 'ไม่พบผู้ใช้สำหรับคำขอนี้', 'error');
+            return;
+        }
+    
+        if (status === 'approved') {
+            const startDay = new Date(request.startDate);
+            startDay.setHours(0, 0, 0, 0);
+            const endDay = new Date(request.endDate);
+            endDay.setHours(0, 0, 0, 0);
+    
+            const durationInMs = endDay.getTime() - startDay.getTime();
+            const durationInDays = request.isHalfDay ? 0.5 : (durationInMs / (1000 * 60 * 60 * 24)) + 1;
+    
+            const usedDays = leaveRequests.reduce((acc, req) => {
+                if (req.userId === user.id && req.status === 'approved' && req.type === request.type) {
+                    const reqStartDay = new Date(req.startDate);
+                    reqStartDay.setHours(0, 0, 0, 0);
+                    const reqEndDay = new Date(req.endDate);
+                    reqEndDay.setHours(0, 0, 0, 0);
+                    const reqDurationInMs = reqEndDay.getTime() - reqStartDay.getTime();
+                    const reqDuration = req.isHalfDay ? 0.5 : (reqDurationInMs / (1000 * 60 * 60 * 24)) + 1;
+                    return acc + reqDuration;
+                }
+                return acc;
+            }, 0);
+    
+            const totalQuota = (user.leaveQuotas && user.leaveQuotas[request.type as keyof typeof user.leaveQuotas]) ?? 0;
+            const remainingDays = totalQuota - usedDays;
+    
+            if (['sick', 'personal', 'vacation'].includes(request.type)) {
+                if (durationInDays > remainingDays) {
+                    const typeLabel = request.type === 'sick' ? 'ลาป่วย' : request.type === 'personal' ? 'ลากิจ' : 'ลาพักร้อน';
+                    Swal.fire(
+                        'วันลาไม่เพียงพอ',
+                        `ไม่สามารถอนุมัติได้ พนักงานมี${typeLabel}เหลือ ${remainingDays} วัน (ขอ ${durationInDays} วัน)`,
+                        'error'
+                    );
+                    return;
+                }
+            }
+    
+            setLeaveRequests(prev => prev.map(r => r.id === requestId ? { ...r, status: 'approved' } : r));
+            Swal.fire('อนุมัติแล้ว!', 'คำขอวันลาได้รับการอนุมัติ', 'success');
+        } else { // 'rejected'
+            setLeaveRequests(prev => prev.map(r => r.id === requestId ? { ...r, status: 'rejected' } : r));
+            Swal.fire('ปฏิเสธแล้ว', 'คำขอวันลาถูกปฏิเสธ', 'info');
+        }
+    };
+
+    const handleDeleteLeaveRequest = async (requestId: number): Promise<boolean> => {
+        try {
+            setLeaveRequests(prev => prev.filter(req => req.id !== requestId));
+            return true;
+        } catch (error) {
+            console.error("Error deleting leave request from state:", error);
+            return false;
         }
     };
 
@@ -1029,27 +1252,33 @@ const App: React.FC = () => {
         }
     }, [leaveRequests, currentUser, setLeaveRequests]);
 
-    useEffect(() => {
-        notifiedCallIdsRef.current.clear();
-    }, [currentUser]);
-
     // --- STAFF CALL NOTIFICATION & SOUND EFFECT ---
     useEffect(() => {
-        const shouldPlayAudio = staffCalls.length > 0 && staffCallSoundUrl && !isCustomerMode && currentUser?.role !== 'admin' && currentUser?.role !== 'branch-admin' && currentUser?.role !== 'auditor';
-
-        if (shouldPlayAudio) {
+        const shouldPlayAudio = staffCalls.length > 0 && staffCallSoundUrl && !isCustomerMode && currentUser && ['pos', 'kitchen', 'admin', 'branch-admin'].includes(currentUser.role);
+    
+        // Initialize or update audio object if URL is available
+        if (staffCallSoundUrl) {
             if (!staffCallAudioRef.current) {
                 staffCallAudioRef.current = new Audio(staffCallSoundUrl);
                 staffCallAudioRef.current.loop = true;
+            } else if (staffCallAudioRef.current.src !== staffCallSoundUrl) {
+                // If the sound source changed in settings, update it
+                staffCallAudioRef.current.src = staffCallSoundUrl;
             }
+        }
+    
+        if (shouldPlayAudio && staffCallAudioRef.current) {
+            // Attempt to play, and catch any browser autoplay policy errors
             if (staffCallAudioRef.current.paused) {
                 staffCallAudioRef.current.play().catch(e => console.error("Error playing staff call sound:", e));
             }
         } else if (staffCallAudioRef.current && !staffCallAudioRef.current.paused) {
+            // Stop playing if conditions are not met
             staffCallAudioRef.current.pause();
             staffCallAudioRef.current.currentTime = 0;
         }
-
+    
+        // Cleanup on component unmount
         return () => {
             if (staffCallAudioRef.current) {
                 staffCallAudioRef.current.pause();
@@ -1058,50 +1287,61 @@ const App: React.FC = () => {
     }, [staffCalls.length, staffCallSoundUrl, isCustomerMode, currentUser]);
 
     useEffect(() => {
-        const showNotifications = async () => {
+        const showOrHideNotification = async () => {
+            // Guard clauses to prevent showing modal in wrong context
             if (isCustomerMode || !currentUser || !['pos', 'kitchen', 'admin', 'branch-admin'].includes(currentUser.role)) {
+                // If a modal is somehow visible, close it
+                if (Swal.isVisible()) {
+                    Swal.close();
+                    activeCallRef.current = null;
+                }
                 return;
             }
-            if (currentUser.role === 'auditor') return;
 
-            const unnotifiedCalls = staffCalls.filter(c => !notifiedCallIdsRef.current.has(c.id));
+            // Get the first active call from the queue
+            const activeCall = staffCalls.length > 0 ? staffCalls[0] : null;
 
-            if (unnotifiedCalls.length > 0) {
-                const callToNotify = unnotifiedCalls[0];
-                notifiedCallIdsRef.current.add(callToNotify.id); 
+            if (activeCall) {
+                // Check if a modal for this specific call is already being managed by this client
+                if (activeCallRef.current?.id !== activeCall.id) {
+                    // Close any previously visible modal before showing a new one
+                    if (Swal.isVisible()) {
+                        Swal.close();
+                    }
+                    
+                    // Track the new call this client is now handling
+                    activeCallRef.current = activeCall;
 
-                const result = await Swal.fire({
-                    title: '🔔 ลูกค้าเรียกพนักงาน!',
-                    html: `โต๊ะ <b>${callToNotify.tableName}</b> (คุณ ${callToNotify.customerName})<br/>ต้องการความช่วยเหลือ`,
-                    icon: 'info',
-                    confirmButtonText: 'รับทราบ',
-                    timer: 15000,
-                    timerProgressBar: true,
-                    allowOutsideClick: false,
-                    allowEscapeKey: false
-                });
-                
-                if (result.isConfirmed || result.dismiss === Swal.DismissReason.timer) {
-                    setStaffCalls(prev => {
-                        if (prev.length === 1 && staffCallAudioRef.current) {
-                            staffCallAudioRef.current.pause();
-                            staffCallAudioRef.current.currentTime = 0;
-                        }
-                        return prev.filter(call => call.id !== callToNotify.id);
+                    const result = await Swal.fire({
+                        title: '🔔 ลูกค้าเรียกพนักงาน!',
+                        html: `โต๊ะ <b>${activeCall.tableName}</b> (คุณ ${activeCall.customerName})<br/>ต้องการความช่วยเหลือ`,
+                        icon: 'info',
+                        confirmButtonText: 'รับทราบ',
+                        allowOutsideClick: false,
+                        allowEscapeKey: false
                     });
+
+                    if (result.isConfirmed) {
+                        // User acknowledged the call. Remove it from the central state.
+                        setStaffCalls(prev => prev.filter(call => call.id !== activeCall.id));
+                    }
+                    // Reset the ref after interaction is complete
+                    activeCallRef.current = null;
+                }
+            } else {
+                // No active calls, so ensure any modal this client was tracking is closed.
+                if (activeCallRef.current) {
+                    if (Swal.isVisible()) {
+                        Swal.close();
+                    }
+                    activeCallRef.current = null;
                 }
             }
-            
-            const currentCallIds = new Set(staffCalls.map(c => c.id));
-            notifiedCallIdsRef.current.forEach(id => {
-                if (!currentCallIds.has(id)) {
-                    notifiedCallIdsRef.current.delete(id);
-                }
-            });
         };
 
-        showNotifications();
+        showOrHideNotification();
     }, [staffCalls, currentUser, isCustomerMode, setStaffCalls]);
+
 
     // --- ORDER TIMEOUT NOTIFICATION EFFECT ---
     useEffect(() => {
@@ -1221,7 +1461,7 @@ const App: React.FC = () => {
                 table={table}
                 menuItems={menuItems}
                 categories={categories}
-                activeOrders={activeOrders.filter(o => o.tableName === table.name && o.floor === table.floor)}
+                activeOrders={activeOrders.filter(o => o.tableId === table.id)}
                 allBranchOrders={activeOrders}
                 onPlaceOrder={(items, name, count) => handlePlaceOrder(items, name, count)}
                 onStaffCall={(tableToCall, name) => {
@@ -1404,7 +1644,7 @@ const App: React.FC = () => {
                             onSplitOrder={() => {}} // Placeholder
                             isEditMode={canEdit}
                             onEditOrder={() => {}} // Placeholder
-                            onInitiateCashBill={() => {}} // Placeholder
+                            onInitiateCashBill={handleInitiateCashBill}
                             onDeleteHistory={handleDeleteHistory} 
                             currentUser={currentUser}
                         />
@@ -1425,8 +1665,8 @@ const App: React.FC = () => {
                             currentUser={currentUser}
                             onOpenRequestModal={() => setModalState(prev => ({ ...prev, isLeaveRequest: true }))}
                             branches={branches}
-                            onUpdateStatus={() => {}} // Placeholder
-                            onDeleteRequest={async () => true} // Placeholder
+                            onUpdateStatus={handleUpdateLeaveStatus}
+                            onDeleteRequest={handleDeleteLeaveRequest}
                             selectedBranch={selectedBranch}
                         />
                     )}
@@ -1520,7 +1760,7 @@ const App: React.FC = () => {
             <PaymentSuccessModal 
                 isOpen={modalState.isPaymentSuccess}
                 onClose={handleClosePaymentSuccess}
-                orderId={orderForModal?.id || 0}
+                orderNumber={orderForModal?.orderNumber || 0}
             />
             <TableBillModal 
                 isOpen={modalState.isTableBill}
@@ -1533,7 +1773,7 @@ const App: React.FC = () => {
                 onUpdateOrder={() => {}} // Placeholder
                 currentUser={currentUser}
                 onInitiateCancel={() => setModalState(prev => ({ ...prev, isCancelOrder: true, isTableBill: false }))}
-                activeOrderCount={activeOrders.filter(o => o.tableName === orderForModal?.tableName && o.floor === orderForModal?.floor).length}
+                activeOrderCount={activeOrders.filter(o => o.tableId === orderForModal?.tableId).length}
                 onInitiateMerge={() => setModalState(prev => ({ ...prev, isMergeBill: true, isTableBill: false }))}
             />
             <CancelOrderModal
@@ -1542,17 +1782,40 @@ const App: React.FC = () => {
                 order={orderForModal as ActiveOrder}
                 onConfirm={handleCancelOrder}
             />
+            <MoveTableModal
+                isOpen={modalState.isMoveTable}
+                onClose={() => setModalState(prev => ({ ...prev, isMoveTable: false }))}
+                order={orderForModal as ActiveOrder}
+                tables={tables}
+                activeOrders={activeOrders}
+                onConfirmMove={handleMoveTable}
+                floors={floors}
+            />
+            <SplitBillModal
+                isOpen={modalState.isSplitBill}
+                onClose={() => setModalState(prev => ({ ...prev, isSplitBill: false }))}
+                order={orderForModal as ActiveOrder}
+                onConfirmSplit={handleConfirmSplit}
+            />
+            <MergeBillModal
+                isOpen={modalState.isMergeBill}
+                onClose={() => setModalState(prev => ({ ...prev, isMergeBill: false }))}
+                order={orderForModal as ActiveOrder}
+                allActiveOrders={activeOrders}
+                tables={tables}
+                onConfirmMerge={handleConfirmMerge}
+            />
             <SettingsModal 
                 isOpen={modalState.isSettings}
                 onClose={() => setModalState(prev => ({ ...prev, isSettings: false }))}
-                onSave={() => {}} // Placeholder
+                onSave={handleSaveSettings}
                 currentQrCodeUrl={qrCodeUrl}
                 currentNotificationSoundUrl={notificationSoundUrl}
                 currentStaffCallSoundUrl={staffCallSoundUrl}
                 currentPrinterConfig={printerConfig}
                 currentOpeningTime={openingTime}
                 currentClosingTime={closingTime}
-                onSavePrinterConfig={() => {}} // Placeholder
+                onSavePrinterConfig={handleSavePrinterConfig}
             />
             <UserManagerModal 
                 isOpen={modalState.isUserManager}
@@ -1573,9 +1836,16 @@ const App: React.FC = () => {
                 isOpen={modalState.isLeaveRequest}
                 onClose={() => setModalState(prev => ({ ...prev, isLeaveRequest: false }))}
                 currentUser={currentUser}
-                onSave={() => {}} // Placeholder
+                onSave={handleSaveLeaveRequest}
                 leaveRequests={leaveRequests}
                 initialDate={leaveRequestInitialDate}
+            />
+            <CashBillModal
+                isOpen={modalState.isCashBill}
+                order={orderForModal as CompletedOrder}
+                onClose={() => setModalState(prev => ({ ...prev, isCashBill: false }))}
+                restaurantName={restaurantName}
+                logoUrl={logoUrl}
             />
         </div>
     );

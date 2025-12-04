@@ -3,10 +3,10 @@ import React, { useState, useEffect } from 'react';
 interface PaymentSuccessModalProps {
     isOpen: boolean;
     onClose: (shouldPrint: boolean) => void;
-    orderId: number;
+    orderNumber: number;
 }
 
-export const PaymentSuccessModal: React.FC<PaymentSuccessModalProps> = ({ isOpen, onClose, orderId }) => {
+export const PaymentSuccessModal: React.FC<PaymentSuccessModalProps> = ({ isOpen, onClose, orderNumber }) => {
     const [shouldPrint, setShouldPrint] = useState(true);
 
     // Reset the checkbox to be checked every time the modal opens
@@ -46,7 +46,7 @@ export const PaymentSuccessModal: React.FC<PaymentSuccessModalProps> = ({ isOpen
                     <p className="text-lg text-gray-600">
                         สำหรับออเดอร์หมายเลข:
                     </p>
-                    <p className="text-4xl font-extrabold text-blue-600 my-2">#{String(orderId).padStart(4, '0')}</p>
+                    <p className="text-4xl font-extrabold text-blue-600 my-2">#{String(orderNumber).padStart(3, '0')}</p>
                     <p className="text-md text-gray-500">
                         ขอบคุณที่ใช้บริการ!
                     </p>

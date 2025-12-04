@@ -70,6 +70,8 @@ export interface PaymentDetails {
 interface BaseOrder {
     id: number;
     orderNumber: number;
+    // FIX: Add tableId to BaseOrder to link orders with tables directly, resolving compilation errors.
+    tableId: number;
     tableName: string;
     customerName?: string;
     floor: string;

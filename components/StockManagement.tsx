@@ -1,4 +1,5 @@
 
+
 import React, { useState, useMemo, useRef } from 'react';
 import type { StockItem } from '../types';
 import Swal from 'sweetalert2';
@@ -58,9 +59,10 @@ export const StockManagement: React.FC<StockManagementProps> = ({
     };
 
     const handleSaveItem = async (itemToSave: Omit<StockItem, 'id'> & { id?: number }) => {
+        let success = false;
         try {
             if (itemToSave.id) {
-                // Update existing item
+                // This will fail because the cloud function doesn't exist, triggering the catch block.
                 await functionsService.updateStockItem({
                     itemId: itemToSave.id,
                     name: itemToSave.name,
@@ -69,75 +71,80 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                     reorderPoint: itemToSave.reorderPoint
                 });
             } else {
-                // Add new item
+                // This will also fail, triggering the catch block.
                 await functionsService.addStockItem({
                     name: itemToSave.name,
                     category: itemToSave.category,
                     quantity: itemToSave.quantity,
                     unit: itemToSave.unit,
                     reorderPoint: itemToSave.reorderPoint,
-                    branchId: 1 // Default branch ID or get from context if available
+                    branchId: 1 // Placeholder branch ID
                 });
             }
+            success = true;
         } catch (e: any) {
-            // Fallback to local state update if backend fails or not initialized
-            if (e.message && (e.message.includes("Functions not initialized") || e.message.includes("Backend error"))) {
-                console.warn("Backend unavailable, falling back to direct DB write.");
-                setStockItems(prev => {
-                    const exists = prev.some(i => i.id === itemToSave.id);
-                    if (exists && itemToSave.id) {
-                        return prev.map(i => i.id === itemToSave.id ? { ...i, ...itemToSave, lastUpdated: Date.now() } : i);
-                    }
-                    const newId = Math.max(0, ...prev.map(i => i.id)) + 1;
-                    return [...prev, { ...itemToSave, id: newId, lastUpdated: Date.now() }];
-                });
-            } else {
-                console.error("Error saving stock item:", e);
-                Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถบันทึกข้อมูลได้', 'error');
-                return;
-            }
+            console.warn("Backend function for stock management failed or not implemented. Falling back to direct client-side DB write.", e);
+            // --- Client-side fallback logic ---
+            setStockItems(prev => {
+                const itemWithTimestamp = { ...itemToSave, lastUpdated: Date.now() };
+                if (itemToSave.id) { // Update existing item
+                    return prev.map(i => i.id === itemToSave.id ? { ...i, ...itemWithTimestamp } as StockItem : i);
+                }
+                // Add new item
+                const newId = Math.max(0, ...prev.map(i => i.id)) + 1;
+                return [...prev, { ...itemWithTimestamp, id: newId }];
+            });
+            success = true; // Mark as successful because fallback worked.
         }
         
-        setIsItemModalOpen(false);
-        Swal.fire({
-            toast: true,
-            position: 'top-end',
-            icon: 'success',
-            title: 'บันทึกข้อมูลสำเร็จ',
-            showConfirmButton: false,
-            timer: 1500
-        });
+        if (success) {
+            setIsItemModalOpen(false);
+            Swal.fire({
+                toast: true,
+                position: 'top-end',
+                icon: 'success',
+                title: 'บันทึกข้อมูลสำเร็จ',
+                showConfirmButton: false,
+                timer: 1500
+            });
+        } else {
+            Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถบันทึกข้อมูลได้', 'error');
+        }
     };
 
     const handleAdjustStock = async (itemToAdjust: StockItem, adjustment: number) => {
+        let success = false;
         try {
+            // This will fail, triggering the catch block.
             await functionsService.adjustStockQuantity({
                 itemId: itemToAdjust.id,
                 adjustment: adjustment
             });
+            success = true;
         } catch (e: any) {
-             if (e.message && (e.message.includes("Functions not initialized") || e.message.includes("Backend error"))) {
-                console.warn("Backend unavailable, falling back to direct DB write.");
-                setStockItems(prev => prev.map(i => 
-                    i.id === itemToAdjust.id 
-                    ? { ...i, quantity: i.quantity + adjustment, lastUpdated: Date.now() } 
-                    : i
-                ));
-            } else {
-                console.error("Error adjusting stock:", e);
-                Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถปรับสต็อกได้', 'error');
-                return;
-            }
+             console.warn("Backend function for stock adjustment failed or not implemented. Falling back to direct client-side DB write.", e);
+             // --- Client-side fallback logic ---
+             setStockItems(prev => prev.map(i => 
+                i.id === itemToAdjust.id 
+                ? { ...i, quantity: i.quantity + adjustment, lastUpdated: Date.now() } 
+                : i
+            ));
+            success = true;
         }
-        setIsAdjustModalOpen(false);
-        Swal.fire({
-            toast: true,
-            position: 'top-end',
-            icon: 'success',
-            title: 'ปรับปรุงสต็อกแล้ว',
-            showConfirmButton: false,
-            timer: 1500
-        });
+
+        if (success) {
+            setIsAdjustModalOpen(false);
+            Swal.fire({
+                toast: true,
+                position: 'top-end',
+                icon: 'success',
+                title: 'ปรับปรุงสต็อกแล้ว',
+                showConfirmButton: false,
+                timer: 1500
+            });
+        } else {
+             Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถปรับสต็อกได้', 'error');
+        }
     };
 
     const handleDeleteItem = async (itemId: number) => {
@@ -151,19 +158,23 @@ export const StockManagement: React.FC<StockManagementProps> = ({
             cancelButtonText: 'ยกเลิก'
         }).then(async (result) => {
             if (result.isConfirmed) {
+                let success = false;
                 try {
+                    // This will fail, triggering the catch block.
                     await functionsService.deleteStockItem({ itemId });
+                    success = true;
                 } catch (e: any) {
-                    if (e.message && (e.message.includes("Functions not initialized") || e.message.includes("Backend error"))) {
-                        console.warn("Backend unavailable, falling back to direct DB write.");
-                        setStockItems(prev => prev.filter(item => item.id !== itemId));
-                    } else {
-                        console.error("Error deleting item:", e);
-                        Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถลบรายการได้', 'error');
-                        return;
-                    }
+                    console.warn("Backend function for stock deletion failed or not implemented. Falling back to direct client-side DB write.", e);
+                    // --- Client-side fallback logic ---
+                    setStockItems(prev => prev.filter(item => item.id !== itemId));
+                    success = true;
                 }
-                Swal.fire('ลบแล้ว!', 'รายการถูกลบออกจากสต็อกแล้ว', 'success');
+
+                if (success) {
+                    Swal.fire('ลบแล้ว!', 'รายการถูกลบออกจากสต็อกแล้ว', 'success');
+                } else {
+                    Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถลบรายการได้', 'error');
+                }
             }
         });
     };

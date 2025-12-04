@@ -44,13 +44,12 @@ export function useFirestoreSync<T>(
 
                         if (collectionKey === 'tables' && Array.isArray(valueToSet)) {
                             const rawTablesFromDb = valueToSet as Table[];
-                            const uniqueTablesMap = new Map<string, Table>();
+                            const uniqueTablesMap = new Map<number, Table>();
                             
                             rawTablesFromDb.forEach(table => {
-                                if (table && table.name && table.floor) {
-                                    const key = `${table.name.trim().toLowerCase()}-${table.floor.trim().toLowerCase()}`;
-                                    if (!uniqueTablesMap.has(key)) {
-                                        uniqueTablesMap.set(key, table);
+                                if (table && typeof table.id === 'number') {
+                                    if (!uniqueTablesMap.has(table.id)) {
+                                        uniqueTablesMap.set(table.id, table);
                                     }
                                 }
                             });
