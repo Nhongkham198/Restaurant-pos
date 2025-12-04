@@ -1,6 +1,7 @@
 
+
 import React, { useState, useMemo, useEffect } from 'react';
-import type { Table, ActiveOrder, User, PrinterConfig } from '../types';
+import type { Table, ActiveOrder, User, PrinterConfig, Branch } from '../types';
 import { printerService } from '../services/printerService';
 import Swal from 'sweetalert2';
 
@@ -12,9 +13,10 @@ interface TableCardProps {
     onGeneratePin: (tableId: number) => void;
     currentUser: User | null;
     printerConfig: PrinterConfig | null;
+    selectedBranch: Branch | null;
 }
 
-const TableCard: React.FC<TableCardProps> = ({ table, orders, onTableSelect, onShowBill, onGeneratePin, currentUser, printerConfig }) => {
+const TableCard: React.FC<TableCardProps> = ({ table, orders, onTableSelect, onShowBill, onGeneratePin, currentUser, printerConfig, selectedBranch }) => {
     const isOccupied = orders.length > 0;
     const hasSplitBill = orders.length > 1;
     const mainOrder = orders[0];
@@ -71,11 +73,18 @@ const TableCard: React.FC<TableCardProps> = ({ table, orders, onTableSelect, onS
 
     const handleShowStaticQr = (e: React.MouseEvent) => {
         e.stopPropagation();
-        // Use window.location.origin for the base URL.
-        // WARNING: If localhost, this generates localhost link which won't work on mobile.
-        // Users should open the app via Vercel domain to print valid QR codes.
-        const customerUrl = `${window.location.origin}?mode=customer&tableId=${table.id}`;
+        if (!selectedBranch) {
+            Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถสร้าง QR Code ได้: ไม่ได้เลือกสาขา', 'error');
+            return;
+        }
+
+        const customerUrl = `${window.location.origin}?mode=customer&branchId=${selectedBranch.id}&tableId=${table.id}`;
         const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(customerUrl)}`;
+        
+        const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+        const warningHtml = isLocal 
+            ? `<p class="text-xs text-red-600 font-bold mt-2">คำเตือน: QR Code นี้จะใช้ไม่ได้บนมือถือ เพราะคุณกำลังใช้งานบน Localhost. กรุณาพิมพ์จากหน้าเว็บที่ Deploy แล้วเท่านั้น</p>`
+            : '';
 
         Swal.fire({
             title: `QR Code โต๊ะ ${table.name}`,
@@ -87,7 +96,7 @@ const TableCard: React.FC<TableCardProps> = ({ table, orders, onTableSelect, onS
                     <div class="text-center">
                         <p class="text-sm text-gray-500">QR Code นี้เป็นแบบถาวร (Static)</p>
                         <p class="text-sm text-blue-600 font-medium">พิมพ์และนำไปติดที่โต๊ะได้เลย</p>
-                        <p class="text-xs text-red-500 mt-1">(คำเตือน: ต้องพิมพ์จากหน้าเว็บ Vercel เท่านั้น)</p>
+                        ${warningHtml}
                     </div>
                 </div>
             `,
@@ -246,9 +255,10 @@ interface TableLayoutProps {
     currentUser: User | null;
     printerConfig: PrinterConfig | null;
     floors: string[];
+    selectedBranch: Branch | null;
 }
 
-export const TableLayout: React.FC<TableLayoutProps> = ({ tables, activeOrders, onTableSelect, onShowBill, onGeneratePin, currentUser, printerConfig, floors }) => {
+export const TableLayout: React.FC<TableLayoutProps> = ({ tables, activeOrders, onTableSelect, onShowBill, onGeneratePin, currentUser, printerConfig, floors, selectedBranch }) => {
     const [selectedFloor, setSelectedFloor] = useState<string>('');
 
     useEffect(() => {
@@ -294,6 +304,7 @@ export const TableLayout: React.FC<TableLayoutProps> = ({ tables, activeOrders, 
                                 onGeneratePin={onGeneratePin}
                                 currentUser={currentUser}
                                 printerConfig={printerConfig}
+                                selectedBranch={selectedBranch}
                             />
                         );
                     })}

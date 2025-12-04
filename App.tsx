@@ -98,6 +98,9 @@ const App: React.FC = () => {
     // 1. STATE INITIALIZATION
     // ============================================================================
 
+    // --- RESPONSIVE STATE ---
+    const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 1024); // Tailwind's lg breakpoint is 1024px
+
     // --- AUTH & BRANCH STATE ---
     const [users, setUsers] = useFirestoreSync<User[]>(null, 'users', DEFAULT_USERS);
     const [branches, setBranches] = useFirestoreSync<Branch[]>(null, 'branches', DEFAULT_BRANCHES);
@@ -223,6 +226,7 @@ const App: React.FC = () => {
     const isShowingLeaveAlertRef = useRef(false);
     const notifiedCallIdsRef = useRef<Set<number>>(new Set());
     const staffCallAudioRef = useRef<HTMLAudioElement | null>(null);
+    // FIX: Initialized `prevUserRef` with `null`. It was trying to access its own `current` property during declaration, which causes a "used before declaration" error.
     const prevUserRef = useRef<User | null>(null);
 
     // ============================================================================
@@ -266,6 +270,9 @@ const App: React.FC = () => {
 
     const totalItems = useMemo(() => currentOrderItems.reduce((sum, item) => sum + item.quantity, 0), [currentOrderItems]);
     
+    const [isBadgeAnimating, setIsBadgeAnimating] = useState(false);
+    const prevTotalItems = useRef(totalItems);
+
     const canEdit = useMemo(() => {
         if (!currentUser) return false;
         const isPrivileged = currentUser.role === 'admin' || currentUser.role === 'branch-admin';
@@ -288,6 +295,19 @@ const App: React.FC = () => {
 
         return 0;
     }, [leaveRequests, currentUser]);
+
+    const shouldShowAdminSidebar = useMemo(() => {
+        if (isCustomerMode || !currentUser) {
+            return false;
+        }
+        const isAdminRole = !['pos', 'kitchen'].includes(currentUser.role);
+        
+        if (isAdminRole) {
+            return isDesktop;
+        }
+
+        return false;
+    }, [currentUser, isCustomerMode, isDesktop]);
 
     // ============================================================================
     // 3. HANDLERS (Defined BEFORE Effects)
@@ -498,9 +518,27 @@ const App: React.FC = () => {
         setOrderForModal(null);
     };
 
+    const handleGeneratePin = (tableId: number) => {
+        const newPin = String(Math.floor(100 + Math.random() * 900));
+        setTables(prevTables => 
+            prevTables.map(table => 
+                table.id === tableId ? { ...table, activePin: newPin } : table
+            )
+        );
+    };
+
     // ============================================================================
     // 4. EFFECTS
     // ============================================================================
+    
+    // --- RESPONSIVE EFFECT ---
+    useEffect(() => {
+        const handleResize = () => {
+            setIsDesktop(window.innerWidth >= 1024);
+        };
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
 
     // --- INITIALIZATION EFFECTS ---
     useEffect(() => {
@@ -570,19 +608,34 @@ const App: React.FC = () => {
     // --- CUSTOMER MODE INITIALIZATION ---
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
-        if (params.get('mode') === 'customer' && params.get('tableId')) {
-            setIsCustomerMode(true);
-            setCustomerTableId(Number(params.get('tableId')));
-        }
-    }, []);
+        const mode = params.get('mode');
+        const tableIdParam = params.get('tableId');
+        const branchIdParam = params.get('branchId');
 
-    useEffect(() => {
-        if (isCustomerMode && !selectedBranch && branches.length > 0) {
-            const branchForCustomer = branches[0];
-            setSelectedBranch(branchForCustomer);
-            localStorage.setItem('customerSelectedBranch', JSON.stringify(branchForCustomer));
+        if (mode === 'customer' && tableIdParam) {
+            setIsCustomerMode(true);
+            setCustomerTableId(Number(tableIdParam));
+
+            // Wait for branches to be loaded before setting the branch
+            if (branches.length > 0) {
+                let branchToSet: Branch | undefined;
+                if (branchIdParam) {
+                    branchToSet = branches.find(b => b.id === Number(branchIdParam));
+                }
+
+                if (!branchToSet) {
+                    console.warn(`Customer mode: branchId "${branchIdParam}" not found or not provided. Falling back to the first available branch.`);
+                    branchToSet = branches[0];
+                }
+                
+                if (branchToSet) {
+                    setSelectedBranch(branchToSet);
+                    localStorage.setItem('customerSelectedBranch', JSON.stringify(branchToSet));
+                }
+            }
         }
-    }, [isCustomerMode, branches, selectedBranch]);
+    }, [branches]);
+
 
     // --- USER SYNC EFFECT ---
     useEffect(() => {
@@ -612,6 +665,18 @@ const App: React.FC = () => {
             }
         }
     }, [currentUser, currentView]);
+
+    // --- Badge Animation Effect ---
+    useEffect(() => {
+        // Animate badge on item add when sidebar is collapsed
+        if (totalItems > prevTotalItems.current && !isOrderSidebarVisible) {
+            setIsBadgeAnimating(true);
+            // The bounce animation is 1s long. We remove the class after it finishes.
+            const timer = setTimeout(() => setIsBadgeAnimating(false), 1000); 
+            return () => clearTimeout(timer);
+        }
+        prevTotalItems.current = totalItems;
+    }, [totalItems, isOrderSidebarVisible]);
 
     // --- Push Notification Setup ---
     useEffect(() => {
@@ -915,9 +980,6 @@ const App: React.FC = () => {
     // 5. RENDER HELPERS
     // ============================================================================
     
-    const showAdminSidebar = !isCustomerMode && currentUser && ['admin', 'branch-admin', 'auditor'].includes(currentUser.role);
-    const showStaffHeader = !isCustomerMode && currentUser && ['pos', 'kitchen'].includes(currentUser.role);
-
     // Sidebar for Order Summary - always visible now
     const orderSummarySidebar = (
         <Sidebar
@@ -953,6 +1015,7 @@ const App: React.FC = () => {
             currentUser={currentUser}
             onViewChange={setCurrentView}
             restaurantName={restaurantName}
+            onLogout={handleLogout}
         />
     );
 
@@ -994,7 +1057,7 @@ const App: React.FC = () => {
     return (
         <div className="flex h-screen overflow-hidden bg-gray-100">
             {/* Admin/Main Navigation Sidebar (Left) */}
-            {showAdminSidebar && (
+            {shouldShowAdminSidebar && (
                 <AdminSidebar
                     isCollapsed={isAdminSidebarCollapsed}
                     onToggleCollapse={() => setIsAdminSidebarCollapsed(!isAdminSidebarCollapsed)}
@@ -1021,8 +1084,8 @@ const App: React.FC = () => {
             )}
 
             {/* Main Content Area */}
-            <div className={`flex-1 flex flex-col min-w-0 overflow-hidden relative transition-all duration-300 ${showAdminSidebar && (isAdminSidebarCollapsed ? 'md:ml-20' : 'md:ml-64')}`}>
-                {showStaffHeader && (
+            <div className={`flex-1 flex flex-col min-w-0 overflow-hidden relative transition-all duration-300 ${shouldShowAdminSidebar && (isAdminSidebarCollapsed ? 'md:ml-20' : 'md:ml-64')}`}>
+                {!shouldShowAdminSidebar && !(currentView === 'pos' && !isDesktop) && (
                     <Header
                         currentView={currentView}
                         onViewChange={setCurrentView}
@@ -1049,26 +1112,50 @@ const App: React.FC = () => {
                 <main className="flex-1 overflow-hidden relative">
                     {currentView === 'pos' && (
                         <>
-                            {/* Desktop: Show Menu. Mobile: Show Sidebar (Order Info) */}
-                            <div className="hidden lg:block h-full">
-                                <Menu 
-                                    menuItems={menuItems}
-                                    setMenuItems={setMenuItems}
-                                    categories={categories}
-                                    onSelectItem={handleAddItemToOrder}
-                                    isEditMode={canEdit}
-                                    onEditItem={(item) => { setItemToEdit(item); setModalState(prev => ({ ...prev, isMenuItem: true })); }}
-                                    onAddNewItem={() => { setItemToEdit(null); setModalState(prev => ({ ...prev, isMenuItem: true })); }}
-                                    onDeleteItem={() => {}} // Placeholder
-                                    onUpdateCategory={() => {}} // Placeholder
-                                    onDeleteCategory={() => {}} // Placeholder
-                                    onAddCategory={() => {}} // Placeholder
-                                    onImportMenu={() => {}} // Placeholder
-                                />
-                            </div>
-                            <div className="lg:hidden h-full">
-                                {orderSummarySidebar}
-                            </div>
+                            {shouldShowAdminSidebar ? (
+                                // For admin-like roles, always show the Menu in the main content on POS view.
+                                <div className="h-full">
+                                    <Menu
+                                        menuItems={menuItems}
+                                        setMenuItems={setMenuItems}
+                                        categories={categories}
+                                        onSelectItem={handleAddItemToOrder}
+                                        isEditMode={canEdit}
+                                        onEditItem={(item) => { setItemToEdit(item); setModalState(prev => ({ ...prev, isMenuItem: true })); }}
+                                        onAddNewItem={() => { setItemToEdit(null); setModalState(prev => ({ ...prev, isMenuItem: true })); }}
+                                        onDeleteItem={() => {}} // Placeholder
+                                        onUpdateCategory={() => {}} // Placeholder
+                                        onDeleteCategory={() => {}} // Placeholder
+                                        onAddCategory={() => {}} // Placeholder
+                                        onImportMenu={() => {}} // Placeholder
+                                        totalItems={totalItems}
+                                    />
+                                </div>
+                            ) : (
+                                // For staff roles (pos/kitchen), show Menu on desktop and OrderSummary on mobile.
+                                <>
+                                    <div className="hidden lg:block h-full">
+                                        <Menu
+                                            menuItems={menuItems}
+                                            setMenuItems={setMenuItems}
+                                            categories={categories}
+                                            onSelectItem={handleAddItemToOrder}
+                                            isEditMode={canEdit}
+                                            onEditItem={(item) => { setItemToEdit(item); setModalState(prev => ({ ...prev, isMenuItem: true })); }}
+                                            onAddNewItem={() => { setItemToEdit(null); setModalState(prev => ({ ...prev, isMenuItem: true })); }}
+                                            onDeleteItem={() => {}} // Placeholder
+                                            onUpdateCategory={() => {}} // Placeholder
+                                            onDeleteCategory={() => {}} // Placeholder
+                                            onAddCategory={() => {}} // Placeholder
+                                            onImportMenu={() => {}} // Placeholder
+                                            totalItems={totalItems}
+                                        />
+                                    </div>
+                                    <div className="lg:hidden h-full">
+                                        {orderSummarySidebar}
+                                    </div>
+                                </>
+                            )}
                         </>
                     )}
                     {currentView === 'kitchen' && (
@@ -1090,10 +1177,11 @@ const App: React.FC = () => {
                                     setModalState(prev => ({ ...prev, isTableBill: true }));
                                 }
                             }}
-                            onGeneratePin={() => {}} // Placeholder
+                            onGeneratePin={handleGeneratePin}
                             currentUser={currentUser}
                             printerConfig={printerConfig}
                             floors={floors}
+                            selectedBranch={selectedBranch}
                         />
                     )}
                     {currentView === 'dashboard' && (
@@ -1143,7 +1231,7 @@ const App: React.FC = () => {
                 </main>
                 
                 {/* Hide BottomNavBar on POS view because Sidebar (which is shown on mobile POS) has its own navigation */}
-                {!isCustomerMode && currentView !== 'pos' && (
+                {!isCustomerMode && currentView !== 'pos' && !shouldShowAdminSidebar && (
                     <BottomNavBar 
                         items={[
                             { id: 'pos', label: 'POS', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4z" /><path fillRule="evenodd" d="M18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h2a1 1 0 100-2H9z" clipRule="evenodd" /></svg>, view: 'pos' },
@@ -1159,10 +1247,35 @@ const App: React.FC = () => {
                 )}
             </div>
 
-            {/* Right Sidebar (Order Summary) - VISIBLE ON ALL PAGES */}
-            {!isCustomerMode && isOrderSidebarVisible && (
-                <div className={`${isAdminSidebarCollapsed ? 'w-96' : 'w-80'} flex-shrink-0 transition-all duration-300 hidden lg:block`}>
-                    {orderSummarySidebar}
+            {/* Right Sidebar and Toggle Button Wrapper */}
+            {!isCustomerMode && (
+                <div className="hidden lg:flex flex-shrink-0 items-center relative">
+                    {/* Toggle Button */}
+                    <button
+                        onClick={() => setIsOrderSidebarVisible(!isOrderSidebarVisible)}
+                        className="absolute top-1/2 -left-4 z-30 -translate-y-1/2 w-8 h-24 bg-gray-800/80 text-white rounded-lg hover:bg-gray-700/90 transition-all duration-300 backdrop-blur-sm flex items-center justify-center"
+                        title={isOrderSidebarVisible ? 'ซ่อนรายการออเดอร์' : 'แสดงรายการออเดอร์'}
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 transition-transform duration-300 ${isOrderSidebarVisible ? '' : 'rotate-180'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                        </svg>
+                         <span
+                            className={`absolute top-1/2 -right-3 -translate-y-1/2 flex h-6 w-6 items-center justify-center rounded-full border-2 border-gray-800 bg-red-500 text-xs font-bold text-white transition-all duration-300 ease-in-out transform
+                                ${!isOrderSidebarVisible && totalItems > 0 ? 'scale-100 opacity-100' : 'scale-0 opacity-0'}
+                                ${isBadgeAnimating ? 'animate-bounce' : ''}
+                            `}
+                        >
+                            {totalItems > 99 ? '99+' : totalItems}
+                        </span>
+                    </button>
+                    {/* Right Sidebar */}
+                    <div
+                        className={`transition-all duration-300 ease-in-out overflow-hidden ${isOrderSidebarVisible ? (isAdminSidebarCollapsed ? 'w-96' : 'w-80') : 'w-0'}`}
+                    >
+                        <div className={isAdminSidebarCollapsed ? 'w-96' : 'w-80'}>
+                            {orderSummarySidebar}
+                        </div>
+                    </div>
                 </div>
             )}
 

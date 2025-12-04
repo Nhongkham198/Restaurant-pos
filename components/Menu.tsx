@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import type { MenuItem } from '../types';
 import { MenuItemCard } from './MenuItem';
 import Swal from 'sweetalert2';
@@ -18,6 +18,7 @@ interface MenuProps {
     onDeleteCategory: (name: string) => void;
     onAddCategory: (name: string) => void;
     onImportMenu: (importedItems: MenuItem[], newCategories: string[]) => void;
+    totalItems: number;
 }
 
 export const Menu: React.FC<MenuProps> = ({ 
@@ -32,13 +33,17 @@ export const Menu: React.FC<MenuProps> = ({
     onUpdateCategory, 
     onDeleteCategory, 
     onAddCategory,
-    onImportMenu
+    onImportMenu,
+    totalItems
 }) => {
     const [selectedCategory, setSelectedCategory] = useState('ทั้งหมด');
     const [searchTerm, setSearchTerm] = useState('');
     const fileInputRef = useRef<HTMLInputElement>(null);
     const dragItem = useRef<number | null>(null);
     const dragOverItem = useRef<number | null>(null);
+    const categoryScrollRef = useRef<HTMLDivElement>(null);
+    const [showLeftArrow, setShowLeftArrow] = useState(false);
+    const [showRightArrow, setShowRightArrow] = useState(false);
 
     const handleDragSort = () => {
         if (dragItem.current === null || dragOverItem.current === null || dragItem.current === dragOverItem.current) {
@@ -66,6 +71,51 @@ export const Menu: React.FC<MenuProps> = ({
 
         setMenuItems(_menuItems);
     };
+
+    // --- Category Scroller Logic ---
+    const debounce = (func: () => void, delay: number) => {
+        let timeout: number;
+        return () => {
+            clearTimeout(timeout);
+            timeout = window.setTimeout(func, delay);
+        };
+    };
+
+    const checkCategoryScroll = () => {
+        const el = categoryScrollRef.current;
+        if (el) {
+            const hasOverflow = el.scrollWidth > el.clientWidth;
+            setShowLeftArrow(hasOverflow && el.scrollLeft > 5);
+            setShowRightArrow(hasOverflow && el.scrollWidth - el.clientWidth - el.scrollLeft > 5);
+        }
+    };
+    
+    useEffect(() => {
+        const el = categoryScrollRef.current;
+        if (el) {
+            const debouncedCheck = debounce(checkCategoryScroll, 100);
+            checkCategoryScroll();
+            window.addEventListener('resize', debouncedCheck);
+            el.addEventListener('scroll', debouncedCheck);
+            const observer = new MutationObserver(debouncedCheck);
+            observer.observe(el, { childList: true, subtree: true });
+
+            return () => {
+                window.removeEventListener('resize', debouncedCheck);
+                el.removeEventListener('scroll', debouncedCheck);
+                observer.disconnect();
+            };
+        }
+    }, [categories]);
+
+    const scrollCategories = (direction: 'left' | 'right') => {
+        const el = categoryScrollRef.current;
+        if (el) {
+            const scrollAmount = (el.clientWidth * 0.8) * (direction === 'left' ? -1 : 1);
+            el.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+        }
+    };
+    // --- End Category Scroller Logic ---
 
 
     const filteredItems = useMemo(() => {
@@ -351,8 +401,20 @@ export const Menu: React.FC<MenuProps> = ({
                         />
                     </div>
                     {/* Category Filters */}
-                    <div className="flex-1 overflow-hidden">
-                        <div className="flex overflow-x-auto whitespace-nowrap gap-2 items-center py-2 custom-scrollbar">
+                    <div className="flex-1 overflow-hidden relative">
+                        {showLeftArrow && (
+                            <button
+                                onClick={() => scrollCategories('left')}
+                                className="absolute left-0 top-1/2 -translate-y-1/2 bg-white/80 backdrop-blur-sm text-gray-700 rounded-full w-8 h-8 flex items-center justify-center z-10 shadow-md hover:bg-gray-100 border border-gray-200"
+                                aria-label="Scroll categories left"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 19l-7-7 7-7" /></svg>
+                            </button>
+                        )}
+                        <div 
+                            ref={categoryScrollRef}
+                            className="flex overflow-x-auto whitespace-nowrap gap-2 items-center py-2 custom-scrollbar"
+                        >
                             {categories.map(category => (
                                 <div key={category} className="relative group flex-shrink-0">
                                     <button
@@ -409,6 +471,20 @@ export const Menu: React.FC<MenuProps> = ({
                                 </>
                             )}
                         </div>
+                         {showRightArrow && (
+                             <button
+                                onClick={() => scrollCategories('right')}
+                                className="absolute right-0 top-1/2 -translate-y-1/2 bg-white/80 backdrop-blur-sm text-gray-700 rounded-full w-8 h-8 flex items-center justify-center z-10 shadow-md hover:bg-gray-100 border border-gray-200"
+                                aria-label="Scroll categories right"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5l7 7-7 7" /></svg>
+                                {totalItems > 0 && (
+                                    <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs font-bold text-white border-2 border-white">
+                                        {totalItems > 99 ? '99+' : totalItems}
+                                    </span>
+                                )}
+                            </button>
+                        )}
                     </div>
                 </div>
             </div>

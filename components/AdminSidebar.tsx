@@ -1,5 +1,6 @@
 
-import React, { useState, ReactNode, useRef } from 'react';
+
+import React, { useState, ReactNode, useRef, useMemo } from 'react';
 import type { User, View } from '../types';
 import Swal from 'sweetalert2';
 
@@ -108,6 +109,18 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({
     });
     const logoInputRef = useRef<HTMLInputElement>(null);
 
+    const roleText = useMemo(() => {
+        if (!currentUser) return '';
+        switch (currentUser.role) {
+            case 'admin': return 'ผู้ดูแลระบบ';
+            case 'branch-admin': return 'ผู้ดูแลสาขา';
+            case 'pos': return 'พนักงาน POS';
+            case 'kitchen': return 'พนักงานครัว';
+            case 'auditor': return 'Auditor';
+            default: return '';
+        }
+    }, [currentUser]);
+
     const toggleMenu = (key: string) => {
         setOpenMenus(prev => ({ ...prev, [key]: !prev[key] }));
     };
@@ -211,8 +224,14 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({
                         {!isCollapsed && (
                             <div>
                                 <p className="font-semibold text-white">{currentUser.username}</p>
-                                <p className="text-sm text-red-400 font-semibold">
-                                    {currentUser.role === 'admin' ? 'ผู้ดูแลระบบ' : currentUser.role === 'branch-admin' ? 'ผู้ดูแลสาขา' : 'Auditor'}
+                                <p className={`text-sm font-semibold ${
+                                    currentUser.role === 'admin' ? 'text-red-400' :
+                                    currentUser.role === 'branch-admin' ? 'text-purple-400' :
+                                    currentUser.role === 'kitchen' ? 'text-orange-400' :
+                                    currentUser.role === 'auditor' ? 'text-gray-400' :
+                                    'text-blue-400'
+                                }`}>
+                                    {roleText}
                                 </p>
                             </div>
                         )}

@@ -1,4 +1,3 @@
-
 import React, { useMemo } from 'react';
 import type { OrderItem, Table, TakeawayCutleryOption, Reservation, User, View } from '../types';
 import { OrderListItem } from './OrderListItem';
@@ -34,6 +33,7 @@ interface SidebarProps {
     currentUser: User | null;
     onViewChange: (view: View) => void;
     restaurantName: string;
+    onLogout: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -65,7 +65,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
     onOpenSearch,
     currentUser,
     onViewChange,
-    restaurantName
+    restaurantName,
+    onLogout
 }) => {
     const total = useMemo(() => {
         return currentOrderItems.reduce((sum, item) => sum + item.finalPrice * item.quantity, 0);
@@ -76,6 +77,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
     const availableTables = useMemo(() => {
         return tables.filter(t => t.floor === selectedFloor);
     }, [tables, selectedFloor]);
+
+    const handleProfileClick = () => {
+        Swal.fire({
+            title: 'ยืนยันการออกจากระบบ',
+            text: "ท่านต้องการออกจากระบบใช่ไหม?",
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'ใช่, ออกจากระบบ',
+            cancelButtonText: 'ยกเลิก'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                onLogout();
+            }
+        });
+    };
 
     const handleToggleItemTakeaway = async (cartItemId: string) => {
         const item = currentOrderItems.find(i => i.cartItemId === cartItemId);
@@ -322,9 +338,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
             
             {/* Header */}
             <div className="p-4 flex justify-between items-center border-b border-gray-800 flex-shrink-0 bg-gray-900 lg:hidden">
-                <div className="flex items-center gap-3">
+                <div onClick={handleProfileClick} className="flex items-center gap-3 cursor-pointer">
                     <div className="w-10 h-10 rounded-full bg-gray-700 overflow-hidden border border-gray-600">
-                         <img src={currentUser?.profilePictureUrl || "https://img.icons8.com/fluency/48/user-male-circle.png"} alt="Profile" className="w-full h-full object-cover" />
+                            <img src={currentUser?.profilePictureUrl || "https://img.icons8.com/fluency/48/user-male-circle.png"} alt="Profile" className="w-full h-full object-cover" />
                     </div>
                     <div className="flex flex-col">
                         <span className="font-bold text-white text-sm leading-tight">{currentUser?.username || 'Guest'}</span>
@@ -333,9 +349,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 </div>
                 {/* Restaurant Name - Red Text as requested */}
                 <div className="flex-1 text-center mx-2">
-                     <h2 className="text-xl font-extrabold text-red-600 tracking-wider truncate" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.5)' }}>
+                        <h2 className="text-xl font-extrabold text-red-600 tracking-wider truncate" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.5)' }}>
                         {restaurantName || 'SeoulGood'}
-                     </h2>
+                        </h2>
                 </div>
                 <button
                     onClick={onOpenSearch}
