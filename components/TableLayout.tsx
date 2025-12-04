@@ -281,7 +281,7 @@ export const TableLayout: React.FC<TableLayoutProps> = ({ tables, activeOrders, 
             </div>
             
             {tablesOnFloor.length > 0 ? (
-                <div className="flex-1 overflow-y-auto grid grid-cols-[repeat(auto-fit,224px)] justify-center gap-4 p-2">
+                <div className="flex-1 overflow-y-auto grid grid-cols-[repeat(auto-fit,224px)] justify-center gap-4 p-2 pb-24">
                     {tablesOnFloor.map(table => {
                         const ordersForTable = activeOrders.filter(o => o.tableName === table.name && o.floor === table.floor);
                         return (
