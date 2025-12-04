@@ -181,7 +181,7 @@ export const LeaveCalendarView: React.FC<LeaveCalendarViewProps> = ({ leaveReque
 
     return (
         <>
-            <div className="flex flex-col h-full w-full bg-gray-50 p-4 overflow-y-auto">
+            <div className="flex flex-col h-full w-full bg-gray-50 p-4 overflow-y-auto pb-24">
                 <div className="flex justify-between items-center mb-4 flex-shrink-0">
                     <h2 className="text-2xl font-bold text-gray-800">
                         ปฏิทินวันลา - {monthNames[currentDate.getMonth()]} {currentDate.getFullYear() + 543}

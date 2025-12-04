@@ -1,6 +1,6 @@
 
 import React, { useMemo } from 'react';
-import type { OrderItem, Table, TakeawayCutleryOption, Reservation } from '../types';
+import type { OrderItem, Table, TakeawayCutleryOption, Reservation, User, View } from '../types';
 import { OrderListItem } from './OrderListItem';
 import Swal from 'sweetalert2';
 
@@ -31,6 +31,9 @@ interface SidebarProps {
     onSendToKitchenChange: (enabled: boolean, details: { reason: string; notes: string } | null) => void;
     onUpdateReservation: (tableId: number, reservation: Reservation | null) => void;
     onOpenSearch: () => void;
+    currentUser: User | null;
+    onViewChange: (view: View) => void;
+    restaurantName: string;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -59,7 +62,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
     sendToKitchen,
     onSendToKitchenChange,
     onUpdateReservation,
-    onOpenSearch
+    onOpenSearch,
+    currentUser,
+    onViewChange,
+    restaurantName
 }) => {
     const total = useMemo(() => {
         return currentOrderItems.reduce((sum, item) => sum + item.finalPrice * item.quantity, 0);
@@ -76,10 +82,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
         if (!item) return;
 
         if (item.isTakeaway) {
-            // If already takeaway, toggle off (no questions needed)
             onToggleTakeaway(cartItemId, false);
         } else {
-            // If turning ON takeaway, ask for cutlery
             const { value: cutleryData, isConfirmed } = await Swal.fire({
                 title: `ท่านต้องการรับ (สำหรับ ${item.name})`,
                 html: `
@@ -185,7 +189,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     const handleFloorChange = (floor: string) => {
         if (selectedFloor !== floor) {
             onFloorChange(floor);
-            onSelectTable(null); // Clear the table selection when floor changes
+            onSelectTable(null);
         }
     };
 
@@ -193,7 +197,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
         if (enabled) {
             onSendToKitchenChange(true, null);
         } else {
-            // User is unchecking, show the modal
             const { value: formValues, isConfirmed } = await Swal.fire({
                 title: 'ระบุเหตุผลที่ไม่ส่งเข้าครัว',
                 width: '500px',
@@ -244,10 +247,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
             });
     
             if (isConfirmed && formValues) {
-                // User confirmed, so we can uncheck the box.
                 onSendToKitchenChange(false, { reason: formValues.reason, notes: formValues.notes });
             }
-            // If not confirmed, do nothing, the checkbox remains checked visually.
         }
     };
 
@@ -255,7 +256,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
         if (!selectedTable) return;
 
         if (selectedTable.reservation) {
-            // Show details and option to cancel
             Swal.fire({
                 title: `การจองโต๊ะ ${selectedTable.name}`,
                 html: `
@@ -276,7 +276,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 }
             });
         } else {
-            // Open modal to create a new reservation
             Swal.fire({
                 title: `จองโต๊ะ ${selectedTable.name}`,
                 html: `
@@ -309,7 +308,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
     return (
         <div className="bg-gray-900 text-white w-full h-full flex flex-col shadow-2xl overflow-hidden border-l border-gray-800 transition-all duration-200">
-            {/* Force hide scrollbar for this component specifically */}
             <style>{`
                 .custom-scrollbar::-webkit-scrollbar {
                     display: none !important;
@@ -324,10 +322,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
             
             {/* Header */}
             <div className="p-4 flex justify-between items-center border-b border-gray-800 flex-shrink-0 bg-gray-900">
-                <h2 className="text-xl font-bold text-white">ข้อมูลออเดอร์</h2>
+                <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-gray-700 overflow-hidden border border-gray-600">
+                         <img src={currentUser?.profilePictureUrl || "https://img.icons8.com/fluency/48/user-male-circle.png"} alt="Profile" className="w-full h-full object-cover" />
+                    </div>
+                    <div className="flex flex-col">
+                        <span className="font-bold text-white text-sm leading-tight">{currentUser?.username || 'Guest'}</span>
+                        <span className="text-[10px] text-gray-400 bg-gray-800 px-1.5 rounded border border-gray-700 self-start mt-0.5">{currentUser?.role || 'Staff'}</span>
+                    </div>
+                </div>
+                {/* Restaurant Name - Red Text as requested */}
+                <div className="flex-1 text-center mx-2">
+                     <h2 className="text-xl font-extrabold text-red-600 tracking-wider truncate" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.5)' }}>
+                        {restaurantName || 'SeoulGood'}
+                     </h2>
+                </div>
                 <button
                     onClick={onOpenSearch}
-                    className="p-2 rounded-full hover:bg-gray-800 transition-colors text-gray-300 hover:text-white"
+                    className="p-2 rounded-full hover:bg-gray-800 transition-colors text-gray-300 hover:text-white flex-shrink-0"
                     title="ค้นหาเมนู"
                 >
                     <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -499,7 +511,53 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         <p className="text-center text-gray-600 text-[10px]">โต๊ะใน "{selectedFloor}": {availableTables.length}</p>
                     </div>
                 )}
+
+                {/* Quick Navigation Footer */}
+                <div className="pt-4 border-t border-gray-800 mt-2">
+                    <div className="grid grid-cols-6 gap-1">
+                        <NavButton 
+                            label="POS" 
+                            onClick={() => onViewChange('pos')}
+                            icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4z" /><path fillRule="evenodd" d="M18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h2a1 1 0 100-2H9z" clipRule="evenodd" /></svg>}
+                        />
+                        <NavButton 
+                            label="ประวัติ" 
+                            onClick={() => onViewChange('history')}
+                            icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" /></svg>}
+                        />
+                        <NavButton 
+                            label="Dash" 
+                            onClick={() => onViewChange('dashboard')}
+                            icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1-1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" /></svg>}
+                        />
+                        <NavButton 
+                            label="วันลา" 
+                            onClick={() => onViewChange('leave')}
+                            icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>}
+                        />
+                        <NavButton 
+                            label="สต๊อก" 
+                            onClick={() => onViewChange('stock')}
+                            icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>}
+                        />
+                        <NavButton 
+                            label="ผังโต๊ะ" 
+                            onClick={() => onViewChange('tables')}
+                            icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M2 5a2 2 0 012-2h12a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V5zm2 1v8h8V6H4z" /></svg>}
+                        />
+                    </div>
+                </div>
             </div>
         </div>
     );
 };
+
+const NavButton: React.FC<{ label: string, onClick: () => void, icon: React.ReactNode }> = ({ label, onClick, icon }) => (
+    <button 
+        onClick={onClick}
+        className="flex flex-col items-center justify-center p-2 rounded-lg bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white transition-colors"
+    >
+        <div className="w-5 h-5 mb-1">{icon}</div>
+        <span className="text-[10px] font-medium leading-none">{label}</span>
+    </button>
+);

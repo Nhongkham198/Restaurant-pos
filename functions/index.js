@@ -1,9 +1,13 @@
+
 // functions/index.js (To be deployed to Firebase Cloud Functions)
 
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
 
-admin.initializeApp();
+// Only initialize once
+if (admin.apps.length === 0) {
+  admin.initializeApp();
+}
 
 /**
  * This Cloud Function triggers when the 'activeOrders' document for any branch is updated.
@@ -107,5 +111,73 @@ exports.sendHighPriorityOrderNotification = functions.region('asia-southeast1').
             console.error('Error sending message:', error);
         }
         
+        return null;
+    });
+
+/**
+ * This Cloud Function triggers when the 'staffCalls' document for any branch is updated.
+ * It sends a high-priority notification to POS, Admin, Branch-Admin, and Kitchen staff
+ * when a customer requests assistance.
+ */
+exports.sendStaffCallNotification = functions.region('asia-southeast1').firestore
+    .document('branches/{branchId}/staffCalls/data')
+    .onUpdate(async (change, context) => {
+        const callsBefore = change.before.data().value || [];
+        const callsAfter = change.after.data().value || [];
+
+        // Check if a new call was added
+        if (callsAfter.length <= callsBefore.length) return null;
+
+        const callsBeforeIds = new Set(callsBefore.map(c => c.id));
+        const newCall = callsAfter.find(c => !callsBeforeIds.has(c.id));
+
+        if (!newCall) return null;
+
+        const usersDoc = await admin.firestore().collection('users').doc('data').get();
+        if (!usersDoc.exists) return null;
+        const allUsers = usersDoc.data().value || [];
+
+        const branchIdNumber = parseInt(context.params.branchId, 10);
+        // Roles that should receive staff calls
+        const targetRoles = ['pos', 'branch-admin', 'admin', 'kitchen'];
+
+        const staffTokens = allUsers
+            .filter(user => 
+                targetRoles.includes(user.role) &&
+                user.fcmTokens && Array.isArray(user.fcmTokens) && user.fcmTokens.length > 0 &&
+                // Admin gets everything, others must match branch
+                (user.role === 'admin' || (user.allowedBranchIds && user.allowedBranchIds.includes(branchIdNumber)))
+            )
+            .flatMap(user => user.fcmTokens);
+
+        const uniqueTokens = [...new Set(staffTokens)];
+
+        if (uniqueTokens.length === 0) return null;
+
+        const title = '🔔 ลูกค้าเรียกพนักงาน!';
+        const body = `โต๊ะ ${newCall.tableName} (คุณ ${newCall.customerName}) ต้องการความช่วยเหลือ`;
+
+        const message = {
+            notification: {
+                title: title,
+                body: body,
+            },
+            data: {
+                title: title,
+                body: body,
+                icon: '/icon.svg',
+                sound: 'default',
+                vibrate: '[200, 100, 200]'
+            },
+            android: { priority: 'high' },
+            tokens: uniqueTokens
+        };
+
+        try {
+            await admin.messaging().sendMulticast(message);
+            console.log(`Sent staff call notification to ${uniqueTokens.length} devices.`);
+        } catch (error) {
+            console.error('Error sending staff call notification:', error);
+        }
         return null;
     });

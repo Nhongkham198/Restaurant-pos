@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import type { MenuItem } from '../types';
 import { MenuItemImage } from './MenuItemImage';
@@ -23,8 +24,9 @@ export const MenuSearchModal: React.FC<MenuSearchModalProps> = ({ isOpen, onClos
 
     const handleItemClick = (item: MenuItem) => {
         onSelectItem(item);
-        // The modal for customization will open, we can close this one.
-        onClose(); 
+        // Do not call onClose() here. The onSelectItem handler (handleAddItemToOrder in App.tsx) 
+        // will handle state transitions (opening customization modal and closing this one).
+        // Calling onClose() here would trigger handleModalClose() which resets ALL modal states.
     };
 
     if (!isOpen) return null;

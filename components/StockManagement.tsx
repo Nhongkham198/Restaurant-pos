@@ -319,7 +319,7 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                     </div>
                 </header>
 
-                <div className="flex-1 overflow-y-auto">
+                <div className="flex-1 overflow-y-auto pb-24">
                      {/* Desktop Header */}
                     <div className="hidden md:grid md:grid-cols-12 gap-4 px-6 py-4 text-sm text-gray-700 uppercase bg-gray-100 border-b font-bold sticky top-0 z-10 shadow-sm">
                         <div className="col-span-3">ชื่อวัตถุดิบ</div>
