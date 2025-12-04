@@ -226,7 +226,6 @@ const App: React.FC = () => {
     const isShowingLeaveAlertRef = useRef(false);
     const notifiedCallIdsRef = useRef<Set<number>>(new Set());
     const staffCallAudioRef = useRef<HTMLAudioElement | null>(null);
-    // FIX: Initialized `prevUserRef` with `null`. It was trying to access its own `current` property during declaration, which causes a "used before declaration" error.
     const prevUserRef = useRef<User | null>(null);
 
     // ============================================================================
@@ -455,22 +454,79 @@ const App: React.FC = () => {
         }
     };
 
+    const handleAddNewTable = (floor: string) => {
+        setTables(prevTables => {
+            const tablesOnFloor = prevTables.filter(t => t.floor === floor);
+            const tableNumbers = tablesOnFloor.map(t => parseInt(t.name.replace(/[^0-9]/g, ''), 10)).filter(n => !isNaN(n));
+            const maxTableNum = tableNumbers.length > 0 ? Math.max(...tableNumbers) : 0;
+            const newTableName = `T${maxTableNum + 1}`;
+    
+            const newId = prevTables.length > 0 ? Math.max(...prevTables.map(t => t.id)) + 1 : 1;
+    
+            const newTable: Table = {
+                id: newId,
+                name: newTableName,
+                floor: floor,
+            };
+            return [...prevTables, newTable];
+        });
+    };
+    
+    const handleRemoveLastTable = (floor: string) => {
+        const tablesOnFloor = tables.filter(t => t.floor === floor);
+        if (tablesOnFloor.length === 0) return;
+    
+        const tableNumbers = tablesOnFloor.map(t => ({...t, num: parseInt(t.name.replace(/[^0-9]/g, ''), 10)}));
+        const lastTable = tableNumbers.sort((a, b) => b.num - a.num)[0];
+    
+        const hasActiveOrder = activeOrders.some(order => order.tableName === lastTable.name && order.floor === lastTable.floor);
+    
+        if (hasActiveOrder) {
+            Swal.fire('ไม่สามารถลบได้', `โต๊ะ ${lastTable.name} (${lastTable.floor}) มีออเดอร์ค้างอยู่`, 'error');
+            return;
+        }
+        
+        Swal.fire({
+            title: 'ยืนยันการลบ',
+            text: `คุณต้องการลบโต๊ะ ${lastTable.name} (${lastTable.floor}) หรือไม่?`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'ใช่, ลบเลย',
+            cancelButtonText: 'ยกเลิก',
+            confirmButtonColor: '#d33'
+        }).then(result => {
+            if (result.isConfirmed) {
+                setTables(prevTables => prevTables.filter(t => t.id !== lastTable.id));
+            }
+        });
+    };
+
     const handleConfirmPayment = async (orderId: number, paymentDetails: PaymentDetails) => {
         if (!selectedBranch) return;
         setIsConfirmingPayment(true);
         try {
             const order = activeOrders.find(o => o.id === orderId);
+            if (!order) {
+                throw new Error("Order not found");
+            }
             
             await functionsService.confirmPayment({
                 branchId: selectedBranch.id.toString(),
                 orderId: orderId,
                 paymentDetails
             });
-
+    
+            // Reset the PIN for the paid table
+            setTables(prevTables => 
+                prevTables.map(table => {
+                    if (table.name === order.tableName && table.floor === order.floor) {
+                        return { ...table, activePin: undefined };
+                    }
+                    return table;
+                })
+            );
+    
             setModalState(prev => ({ ...prev, isPayment: false, isPaymentSuccess: true }));
-            
-            // Auto-print receipt if settings allow (simulated here by checking state later)
-            // Ideally, we'd check settings here.
             
         } catch (error: any) {
             console.error("Error confirming payment:", error);
@@ -488,15 +544,11 @@ const App: React.FC = () => {
                     title: 'กำลังพิมพ์ใบเสร็จ...',
                     didOpen: () => { Swal.showLoading(); }
                 });
-                // Re-fetch the completed order to ensure we have the latest data (timestamp etc)
-                // In a real app, we might need to wait for sync or pass data.
-                // Here we use orderForModal which is a snapshot.
-                // We cast to CompletedOrder because at this stage it should be treated as such locally for printing
                 const completedOrderSnapshot = { 
                     ...orderForModal, 
                     status: 'completed', 
                     completionTime: Date.now(),
-                    paymentDetails: { method: 'cash', cashReceived: 0, changeGiven: 0 } // Mock, should come from response
+                    paymentDetails: { method: 'cash', cashReceived: 0, changeGiven: 0 } 
                 } as CompletedOrder;
 
                 await printerService.printReceipt(completedOrderSnapshot, printerConfig.cashier, restaurantName);
@@ -998,8 +1050,8 @@ const App: React.FC = () => {
             customerCount={customerCount}
             onCustomerCountChange={setCustomerCount}
             isEditMode={canEdit}
-            onAddNewTable={() => {}} // Placeholder
-            onRemoveLastTable={() => {}} // Placeholder
+            onAddNewTable={handleAddNewTable}
+            onRemoveLastTable={handleRemoveLastTable}
             floors={floors}
             selectedFloor={selectedSidebarFloor}
             onFloorChange={setSelectedSidebarFloor}
@@ -1249,18 +1301,18 @@ const App: React.FC = () => {
 
             {/* Right Sidebar and Toggle Button Wrapper */}
             {!isCustomerMode && (
-                <div className="hidden lg:flex flex-shrink-0 items-center relative">
+                <div className="hidden lg:flex flex-shrink-0 relative">
                     {/* Toggle Button */}
                     <button
                         onClick={() => setIsOrderSidebarVisible(!isOrderSidebarVisible)}
-                        className="absolute top-1/2 -left-4 z-30 -translate-y-1/2 w-8 h-24 bg-gray-800/80 text-white rounded-lg hover:bg-gray-700/90 transition-all duration-300 backdrop-blur-sm flex items-center justify-center"
+                        className="absolute top-1/2 -left-4 z-30 -translate-y-1/2 w-8 h-24 bg-gray-800/80 text-white rounded-lg hover:bg-gray-700/90 transition-all duration-300 backdrop-blur-sm relative flex items-center justify-center"
                         title={isOrderSidebarVisible ? 'ซ่อนรายการออเดอร์' : 'แสดงรายการออเดอร์'}
                     >
                         <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 transition-transform duration-300 ${isOrderSidebarVisible ? '' : 'rotate-180'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
                         </svg>
                          <span
-                            className={`absolute top-1/2 -right-3 -translate-y-1/2 flex h-6 w-6 items-center justify-center rounded-full border-2 border-gray-800 bg-red-500 text-xs font-bold text-white transition-all duration-300 ease-in-out transform
+                            className={`absolute -top-2 -right-2 flex h-6 w-6 items-center justify-center rounded-full border-2 border-gray-800 bg-red-500 text-xs font-bold text-white transition-all duration-300 ease-in-out transform
                                 ${!isOrderSidebarVisible && totalItems > 0 ? 'scale-100 opacity-100' : 'scale-0 opacity-0'}
                                 ${isBadgeAnimating ? 'animate-bounce' : ''}
                             `}

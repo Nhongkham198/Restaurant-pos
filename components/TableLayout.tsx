@@ -78,7 +78,7 @@ const TableCard: React.FC<TableCardProps> = ({ table, orders, onTableSelect, onS
             return;
         }
 
-        const customerUrl = `${window.location.origin}?mode=customer&branchId=${selectedBranch.id}&tableId=${table.id}`;
+        const customerUrl = `${window.location.origin}/?mode=customer&branchId=${selectedBranch.id}&tableId=${table.id}`;
         const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(customerUrl)}`;
         
         const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
