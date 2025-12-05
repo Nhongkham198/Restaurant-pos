@@ -5,55 +5,27 @@ import type { OrderItem } from '../types';
 
 interface OrderListItemProps {
     item: OrderItem;
-    onQuantityChange: (cartItemId: string, newQuantity: number) => void;
     onRemoveItem: (cartItemId: string) => void;
-    onToggleTakeaway: (cartItemId: string) => void;
+    onEditItem: (item: OrderItem) => void;
 }
 
-export const OrderListItem: React.FC<OrderListItemProps> = ({ item, onQuantityChange, onRemoveItem, onToggleTakeaway }) => {
+export const OrderListItem: React.FC<OrderListItemProps> = ({ item, onRemoveItem, onEditItem }) => {
     
-    const itemBgClass = item.isTakeaway ? 'bg-purple-800' : 'bg-gray-800';
-
     const optionsText = item.selectedOptions.map(opt => opt.name).join(', ');
 
     return (
-        <div className={`flex items-center p-2 rounded-lg transition-colors ${itemBgClass}`}>
-            <div className="flex-grow">
-                <p className="font-semibold text-white">{item.name}</p>
+        <div className="flex items-start p-3 bg-gray-800 rounded-lg">
+            <div className="flex-grow cursor-pointer" onClick={() => onEditItem(item)}>
+                <p className="font-semibold text-white leading-tight">{item.name}</p>
                 {optionsText && <p className="text-xs text-gray-400 pl-1">{optionsText}</p>}
                 {item.notes && <p className="text-xs text-yellow-300 pl-1 mt-1">** {item.notes}</p>}
-                <p className="text-sm text-gray-400">{item.finalPrice.toLocaleString()} ฿</p>
+                <p className="text-sm text-gray-400 mt-1">{item.finalPrice.toLocaleString()} ฿</p>
             </div>
-            <div className="flex items-center gap-2 text-white">
-                <button
-                    onClick={() => onToggleTakeaway(item.cartItemId)}
-                    className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
-                        item.isTakeaway
-                            ? 'bg-purple-500 hover:bg-purple-600'
-                            : 'bg-gray-600 hover:bg-gray-500'
-                    }`}
-                    title="สั่งกลับบ้าน"
-                >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M10 2a4 4 0 00-4 4v1H5a1 1 0 00-.994.89l-1 9A1 1 0 004 18h12a1 1 0 00.994-1.11l-1-9A1 1 0 0015 7h-1V6a4 4 0 00-4-4zm2 5V6a2 2 0 10-4 0v1h4z" clipRule="evenodd" />
-                    </svg>
-                </button>
-                <button
-                    onClick={() => onQuantityChange(item.cartItemId, item.quantity - 1)}
-                    className="w-8 h-8 rounded-full bg-blue-600 hover:bg-blue-700 text-lg font-bold flex items-center justify-center"
-                >
-                    -
-                </button>
-                <span className="w-8 text-center font-bold text-lg">{item.quantity}</span>
-                <button
-                    onClick={() => onQuantityChange(item.cartItemId, item.quantity + 1)}
-                    className="w-8 h-8 rounded-full bg-blue-600 hover:bg-blue-700 text-lg font-bold flex items-center justify-center"
-                >
-                    +
-                </button>
+            <div className="flex items-center gap-3 text-white ml-2">
+                <span className="font-bold text-lg">x{item.quantity}</span>
                  <button
                     onClick={() => onRemoveItem(item.cartItemId)}
-                    className="w-8 h-8 rounded-full bg-red-600 hover:bg-red-700 flex items-center justify-center"
+                    className="w-8 h-8 rounded-full bg-red-600 hover:bg-red-700 flex items-center justify-center transition-colors"
                     title="ลบรายการ"
                 >
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">

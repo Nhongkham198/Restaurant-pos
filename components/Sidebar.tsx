@@ -7,7 +7,6 @@ interface SidebarProps {
     currentOrderItems: OrderItem[];
     onQuantityChange: (cartItemId: string, newQuantity: number) => void;
     onRemoveItem: (cartItemId: string) => void;
-    onToggleTakeaway: (cartItemId: string, isTakeaway: boolean, cutlery?: TakeawayCutleryOption[], notes?: string) => void;
     onClearOrder: () => void;
     onPlaceOrder: () => void;
     isPlacingOrder: boolean;
@@ -31,6 +30,7 @@ interface SidebarProps {
     onUpdateReservation: (tableId: number, reservation: Reservation | null) => void;
     onOpenSearch: () => void;
     currentUser: User | null;
+    onEditOrderItem: (item: OrderItem) => void;
     onViewChange: (view: View) => void;
     restaurantName: string;
     onLogout: () => void;
@@ -40,7 +40,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
     currentOrderItems,
     onQuantityChange,
     onRemoveItem,
-    onToggleTakeaway,
     onClearOrder,
     onPlaceOrder,
     isPlacingOrder,
@@ -64,6 +63,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     onUpdateReservation,
     onOpenSearch,
     currentUser,
+    onEditOrderItem,
     onViewChange,
     restaurantName,
     onLogout
@@ -91,105 +91,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 onLogout();
             }
         });
-    };
-
-    const handleToggleItemTakeaway = async (cartItemId: string) => {
-        const item = currentOrderItems.find(i => i.cartItemId === cartItemId);
-        if (!item) return;
-
-        if (item.isTakeaway) {
-            onToggleTakeaway(cartItemId, false);
-        } else {
-            const { value: cutleryData, isConfirmed } = await Swal.fire({
-                title: `ท่านต้องการรับ (สำหรับ ${item.name})`,
-                html: `
-                    <div class="swal-cutlery-container text-left space-y-1 text-gray-800">
-                        <label class="flex items-center gap-3 p-2 rounded-md hover:bg-gray-100 cursor-pointer">
-                            <input type="checkbox" id="swal-cutlery-spoon" class="swal-cutlery-checkbox h-5 w-5 rounded text-blue-500 border-gray-300 focus:ring-blue-500" value="spoon-fork">
-                            <span>ช้อนส้อม</span>
-                        </label>
-                        <label class="flex items-center gap-3 p-2 rounded-md hover:bg-gray-100 cursor-pointer">
-                            <input type="checkbox" id="swal-cutlery-chopsticks" class="swal-cutlery-checkbox h-5 w-5 rounded text-blue-500 border-gray-300 focus:ring-blue-500" value="chopsticks">
-                            <span>ตะเกียบ</span>
-                        </label>
-                        <div class="p-2 rounded-md hover:bg-gray-100">
-                            <label class="flex items-center gap-3 cursor-pointer">
-                                <input type="checkbox" id="swal-cutlery-other" class="swal-cutlery-checkbox h-5 w-5 rounded text-blue-500 border-gray-300 focus:ring-blue-500" value="other">
-                                <span>อื่นๆ (ระบุ)</span>
-                            </label>
-                            <input type="text" id="swal-cutlery-other-notes" placeholder="ระบุ..." class="w-full mt-2 p-2 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm text-gray-800" style="display:none;">
-                        </div>
-                        <label class="flex items-center gap-3 p-2 rounded-md hover:bg-gray-100 cursor-pointer">
-                            <input type="checkbox" id="swal-cutlery-none" class="h-5 w-5 rounded text-blue-500 border-gray-300 focus:ring-blue-500" value="none">
-                            <span>ไม่รับ</span>
-                        </label>
-                    </div>`,
-                focusConfirm: false,
-                showCancelButton: true,
-                confirmButtonText: 'ยืนยัน',
-                cancelButtonText: 'ยกเลิก',
-                didOpen: () => {
-                    const popup = Swal.getPopup();
-                    if (!popup) return;
-                    const otherCheckbox = popup.querySelector('#swal-cutlery-other') as HTMLInputElement;
-                    const otherNotesInput = popup.querySelector('#swal-cutlery-other-notes') as HTMLInputElement;
-                    const noneCheckbox = popup.querySelector('#swal-cutlery-none') as HTMLInputElement;
-                    const normalCheckboxes = Array.from(popup.querySelectorAll('.swal-cutlery-checkbox')) as HTMLInputElement[];
-
-                    otherCheckbox.addEventListener('change', () => {
-                        otherNotesInput.style.display = otherCheckbox.checked ? 'block' : 'none';
-                        if (otherCheckbox.checked) otherNotesInput.focus();
-                    });
-
-                    noneCheckbox.addEventListener('change', () => {
-                        if (noneCheckbox.checked) {
-                            normalCheckboxes.forEach(cb => cb.checked = false);
-                        }
-                    });
-
-                    normalCheckboxes.forEach(cb => {
-                        cb.addEventListener('change', () => {
-                            if (cb.checked) {
-                                noneCheckbox.checked = false;
-                            }
-                        });
-                    });
-                },
-                preConfirm: () => {
-                    const popup = Swal.getPopup();
-                    if (!popup) return;
-                    const cutlery: TakeawayCutleryOption[] = [];
-                    const none = (popup.querySelector('#swal-cutlery-none') as HTMLInputElement).checked;
-                    const otherNotes = (popup.querySelector('#swal-cutlery-other-notes') as HTMLInputElement).value;
-
-                    if (none) {
-                        cutlery.push('none');
-                    } else {
-                        const spoon = (popup.querySelector('#swal-cutlery-spoon') as HTMLInputElement).checked;
-                        const chopsticks = (popup.querySelector('#swal-cutlery-chopsticks') as HTMLInputElement).checked;
-                        const other = (popup.querySelector('#swal-cutlery-other') as HTMLInputElement).checked;
-                        if (spoon) cutlery.push('spoon-fork');
-                        if (chopsticks) cutlery.push('chopsticks');
-                        if (other) cutlery.push('other');
-                    }
-
-                    const isOtherChecked = (popup.querySelector('#swal-cutlery-other') as HTMLInputElement).checked;
-                    if (isOtherChecked && !otherNotes.trim()) {
-                        Swal.showValidationMessage('กรุณาระบุรายละเอียดในช่อง "อื่นๆ"');
-                        return false;
-                    }
-                    
-                    return {
-                        cutlery: cutlery,
-                        notes: isOtherChecked ? otherNotes.trim() : ''
-                    };
-                }
-            });
-
-            if (isConfirmed && cutleryData) {
-                onToggleTakeaway(cartItemId, true, cutleryData.cutlery, cutleryData.notes);
-            }
-        }
     };
 
     const handleConfirmPlaceOrder = () => {
@@ -456,9 +357,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         <OrderListItem
                             key={item.cartItemId}
                             item={item}
-                            onQuantityChange={onQuantityChange}
                             onRemoveItem={onRemoveItem}
-                            onToggleTakeaway={() => handleToggleItemTakeaway(item.cartItemId)}
+                            onEditItem={onEditOrderItem}
                         />
                     ))
                 )}

@@ -211,6 +211,7 @@ const App: React.FC = () => {
     });
     const [itemToEdit, setItemToEdit] = useState<MenuItem | null>(null);
     const [itemToCustomize, setItemToCustomize] = useState<MenuItem | null>(null);
+    const [orderItemToEdit, setOrderItemToEdit] = useState<OrderItem | null>(null); // State for the specific OrderItem being edited
     const [orderForModal, setOrderForModal] = useState<ActiveOrder | CompletedOrder | null>(null);
     const [lastPlacedOrderId, setLastPlacedOrderId] = useState<number | null>(null);
     const [notifiedOverdueOrders, setNotifiedOverdueOrders] = useState<Set<number>>(new Set());
@@ -330,20 +331,37 @@ const App: React.FC = () => {
     };
 
     const handleConfirmCustomization = (itemToAdd: OrderItem) => {
-        setCurrentOrderItems(prev => {
-            const existingItem = prev.find(i => i.cartItemId === itemToAdd.cartItemId);
-            if (existingItem) {
-                return prev.map(i => i.cartItemId === itemToAdd.cartItemId ? { ...i, quantity: i.quantity + itemToAdd.quantity } : i);
+         setCurrentOrderItems(prev => {
+            // If we are editing, remove the old item and add the new one.
+            if (orderItemToEdit) {
+                const itemsWithoutOld = prev.filter(i => i.cartItemId !== orderItemToEdit.cartItemId);
+                
+                // Check if an item with the *new* cartItemId already exists (e.g., changed options to match another item)
+                const existingSimilarItem = itemsWithoutOld.find(i => i.cartItemId === itemToAdd.cartItemId);
+                if (existingSimilarItem) {
+                    // If so, merge quantities
+                    return itemsWithoutOld.map(i => i.cartItemId === itemToAdd.cartItemId ? { ...i, quantity: i.quantity + itemToAdd.quantity } : i);
+                }
+                return [...itemsWithoutOld, itemToAdd];
+            } else {
+                // If not editing, check for an existing item with the same generated cartItemId
+                const existingItem = prev.find(i => i.cartItemId === itemToAdd.cartItemId);
+                if (existingItem) {
+                    // If it exists, just update its quantity.
+                    return prev.map(i => i.cartItemId === itemToAdd.cartItemId ? { ...i, quantity: i.quantity + itemToAdd.quantity } : i);
+                }
+                // Otherwise, add it as a new item.
+                return [...prev, itemToAdd];
             }
-            return [...prev, itemToAdd];
         });
         setModalState(prev => ({ ...prev, isCustomization: false }));
         setItemToCustomize(null);
+        setOrderItemToEdit(null); // IMPORTANT: Reset this
         Swal.fire({
             toast: true,
             position: 'top-end',
             icon: 'success',
-            title: 'เพิ่มรายการแล้ว',
+            title: orderItemToEdit ? 'แก้ไขรายการแล้ว' : 'เพิ่มรายการแล้ว',
             showConfirmButton: false,
             timer: 1500
         });
@@ -364,15 +382,26 @@ const App: React.FC = () => {
     const handleToggleTakeaway = (cartItemId: string, isTakeaway: boolean, cutlery?: TakeawayCutleryOption[], notes?: string) => {
         setCurrentOrderItems(prev => prev.map(item => {
             if (item.cartItemId === cartItemId) {
-                return { 
-                    ...item, 
-                    isTakeaway, 
-                    takeawayCutlery: isTakeaway ? cutlery : undefined,
-                    takeawayCutleryNotes: isTakeaway ? notes : undefined
-                };
+                const updatedItem: OrderItem = { ...item, isTakeaway };
+                if (isTakeaway) {
+                    updatedItem.takeawayCutlery = cutlery;
+                    updatedItem.takeawayCutleryNotes = notes;
+                } else {
+                    delete (updatedItem as Partial<OrderItem>).takeawayCutlery;
+                    delete (updatedItem as Partial<OrderItem>).takeawayCutleryNotes;
+                }
+                return updatedItem;
             }
             return item;
         }));
+    };
+
+    const handleEditOrderItem = (itemToEdit: OrderItem) => {
+        // The customization modal works with a MenuItem, not an OrderItem.
+        // We extract the base MenuItem properties to populate the modal header.
+        setOrderItemToEdit(itemToEdit); // Store the full OrderItem to be edited
+        setItemToCustomize(itemToEdit as MenuItem); // Use the item's data to populate the modal
+        setModalState(prev => ({ ...prev, isCustomization: true }));
     };
 
     const handlePlaceOrder = async (itemsToOrder = currentOrderItems, orderCustomerName = customerName, orderCustomerCount = customerCount) => {
@@ -397,13 +426,27 @@ const App: React.FC = () => {
             const effectiveTaxRate = isTaxEnabled ? taxRate : 0;
             const taxAmount = subtotal * (effectiveTaxRate / 100);
     
-            // Find the highest existing order number to generate a new one.
-            const allOrderNumbers = [
-                ...activeOrders.map(o => o.orderNumber),
-                ...completedOrders.map(o => o.orderNumber)
-            ];
-            const maxOrderNumber = allOrderNumbers.length > 0 ? Math.max(...allOrderNumbers) : 0;
-            const newOrderNumber = maxOrderNumber + 1;
+            // --- New Order Number Logic (Daily Reset & Role-based Visibility) ---
+            const todayStart = new Date();
+            todayStart.setHours(0, 0, 0, 0);
+            const todayStartTime = todayStart.getTime();
+    
+            // Get all orders created today
+            const todaysCompletedOrders = completedOrders.filter(o => o.orderTime >= todayStartTime);
+            const todaysActiveOrders = activeOrders.filter(o => o.orderTime >= todayStartTime);
+            
+            let todaysOrdersForNumbering = [...todaysActiveOrders, ...todaysCompletedOrders];
+    
+            // For branch admins and other non-admin roles, we only count non-deleted orders
+            // to make the sequence appear continuous, hiding the fact that some were deleted.
+            // Admins see the true sequence including deleted ones.
+            if (currentUser?.role !== 'admin') {
+                todaysOrdersForNumbering = todaysOrdersForNumbering.filter(o => !o.isDeleted);
+            }
+            
+            const allTodaysOrderNumbers = todaysOrdersForNumbering.map(o => o.orderNumber);
+            const maxOrderNumberToday = allTodaysOrderNumbers.length > 0 ? Math.max(...allTodaysOrderNumbers) : 0;
+            const newOrderNumber = maxOrderNumberToday + 1;
             
             const newId = Date.now(); // Using timestamp for a unique ID
     
@@ -464,7 +507,11 @@ const App: React.FC = () => {
             
         } catch (error: any) {
             console.error("Critical error during client-side order placement:", error);
-            Swal.fire('เกิดข้อผิดพลาดร้ายแรง', `ไม่สามารถสั่งอาหารได้: ${error.message}`, 'error');
+            if (error.message.includes("Unsupported field value: undefined")) {
+                Swal.fire('เกิดข้อผิดพลาดร้ายแรง', `ไม่สามารถสั่งอาหารได้: พบข้อมูลที่ไม่ถูกต้อง (undefined) ในออเดอร์ กรุณาลองใหม่อีกครั้ง`, 'error');
+            } else {
+                Swal.fire('เกิดข้อผิดพลาดร้ายแรง', `ไม่สามารถสั่งอาหารได้: ${error.message}`, 'error');
+            }
         } finally {
             setIsPlacingOrder(false);
         }
@@ -641,17 +688,20 @@ const App: React.FC = () => {
     const handleCancelOrder = (orderToCancel: ActiveOrder, reason: CancellationReason, notes?: string) => {
         if (!currentUser) return;
     
-        const cancelledOrder: CancelledOrder = {
+        const cancelledOrder: Partial<CancelledOrder> = {
             ...orderToCancel,
             status: 'cancelled',
             cancellationTime: Date.now(),
             cancelledBy: currentUser.username,
             cancellationReason: reason,
-            cancellationNotes: notes,
         };
+
+        if (notes && notes.trim()) {
+            cancelledOrder.cancellationNotes = notes.trim();
+        }
     
         setActiveOrders(prev => prev.filter(o => o.id !== orderToCancel.id));
-        setCancelledOrders(prev => [...prev, cancelledOrder]);
+        setCancelledOrders(prev => [...prev, cancelledOrder as CancelledOrder]);
     
         setModalState(prev => ({ ...prev, isCancelOrder: false }));
         setOrderForModal(null);
@@ -922,6 +972,14 @@ const App: React.FC = () => {
         } catch (error) {
             console.error("Error deleting leave request from state:", error);
             return false;
+        }
+    };
+
+    const handleUpdateCurrentUser = (updates: Partial<User>) => {
+        if (currentUser) {
+            const updatedUser = { ...currentUser, ...updates };
+            setCurrentUser(updatedUser);
+            setUsers(prevUsers => prevUsers.map(u => u.id === currentUser.id ? updatedUser : u));
         }
     };
 
@@ -1412,7 +1470,7 @@ const App: React.FC = () => {
             currentOrderItems={currentOrderItems}
             onQuantityChange={handleQuantityChange}
             onRemoveItem={handleRemoveItemFromOrder}
-            onToggleTakeaway={handleToggleTakeaway}
+            onEditOrderItem={handleEditOrderItem}
             onClearOrder={() => setCurrentOrderItems([])}
             onPlaceOrder={() => handlePlaceOrder()}
             isPlacingOrder={isPlacingOrder}
@@ -1519,7 +1577,7 @@ const App: React.FC = () => {
                     kitchenBadgeCount={kitchenBadgeCount}
                     tablesBadgeCount={tablesBadgeCount}
                     leaveBadgeCount={leaveBadgeCount}
-                    onUpdateCurrentUser={() => {}} // Placeholder
+                    onUpdateCurrentUser={handleUpdateCurrentUser}
                     onUpdateLogoUrl={setLogoUrl}
                     onUpdateRestaurantName={setRestaurantName}
                 />
@@ -1695,14 +1753,14 @@ const App: React.FC = () => {
                     {/* Toggle Button */}
                     <button
                         onClick={() => setIsOrderSidebarVisible(!isOrderSidebarVisible)}
-                        className="absolute top-1/2 -translate-y-1/2 -left-4 z-30 h-24 w-8 bg-gray-800/80 text-white hover:bg-gray-700/90 transition-all duration-300 backdrop-blur-sm flex items-center justify-center group rounded-l-lg"
+                        className="absolute top-1/2 -translate-y-1/2 -left-12 z-30 h-24 w-12 bg-gray-800/80 text-white hover:bg-gray-700/90 transition-all duration-300 backdrop-blur-sm flex items-center justify-center group rounded-l-lg pr-1"
                         title={isOrderSidebarVisible ? 'ซ่อนรายการออเดอร์' : 'แสดงรายการออเดอร์'}
                     >
-                        <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 transition-transform duration-300 ${isOrderSidebarVisible ? '' : 'rotate-180'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                        <svg xmlns="http://www.w3.org/2000/svg" className={`h-8 w-8 transition-transform duration-300 ${isOrderSidebarVisible ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
                         </svg>
                          <span
-                            className={`absolute -top-2 -right-2 flex h-6 w-6 items-center justify-center rounded-full border-2 border-white bg-red-500 text-xs font-bold text-white transition-all duration-300 ease-in-out transform group-hover:scale-110
+                            className={`absolute -top-1 -left-1 flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-red-500 text-sm font-bold text-white transition-all duration-300 ease-in-out transform group-hover:scale-110
                                 ${!isOrderSidebarVisible && totalItems > 0 ? 'scale-100 opacity-100' : 'scale-0 opacity-0'}
                                 ${isBadgeAnimating ? 'animate-bounce' : ''}
                             `}
@@ -1732,9 +1790,14 @@ const App: React.FC = () => {
             />
             <ItemCustomizationModal 
                 isOpen={modalState.isCustomization}
-                onClose={() => setModalState(prev => ({ ...prev, isCustomization: false }))}
+                onClose={() => {
+                    setModalState(prev => ({ ...prev, isCustomization: false }));
+                    setItemToCustomize(null);
+                    setOrderItemToEdit(null); // Also clear the item being edited on close
+                }}
                 item={itemToCustomize}
                 onConfirm={handleConfirmCustomization}
+                orderItemToEdit={orderItemToEdit}
             />
             <MenuSearchModal 
                 isOpen={modalState.isMenuSearch}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import type { MenuItem, MenuOption, OrderItem, MenuOptionGroup } from '../types';
+import type { MenuItem, MenuOption, OrderItem, MenuOptionGroup, TakeawayCutleryOption } from '../types';
 import Swal from 'sweetalert2';
 import { MenuItemImage } from './MenuItemImage';
 
@@ -7,22 +7,47 @@ interface ItemCustomizationModalProps {
     isOpen: boolean;
     onClose: () => void;
     item: MenuItem | null;
+    orderItemToEdit?: OrderItem | null; // Optional prop for editing
     onConfirm: (itemToAdd: OrderItem) => void;
 }
 
-export const ItemCustomizationModal: React.FC<ItemCustomizationModalProps> = ({ isOpen, onClose, item, onConfirm }) => {
+export const ItemCustomizationModal: React.FC<ItemCustomizationModalProps> = ({ isOpen, onClose, item, onConfirm, orderItemToEdit }) => {
     const [selections, setSelections] = useState<Record<string, MenuOption[]>>({});
     const [quantity, setQuantity] = useState(1);
     const [notes, setNotes] = useState('');
+    const [isTakeaway, setIsTakeaway] = useState(false);
+    const [takeawayCutlery, setTakeawayCutlery] = useState<TakeawayCutleryOption[]>([]);
+    const [takeawayCutleryNotes, setTakeawayCutleryNotes] = useState('');
 
     useEffect(() => {
         if (item) {
-            // Per user request, always start with a clean slate, no default options selected.
-            setSelections({});
-            setQuantity(1);
-            setNotes('');
+            if (orderItemToEdit) {
+                // Populate state from existing item being edited
+                const initialSelections: Record<string, MenuOption[]> = {};
+                for (const group of orderItemToEdit.optionGroups || []) {
+                    const selected = orderItemToEdit.selectedOptions.filter(opt => group.options.some(o => o.id === opt.id));
+                    if (selected.length > 0) {
+                        initialSelections[group.id] = selected;
+                    }
+                }
+                setSelections(initialSelections);
+                setQuantity(orderItemToEdit.quantity);
+                setNotes(orderItemToEdit.notes || '');
+                setIsTakeaway(orderItemToEdit.isTakeaway);
+                setTakeawayCutlery(orderItemToEdit.takeawayCutlery || []);
+                setTakeawayCutleryNotes(orderItemToEdit.takeawayCutleryNotes || '');
+
+            } else {
+                // Reset for a new item
+                setSelections({});
+                setQuantity(1);
+                setNotes('');
+                setIsTakeaway(false);
+                setTakeawayCutlery([]);
+                setTakeawayCutleryNotes('');
+            }
         }
-    }, [item]);
+    }, [item, orderItemToEdit]);
 
     const { finalPrice, selectedOptions } = useMemo(() => {
         if (!item) return { finalPrice: 0, selectedOptions: [] };
@@ -69,6 +94,28 @@ export const ItemCustomizationModal: React.FC<ItemCustomizationModalProps> = ({ 
             };
         });
     };
+    
+    const handleCutleryChange = (option: TakeawayCutleryOption) => {
+        setTakeawayCutlery(prev => {
+            if (option === 'none') {
+                return prev.includes('none') ? [] : ['none'];
+            }
+            let newSelection = prev.filter(o => o !== 'none');
+            if (newSelection.includes(option)) {
+                newSelection = newSelection.filter(o => o !== option);
+            } else {
+                newSelection.push(option);
+            }
+            return newSelection;
+        });
+    };
+
+    const handleResetSelections = () => {
+        setSelections({});
+        setNotes('');
+        setTakeawayCutlery([]);
+        setTakeawayCutleryNotes('');
+    };
 
     const handleConfirmClick = () => {
         if (!item) return;
@@ -81,27 +128,36 @@ export const ItemCustomizationModal: React.FC<ItemCustomizationModalProps> = ({ 
             }
         }
         
-        const sortedOptionIds = selectedOptions.map(opt => opt.id).sort();
-        const cartItemId = `${item.id}-${sortedOptionIds.join('-')}-${notes.trim()}`;
-
-        const displayNameParts = [item.name];
-        const meatOption = selectedOptions.find(opt => item.optionGroups?.find(g => g.id ==='meat')?.options.includes(opt));
-        if (meatOption) {
-            displayNameParts[0] = item.name + meatOption.name;
+        const sortedOptionIds = selectedOptions.map(opt => opt.id).sort().join('-');
+        const notesIdentifier = notes.trim().toLowerCase();
+        
+        let takeawayIdentifier = 'dinein';
+        if (isTakeaway) {
+            const cutleryIdentifier = [...takeawayCutlery].sort().join('-');
+            const cutleryNotesIdentifier = takeawayCutlery.includes('other') ? (takeawayCutleryNotes || '').trim().toLowerCase() : '';
+            takeawayIdentifier = `takeaway-${cutleryIdentifier}-${cutleryNotesIdentifier}`;
         }
+        
+        const cartItemId = `${item.id}-${sortedOptionIds}-${notesIdentifier}-${takeawayIdentifier}`;
 
-        const itemToAdd: OrderItem = {
+        const itemToAdd: Partial<OrderItem> = {
             ...item,
-            name: displayNameParts.join(' '), // Update name for display
             quantity: quantity,
-            isTakeaway: false,
+            isTakeaway: isTakeaway,
             cartItemId: cartItemId,
             finalPrice: finalPrice,
             selectedOptions: selectedOptions,
             notes: notes.trim(),
         };
         
-        onConfirm(itemToAdd);
+        if (isTakeaway) {
+            itemToAdd.takeawayCutlery = takeawayCutlery;
+            if (takeawayCutlery.includes('other')) {
+                itemToAdd.takeawayCutleryNotes = takeawayCutleryNotes.trim();
+            }
+        }
+        
+        onConfirm(itemToAdd as OrderItem);
     };
 
     if (!isOpen || !item) return null;
@@ -164,6 +220,40 @@ export const ItemCustomizationModal: React.FC<ItemCustomizationModalProps> = ({ 
                             className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                         ></textarea>
                     </div>
+                     {isTakeaway && (
+                        <div className="pt-4 border-t">
+                            <h4 className="text-lg font-semibold text-gray-800 mb-2">
+                                รับเครื่องใช้
+                            </h4>
+                            <div className="space-y-2">
+                                <label className="flex items-center p-3 rounded-lg border border-gray-200 cursor-pointer hover:bg-gray-50">
+                                    <input type="checkbox" checked={takeawayCutlery.includes('spoon-fork')} onChange={() => handleCutleryChange('spoon-fork')} className="h-5 w-5 rounded text-blue-600 border-gray-300 focus:ring-blue-500"/>
+                                    <span className="ml-3 flex-1 text-gray-800">รับช้อนส้อม</span>
+                                </label>
+                                <label className="flex items-center p-3 rounded-lg border border-gray-200 cursor-pointer hover:bg-gray-50">
+                                    <input type="checkbox" checked={takeawayCutlery.includes('chopsticks')} onChange={() => handleCutleryChange('chopsticks')} className="h-5 w-5 rounded text-blue-600 border-gray-300 focus:ring-blue-500"/>
+                                    <span className="ml-3 flex-1 text-gray-800">รับตะเกียบ</span>
+                                </label>
+                                <label className="flex items-center p-3 rounded-lg border border-gray-200 cursor-pointer hover:bg-gray-50">
+                                    <input type="checkbox" checked={takeawayCutlery.includes('other')} onChange={() => handleCutleryChange('other')} className="h-5 w-5 rounded text-blue-600 border-gray-300 focus:ring-blue-500"/>
+                                    <span className="ml-3 flex-1 text-gray-800">อื่นๆ (ระบุ)</span>
+                                </label>
+                                {takeawayCutlery.includes('other') && (
+                                    <input 
+                                        type="text" 
+                                        value={takeawayCutleryNotes} 
+                                        onChange={(e) => setTakeawayCutleryNotes(e.target.value)} 
+                                        placeholder="ระบุ..."
+                                        className="w-full p-2 ml-8 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                    />
+                                )}
+                                 <label className="flex items-center p-3 rounded-lg border border-gray-200 cursor-pointer hover:bg-gray-50">
+                                    <input type="checkbox" checked={takeawayCutlery.includes('none')} onChange={() => handleCutleryChange('none')} className="h-5 w-5 rounded text-blue-600 border-gray-300 focus:ring-blue-500"/>
+                                    <span className="ml-3 flex-1 text-gray-800">ไม่รับ</span>
+                                </label>
+                            </div>
+                        </div>
+                    )}
                 </main>
 
                 <footer className="bg-gray-50 px-6 py-4 flex justify-between items-center rounded-b-lg border-t">
@@ -171,16 +261,24 @@ export const ItemCustomizationModal: React.FC<ItemCustomizationModalProps> = ({ 
                         <button onClick={() => setQuantity(q => Math.max(1, q - 1))} className="w-10 h-10 rounded-full bg-blue-500 hover:bg-blue-600 text-white text-2xl font-bold flex items-center justify-center">-</button>
                         <span className="text-3xl font-bold w-12 text-center text-gray-900">{quantity}</span>
                         <button onClick={() => setQuantity(q => q + 1)} className="w-10 h-10 rounded-full bg-blue-500 hover:bg-blue-600 text-white text-2xl font-bold flex items-center justify-center">+</button>
-                        <button onClick={() => setSelections({})} className="ml-4 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-semibold text-sm">
-                            ล้างที่เลือก
+                        <button type="button" onClick={handleResetSelections} className="p-2 bg-gray-200 text-gray-700 rounded-full hover:bg-gray-300 font-semibold" title="ล้างที่เลือก">
+                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
                         </button>
                     </div>
-                    <button 
-                        onClick={handleConfirmClick}
-                        className="px-4 sm:px-6 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 font-bold text-base sm:text-lg flex items-center justify-center"
-                    >
-                        <span>เพิ่มOrder</span>
-                    </button>
+                    <div className="flex items-center gap-4">
+                         <label className="flex items-center gap-2 cursor-pointer text-gray-700">
+                            <input type="checkbox" checked={isTakeaway} onChange={(e) => setIsTakeaway(e.target.checked)} className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"/>
+                            <span className="font-semibold text-sm">สั่งกลับบ้าน</span>
+                        </label>
+                        <button 
+                            onClick={handleConfirmClick}
+                            className="px-4 sm:px-6 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 font-bold text-base sm:text-lg flex items-center justify-center"
+                        >
+                            <span>{orderItemToEdit ? 'บันทึกการแก้ไข' : 'เพิ่มOrder'}</span>
+                        </button>
+                    </div>
                 </footer>
             </div>
         </div>
