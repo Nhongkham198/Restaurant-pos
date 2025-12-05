@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 
 import { 
@@ -232,11 +231,74 @@ const App: React.FC = () => {
     // ============================================================================
     // 2. COMPUTED VALUES (MEMO)
     // ============================================================================
-
+    
+    // FIX: Moved badge count calculations before their usage in mobileNavItems to resolve "used before declaration" error.
     const kitchenBadgeCount = useMemo(() => activeOrders.filter(o => o.status === 'waiting').length, [activeOrders]);
     const occupiedTablesCount = useMemo(() => new Set(activeOrders.map(o => o.tableId)).size, [activeOrders]);
     const tablesBadgeCount = occupiedTablesCount > 0 ? occupiedTablesCount : 0;
-    
+
+    const leaveBadgeCount = useMemo(() => {
+        if (!currentUser) return 0;
+        
+        if (currentUser.role === 'admin') {
+            return leaveRequests.filter(req => req.status === 'pending').length;
+        }
+        
+        if (currentUser.role === 'branch-admin' || currentUser.role === 'auditor') {
+            return leaveRequests.filter(req => 
+                req.status === 'pending' && 
+                currentUser.allowedBranchIds?.includes(req.branchId)
+            ).length;
+        }
+
+        return 0;
+    }, [leaveRequests, currentUser]);
+
+    const mobileNavItems = useMemo(() => {
+        const items: NavItem[] = [
+            {id: 'pos', label: 'POS', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4z" /><path fillRule="evenodd" d="M18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h2a1 1 0 100-2H9z" clipRule="evenodd" /></svg>, view: 'pos'},
+            {id: 'tables', label: 'ผังโต๊ะ', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M2 5a2 2 0 012-2h12a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V5zm2 1v8h8V6H4z" /></svg>, view: 'tables', badge: tablesBadgeCount},
+            {id: 'kitchen', label: 'ครัว', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M17.707 9.293a1 1 0 010 1.414l-7 7a1 1 0 01-1.414 0l-7-7A.997.997 0 012 10V5a3 3 0 013-3h10a3 3 0 013 3v5a.997.997 0 01-.293.707zM5 6a1 1 0 100 2 1 1 0 000-2zm3 0a1 1 0 100 2 1 1 0 000-2zm3 0a1 1 0 100 2 1 1 0 000-2z" clipRule="evenodd" /></svg>, view: 'kitchen', badge: kitchenBadgeCount},
+            {id: 'history', label: 'ประวัติ', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" /></svg>, view: 'history'},
+        ];
+
+        if (currentUser?.role === 'admin') {
+            const kitchenIndex = items.findIndex(item => item.id === 'kitchen');
+            if (kitchenIndex !== -1) {
+                items[kitchenIndex] = {
+                    id: 'dashboard',
+                    label: 'Dashboard',
+                    icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1-1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" /></svg>,
+                    view: 'dashboard'
+                };
+            }
+            items.push({
+                id: 'leave',
+                label: 'วันลา',
+                icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>,
+                view: 'leave',
+                badge: leaveBadgeCount
+            });
+            items.push({
+                id: 'settings', 
+                label: 'ตั้งค่า', 
+                icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924-1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0 3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>, 
+                onClick: () => setModalState(prev => ({...prev, isSettings: true}))
+            });
+        } else {
+            items.push({id: 'stock', label: 'สต๊อก', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>, view: 'stock'});
+            items.push({
+                id: 'leave',
+                label: 'วันลา',
+                icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>,
+                view: 'leave',
+                badge: leaveBadgeCount
+            });
+        }
+        
+        return items;
+    }, [currentUser, tablesBadgeCount, kitchenBadgeCount, leaveBadgeCount]);
+
     const vacantTablesBadgeCount = useMemo(() => {
         const totalTables = tables.length;
         return Math.max(0, totalTables - occupiedTablesCount);
@@ -259,23 +321,6 @@ const App: React.FC = () => {
         const isPrivileged = currentUser.role === 'admin' || currentUser.role === 'branch-admin';
         return isEditMode && isPrivileged;
     }, [isEditMode, currentUser]);
-
-    const leaveBadgeCount = useMemo(() => {
-        if (!currentUser) return 0;
-        
-        if (currentUser.role === 'admin') {
-            return leaveRequests.filter(req => req.status === 'pending').length;
-        }
-        
-        if (currentUser.role === 'branch-admin' || currentUser.role === 'auditor') {
-            return leaveRequests.filter(req => 
-                req.status === 'pending' && 
-                currentUser.allowedBranchIds?.includes(req.branchId)
-            ).length;
-        }
-
-        return 0;
-    }, [leaveRequests, currentUser]);
 
     const shouldShowAdminSidebar = useMemo(() => {
         if (isCustomerMode || !currentUser) {
@@ -302,6 +347,11 @@ const App: React.FC = () => {
 
         if (user) {
             setCurrentUser(user);
+            localStorage.setItem('currentUser', JSON.stringify(user));
+            // When a new user logs in, we MUST clear any previously selected branch.
+            // This forces the app to show the BranchSelectionScreen.
+            setSelectedBranch(null);
+            localStorage.removeItem('selectedBranch');
             return { success: true };
         }
         return { success: false, error: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง' };
@@ -1282,14 +1332,7 @@ const App: React.FC = () => {
             </main>
             
             <BottomNavBar 
-                items={[
-                    {id: 'pos', label: 'POS', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4z" /><path fillRule="evenodd" d="M18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h2a1 1 0 100-2H9z" clipRule="evenodd" /></svg>, view: 'pos'},
-                    {id: 'tables', label: 'ผังโต๊ะ', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M2 5a2 2 0 012-2h12a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V5zm2 1v8h8V6H4z" /></svg>, view: 'tables', badge: tablesBadgeCount},
-                    {id: 'kitchen', label: 'ครัว', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M17.707 9.293a1 1 0 010 1.414l-7 7a1 1 0 01-1.414 0l-7-7A.997.997 0 012 10V5a3 3 0 013-3h10a3 3 0 013 3v5a.997.997 0 01-.293.707zM5 6a1 1 0 100 2 1 1 0 000-2zm3 0a1 1 0 100 2 1 1 0 000-2zm3 0a1 1 0 100 2 1 1 0 000-2z" clipRule="evenodd" /></svg>, view: 'kitchen', badge: kitchenBadgeCount},
-                    {id: 'history', label: 'ประวัติ', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" /></svg>, view: 'history'},
-                    {id: 'stock', label: 'สต๊อก', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>, view: 'stock'},
-                    {id: 'settings', label: 'ตั้งค่า', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924-1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>, onClick: () => setModalState(prev => ({...prev, isSettings: true}))}
-                ]}
+                items={mobileNavItems}
                 currentView={currentView}
                 onViewChange={handleViewChange}
             />
