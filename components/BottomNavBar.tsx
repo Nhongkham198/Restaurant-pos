@@ -44,7 +44,7 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({ items, currentView, 
     };
     
     return (
-        <nav className="fixed bottom-0 left-0 right-0 z-50 bg-gray-900 border-t border-gray-800 p-2 grid grid-cols-6 gap-1 md:hidden">
+        <nav className="fixed bottom-0 left-0 right-0 z-50 bg-gray-900 border-t border-gray-800 p-2 grid grid-cols-6 gap-1">
             {items.map(item => (
                 <BottomNavItem
                     key={item.id}

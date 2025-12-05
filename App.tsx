@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 
 import { 
@@ -98,7 +99,7 @@ const App: React.FC = () => {
     // ============================================================================
 
     // --- RESPONSIVE STATE ---
-    const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 1024); // Tailwind's lg breakpoint is 1024px
+    const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 1024 && window.innerWidth > window.innerHeight);
 
     // --- AUTH & BRANCH STATE ---
     const [users, setUsers] = useFirestoreSync<User[]>(null, 'users', DEFAULT_USERS);
@@ -311,6 +312,21 @@ const App: React.FC = () => {
         setSelectedBranch(null);
         localStorage.removeItem('currentUser');
         localStorage.removeItem('selectedBranch');
+    };
+
+    const handleConfirmLogout = () => {
+        Swal.fire({
+            title: 'ยืนยันการออกจากระบบ',
+            text: "คุณต้องการออกจากระบบใช่หรือไม่?",
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'ใช่, ออกจากระบบ',
+            cancelButtonText: 'ยกเลิก'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                handleLogout();
+            }
+        });
     };
 
     const handleBranchSelect = (branch: Branch) => {
@@ -768,7 +784,7 @@ const App: React.FC = () => {
 
     // --- Responsive Design Effect ---
     useEffect(() => {
-        const handleResize = () => setIsDesktop(window.innerWidth >= 1024);
+        const handleResize = () => setIsDesktop(window.innerWidth >= 1024 && window.innerWidth > window.innerHeight);
         window.addEventListener('resize', handleResize);
         return () => window.removeEventListener('resize', handleResize);
     }, []);
@@ -996,8 +1012,8 @@ const App: React.FC = () => {
         setLeaveRequestInitialDate(null);
     };
 
-    return (
-        <div className={`h-screen flex flex-col md:flex-row bg-gray-100 font-sans transition-all duration-300 ${shouldShowAdminSidebar && !isAdminSidebarCollapsed ? 'md:pl-64' : (shouldShowAdminSidebar ? 'md:pl-20' : '')}`}>
+    const renderAllModals = () => (
+        <>
             <MenuItemModal isOpen={modalState.isMenuItem} onClose={handleModalClose} onSave={(item) => {}} itemToEdit={itemToEdit} categories={categories} onAddCategory={(name) => setCategories([...categories, name])} />
             <OrderSuccessModal isOpen={modalState.isOrderSuccess} onClose={handleModalClose} orderId={lastPlacedOrderId!} />
             <TableBillModal
@@ -1045,139 +1061,238 @@ const App: React.FC = () => {
             <LeaveRequestModal isOpen={modalState.isLeaveRequest} onClose={handleModalClose} currentUser={currentUser} onSave={() => {}} initialDate={leaveRequestInitialDate} />
             <MenuSearchModal isOpen={modalState.isMenuSearch} onClose={handleModalClose} menuItems={menuItems} onSelectItem={handleAddItemToOrder} />
             <MergeBillModal isOpen={modalState.isMergeBill} onClose={handleModalClose} order={orderForModal as ActiveOrder | null} allActiveOrders={activeOrders} tables={tables} onConfirmMerge={() => {}} />
+        </>
+    );
 
-            {shouldShowAdminSidebar && (
-                <AdminSidebar
-                    isCollapsed={isAdminSidebarCollapsed}
-                    onToggleCollapse={() => setIsAdminSidebarCollapsed(!isAdminSidebarCollapsed)}
-                    logoUrl={logoUrl}
-                    restaurantName={restaurantName}
-                    branchName={selectedBranch.name}
-                    currentUser={currentUser}
-                    onViewChange={handleViewChange}
-                    currentView={currentView}
-                    onToggleEditMode={() => setIsEditMode(!isEditMode)}
-                    isEditMode={isEditMode}
-                    onOpenSettings={() => setModalState(prev => ({ ...prev, isSettings: true }))}
-                    onOpenUserManager={() => setModalState(prev => ({ ...prev, isUserManager: true }))}
-                    onManageBranches={() => { setSelectedBranch(null); localStorage.removeItem('selectedBranch'); }}
-                    onChangeBranch={() => { setSelectedBranch(null); localStorage.removeItem('selectedBranch'); }}
-                    onLogout={handleLogout}
-                    kitchenBadgeCount={kitchenBadgeCount}
-                    tablesBadgeCount={tablesBadgeCount}
-                    leaveBadgeCount={leaveBadgeCount}
-                    onUpdateCurrentUser={handleUpdateCurrentUser}
-                    onUpdateLogoUrl={setLogoUrl}
-                    onUpdateRestaurantName={setRestaurantName}
-                />
-            )}
-
-            <div className="flex-1 flex flex-col overflow-hidden relative">
-                 {!shouldShowAdminSidebar && (
-                    <Header
-                        currentView={currentView}
+    if (isDesktop) {
+        return (
+            <div className={`h-screen flex flex-col md:flex-row bg-gray-100 font-sans transition-all duration-300 ${shouldShowAdminSidebar && !isAdminSidebarCollapsed ? 'md:pl-64' : (shouldShowAdminSidebar ? 'md:pl-20' : '')}`}>
+                {renderAllModals()}
+    
+                {shouldShowAdminSidebar && (
+                    <AdminSidebar
+                        isCollapsed={isAdminSidebarCollapsed}
+                        onToggleCollapse={() => setIsAdminSidebarCollapsed(!isAdminSidebarCollapsed)}
+                        logoUrl={logoUrl}
+                        restaurantName={restaurantName}
+                        branchName={selectedBranch.name}
+                        currentUser={currentUser}
                         onViewChange={handleViewChange}
-                        isEditMode={isEditMode}
+                        currentView={currentView}
                         onToggleEditMode={() => setIsEditMode(!isEditMode)}
+                        isEditMode={isEditMode}
                         onOpenSettings={() => setModalState(prev => ({ ...prev, isSettings: true }))}
+                        onOpenUserManager={() => setModalState(prev => ({ ...prev, isUserManager: true }))}
+                        onManageBranches={() => { setSelectedBranch(null); localStorage.removeItem('selectedBranch'); }}
+                        onChangeBranch={() => { setSelectedBranch(null); localStorage.removeItem('selectedBranch'); }}
+                        onLogout={handleLogout}
                         kitchenBadgeCount={kitchenBadgeCount}
                         tablesBadgeCount={tablesBadgeCount}
-                        vacantTablesBadgeCount={vacantTablesBadgeCount}
                         leaveBadgeCount={leaveBadgeCount}
-                        currentUser={currentUser}
-                        onLogout={handleLogout}
-                        onOpenUserManager={() => setModalState(prev => ({ ...prev, isUserManager: true }))}
-                        logoUrl={logoUrl}
-                        onLogoChangeClick={()=>{}}
-                        restaurantName={restaurantName}
-                        onRestaurantNameChange={()=>{}}
-                        branchName={selectedBranch.name}
-                        onChangeBranch={() => { setSelectedBranch(null); localStorage.removeItem('selectedBranch'); }}
-                        onManageBranches={() => { setSelectedBranch(null); localStorage.removeItem('selectedBranch'); }}
+                        onUpdateCurrentUser={handleUpdateCurrentUser}
+                        onUpdateLogoUrl={setLogoUrl}
+                        onUpdateRestaurantName={setRestaurantName}
                     />
                 )}
-                
-                <main className="flex-1 flex overflow-hidden relative">
-                    <div className="flex-1 h-full overflow-y-auto">
+    
+                <div className="flex-1 flex flex-col overflow-hidden relative">
+                     {!shouldShowAdminSidebar && (
+                        <Header
+                            currentView={currentView}
+                            onViewChange={handleViewChange}
+                            isEditMode={isEditMode}
+                            onToggleEditMode={() => setIsEditMode(!isEditMode)}
+                            onOpenSettings={() => setModalState(prev => ({ ...prev, isSettings: true }))}
+                            kitchenBadgeCount={kitchenBadgeCount}
+                            tablesBadgeCount={tablesBadgeCount}
+                            vacantTablesBadgeCount={vacantTablesBadgeCount}
+                            leaveBadgeCount={leaveBadgeCount}
+                            currentUser={currentUser}
+                            onLogout={handleLogout}
+                            onOpenUserManager={() => setModalState(prev => ({ ...prev, isUserManager: true }))}
+                            logoUrl={logoUrl}
+                            onLogoChangeClick={()=>{}}
+                            restaurantName={restaurantName}
+                            onRestaurantNameChange={()=>{}}
+                            branchName={selectedBranch.name}
+                            onChangeBranch={() => { setSelectedBranch(null); localStorage.removeItem('selectedBranch'); }}
+                            onManageBranches={() => { setSelectedBranch(null); localStorage.removeItem('selectedBranch'); }}
+                        />
+                    )}
+                    
+                    <main className="flex-1 flex overflow-hidden relative">
+                        <div className="flex-1 h-full overflow-y-auto">
+                            {mainContent()}
+                        </div>
+                        <div
+                            className="relative h-full transition-all duration-300 ease-in-out"
+                            style={{
+                                width: isOrderSidebarVisible ? (isDesktop ? '24rem' : '100%') : '0',
+                            }}
+                        >
+                            {isOrderSidebarVisible && (
+                                <Sidebar
+                                    currentOrderItems={currentOrderItems}
+                                    onQuantityChange={handleQuantityChange}
+                                    onRemoveItem={handleRemoveItemFromOrder}
+                                    onClearOrder={() => setCurrentOrderItems([])}
+                                    onPlaceOrder={handlePlaceOrder}
+                                    isPlacingOrder={isPlacingOrder}
+                                    tables={tables}
+                                    selectedTable={tables.find(t => t.id === selectedTableId) || null}
+                                    onSelectTable={(id) => setSelectedTableId(id)}
+                                    customerName={customerName}
+                                    onCustomerNameChange={setCustomerName}
+                                    customerCount={customerCount}
+                                    onCustomerCountChange={setCustomerCount}
+                                    isEditMode={canEdit}
+                                    onAddNewTable={handleAddNewTable}
+                                    onRemoveLastTable={handleRemoveLastTable}
+                                    floors={floors}
+                                    selectedFloor={selectedSidebarFloor || floors[0]}
+                                    onFloorChange={setSelectedSidebarFloor}
+                                    onAddFloor={() => {}}
+                                    onRemoveFloor={() => {}}
+                                    sendToKitchen={sendToKitchen}
+                                    onSendToKitchenChange={(enabled, details) => {
+                                        setSendToKitchen(enabled);
+                                        setNotSentToKitchenDetails(details);
+                                    }}
+                                    onUpdateReservation={() => {}}
+                                    onOpenSearch={() => setModalState(prev => ({ ...prev, isMenuSearch: true }))}
+                                    currentUser={currentUser}
+                                    onEditOrderItem={handleEditOrderItem}
+                                    onViewChange={handleViewChange}
+                                    restaurantName={restaurantName}
+                                    onLogout={handleLogout}
+                                />
+                            )}
+                        </div>
+                        
+                        <button
+                            onClick={() => setIsOrderSidebarVisible(!isOrderSidebarVisible)}
+                            className={`absolute top-1/2 -translate-y-1/2 z-30 bg-gray-800 text-white rounded-l-full py-8 pl-1 pr-2 transform transition-all duration-300 ease-in-out hover:bg-gray-700 focus:outline-none shadow-lg ${isDesktop ? '' : 'hidden'}`}
+                            style={{ right: isOrderSidebarVisible ? '24rem' : '0' }}
+                            aria-label={isOrderSidebarVisible ? 'Hide order sidebar' : 'Show order sidebar'}
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 transition-transform ${!isOrderSidebarVisible ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            </svg>
+                            {!isOrderSidebarVisible && totalItems > 0 && (
+                                 <div className={`absolute -top-1 -left-1 flex h-7 w-7 items-center justify-center rounded-full bg-red-500 text-sm font-bold text-white border-2 border-gray-800 ${isBadgeAnimating ? 'animate-bounce' : ''}`}>
+                                    {totalItems > 9 ? '9+' : totalItems}
+                                </div>
+                            )}
+                        </button>
+                    </main>
+                </div>
+            </div>
+        );
+    }
+
+    // --- MOBILE / TABLET LAYOUT ---
+    const mobileMainContent = () => {
+        switch (currentView) {
+            case 'pos':
+                // The POS view on mobile is the Sidebar itself.
+                return <Sidebar
+                    isMobilePage={true}
+                    currentOrderItems={currentOrderItems}
+                    onQuantityChange={handleQuantityChange}
+                    onRemoveItem={handleRemoveItemFromOrder}
+                    onClearOrder={() => setCurrentOrderItems([])}
+                    onPlaceOrder={handlePlaceOrder}
+                    isPlacingOrder={isPlacingOrder}
+                    tables={tables}
+                    selectedTable={tables.find(t => t.id === selectedTableId) || null}
+                    onSelectTable={(id) => setSelectedTableId(id)}
+                    customerName={customerName}
+                    onCustomerNameChange={setCustomerName}
+                    customerCount={customerCount}
+                    onCustomerCountChange={setCustomerCount}
+                    isEditMode={canEdit}
+                    onAddNewTable={handleAddNewTable}
+                    onRemoveLastTable={handleRemoveLastTable}
+                    floors={floors}
+                    selectedFloor={selectedSidebarFloor || floors[0]}
+                    onFloorChange={setSelectedSidebarFloor}
+                    onAddFloor={() => {}}
+                    onRemoveFloor={() => {}}
+                    sendToKitchen={sendToKitchen}
+                    onSendToKitchenChange={(enabled, details) => {
+                        setSendToKitchen(enabled);
+                        setNotSentToKitchenDetails(details);
+                    }}
+                    onUpdateReservation={() => {}}
+                    onOpenSearch={() => setModalState(prev => ({ ...prev, isMenuSearch: true }))}
+                    currentUser={currentUser}
+                    onEditOrderItem={handleEditOrderItem}
+                    onViewChange={handleViewChange}
+                    restaurantName={restaurantName}
+                    onLogout={handleLogout}
+                />;
+            case 'kitchen':
+                return <KitchenView activeOrders={activeOrders} onStartCooking={handleStartCooking} onCompleteOrder={handleCompleteOrder} />;
+            case 'tables':
+            case 'dashboard':
+            case 'history':
+            case 'stock':
+            case 'leave':
+                 return (
+                    <div className="bg-gray-100 h-full text-gray-800">
                         {mainContent()}
                     </div>
-                    <div
-                        className="relative h-full transition-all duration-300 ease-in-out"
-                        style={{
-                            width: isOrderSidebarVisible ? (isDesktop ? '24rem' : '100%') : '0',
-                        }}
-                    >
-                        {isOrderSidebarVisible && (
-                            <Sidebar
-                                currentOrderItems={currentOrderItems}
-                                onQuantityChange={handleQuantityChange}
-                                onRemoveItem={handleRemoveItemFromOrder}
-                                onClearOrder={() => setCurrentOrderItems([])}
-                                onPlaceOrder={handlePlaceOrder}
-                                isPlacingOrder={isPlacingOrder}
-                                tables={tables}
-                                selectedTable={tables.find(t => t.id === selectedTableId) || null}
-                                onSelectTable={(id) => setSelectedTableId(id)}
-                                customerName={customerName}
-                                onCustomerNameChange={setCustomerName}
-                                customerCount={customerCount}
-                                onCustomerCountChange={setCustomerCount}
-                                isEditMode={canEdit}
-                                onAddNewTable={handleAddNewTable}
-                                onRemoveLastTable={handleRemoveLastTable}
-                                floors={floors}
-                                selectedFloor={selectedSidebarFloor || floors[0]}
-                                onFloorChange={setSelectedSidebarFloor}
-                                onAddFloor={() => {}}
-                                onRemoveFloor={() => {}}
-                                sendToKitchen={sendToKitchen}
-                                onSendToKitchenChange={(enabled, details) => {
-                                    setSendToKitchen(enabled);
-                                    setNotSentToKitchenDetails(details);
-                                }}
-                                onUpdateReservation={() => {}}
-                                onOpenSearch={() => setModalState(prev => ({ ...prev, isMenuSearch: true }))}
-                                currentUser={currentUser}
-                                onEditOrderItem={handleEditOrderItem}
-                                onViewChange={handleViewChange}
-                                restaurantName={restaurantName}
-                                onLogout={handleLogout}
-                            />
-                        )}
+                );
+            default:
+                return <div className="bg-gray-100 h-full text-gray-800">Unknown View</div>;
+        }
+    };
+    
+    return (
+        <div className="h-screen flex flex-col bg-gray-100 font-sans">
+            {renderAllModals()}
+            <header className="p-3 flex justify-between items-center border-b border-gray-800 flex-shrink-0 bg-gray-900 text-white">
+                <div onClick={handleConfirmLogout} className="flex items-center gap-3 cursor-pointer">
+                    <div className="w-10 h-10 rounded-full bg-gray-700 overflow-hidden border border-gray-600">
+                        <img src={currentUser?.profilePictureUrl || "https://img.icons8.com/fluency/48/user-male-circle.png"} alt="Profile" className="w-full h-full object-cover" />
                     </div>
-                    
-                    <button
-                        onClick={() => setIsOrderSidebarVisible(!isOrderSidebarVisible)}
-                        className={`absolute top-1/2 -translate-y-1/2 z-30 bg-gray-800 text-white rounded-l-full py-8 pl-1 pr-2 transform transition-all duration-300 ease-in-out hover:bg-gray-700 focus:outline-none shadow-lg ${isDesktop ? '' : 'hidden'}`}
-                        style={{ right: isOrderSidebarVisible ? '24rem' : '0' }}
-                        aria-label={isOrderSidebarVisible ? 'Hide order sidebar' : 'Show order sidebar'}
-                    >
-                        <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 transition-transform ${!isOrderSidebarVisible ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                        </svg>
-                        {!isOrderSidebarVisible && totalItems > 0 && (
-                             <div className={`absolute -top-1 -left-1 flex h-7 w-7 items-center justify-center rounded-full bg-red-500 text-sm font-bold text-white border-2 border-gray-800 ${isBadgeAnimating ? 'animate-bounce' : ''}`}>
-                                {totalItems > 9 ? '9+' : totalItems}
-                            </div>
-                        )}
-                    </button>
-                </main>
-                
-                {!shouldShowAdminSidebar && (
-                     <BottomNavBar 
-                        items={[
-                            {id: 'pos', label: 'POS', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4z" /><path fillRule="evenodd" d="M18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h2a1 1 0 100-2H9z" clipRule="evenodd" /></svg>, view: 'pos'},
-                            {id: 'tables', label: 'ผังโต๊ะ', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M2 5a2 2 0 012-2h12a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V5zm2 1v8h8V6H4z" /></svg>, view: 'tables', badge: tablesBadgeCount},
-                            {id: 'kitchen', label: 'ครัว', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M17.707 9.293a1 1 0 010 1.414l-7 7a1 1 0 01-1.414 0l-7-7A.997.997 0 012 10V5a3 3 0 013-3h10a3 3 0 013 3v5a.997.997 0 01-.293.707zM5 6a1 1 0 100 2 1 1 0 000-2zm3 0a1 1 0 100 2 1 1 0 000-2zm3 0a1 1 0 100 2 1 1 0 000-2z" clipRule="evenodd" /></svg>, view: 'kitchen', badge: kitchenBadgeCount},
-                            {id: 'history', label: 'ประวัติ', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" /></svg>, view: 'history'},
-                            {id: 'stock', label: 'สต๊อก', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>, view: 'stock'},
-                            {id: 'settings', label: 'ตั้งค่า', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924-1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>, onClick: () => setModalState(prev => ({...prev, isSettings: true}))}
-                        ]}
-                        currentView={currentView}
-                        onViewChange={handleViewChange}
-                    />
-                )}
-            </div>
+                    <div className="flex flex-col">
+                        <span className="font-bold text-white text-sm leading-tight">{currentUser?.username || 'Guest'}</span>
+                        <span className="text-[10px] text-gray-400 bg-gray-800 px-1.5 rounded border border-gray-700 self-start mt-0.5">{currentUser?.role || 'Staff'}</span>
+                    </div>
+                </div>
+                <div className="flex-1 text-center mx-2">
+                    <h2 className="text-xl font-extrabold text-red-600 tracking-wider truncate" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.5)' }}>
+                        {restaurantName || 'SeoulGood'}
+                    </h2>
+                </div>
+                <button
+                    onClick={() => setModalState(prev => ({ ...prev, isMenuSearch: true }))}
+                    className="p-2 rounded-full hover:bg-gray-800 transition-colors text-gray-300 hover:text-white flex-shrink-0"
+                    title="ค้นหาเมนู"
+                >
+                    <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                </button>
+            </header>
+
+            <main className="flex-1 overflow-y-auto relative pb-20">
+                {mobileMainContent()}
+            </main>
+            
+            <BottomNavBar 
+                items={[
+                    {id: 'pos', label: 'POS', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4z" /><path fillRule="evenodd" d="M18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h2a1 1 0 100-2H9z" clipRule="evenodd" /></svg>, view: 'pos'},
+                    {id: 'tables', label: 'ผังโต๊ะ', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M2 5a2 2 0 012-2h12a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V5zm2 1v8h8V6H4z" /></svg>, view: 'tables', badge: tablesBadgeCount},
+                    {id: 'kitchen', label: 'ครัว', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M17.707 9.293a1 1 0 010 1.414l-7 7a1 1 0 01-1.414 0l-7-7A.997.997 0 012 10V5a3 3 0 013-3h10a3 3 0 013 3v5a.997.997 0 01-.293.707zM5 6a1 1 0 100 2 1 1 0 000-2zm3 0a1 1 0 100 2 1 1 0 000-2zm3 0a1 1 0 100 2 1 1 0 000-2z" clipRule="evenodd" /></svg>, view: 'kitchen', badge: kitchenBadgeCount},
+                    {id: 'history', label: 'ประวัติ', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" /></svg>, view: 'history'},
+                    {id: 'stock', label: 'สต๊อก', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>, view: 'stock'},
+                    {id: 'settings', label: 'ตั้งค่า', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924-1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>, onClick: () => setModalState(prev => ({...prev, isSettings: true}))}
+                ]}
+                currentView={currentView}
+                onViewChange={handleViewChange}
+            />
         </div>
     );
 };

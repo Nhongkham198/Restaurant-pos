@@ -34,6 +34,7 @@ interface SidebarProps {
     onViewChange: (view: View) => void;
     restaurantName: string;
     onLogout: () => void;
+    isMobilePage?: boolean;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -66,7 +67,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
     onEditOrderItem,
     onViewChange,
     restaurantName,
-    onLogout
+    onLogout,
+    isMobilePage = false,
 }) => {
     const total = useMemo(() => {
         return currentOrderItems.reduce((sum, item) => sum + item.finalPrice * item.quantity, 0);
@@ -237,34 +239,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 }
             `}</style>
             
-            {/* Header */}
-            <div className="p-4 flex justify-between items-center border-b border-gray-800 flex-shrink-0 bg-gray-900 lg:hidden">
-                <div onClick={handleProfileClick} className="flex items-center gap-3 cursor-pointer">
-                    <div className="w-10 h-10 rounded-full bg-gray-700 overflow-hidden border border-gray-600">
-                            <img src={currentUser?.profilePictureUrl || "https://img.icons8.com/fluency/48/user-male-circle.png"} alt="Profile" className="w-full h-full object-cover" />
-                    </div>
-                    <div className="flex flex-col">
-                        <span className="font-bold text-white text-sm leading-tight">{currentUser?.username || 'Guest'}</span>
-                        <span className="text-[10px] text-gray-400 bg-gray-800 px-1.5 rounded border border-gray-700 self-start mt-0.5">{currentUser?.role || 'Staff'}</span>
-                    </div>
-                </div>
-                {/* Restaurant Name - Red Text as requested */}
-                <div className="flex-1 text-center mx-2">
-                        <h2 className="text-xl font-extrabold text-red-600 tracking-wider truncate" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.5)' }}>
-                        {restaurantName || 'SeoulGood'}
-                        </h2>
-                </div>
-                <button
-                    onClick={onOpenSearch}
-                    className="p-2 rounded-full hover:bg-gray-800 transition-colors text-gray-300 hover:text-white flex-shrink-0"
-                    title="ค้นหาเมนู"
-                >
-                    <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                    </svg>
-                </button>
-            </div>
-
             {/* Top section for customer info and tables */}
             <div className="p-4 space-y-4 flex-shrink-0 bg-gray-900">
                 {/* Customer Info */}
@@ -366,7 +340,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
             {/* Footer section */}
             <div className="p-4 border-t border-gray-800 flex-shrink-0 space-y-4 bg-gray-900">
-                <div className="hidden md:block">
+                {!isMobilePage && (
                     <label className="flex items-center gap-3 text-sm cursor-pointer p-2 rounded-lg hover:bg-gray-800 transition-colors">
                         <div className="relative flex items-center">
                             <input
@@ -381,7 +355,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         </div>
                         <span className="font-medium text-gray-300">ส่งไปที่ห้องครัว</span>
                     </label>
-                </div>
+                )}
                 
                 <div className="flex justify-between items-baseline">
                     <span className="text-gray-400 font-medium">ยอดรวม</span>
@@ -413,7 +387,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         )}
                     </button>
                 </div>
-                {isEditMode && (
+                {isEditMode && !isMobilePage && (
                     <div className="p-3 mt-2 border-t border-gray-800 space-y-2 bg-gray-800/50 rounded-lg">
                         <h3 className="text-xs font-bold text-center text-gray-500 uppercase tracking-wider">โหมดแก้ไข</h3>
                          <div className="grid grid-cols-2 gap-2">
@@ -427,53 +401,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         <p className="text-center text-gray-600 text-[10px]">โต๊ะใน "{selectedFloor}": {availableTables.length}</p>
                     </div>
                 )}
-
-                {/* Quick Navigation Footer */}
-                <div className="pt-4 border-t border-gray-800 mt-2 lg:hidden">
-                    <div className="grid grid-cols-6 gap-1">
-                        <NavButton 
-                            label="POS" 
-                            onClick={() => onViewChange('pos')}
-                            icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4z" /><path fillRule="evenodd" d="M18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h2a1 1 0 100-2H9z" clipRule="evenodd" /></svg>}
-                        />
-                        <NavButton 
-                            label="ประวัติ" 
-                            onClick={() => onViewChange('history')}
-                            icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" /></svg>}
-                        />
-                        <NavButton 
-                            label="Dash" 
-                            onClick={() => onViewChange('dashboard')}
-                            icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1-1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" /></svg>}
-                        />
-                        <NavButton 
-                            label="วันลา" 
-                            onClick={() => onViewChange('leave')}
-                            icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>}
-                        />
-                        <NavButton 
-                            label="สต๊อก" 
-                            onClick={() => onViewChange('stock')}
-                            icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>}
-                        />
-                        <NavButton 
-                            label="ผังโต๊ะ" 
-                            onClick={() => onViewChange('tables')}
-                            icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M2 5a2 2 0 012-2h12a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V5zm2 1v8h8V6H4z" /></svg>}
-                        />
-                    </div>
-                </div>
             </div>
         </div>
     );
 };
-
-const NavButton: React.FC<{ label: string, onClick: () => void, icon: React.ReactNode }> = ({ label, onClick, icon }) => (
-    <button 
-        onClick={onClick}
-        className="flex flex-col items-center justify-center p-2 rounded-lg bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white transition-colors"
-    >
-        <div className="w-5 h-5 mb-1">{icon}</div>
-        <span className="text-[10px] font-medium leading-none">{label}</span>
-    </button>
-);
