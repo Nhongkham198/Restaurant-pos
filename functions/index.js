@@ -1,4 +1,3 @@
-
 // functions/index.js (To be deployed to Firebase Cloud Functions)
 
 const functions = require('firebase-functions');
@@ -46,11 +45,12 @@ exports.sendHighPriorityOrderNotification = functions.region('asia-southeast1').
         }
         const allUsers = usersDoc.data().value || [];
 
-        // Filter for kitchen staff, collect all their tokens from the `fcmTokens` array.
+        // Filter for POS and kitchen staff, collect all their tokens from the `fcmTokens` array.
         const branchIdNumber = parseInt(context.params.branchId, 10);
-        const allKitchenStaffTokens = allUsers
+        const targetRoles = ['pos', 'kitchen'];
+        const allStaffTokens = allUsers
             .filter(user => 
-                user.role === 'kitchen' &&
+                targetRoles.includes(user.role) && // Send to both POS and Kitchen
                 user.fcmTokens && Array.isArray(user.fcmTokens) && user.fcmTokens.length > 0 &&
                 user.allowedBranchIds &&
                 user.allowedBranchIds.includes(branchIdNumber)
@@ -58,14 +58,14 @@ exports.sendHighPriorityOrderNotification = functions.region('asia-southeast1').
             .flatMap(user => user.fcmTokens); // Use flatMap to get all tokens into a single array.
 
         // Remove duplicate tokens to avoid sending multiple notifications to the same device.
-        const kitchenStaffTokens = [...new Set(allKitchenStaffTokens)];
+        const staffTokens = [...new Set(allStaffTokens)];
 
-        if (kitchenStaffTokens.length === 0) {
-            console.log('No kitchen staff with registered devices found for this branch.');
+        if (staffTokens.length === 0) {
+            console.log('No POS or Kitchen staff with registered devices found for this branch.');
             return null;
         }
         
-        console.log(`Found ${kitchenStaffTokens.length} kitchen staff tokens to notify.`);
+        console.log(`Found ${staffTokens.length} POS/Kitchen staff tokens to notify.`);
 
         // Construct the high-priority message payload.
         // We include a 'data' payload for the service worker to have more control.
@@ -91,7 +91,7 @@ exports.sendHighPriorityOrderNotification = functions.region('asia-southeast1').
             android: {
                 priority: 'high' // This is the crucial part for high-priority delivery.
             },
-            tokens: kitchenStaffTokens
+            tokens: staffTokens
         };
 
         // Send the message using the FCM Admin SDK.
@@ -102,7 +102,7 @@ exports.sendHighPriorityOrderNotification = functions.region('asia-southeast1').
                 const failedTokens = [];
                 response.responses.forEach((resp, idx) => {
                     if (!resp.success) {
-                        failedTokens.push(kitchenStaffTokens[idx]);
+                        failedTokens.push(staffTokens[idx]);
                     }
                 });
                 console.log('List of tokens that caused failures: ' + failedTokens);

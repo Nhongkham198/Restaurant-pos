@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 
 import { 
@@ -793,12 +792,15 @@ const App: React.FC = () => {
         const prevWaitingOrders = prevActiveOrdersRef.current?.filter(o => o.status === 'waiting') || [];
 
         if (newWaitingOrders.length > prevWaitingOrders.length && notificationSoundUrl) {
-            const audio = new Audio(notificationSoundUrl);
-            audio.play().catch(e => console.error("Error playing notification sound:", e));
+            // Only play sound for POS and Kitchen roles
+            if (currentUser && (currentUser.role === 'pos' || currentUser.role === 'kitchen')) {
+                const audio = new Audio(notificationSoundUrl);
+                audio.play().catch(e => console.error("Error playing notification sound:", e));
+            }
         }
         
         prevActiveOrdersRef.current = activeOrders;
-    }, [activeOrders, notificationSoundUrl]);
+    }, [activeOrders, notificationSoundUrl, currentUser]);
     
     // --- Staff Call Notification Effect ---
     useEffect(() => {
@@ -811,6 +813,11 @@ const App: React.FC = () => {
 
         // Only play sound for a new, unacknowledged call
         if (latestCall && latestCall.id !== activeCallRef.current?.id) {
+            // NEW: Check user role before showing notification
+            if (!currentUser || currentUser.role === 'auditor') {
+                return; // Do not show notification for auditor or if no user is logged in
+            }
+            
             activeCallRef.current = latestCall; // Mark this as the active call
             
             if (staffCallSoundUrl) {
@@ -839,7 +846,7 @@ const App: React.FC = () => {
             });
         }
 
-    }, [staffCalls, staffCallSoundUrl, setStaffCalls]);
+    }, [staffCalls, staffCallSoundUrl, setStaffCalls, currentUser]);
 
     // --- Customer Mode Setup Effect ---
     useEffect(() => {
