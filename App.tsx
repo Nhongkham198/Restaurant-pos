@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 
 import { 
@@ -598,11 +597,14 @@ const App: React.FC = () => {
             // 3. Update completed orders state (add the new one)
             setCompletedOrders(prevOrders => [...prevOrders, completedOrder]);
     
-            // 4. Reset the PIN for the paid table
+            // 4. Reset the PIN for the paid table. This is the key step that triggers the 
+            //    auto-logout on the customer's device.
             setTables(prevTables => 
                 prevTables.map(table => {
                     if (table.id === orderToComplete.tableId) {
-                        // Create a new object without the activePin property to avoid 'undefined' issues with Firestore.
+                        // Create a new object without the activePin property.
+                        // When this updates in Firestore, the customer's view will detect
+                        // that the PIN no longer matches and will log them out.
                         const newTable = { ...table };
                         delete newTable.activePin;
                         return newTable;
@@ -718,861 +720,341 @@ const App: React.FC = () => {
             setCancelledOrders(prev => prev.filter(o => !cancelledIdsToDelete.includes(o.id)));
             setPrintHistory(prev => prev.filter(p => !printIdsToDelete.includes(p.id)));
             Swal.fire('ลบถาวรแล้ว!', 'รายการถูกลบออกจากระบบเรียบร้อย', 'success');
-        } else { 
-            // Other roles with permission (like branch-admin) perform a soft delete.
+        } else {
+            // Branch admin performs a soft delete.
             const username = currentUser.username;
-            setCompletedOrders(prev => prev.map(o => 
-                completedIdsToDelete.includes(o.id) ? { ...o, isDeleted: true, deletedBy: username } : o
-            ));
-            setCancelledOrders(prev => prev.map(o => 
-                cancelledIdsToDelete.includes(o.id) ? { ...o, isDeleted: true, deletedBy: username } : o
-            ));
-            setPrintHistory(prev => prev.map(p => 
-                printIdsToDelete.includes(p.id) ? { ...p, isDeleted: true, deletedBy: username } : p
-            ));
-            Swal.fire('ลบรายการแล้ว', 'รายการที่เลือกถูกลบถาวรเรียบร้อย', 'success');
-        }
-    };
-
-    const handleSaveSettings = (
-        newQrCodeUrl: string,
-        newSoundUrl: string,
-        newStaffCallSoundUrl: string,
-        newPrinterConfig: PrinterConfig,
-        newOpeningTime: string,
-        newClosingTime: string
-    ) => {
-        setQrCodeUrl(newQrCodeUrl);
-        setNotificationSoundUrl(newSoundUrl);
-        setStaffCallSoundUrl(newStaffCallSoundUrl);
-        setPrinterConfig(newPrinterConfig);
-        setOpeningTime(newOpeningTime);
-        setClosingTime(newClosingTime);
-        setModalState(prev => ({ ...prev, isSettings: false }));
-        Swal.fire({
-            toast: true,
-            position: 'top-end',
-            icon: 'success',
-            title: 'บันทึกการตั้งค่าทั้งหมดแล้ว',
-            showConfirmButton: false,
-            timer: 2000
-        });
-    };
-
-    const handleSavePrinterConfig = (newPrinterConfig: PrinterConfig) => {
-        setPrinterConfig(newPrinterConfig);
-    };
-
-    const handleMoveTable = (orderId: number, newTableId: number) => {
-        const orderToMove = activeOrders.find(o => o.id === orderId);
-        const newTable = tables.find(t => t.id === newTableId);
-    
-        if (!orderToMove || !newTable) {
-            Swal.fire('เกิดข้อผิดพลาด', 'ไม่พบออเดอร์หรือโต๊ะที่เลือก', 'error');
-            return;
-        }
-    
-        setActiveOrders(prev => prev.map(o => 
-            o.id === orderId ? { ...o, tableId: newTable.id, tableName: newTable.name, floor: newTable.floor } : o
-        ));
-        
-        setModalState(prev => ({ ...prev, isMoveTable: false }));
-        setOrderForModal(null);
-        Swal.fire('สำเร็จ', `ย้ายออเดอร์ #${orderToMove.orderNumber} ไปที่โต๊ะ ${newTable.name} แล้ว`, 'success');
-    };
-    
-    const handleConfirmSplit = (itemsToSplit: OrderItem[]) => {
-        if (!orderForModal || orderForModal.status === 'completed') return;
-        const originalOrder = orderForModal as ActiveOrder;
-    
-        const maxOrderNumber = Math.max(0, ...activeOrders.map(o => o.orderNumber), ...completedOrders.map(o => o.orderNumber));
-        const newOrderNumber = maxOrderNumber + 1;
-        const newId = Date.now();
-    
-        const subtotal = itemsToSplit.reduce((sum, item) => sum + item.finalPrice * item.quantity, 0);
-        const taxAmount = subtotal * (originalOrder.taxRate / 100);
-    
-        const newSplitOrder: ActiveOrder = {
-            ...originalOrder,
-            id: newId,
-            orderNumber: newOrderNumber,
-            items: itemsToSplit,
-            taxAmount: taxAmount,
-            parentOrderId: originalOrder.id,
-            orderTime: Date.now(),
-            status: 'served', // Assume only served items can be split
-        };
-    
-        const updatedOriginalItems: OrderItem[] = [];
-        for (const originalItem of originalOrder.items) {
-            const splitItem = itemsToSplit.find(si => si.cartItemId === originalItem.cartItemId);
-            if (splitItem) {
-                const remainingQuantity = originalItem.quantity - splitItem.quantity;
-                if (remainingQuantity > 0) {
-                    updatedOriginalItems.push({ ...originalItem, quantity: remainingQuantity });
-                }
-            } else {
-                updatedOriginalItems.push(originalItem);
-            }
-        }
-    
-        const updatedOriginalOrder = { ...originalOrder, items: updatedOriginalItems };
-        const originalSubtotal = updatedOriginalOrder.items.reduce((sum, item) => sum + item.finalPrice * item.quantity, 0);
-        updatedOriginalOrder.taxAmount = originalSubtotal * (updatedOriginalOrder.taxRate / 100);
-    
-        setActiveOrders(prev => {
-            const otherOrders = prev.filter(o => o.id !== originalOrder.id);
-            return updatedOriginalOrder.items.length > 0
-                ? [...otherOrders, updatedOriginalOrder, newSplitOrder]
-                : [...otherOrders, newSplitOrder];
-        });
-    
-        setModalState(prev => ({ ...prev, isSplitBill: false }));
-        setOrderForModal(null);
-        Swal.fire('สำเร็จ', `แยกบิล #${newSplitOrder.orderNumber} เรียบร้อย`, 'success');
-    };
-    
-    const handleConfirmMerge = (sourceOrderIds: number[], targetOrderId: number) => {
-        const targetOrder = activeOrders.find(o => o.id === targetOrderId);
-        const sourceOrders = activeOrders.filter(o => sourceOrderIds.includes(o.id));
-    
-        if (!targetOrder || sourceOrders.length === 0) {
-            Swal.fire('เกิดข้อผิดพลาด', 'ไม่พบออเดอร์ที่ต้องการรวม', 'error');
-            return;
-        }
-    
-        const combinedItems = [...targetOrder.items];
-        
-        const isInterTableMerge = sourceOrders.some(so => so.tableId !== targetOrder.tableId);
-        
-        let totalCustomerCount = targetOrder.customerCount;
-        if (isInterTableMerge) {
-            totalCustomerCount += sourceOrders.reduce((sum, o) => sum + o.customerCount, 0);
-        }
-    
-        for (const sourceOrder of sourceOrders) {
-            for (const sourceItem of sourceOrder.items) {
-                const existingItemIndex = combinedItems.findIndex(ci => ci.cartItemId === sourceItem.cartItemId);
-                if (existingItemIndex > -1) {
-                    combinedItems[existingItemIndex].quantity += sourceItem.quantity;
-                } else {
-                    combinedItems.push(sourceItem);
-                }
-            }
-        }
-    
-        const updatedTargetOrder = { ...targetOrder, items: combinedItems, customerCount: totalCustomerCount };
-        const subtotal = updatedTargetOrder.items.reduce((sum, item) => sum + item.finalPrice * item.quantity, 0);
-        updatedTargetOrder.taxAmount = subtotal * (updatedTargetOrder.taxRate / 100);
-    
-        setActiveOrders(prev => {
-            const remainingOrders = prev.filter(o => !sourceOrderIds.includes(o.id) && o.id !== targetOrderId);
-            return [...remainingOrders, updatedTargetOrder];
-        });
-    
-        setModalState(prev => ({ ...prev, isMergeBill: false }));
-        setOrderForModal(null);
-        Swal.fire('สำเร็จ', 'รวมบิลเรียบร้อยแล้ว', 'success');
-    };
-
-    const handleInitiateCashBill = (order: CompletedOrder) => {
-        setOrderForModal(order);
-        setModalState(prev => ({ ...prev, isCashBill: true }));
-    };
-
-    const handleSaveLeaveRequest = (requestData: Omit<LeaveRequest, 'id' | 'status' | 'branchId'>) => {
-        if (!selectedBranch) {
-            Swal.fire('เกิดข้อผิดพลาด', 'กรุณาเลือกสาขาก่อนส่งคำขอ', 'error');
-            return;
-        }
-
-        const newLeaveRequest: LeaveRequest = {
-            ...requestData,
-            id: Date.now(), // Use timestamp for a unique ID
-            status: 'pending',
-            branchId: selectedBranch.id,
-            acknowledgedBy: [], // Initialize acknowledgedBy
-        };
-
-        setLeaveRequests(prevRequests => [...prevRequests, newLeaveRequest]);
-        
-        setModalState(prev => ({...prev, isLeaveRequest: false}));
-
-        Swal.fire({
-            icon: 'success',
-            title: 'ส่งคำขอสำเร็จ!',
-            text: 'คำขอวันลาของคุณได้ถูกส่งเข้าระบบเรียบร้อยแล้ว',
-            timer: 2000,
-            showConfirmButton: false,
-        });
-    };
-    
-    const handleUpdateLeaveStatus = (requestId: number, status: 'approved' | 'rejected') => {
-        const request = leaveRequests.find(r => r.id === requestId);
-        if (!request) {
-            Swal.fire('เกิดข้อผิดพลาด', 'ไม่พบคำขอลา', 'error');
-            return;
-        }
-    
-        const user = users.find(u => u.id === request.userId);
-        if (!user) {
-            Swal.fire('เกิดข้อผิดพลาด', 'ไม่พบผู้ใช้สำหรับคำขอนี้', 'error');
-            return;
-        }
-    
-        if (status === 'approved') {
-            const startDay = new Date(request.startDate);
-            startDay.setHours(0, 0, 0, 0);
-            const endDay = new Date(request.endDate);
-            endDay.setHours(0, 0, 0, 0);
-    
-            const durationInMs = endDay.getTime() - startDay.getTime();
-            const durationInDays = request.isHalfDay ? 0.5 : (durationInMs / (1000 * 60 * 60 * 24)) + 1;
-    
-            const usedDays = leaveRequests.reduce((acc, req) => {
-                if (req.userId === user.id && req.status === 'approved' && req.type === request.type) {
-                    const reqStartDay = new Date(req.startDate);
-                    reqStartDay.setHours(0, 0, 0, 0);
-                    const reqEndDay = new Date(req.endDate);
-                    reqEndDay.setHours(0, 0, 0, 0);
-                    const reqDurationInMs = reqEndDay.getTime() - reqStartDay.getTime();
-                    const reqDuration = req.isHalfDay ? 0.5 : (reqDurationInMs / (1000 * 60 * 60 * 24)) + 1;
-                    return acc + reqDuration;
-                }
-                return acc;
-            }, 0);
-    
-            const totalQuota = (user.leaveQuotas && user.leaveQuotas[request.type as keyof typeof user.leaveQuotas]) ?? 0;
-            const remainingDays = totalQuota - usedDays;
-    
-            if (['sick', 'personal', 'vacation'].includes(request.type)) {
-                if (durationInDays > remainingDays) {
-                    const typeLabel = request.type === 'sick' ? 'ลาป่วย' : request.type === 'personal' ? 'ลากิจ' : 'ลาพักร้อน';
-                    Swal.fire(
-                        'วันลาไม่เพียงพอ',
-                        `ไม่สามารถอนุมัติได้ พนักงานมี${typeLabel}เหลือ ${remainingDays} วัน (ขอ ${durationInDays} วัน)`,
-                        'error'
-                    );
-                    return;
-                }
-            }
-    
-            setLeaveRequests(prev => prev.map(r => r.id === requestId ? { ...r, status: 'approved' } : r));
-            Swal.fire('อนุมัติแล้ว!', 'คำขอวันลาได้รับการอนุมัติ', 'success');
-        } else { // 'rejected'
-            setLeaveRequests(prev => prev.map(r => r.id === requestId ? { ...r, status: 'rejected' } : r));
-            Swal.fire('ปฏิเสธแล้ว', 'คำขอวันลาถูกปฏิเสธ', 'info');
-        }
-    };
-
-    const handleDeleteLeaveRequest = async (requestId: number): Promise<boolean> => {
-        try {
-            setLeaveRequests(prev => prev.filter(req => req.id !== requestId));
-            return true;
-        } catch (error) {
-            console.error("Error deleting leave request from state:", error);
-            return false;
+            setCompletedOrders(prev => prev.map(o => completedIdsToDelete.includes(o.id) ? { ...o, isDeleted: true, deletedBy: username } : o));
+            setCancelledOrders(prev => prev.map(o => cancelledIdsToDelete.includes(o.id) ? { ...o, isDeleted: true, deletedBy: username } : o));
+            setPrintHistory(prev => prev.map(p => printIdsToDelete.includes(p.id) ? { ...p, isDeleted: true, deletedBy: username } : p));
+            Swal.fire('ลบแล้ว!', 'รายการถูกซ่อนจากประวัติเรียบร้อย', 'success');
         }
     };
 
     const handleUpdateCurrentUser = (updates: Partial<User>) => {
-        if (currentUser) {
-            const updatedUser = { ...currentUser, ...updates };
-            setCurrentUser(updatedUser);
-            setUsers(prevUsers => prevUsers.map(u => u.id === currentUser.id ? updatedUser : u));
-        }
+        if (!currentUser) return;
+        
+        const updatedUser = { ...currentUser, ...updates };
+        setCurrentUser(updatedUser);
+        localStorage.setItem('currentUser', JSON.stringify(updatedUser));
+
+        // Also update the master users list
+        setUsers(prevUsers => prevUsers.map(u => u.id === currentUser.id ? updatedUser : u));
+
+        Swal.fire({
+            toast: true,
+            position: 'top-end',
+            icon: 'success',
+            title: 'อัปเดตโปรไฟล์แล้ว',
+            showConfirmButton: false,
+            timer: 1500
+        });
     };
 
+    const handleStaffCall = (table: Table, customerName: string) => {
+        if (!selectedBranch) return;
+        const newCall: StaffCall = {
+            id: Date.now(),
+            tableId: table.id,
+            tableName: table.name,
+            customerName: customerName,
+            branchId: selectedBranch.id,
+            timestamp: Date.now()
+        };
+        setStaffCalls(prev => [...prev, newCall]);
+    };
+    
     // ============================================================================
     // 4. EFFECTS
     // ============================================================================
-    
-    // --- RESPONSIVE EFFECT ---
+
+    // --- Responsive Design Effect ---
     useEffect(() => {
-        const handleResize = () => {
-            setIsDesktop(window.innerWidth >= 1024);
-        };
+        const handleResize = () => setIsDesktop(window.innerWidth >= 1024);
         window.addEventListener('resize', handleResize);
         return () => window.removeEventListener('resize', handleResize);
     }, []);
 
-    // --- INITIALIZATION EFFECTS ---
-    useEffect(() => {
-        if (floors && floors.length > 0) {
-            if (!selectedSidebarFloor || !floors.includes(selectedSidebarFloor)) {
-                setSelectedSidebarFloor(floors[0]);
-            }
-        } else {
-            setSelectedSidebarFloor('');
-        }
-    }, [floors, selectedSidebarFloor]);
-
-    // --- SESSION PERSISTENCE ---
-    useEffect(() => {
-        if (currentUser && !isCustomerMode) {
-            if (selectedBranch) {
-                localStorage.setItem('selectedBranch', JSON.stringify(selectedBranch));
-            } else {
-                localStorage.removeItem('selectedBranch');
-            }
-        }
-    }, [selectedBranch, currentUser, isCustomerMode]);
-
-    useEffect(() => {
-        localStorage.setItem('currentView', currentView);
-    }, [currentView]);
-
-    // --- PROACTIVE IMAGE CACHING ---
-    useEffect(() => {
-        if ('serviceWorker' in navigator && navigator.serviceWorker.controller && currentUser && !isCustomerMode && menuItems && menuItems.length > 0 && !imageCacheTriggeredRef.current) {
-            
-            setIsCachingImages(true);
-            imageCacheTriggeredRef.current = true; // Mark as triggered for this session
-
-            const imageUrls = [...new Set(menuItems.map(item => item.imageUrl).filter(Boolean))];
-            if (imageUrls.length > 0) {
-                console.log(`[App] Sending ${imageUrls.length} image URLs to Service Worker for precaching.`);
-                navigator.serviceWorker.controller.postMessage({
-                    type: 'CACHE_IMAGES',
-                    urls: imageUrls
-                });
-            } else {
-                setIsCachingImages(false);
-            }
-        }
-    }, [menuItems, currentUser, isCustomerMode]);
-
-    useEffect(() => {
-        const handleServiceWorkerMessage = (event: MessageEvent) => {
-            if (event.data && event.data.type === 'CACHE_IMAGES_COMPLETE') {
-                console.log('[App] Received CACHE_IMAGES_COMPLETE from Service Worker.');
-                setIsCachingImages(false);
-            }
-        };
-
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.addEventListener('message', handleServiceWorkerMessage);
-        }
-
-        return () => {
-            if ('serviceWorker' in navigator) {
-                navigator.serviceWorker.removeEventListener('message', handleServiceWorkerMessage);
-            }
-        };
-    }, []);
-
-    // --- CUSTOMER MODE INITIALIZATION ---
-    useEffect(() => {
-        const params = new URLSearchParams(window.location.search);
-        const mode = params.get('mode');
-        const tableIdParam = params.get('tableId');
-        const branchIdParam = params.get('branchId');
-
-        if (mode === 'customer' && tableIdParam) {
-            setIsCustomerMode(true);
-            setCustomerTableId(Number(tableIdParam));
-
-            // Wait for branches to be loaded before setting the branch
-            if (branches.length > 0) {
-                let branchToSet: Branch | undefined;
-                if (branchIdParam) {
-                    branchToSet = branches.find(b => b.id === Number(branchIdParam));
-                }
-
-                if (!branchToSet) {
-                    console.warn(`Customer mode: branchId "${branchIdParam}" not found or not provided. Falling back to the first available branch.`);
-                    branchToSet = branches[0];
-                }
-                
-                if (branchToSet) {
-                    setSelectedBranch(branchToSet);
-                    localStorage.setItem('customerSelectedBranch', JSON.stringify(branchToSet));
-                }
-            }
-        }
-    }, [branches]);
-
-
-    // --- USER SYNC EFFECT ---
-    useEffect(() => {
-        if (currentUser && users && users.length > 0) {
-            const isUsersLoadedFromFirestore = users !== DEFAULT_USERS;
+    // --- Update localStorage on state changes ---
+    useEffect(() => { localStorage.setItem('currentView', currentView); }, [currentView]);
     
-            const foundUser = users.find(u => u.id === currentUser.id);
-    
-            if (foundUser) {
-                if (JSON.stringify(foundUser) !== JSON.stringify(currentUser)) {
-                    setCurrentUser(foundUser);
-                }
-            } else {
-                if (isUsersLoadedFromFirestore) {
-                    handleLogout();
-                }
-            }
-        }
-    }, [users, currentUser]);
-
-    // --- AUDITOR VIEW ENFORCEMENT ---
+    // --- Badge Animation ---
     useEffect(() => {
-        if (currentUser?.role === 'auditor') {
-            const allowedViews: View[] = ['dashboard', 'history', 'leave'];
-            if (!allowedViews.includes(currentView)) {
-                setCurrentView('dashboard');
-            }
-        }
-    }, [currentUser, currentView]);
-
-    // --- Badge Animation Effect ---
-    useEffect(() => {
-        // Animate badge on item add when sidebar is collapsed
         if (totalItems > prevTotalItems.current && !isOrderSidebarVisible) {
             setIsBadgeAnimating(true);
-            // The bounce animation is 1s long. We remove the class after it finishes.
-            const timer = setTimeout(() => setIsBadgeAnimating(false), 1000); 
+            const timer = setTimeout(() => setIsBadgeAnimating(false), 500); // Duration of animation
             return () => clearTimeout(timer);
         }
         prevTotalItems.current = totalItems;
     }, [totalItems, isOrderSidebarVisible]);
 
-    // --- Push Notification Setup ---
+    // --- Sound Notification Effect ---
     useEffect(() => {
-        const setupPushNotifications = async (userToUpdate: User) => {
-            if (!db || !('serviceWorker' in navigator) || !('PushManager' in window)) {
-                console.log("Push notifications are not supported in this browser.");
-                return;
-            }
+        const newWaitingOrders = activeOrders.filter(o => o.status === 'waiting');
+        const prevWaitingOrders = prevActiveOrdersRef.current?.filter(o => o.status === 'waiting') || [];
 
-            try {
-                const messaging = firebase.messaging();
-
-                messaging.onMessage((payload) => {
-                    console.log('Message received. ', payload);
-                    const notificationTitle = payload.notification?.title || 'แจ้งเตือนใหม่';
-                    const notificationBody = payload.notification?.body || 'คุณมีข้อความใหม่';
-                    Swal.fire({
-                        title: notificationTitle,
-                        text: notificationBody,
-                        icon: 'info',
-                    });
-                });
-                
-                const permission = await Notification.requestPermission();
-                if (permission === 'granted') {
-                    console.log('Notification permission granted.');
-                    
-                    const vapidKey = 'BMIo7v3beGbvOlEciEL3TN5lFAZBZ-52zkg-vqgo8gudi4QW4UyIR4HDEk17Q2pYb3FFDCgzyq5oYFKIGXGfpJU'; 
-                    const currentToken = await messaging.getToken({ vapidKey });
-                    setCurrentFcmToken(currentToken);
-
-                    if (currentToken) {
-                        const existingTokens = userToUpdate.fcmTokens || [];
-                        if (!existingTokens.includes(currentToken)) {
-                            console.log('Adding new FCM token to user profile:', currentToken);
-                            const newTokens = [...existingTokens, currentToken];
-                            setUsers(prevUsers =>
-                                prevUsers.map(u =>
-                                    u.id === userToUpdate.id ? { ...u, fcmTokens: newTokens } : u
-                                )
-                            );
-                        }
-                    } else {
-                        console.log('No registration token available. Request permission to generate one.');
-                    }
-                } else {
-                    console.log('Unable to get permission to notify.');
-                }
-            } catch (err) {
-                console.error('An error occurred while setting up push notifications.', err);
-            }
-        };
-
-        // Allow Kitchen, POS, Branch Admin, and Admin to receive notifications
-        const allowedRoles = ['kitchen', 'pos', 'branch-admin', 'admin'];
-        if (currentUser && !isCustomerMode && allowedRoles.includes(currentUser.role)) {
-            setupPushNotifications(currentUser);
+        if (newWaitingOrders.length > prevWaitingOrders.length && notificationSoundUrl) {
+            const audio = new Audio(notificationSoundUrl);
+            audio.play().catch(e => console.error("Error playing notification sound:", e));
         }
-    }, [currentUser, setUsers, isCustomerMode]);
-
+        
+        prevActiveOrdersRef.current = activeOrders;
+    }, [activeOrders, notificationSoundUrl]);
+    
+    // --- Staff Call Notification Effect ---
     useEffect(() => {
-        if (window.AndroidBridge?.setPendingOrderCount) {
+        if (staffCalls.length === 0) {
+            activeCallRef.current = null; // Reset if all calls are cleared
+            return;
+        }
+
+        const latestCall = staffCalls[staffCalls.length - 1];
+
+        // Only play sound for a new, unacknowledged call
+        if (latestCall && latestCall.id !== activeCallRef.current?.id) {
+            activeCallRef.current = latestCall; // Mark this as the active call
+            
+            if (staffCallSoundUrl) {
+                if (!staffCallAudioRef.current) {
+                    staffCallAudioRef.current = new Audio(staffCallSoundUrl);
+                    staffCallAudioRef.current.loop = true; // Loop the sound
+                }
+                staffCallAudioRef.current.play().catch(e => console.error("Error playing staff call sound:", e));
+            }
+
+            Swal.fire({
+                title: 'ลูกค้าเรียกพนักงาน!',
+                html: `โต๊ะ <strong>${latestCall.tableName}</strong> (คุณ ${latestCall.customerName}) ต้องการความช่วยเหลือ`,
+                icon: 'info',
+                confirmButtonText: 'รับทราบ',
+                allowOutsideClick: false,
+            }).then(() => {
+                // Stop sound and clear the call from the list
+                if (staffCallAudioRef.current) {
+                    staffCallAudioRef.current.pause();
+                    staffCallAudioRef.current.currentTime = 0;
+                }
+                // Remove only the acknowledged call
+                setStaffCalls(prev => prev.filter(call => call.id !== latestCall.id));
+                activeCallRef.current = null;
+            });
+        }
+
+    }, [staffCalls, staffCallSoundUrl, setStaffCalls]);
+
+    // --- Customer Mode Setup Effect ---
+    useEffect(() => {
+        // --- Customer Mode Detection ---
+        const params = new URLSearchParams(window.location.search);
+        const mode = params.get('mode');
+        const branchIdParam = params.get('branchId');
+        const tableIdParam = params.get('tableId');
+
+        if (mode === 'customer' && branchIdParam && tableIdParam) {
+            setIsCustomerMode(true);
+            const branch = branches.find(b => b.id === parseInt(branchIdParam, 10));
+            if (branch) {
+                setSelectedBranch(branch);
+                localStorage.setItem('customerSelectedBranch', JSON.stringify(branch));
+            }
+            setCustomerTableId(parseInt(tableIdParam, 10));
+        } else {
+            setIsCustomerMode(false);
+        }
+    }, [branches]); // Depends on branches to find the correct one
+    
+    // --- Set Pending Order Count for Android Bridge ---
+    useEffect(() => {
+        if (window.AndroidBridge) {
             window.AndroidBridge.setPendingOrderCount(kitchenBadgeCount);
         }
     }, [kitchenBadgeCount]);
 
-    // --- KITCHEN NOTIFICATION EFFECT ---
-    useEffect(() => {
-        if (currentUser?.role === 'kitchen' && prevActiveOrdersRef.current) {
-            const previousOrders = prevActiveOrdersRef.current;
-            if (activeOrders.length > previousOrders.length) {
-                const previousOrderIds = new Set(previousOrders.map(o => o.id));
-                const newOrders = activeOrders.filter(o => !previousOrderIds.has(o.id) && o.status === 'waiting');
-
-                if (newOrders.length > 0) {
-                    if (notificationSoundUrl) {
-                        const audio = new Audio(notificationSoundUrl);
-                        audio.play().catch(error => console.error("Error playing notification sound:", error));
-                    }
-                    const orderToShow = newOrders[0];
-                    Swal.fire({
-                        title: '🔔 มีออเดอร์ใหม่!',
-                        html: `<b>โต๊ะ ${orderToShow.tableName}</b> (ออเดอร์ #${orderToShow.orderNumber.toString().padStart(3, '0')})`,
-                        icon: 'info',
-                        confirmButtonText: 'รับทราบ',
-                        allowOutsideClick: false,
-                        allowEscapeKey: false,
-                    });
-                }
-            }
-        }
-        prevActiveOrdersRef.current = activeOrders;
-    }, [activeOrders, currentUser, notificationSoundUrl]);
-
-    // --- KITCHEN LOGIN REMINDER & DEFAULT VIEW EFFECT ---
-    useEffect(() => {
-        const isNewLogin = currentUser && prevUserRef.current?.id !== currentUser.id;
-    
-        if (isNewLogin) {
-            // Set default view on new login based on role
-            if (currentUser.role === 'kitchen') {
-                setCurrentView('kitchen');
-    
-                // Existing kitchen login reminder logic
-                const waitingOrders = activeOrders.filter(o => o.status === 'waiting');
-                if (waitingOrders.length > 0) {
-                    const oldestWaitingOrder = waitingOrders.sort((a, b) => a.orderTime - b.orderTime)[0];
-    
-                    if (notificationSoundUrl) {
-                        const audio = new Audio(notificationSoundUrl);
-                        audio.play().catch(error => console.error("Error playing login reminder sound:", error));
-                    }
-                    
-                    Swal.fire({
-                        title: '🔔 มีออเดอร์รออยู่ในคิว!',
-                        html: `มี <b>${waitingOrders.length}</b> ออเดอร์ที่ยังไม่ได้รับ<br/>ออเดอร์แรกคือ <b>#${oldestWaitingOrder.orderNumber.toString().padStart(3, '0')}</b>`,
-                        icon: 'info',
-                        confirmButtonText: 'รับทราบ',
-                        allowOutsideClick: false,
-                        allowEscapeKey: false,
-                    });
-                }
-            } else if (currentUser.role === 'pos') {
-                setCurrentView('pos');
-            }
-        }
-    
-        prevUserRef.current = currentUser;
-    }, [currentUser, activeOrders, notificationSoundUrl]);
-
-    // --- LEAVE REQUEST ACKNOWLEDGEMENT NOTIFICATION EFFECT ---
-    useEffect(() => {
-        if (isShowingLeaveAlertRef.current || !currentUser || !['admin', 'branch-admin', 'auditor'].includes(currentUser.role)) {
-            return;
-        }
-    
-        const requestToNotify = leaveRequests
-            .sort((a, b) => a.id - b.id) // Process oldest requests first
-            .find(req => {
-                const isAcknowledged = req.acknowledgedBy?.includes(currentUser.id);
-                if (isAcknowledged) {
-                    return false;
-                }
-                
-                let isResponsible = false;
-                if (currentUser.role === 'admin') {
-                    isResponsible = true;
-                } else if ((currentUser.role === 'branch-admin' || currentUser.role === 'auditor') && currentUser.allowedBranchIds?.includes(req.branchId)) {
-                    isResponsible = true;
-                }
-    
-                return isResponsible;
-            });
-    
-        if (requestToNotify) {
-            isShowingLeaveAlertRef.current = true;
-    
-            Swal.fire({
-                title: '📝 มีคำขอวันลาใหม่',
-                html: `<b>${requestToNotify.username}</b> ได้ส่งคำขอลา<br>เหตุผล: ${requestToNotify.reason}`,
-                icon: 'info',
-                confirmButtonText: 'รับทราบ',
-                allowOutsideClick: false,
-                allowEscapeKey: false,
-            }).then(() => {
-                setLeaveRequests(prev => prev.map(leave => {
-                    if (leave.id === requestToNotify.id) {
-                        const newAckBy = [...new Set([...(leave.acknowledgedBy || []), currentUser.id])];
-                        return { ...leave, acknowledgedBy: newAckBy };
-                    }
-                    return leave;
-                }));
-                isShowingLeaveAlertRef.current = false;
-            });
-        }
-    }, [leaveRequests, currentUser, setLeaveRequests]);
-
-    // --- STAFF CALL NOTIFICATION & SOUND EFFECT ---
-    useEffect(() => {
-        const shouldPlayAudio = staffCalls.length > 0 && staffCallSoundUrl && !isCustomerMode && currentUser && ['pos', 'kitchen', 'admin', 'branch-admin'].includes(currentUser.role);
-    
-        // Initialize or update audio object if URL is available
-        if (staffCallSoundUrl) {
-            if (!staffCallAudioRef.current) {
-                staffCallAudioRef.current = new Audio(staffCallSoundUrl);
-                staffCallAudioRef.current.loop = true;
-            } else if (staffCallAudioRef.current.src !== staffCallSoundUrl) {
-                // If the sound source changed in settings, update it
-                staffCallAudioRef.current.src = staffCallSoundUrl;
-            }
-        }
-    
-        if (shouldPlayAudio && staffCallAudioRef.current) {
-            // Attempt to play, and catch any browser autoplay policy errors
-            if (staffCallAudioRef.current.paused) {
-                staffCallAudioRef.current.play().catch(e => console.error("Error playing staff call sound:", e));
-            }
-        } else if (staffCallAudioRef.current && !staffCallAudioRef.current.paused) {
-            // Stop playing if conditions are not met
-            staffCallAudioRef.current.pause();
-            staffCallAudioRef.current.currentTime = 0;
-        }
-    
-        // Cleanup on component unmount
-        return () => {
-            if (staffCallAudioRef.current) {
-                staffCallAudioRef.current.pause();
-            }
-        };
-    }, [staffCalls.length, staffCallSoundUrl, isCustomerMode, currentUser]);
-
-    useEffect(() => {
-        const showOrHideNotification = async () => {
-            // Guard clauses to prevent showing modal in wrong context
-            if (isCustomerMode || !currentUser || !['pos', 'kitchen', 'admin', 'branch-admin'].includes(currentUser.role)) {
-                // If a modal is somehow visible, close it
-                if (Swal.isVisible()) {
-                    Swal.close();
-                    activeCallRef.current = null;
-                }
-                return;
-            }
-
-            // Get the first active call from the queue
-            const activeCall = staffCalls.length > 0 ? staffCalls[0] : null;
-
-            if (activeCall) {
-                // Check if a modal for this specific call is already being managed by this client
-                if (activeCallRef.current?.id !== activeCall.id) {
-                    // Close any previously visible modal before showing a new one
-                    if (Swal.isVisible()) {
-                        Swal.close();
-                    }
-                    
-                    // Track the new call this client is now handling
-                    activeCallRef.current = activeCall;
-
-                    const result = await Swal.fire({
-                        title: '🔔 ลูกค้าเรียกพนักงาน!',
-                        html: `โต๊ะ <b>${activeCall.tableName}</b> (คุณ ${activeCall.customerName})<br/>ต้องการความช่วยเหลือ`,
-                        icon: 'info',
-                        confirmButtonText: 'รับทราบ',
-                        allowOutsideClick: false,
-                        allowEscapeKey: false
-                    });
-
-                    if (result.isConfirmed) {
-                        // User acknowledged the call. Remove it from the central state.
-                        setStaffCalls(prev => prev.filter(call => call.id !== activeCall.id));
-                    }
-                    // Reset the ref after interaction is complete
-                    activeCallRef.current = null;
-                }
-            } else {
-                // No active calls, so ensure any modal this client was tracking is closed.
-                if (activeCallRef.current) {
-                    if (Swal.isVisible()) {
-                        Swal.close();
-                    }
-                    activeCallRef.current = null;
-                }
-            }
-        };
-
-        showOrHideNotification();
-    }, [staffCalls, currentUser, isCustomerMode, setStaffCalls]);
-
-
-    // --- ORDER TIMEOUT NOTIFICATION EFFECT ---
-    useEffect(() => {
-        const ORDER_TIMEOUT_MINUTES = 15;
-        const checkOverdueOrders = () => {
-            const now = Date.now();
-            const overdueLimit = ORDER_TIMEOUT_MINUTES * 60 * 1000;
-    
-            const newlyOverdueOrders: ActiveOrder[] = [];
-            const orderIdsToMarkAsOverdue: number[] = [];
-    
-            activeOrders.forEach(order => {
-                if (order.status === 'cooking' && order.cookingStartTime) {
-                    const startTime = order.cookingStartTime;
-                    const elapsedTime = now - startTime;
-    
-                    if (elapsedTime > overdueLimit) {
-                        if (!order.isOverdue) {
-                            orderIdsToMarkAsOverdue.push(order.id);
-                        }
-                        if (!notifiedOverdueOrders.has(order.id)) {
-                            newlyOverdueOrders.push(order);
-                        }
-                    }
-                }
-            });
-    
-            if (orderIdsToMarkAsOverdue.length > 0) {
-                setActiveOrders(prevOrders =>
-                    prevOrders.map(o =>
-                        orderIdsToMarkAsOverdue.includes(o.id) ? { ...o, isOverdue: true } : o
-                    )
-                );
-            }
-    
-            if (newlyOverdueOrders.length > 0) {
-                newlyOverdueOrders.forEach(order => {
-                    if (isCustomerMode) return; 
-    
-                    Swal.fire({
-                        title: '🔔 ลูกค้ารอนานเกินไป!',
-                        html: `ออเดอร์ #${order.orderNumber.toString().padStart(3, '0')} (โต๊ะ ${order.tableName})<br/>รออาหารนานเกิน ${ORDER_TIMEOUT_MINUTES} นาทีแล้ว`,
-                        icon: 'warning',
-                        confirmButtonText: 'รับทราบ',
-                    });
-                });
-    
-                setNotifiedOverdueOrders(prevSet => {
-                    const newSet = new Set(prevSet);
-                    newlyOverdueOrders.forEach(o => newSet.add(o.id));
-                    return newSet;
-                });
-            }
-        };
-    
-        const intervalId = setInterval(checkOverdueOrders, 30 * 1000);
-        return () => clearInterval(intervalId);
-    }, [activeOrders, notifiedOverdueOrders, setActiveOrders, isCustomerMode]);
-
-
     // ============================================================================
-    // 5. RENDER HELPERS
+    // 5. RENDER LOGIC
     // ============================================================================
-    
-    // Sidebar for Order Summary - always visible now
-    const orderSummarySidebar = (
-        <Sidebar
-            currentOrderItems={currentOrderItems}
-            onQuantityChange={handleQuantityChange}
-            onRemoveItem={handleRemoveItemFromOrder}
-            onEditOrderItem={handleEditOrderItem}
-            onClearOrder={() => setCurrentOrderItems([])}
-            onPlaceOrder={() => handlePlaceOrder()}
-            isPlacingOrder={isPlacingOrder}
-            tables={tables}
-            selectedTable={tables.find(t => t.id === selectedTableId) || null}
-            onSelectTable={setSelectedTableId}
-            customerName={customerName}
-            onCustomerNameChange={setCustomerName}
-            customerCount={customerCount}
-            onCustomerCountChange={setCustomerCount}
-            isEditMode={canEdit}
-            onAddNewTable={handleAddNewTable}
-            onRemoveLastTable={handleRemoveLastTable}
-            floors={floors}
-            selectedFloor={selectedSidebarFloor}
-            onFloorChange={setSelectedSidebarFloor}
-            onAddFloor={() => {}} // Placeholder
-            onRemoveFloor={() => {}} // Placeholder
-            sendToKitchen={sendToKitchen}
-            onSendToKitchenChange={(enabled, details) => {
-                setSendToKitchen(enabled);
-                setNotSentToKitchenDetails(details);
-            }}
-            onUpdateReservation={() => {}} // Placeholder
-            onOpenSearch={() => setModalState(prev => ({ ...prev, isMenuSearch: true }))}
-            currentUser={currentUser}
-            onViewChange={setCurrentView}
-            restaurantName={restaurantName}
-            onLogout={handleLogout}
-        />
-    );
 
+    // --- Customer Mode View ---
     if (isCustomerMode) {
-        const table = tables.find(t => t.id === customerTableId);
-        if (!table) return (
-            <div className="h-screen w-screen flex items-center justify-center bg-gray-100 text-center">
-                <div>
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-                    <p className="mt-4 text-xl font-semibold text-gray-700">กำลังโหลดข้อมูลโต๊ะ...</p>
-                </div>
-            </div>
-        );
-
+        if (!selectedBranch || customerTableId === null) {
+            return <div className="p-4 text-center text-red-500">Error: Invalid branch or table information provided in URL.</div>;
+        }
+        const customerTable = tables.find(t => t.id === customerTableId);
+        if (!customerTable) {
+             return <div className="p-4 text-center text-red-500">Error: Table not found in the selected branch.</div>;
+        }
         return (
-            <CustomerView
-                table={table}
+            <CustomerView 
+                table={customerTable}
                 menuItems={menuItems}
                 categories={categories}
-                activeOrders={activeOrders.filter(o => o.tableId === table.id)}
+                activeOrders={activeOrders.filter(o => o.tableId === customerTable.id)}
                 allBranchOrders={activeOrders}
                 onPlaceOrder={(items, name, count) => handlePlaceOrder(items, name, count)}
-                onStaffCall={(tableToCall, name) => {
-                    if (!selectedBranch) return;
-                    const newCall: StaffCall = {
-                        id: Date.now(),
-                        tableId: tableToCall.id,
-                        tableName: tableToCall.name,
-                        customerName: name,
-                        branchId: selectedBranch.id,
-                        timestamp: Date.now()
-                    };
-                    setStaffCalls(prev => [...prev, newCall]);
+                onStaffCall={(table, name) => handleStaffCall(table, name)}
+            />
+        );
+    }
+    
+    // --- Staff/Admin Views ---
+    if (!currentUser) return <LoginScreen onLogin={handleLogin} />;
+    if (!selectedBranch) return <BranchSelectionScreen onSelectBranch={handleBranchSelect} currentUser={currentUser} branches={branches} onManageBranches={() => setModalState(prev => ({ ...prev, isBranchManager: true }))} onLogout={handleLogout} />;
+
+    const mainContent = () => {
+        switch (currentView) {
+            case 'pos': return <Menu 
+                menuItems={menuItems}
+                setMenuItems={setMenuItems}
+                categories={categories}
+                onSelectItem={handleAddItemToOrder}
+                isEditMode={canEdit}
+                onEditItem={(item) => { setItemToEdit(item); setModalState(prev => ({ ...prev, isMenuItem: true })); }}
+                onAddNewItem={() => { setItemToEdit(null); setModalState(prev => ({ ...prev, isMenuItem: true })); }}
+                onDeleteItem={(id) => setMenuItems(menuItems.filter(item => item.id !== id))}
+                onAddCategory={(name) => setCategories([...categories, name])}
+                onUpdateCategory={(oldName, newName) => {
+                    setCategories(categories.map(c => c === oldName ? newName : c));
+                    setMenuItems(menuItems.map(item => item.category === oldName ? { ...item, category: newName } : item));
                 }}
-            />
-        );
-    }
-
-    if (!currentUser) {
-        return <LoginScreen onLogin={handleLogin} />;
-    }
-
-    if (!selectedBranch) {
-        return (
-            <BranchSelectionScreen
-                onSelectBranch={handleBranchSelect}
+                onDeleteCategory={(name) => setCategories(categories.filter(c => c !== name))}
+                onImportMenu={(newItems, newCats) => {
+                    // Merge new items with existing ones by ID
+                    const itemMap = new Map(menuItems.map(item => [item.id, item]));
+                    newItems.forEach(item => itemMap.set(item.id, item));
+                    setMenuItems(Array.from(itemMap.values()));
+            
+                    // Merge categories
+                    const catSet = new Set([...categories, ...newCats]);
+                    setCategories(Array.from(catSet));
+                }}
+                totalItems={totalItems}
+            />;
+            case 'kitchen': return <KitchenView activeOrders={activeOrders} onStartCooking={handleStartCooking} onCompleteOrder={handleCompleteOrder} />;
+            case 'tables': return <TableLayout 
+                tables={tables} 
+                activeOrders={activeOrders} 
+                onTableSelect={(tableId) => {
+                    setSelectedTableId(tableId);
+                    setCurrentOrderItems([]);
+                    setCustomerName('');
+                    setCustomerCount(1);
+                    setCurrentView('pos');
+                }} 
+                onShowBill={(orderId) => {
+                    const order = activeOrders.find(o => o.id === orderId);
+                    if (order) {
+                        setOrderForModal(order);
+                        setModalState(prev => ({ ...prev, isTableBill: true }));
+                    }
+                }}
+                onGeneratePin={handleGeneratePin}
                 currentUser={currentUser}
-                branches={branches}
-                onManageBranches={() => setModalState(prev => ({ ...prev, isBranchManager: true }))}
-                onLogout={handleLogout}
-            />
-        );
-    }
+                printerConfig={printerConfig}
+                floors={floors}
+                selectedBranch={selectedBranch}
+            />;
+            case 'dashboard': return <Dashboard completedOrders={completedOrders} cancelledOrders={cancelledOrders} openingTime={openingTime || '10:00'} closingTime={closingTime || '22:00'} currentUser={currentUser} />;
+            case 'history': return <SalesHistory 
+                completedOrders={completedOrders}
+                cancelledOrders={cancelledOrders}
+                printHistory={printHistory}
+                onReprint={() => {}}
+                onSplitOrder={() => {}}
+                isEditMode={canEdit}
+                onEditOrder={() => {}}
+                onInitiateCashBill={(order) => {
+                    setOrderForModal(order);
+                    setModalState(prev => ({ ...prev, isCashBill: true }));
+                }}
+                onDeleteHistory={handleDeleteHistory}
+                currentUser={currentUser}
+            />;
+            case 'stock': return <StockManagement stockItems={stockItems} setStockItems={setStockItems} stockCategories={stockCategories} setStockCategories={setStockCategories} stockUnits={stockUnits} setStockUnits={setStockUnits} />;
+            case 'leave': return <LeaveCalendarView leaveRequests={leaveRequests} currentUser={currentUser} onOpenRequestModal={(date) => { setLeaveRequestInitialDate(date || null); setModalState(prev => ({ ...prev, isLeaveRequest: true })); }} />;
+            default: return <div>Unknown View</div>;
+        }
+    };
+    
+    const handleModalClose = () => {
+        setModalState({
+            isMenuItem: false, isOrderSuccess: false, isSplitBill: false, isTableBill: false,
+            isPayment: false, isPaymentSuccess: false, isSettings: false, isEditCompleted: false,
+            isUserManager: false, isBranchManager: false, isMoveTable: false, isCancelOrder: false,
+            isCashBill: false, isSplitCompleted: false, isCustomization: false, isLeaveRequest: false,
+            isMenuSearch: false, isMergeBill: false
+        });
+        setItemToEdit(null);
+        setItemToCustomize(null);
+        setOrderForModal(null);
+        setOrderItemToEdit(null);
+        setLeaveRequestInitialDate(null);
+    };
 
     return (
-        <div className="flex h-screen overflow-hidden bg-gray-100">
-            {/* Admin/Main Navigation Sidebar (Left) */}
+        <div className={`h-screen flex flex-col md:flex-row bg-gray-100 font-sans transition-all duration-300 ${shouldShowAdminSidebar && !isAdminSidebarCollapsed ? 'md:pl-64' : (shouldShowAdminSidebar ? 'md:pl-20' : '')}`}>
+            <MenuItemModal isOpen={modalState.isMenuItem} onClose={handleModalClose} onSave={(item) => {}} itemToEdit={itemToEdit} categories={categories} onAddCategory={(name) => setCategories([...categories, name])} />
+            <OrderSuccessModal isOpen={modalState.isOrderSuccess} onClose={handleModalClose} orderId={lastPlacedOrderId!} />
+            <TableBillModal
+                isOpen={modalState.isTableBill}
+                onClose={handleModalClose}
+                order={orderForModal as ActiveOrder | null}
+                onInitiatePayment={(order) => { setOrderForModal(order); setModalState(prev => ({ ...prev, isTableBill: false, isPayment: true })); }}
+                onInitiateMove={(order) => { setOrderForModal(order); setModalState(prev => ({ ...prev, isTableBill: false, isMoveTable: true })); }}
+                onSplit={() => {}}
+                isEditMode={canEdit}
+                onUpdateOrder={() => {}}
+                currentUser={currentUser}
+                onInitiateCancel={(order) => { setOrderForModal(order); setModalState(prev => ({ ...prev, isTableBill: false, isCancelOrder: true })); }}
+                activeOrderCount={activeOrders.length}
+                onInitiateMerge={(order) => { setOrderForModal(order); setModalState(prev => ({...prev, isTableBill: false, isMergeBill: true})); }}
+            />
+            <PaymentModal isOpen={modalState.isPayment} order={orderForModal as ActiveOrder | null} onClose={handleModalClose} onConfirmPayment={handleConfirmPayment} qrCodeUrl={qrCodeUrl} isEditMode={canEdit} onOpenSettings={() => setModalState(prev => ({ ...prev, isSettings: true }))} isConfirmingPayment={isConfirmingPayment}/>
+            <PaymentSuccessModal isOpen={modalState.isPaymentSuccess} onClose={(shouldPrint) => handleClosePaymentSuccess(shouldPrint)} orderNumber={(orderForModal as CompletedOrder)?.orderNumber} />
+            <SettingsModal 
+                isOpen={modalState.isSettings}
+                onClose={handleModalClose}
+                onSave={(newQr, newSound, newStaffCallSound, newPrinterConfig, newOpen, newClose) => {
+                    setQrCodeUrl(newQr);
+                    setNotificationSoundUrl(newSound);
+                    setStaffCallSoundUrl(newStaffCallSound);
+                    setPrinterConfig(newPrinterConfig);
+                    setOpeningTime(newOpen);
+                    setClosingTime(newClose);
+                    handleModalClose();
+                }}
+                currentQrCodeUrl={qrCodeUrl}
+                currentNotificationSoundUrl={notificationSoundUrl}
+                currentStaffCallSoundUrl={staffCallSoundUrl}
+                currentPrinterConfig={printerConfig}
+                currentOpeningTime={openingTime}
+                currentClosingTime={closingTime}
+                onSavePrinterConfig={setPrinterConfig}
+             />
+            <UserManagerModal isOpen={modalState.isUserManager} onClose={handleModalClose} users={users} setUsers={setUsers} currentUser={currentUser!} branches={branches} isEditMode={canEdit}/>
+            <BranchManagerModal isOpen={modalState.isBranchManager} onClose={handleModalClose} branches={branches} setBranches={setBranches} />
+            <MoveTableModal isOpen={modalState.isMoveTable} onClose={handleModalClose} order={orderForModal as ActiveOrder | null} tables={tables} activeOrders={activeOrders} onConfirmMove={()=>{}} floors={floors} />
+            <CancelOrderModal isOpen={modalState.isCancelOrder} order={orderForModal as ActiveOrder | null} onClose={handleModalClose} onConfirm={handleCancelOrder} />
+            <CashBillModal isOpen={modalState.isCashBill} order={orderForModal as CompletedOrder | null} onClose={handleModalClose} restaurantName={restaurantName} logoUrl={logoUrl}/>
+            <ItemCustomizationModal isOpen={modalState.isCustomization} onClose={handleModalClose} item={itemToCustomize} orderItemToEdit={orderItemToEdit} onConfirm={handleConfirmCustomization} />
+            <LeaveRequestModal isOpen={modalState.isLeaveRequest} onClose={handleModalClose} currentUser={currentUser} onSave={() => {}} initialDate={leaveRequestInitialDate} />
+            <MenuSearchModal isOpen={modalState.isMenuSearch} onClose={handleModalClose} menuItems={menuItems} onSelectItem={handleAddItemToOrder} />
+            <MergeBillModal isOpen={modalState.isMergeBill} onClose={handleModalClose} order={orderForModal as ActiveOrder | null} allActiveOrders={activeOrders} tables={tables} onConfirmMerge={() => {}} />
+
             {shouldShowAdminSidebar && (
                 <AdminSidebar
                     isCollapsed={isAdminSidebarCollapsed}
                     onToggleCollapse={() => setIsAdminSidebarCollapsed(!isAdminSidebarCollapsed)}
                     logoUrl={logoUrl}
                     restaurantName={restaurantName}
-                    branchName={selectedBranch?.name || ''}
+                    branchName={selectedBranch.name}
                     currentUser={currentUser}
-                    onViewChange={setCurrentView}
+                    onViewChange={handleViewChange}
                     currentView={currentView}
                     onToggleEditMode={() => setIsEditMode(!isEditMode)}
                     isEditMode={isEditMode}
                     onOpenSettings={() => setModalState(prev => ({ ...prev, isSettings: true }))}
                     onOpenUserManager={() => setModalState(prev => ({ ...prev, isUserManager: true }))}
-                    onManageBranches={() => setModalState(prev => ({ ...prev, isBranchManager: true }))}
-                    onChangeBranch={() => setSelectedBranch(null)}
+                    onManageBranches={() => { setSelectedBranch(null); localStorage.removeItem('selectedBranch'); }}
+                    onChangeBranch={() => { setSelectedBranch(null); localStorage.removeItem('selectedBranch'); }}
                     onLogout={handleLogout}
                     kitchenBadgeCount={kitchenBadgeCount}
                     tablesBadgeCount={tablesBadgeCount}
@@ -1583,12 +1065,11 @@ const App: React.FC = () => {
                 />
             )}
 
-            {/* Main Content Area */}
-            <div className={`flex-1 flex flex-col min-w-0 overflow-hidden relative transition-all duration-300 ${shouldShowAdminSidebar && (isAdminSidebarCollapsed ? 'md:ml-20' : 'md:ml-64')}`}>
-                {!shouldShowAdminSidebar && !(currentView === 'pos' && !isDesktop) && (
+            <div className="flex-1 flex flex-col overflow-hidden relative">
+                 {!shouldShowAdminSidebar && (
                     <Header
                         currentView={currentView}
-                        onViewChange={setCurrentView}
+                        onViewChange={handleViewChange}
                         isEditMode={isEditMode}
                         onToggleEditMode={() => setIsEditMode(!isEditMode)}
                         onOpenSettings={() => setModalState(prev => ({ ...prev, isSettings: true }))}
@@ -1600,316 +1081,96 @@ const App: React.FC = () => {
                         onLogout={handleLogout}
                         onOpenUserManager={() => setModalState(prev => ({ ...prev, isUserManager: true }))}
                         logoUrl={logoUrl}
-                        onLogoChangeClick={() => {}} // Placeholder
+                        onLogoChangeClick={()=>{}}
                         restaurantName={restaurantName}
-                        onRestaurantNameChange={setRestaurantName}
-                        branchName={selectedBranch?.name || ''}
-                        onChangeBranch={() => setSelectedBranch(null)}
-                        onManageBranches={() => setModalState(prev => ({ ...prev, isBranchManager: true }))}
+                        onRestaurantNameChange={()=>{}}
+                        branchName={selectedBranch.name}
+                        onChangeBranch={() => { setSelectedBranch(null); localStorage.removeItem('selectedBranch'); }}
+                        onManageBranches={() => { setSelectedBranch(null); localStorage.removeItem('selectedBranch'); }}
                     />
                 )}
                 
-                <main className="flex-1 overflow-hidden relative">
-                    {currentView === 'pos' && (
-                        <>
-                            {shouldShowAdminSidebar ? (
-                                // For admin-like roles, always show the Menu in the main content on POS view.
-                                <div className="h-full">
-                                    <Menu
-                                        menuItems={menuItems}
-                                        setMenuItems={setMenuItems}
-                                        categories={categories}
-                                        onSelectItem={handleAddItemToOrder}
-                                        isEditMode={canEdit}
-                                        onEditItem={(item) => { setItemToEdit(item); setModalState(prev => ({ ...prev, isMenuItem: true })); }}
-                                        onAddNewItem={() => { setItemToEdit(null); setModalState(prev => ({ ...prev, isMenuItem: true })); }}
-                                        onDeleteItem={() => {}} // Placeholder
-                                        onUpdateCategory={() => {}} // Placeholder
-                                        onDeleteCategory={() => {}} // Placeholder
-                                        onAddCategory={() => {}} // Placeholder
-                                        onImportMenu={() => {}} // Placeholder
-                                        totalItems={totalItems}
-                                    />
-                                </div>
-                            ) : (
-                                // For staff roles (pos/kitchen), show Menu on desktop and OrderSummary on mobile.
-                                <>
-                                    <div className="hidden lg:block h-full">
-                                        <Menu
-                                            menuItems={menuItems}
-                                            setMenuItems={setMenuItems}
-                                            categories={categories}
-                                            onSelectItem={handleAddItemToOrder}
-                                            isEditMode={canEdit}
-                                            onEditItem={(item) => { setItemToEdit(item); setModalState(prev => ({ ...prev, isMenuItem: true })); }}
-                                            onAddNewItem={() => { setItemToEdit(null); setModalState(prev => ({ ...prev, isMenuItem: true })); }}
-                                            onDeleteItem={() => {}} // Placeholder
-                                            onUpdateCategory={() => {}} // Placeholder
-                                            onDeleteCategory={() => {}} // Placeholder
-                                            onAddCategory={() => {}} // Placeholder
-                                            onImportMenu={() => {}} // Placeholder
-                                            totalItems={totalItems}
-                                        />
-                                    </div>
-                                    <div className="lg:hidden h-full">
-                                        {orderSummarySidebar}
-                                    </div>
-                                </>
-                            )}
-                        </>
-                    )}
-                    {currentView === 'kitchen' && (
-                        <KitchenView 
-                            activeOrders={activeOrders}
-                            onCompleteOrder={handleCompleteOrder}
-                            onStartCooking={handleStartCooking}
-                        />
-                    )}
-                    {currentView === 'tables' && (
-                        <TableLayout 
-                            tables={tables}
-                            activeOrders={activeOrders}
-                            onTableSelect={handleTableSelect}
-                            onShowBill={(orderId) => {
-                                const order = activeOrders.find(o => o.id === orderId);
-                                if (order) {
-                                    setOrderForModal(order);
-                                    setModalState(prev => ({ ...prev, isTableBill: true }));
-                                }
-                            }}
-                            onGeneratePin={handleGeneratePin}
-                            currentUser={currentUser}
-                            printerConfig={printerConfig}
-                            floors={floors}
-                            selectedBranch={selectedBranch}
-                        />
-                    )}
-                    {currentView === 'dashboard' && (
-                        <Dashboard 
-                            completedOrders={completedOrders}
-                            cancelledOrders={cancelledOrders}
-                            openingTime={openingTime || '10:00'}
-                            closingTime={closingTime || '22:00'}
-                            currentUser={currentUser}
-                        />
-                    )}
-                    {currentView === 'history' && (
-                        <SalesHistory 
-                            completedOrders={completedOrders}
-                            cancelledOrders={cancelledOrders}
-                            printHistory={printHistory}
-                            onReprint={() => {}} // Placeholder
-                            onSplitOrder={() => {}} // Placeholder
-                            isEditMode={canEdit}
-                            onEditOrder={() => {}} // Placeholder
-                            onInitiateCashBill={handleInitiateCashBill}
-                            onDeleteHistory={handleDeleteHistory} 
-                            currentUser={currentUser}
-                        />
-                    )}
-                    {currentView === 'stock' && (
-                        <StockManagement 
-                            stockItems={stockItems}
-                            setStockItems={setStockItems}
-                            stockCategories={stockCategories}
-                            setStockCategories={setStockCategories}
-                            stockUnits={stockUnits}
-                            setStockUnits={setStockUnits}
-                        />
-                    )}
-                    {currentView === 'leave' && (
-                        <LeaveCalendarView 
-                            leaveRequests={leaveRequests}
-                            currentUser={currentUser}
-                            onOpenRequestModal={() => setModalState(prev => ({ ...prev, isLeaveRequest: true }))}
-                            branches={branches}
-                            onUpdateStatus={handleUpdateLeaveStatus}
-                            onDeleteRequest={handleDeleteLeaveRequest}
-                            selectedBranch={selectedBranch}
-                        />
-                    )}
+                <main className="flex-1 flex overflow-hidden relative">
+                    <div className="flex-1 h-full overflow-y-auto">
+                        {mainContent()}
+                    </div>
+                    <div
+                        className="relative h-full transition-all duration-300 ease-in-out"
+                        style={{
+                            width: isOrderSidebarVisible ? (isDesktop ? '24rem' : '100%') : '0',
+                        }}
+                    >
+                        {isOrderSidebarVisible && (
+                            <Sidebar
+                                currentOrderItems={currentOrderItems}
+                                onQuantityChange={handleQuantityChange}
+                                onRemoveItem={handleRemoveItemFromOrder}
+                                onClearOrder={() => setCurrentOrderItems([])}
+                                onPlaceOrder={handlePlaceOrder}
+                                isPlacingOrder={isPlacingOrder}
+                                tables={tables}
+                                selectedTable={tables.find(t => t.id === selectedTableId) || null}
+                                onSelectTable={(id) => setSelectedTableId(id)}
+                                customerName={customerName}
+                                onCustomerNameChange={setCustomerName}
+                                customerCount={customerCount}
+                                onCustomerCountChange={setCustomerCount}
+                                isEditMode={canEdit}
+                                onAddNewTable={handleAddNewTable}
+                                onRemoveLastTable={handleRemoveLastTable}
+                                floors={floors}
+                                selectedFloor={selectedSidebarFloor || floors[0]}
+                                onFloorChange={setSelectedSidebarFloor}
+                                onAddFloor={() => {}}
+                                onRemoveFloor={() => {}}
+                                sendToKitchen={sendToKitchen}
+                                onSendToKitchenChange={(enabled, details) => {
+                                    setSendToKitchen(enabled);
+                                    setNotSentToKitchenDetails(details);
+                                }}
+                                onUpdateReservation={() => {}}
+                                onOpenSearch={() => setModalState(prev => ({ ...prev, isMenuSearch: true }))}
+                                currentUser={currentUser}
+                                onEditOrderItem={handleEditOrderItem}
+                                onViewChange={handleViewChange}
+                                restaurantName={restaurantName}
+                                onLogout={handleLogout}
+                            />
+                        )}
+                    </div>
+                    
+                    <button
+                        onClick={() => setIsOrderSidebarVisible(!isOrderSidebarVisible)}
+                        className={`absolute top-1/2 -translate-y-1/2 z-30 bg-gray-800 text-white rounded-l-full py-8 pl-1 pr-2 transform transition-all duration-300 ease-in-out hover:bg-gray-700 focus:outline-none shadow-lg ${isDesktop ? '' : 'hidden'}`}
+                        style={{ right: isOrderSidebarVisible ? '24rem' : '0' }}
+                        aria-label={isOrderSidebarVisible ? 'Hide order sidebar' : 'Show order sidebar'}
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 transition-transform ${!isOrderSidebarVisible ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                        {!isOrderSidebarVisible && totalItems > 0 && (
+                             <div className={`absolute -top-1 -left-1 flex h-7 w-7 items-center justify-center rounded-full bg-red-500 text-sm font-bold text-white border-2 border-gray-800 ${isBadgeAnimating ? 'animate-bounce' : ''}`}>
+                                {totalItems > 9 ? '9+' : totalItems}
+                            </div>
+                        )}
+                    </button>
                 </main>
                 
-                {/* Hide BottomNavBar on POS view because Sidebar (which is shown on mobile POS) has its own navigation */}
-                {!isCustomerMode && currentView !== 'pos' && !shouldShowAdminSidebar && (
-                    <BottomNavBar 
+                {!shouldShowAdminSidebar && (
+                     <BottomNavBar 
                         items={[
-                            { id: 'pos', label: 'POS', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4z" /><path fillRule="evenodd" d="M18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h2a1 1 0 100-2H9z" clipRule="evenodd" /></svg>, view: 'pos' },
-                            { id: 'history', label: 'ประวัติ', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" /></svg>, view: 'history' },
-                            { id: 'dashboard', label: 'Dash', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1-1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" /></svg>, view: 'dashboard' },
-                            { id: 'leave', label: 'วันลา', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>, view: 'leave', badge: leaveBadgeCount },
-                            { id: 'stock', label: 'สต็อก', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>, view: 'stock' },
-                            { id: 'tables', label: 'ผังโต๊ะ', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M2 5a2 2 0 012-2h12a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V5zm2 1v8h8V6H4z" /></svg>, view: 'tables', badge: tablesBadgeCount },
+                            {id: 'pos', label: 'POS', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4z" /><path fillRule="evenodd" d="M18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h2a1 1 0 100-2H9z" clipRule="evenodd" /></svg>, view: 'pos'},
+                            {id: 'tables', label: 'ผังโต๊ะ', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M2 5a2 2 0 012-2h12a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V5zm2 1v8h8V6H4z" /></svg>, view: 'tables', badge: tablesBadgeCount},
+                            {id: 'kitchen', label: 'ครัว', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M17.707 9.293a1 1 0 010 1.414l-7 7a1 1 0 01-1.414 0l-7-7A.997.997 0 012 10V5a3 3 0 013-3h10a3 3 0 013 3v5a.997.997 0 01-.293.707zM5 6a1 1 0 100 2 1 1 0 000-2zm3 0a1 1 0 100 2 1 1 0 000-2zm3 0a1 1 0 100 2 1 1 0 000-2z" clipRule="evenodd" /></svg>, view: 'kitchen', badge: kitchenBadgeCount},
+                            {id: 'history', label: 'ประวัติ', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" /></svg>, view: 'history'},
+                            {id: 'stock', label: 'สต๊อก', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>, view: 'stock'},
+                            {id: 'settings', label: 'ตั้งค่า', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924-1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>, onClick: () => setModalState(prev => ({...prev, isSettings: true}))}
                         ]}
                         currentView={currentView}
-                        onViewChange={setCurrentView}
+                        onViewChange={handleViewChange}
                     />
                 )}
             </div>
-
-            {/* Right Sidebar and Toggle Button Wrapper */}
-            {!isCustomerMode && (
-                <div className="hidden lg:flex flex-shrink-0 relative">
-                    {/* Toggle Button */}
-                    <button
-                        onClick={() => setIsOrderSidebarVisible(!isOrderSidebarVisible)}
-                        className="absolute top-1/2 -translate-y-1/2 -left-12 z-30 h-24 w-12 bg-gray-800/80 text-white hover:bg-gray-700/90 transition-all duration-300 backdrop-blur-sm flex items-center justify-center group rounded-l-lg pr-1"
-                        title={isOrderSidebarVisible ? 'ซ่อนรายการออเดอร์' : 'แสดงรายการออเดอร์'}
-                    >
-                        <svg xmlns="http://www.w3.org/2000/svg" className={`h-8 w-8 transition-transform duration-300 ${isOrderSidebarVisible ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-                        </svg>
-                         <span
-                            className={`absolute -top-1 -left-1 flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-red-500 text-sm font-bold text-white transition-all duration-300 ease-in-out transform group-hover:scale-110
-                                ${!isOrderSidebarVisible && totalItems > 0 ? 'scale-100 opacity-100' : 'scale-0 opacity-0'}
-                                ${isBadgeAnimating ? 'animate-bounce' : ''}
-                            `}
-                        >
-                            {totalItems > 99 ? '99+' : totalItems}
-                        </span>
-                    </button>
-                    {/* Right Sidebar */}
-                    <div
-                        className={`transition-all duration-300 ease-in-out overflow-hidden ${isOrderSidebarVisible ? (isAdminSidebarCollapsed ? 'w-96' : 'w-80') : 'w-0'}`}
-                    >
-                        <div className={`h-full ${isAdminSidebarCollapsed ? 'w-96' : 'w-80'}`}>
-                            {orderSummarySidebar}
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Modals */}
-            <MenuItemModal
-                isOpen={modalState.isMenuItem}
-                onClose={() => setModalState(prev => ({ ...prev, isMenuItem: false }))}
-                onSave={() => {}} // Placeholder
-                itemToEdit={itemToEdit}
-                categories={categories}
-                onAddCategory={() => {}} // Placeholder
-            />
-            <ItemCustomizationModal 
-                isOpen={modalState.isCustomization}
-                onClose={() => {
-                    setModalState(prev => ({ ...prev, isCustomization: false }));
-                    setItemToCustomize(null);
-                    setOrderItemToEdit(null); // Also clear the item being edited on close
-                }}
-                item={itemToCustomize}
-                onConfirm={handleConfirmCustomization}
-                orderItemToEdit={orderItemToEdit}
-            />
-            <MenuSearchModal 
-                isOpen={modalState.isMenuSearch}
-                onClose={() => setModalState(prev => ({ ...prev, isMenuSearch: false }))}
-                menuItems={menuItems}
-                onSelectItem={handleAddItemToOrder}
-            />
-            <OrderSuccessModal 
-                isOpen={modalState.isOrderSuccess}
-                onClose={() => setModalState(prev => ({ ...prev, isOrderSuccess: false }))}
-                orderId={lastPlacedOrderId || 0}
-            />
-            <PaymentModal 
-                isOpen={modalState.isPayment}
-                onClose={() => setModalState(prev => ({ ...prev, isPayment: false }))}
-                order={orderForModal as ActiveOrder}
-                onConfirmPayment={handleConfirmPayment}
-                qrCodeUrl={qrCodeUrl}
-                isEditMode={canEdit}
-                onOpenSettings={() => setModalState(prev => ({ ...prev, isSettings: true }))}
-                isConfirmingPayment={isConfirmingPayment}
-            />
-            <PaymentSuccessModal 
-                isOpen={modalState.isPaymentSuccess}
-                onClose={handleClosePaymentSuccess}
-                orderNumber={orderForModal?.orderNumber || 0}
-            />
-            <TableBillModal 
-                isOpen={modalState.isTableBill}
-                onClose={() => setModalState(prev => ({ ...prev, isTableBill: false }))}
-                order={orderForModal as ActiveOrder}
-                onInitiatePayment={() => setModalState(prev => ({ ...prev, isPayment: true, isTableBill: false }))}
-                onInitiateMove={() => setModalState(prev => ({ ...prev, isMoveTable: true, isTableBill: false }))}
-                onSplit={() => setModalState(prev => ({ ...prev, isSplitBill: true, isTableBill: false }))}
-                isEditMode={canEdit}
-                onUpdateOrder={() => {}} // Placeholder
-                currentUser={currentUser}
-                onInitiateCancel={() => setModalState(prev => ({ ...prev, isCancelOrder: true, isTableBill: false }))}
-                activeOrderCount={activeOrders.filter(o => o.tableId === orderForModal?.tableId).length}
-                onInitiateMerge={() => setModalState(prev => ({ ...prev, isMergeBill: true, isTableBill: false }))}
-            />
-            <CancelOrderModal
-                isOpen={modalState.isCancelOrder}
-                onClose={() => setModalState(prev => ({ ...prev, isCancelOrder: false }))}
-                order={orderForModal as ActiveOrder}
-                onConfirm={handleCancelOrder}
-            />
-            <MoveTableModal
-                isOpen={modalState.isMoveTable}
-                onClose={() => setModalState(prev => ({ ...prev, isMoveTable: false }))}
-                order={orderForModal as ActiveOrder}
-                tables={tables}
-                activeOrders={activeOrders}
-                onConfirmMove={handleMoveTable}
-                floors={floors}
-            />
-            <SplitBillModal
-                isOpen={modalState.isSplitBill}
-                onClose={() => setModalState(prev => ({ ...prev, isSplitBill: false }))}
-                order={orderForModal as ActiveOrder}
-                onConfirmSplit={handleConfirmSplit}
-            />
-            <MergeBillModal
-                isOpen={modalState.isMergeBill}
-                onClose={() => setModalState(prev => ({ ...prev, isMergeBill: false }))}
-                order={orderForModal as ActiveOrder}
-                allActiveOrders={activeOrders}
-                tables={tables}
-                onConfirmMerge={handleConfirmMerge}
-            />
-            <SettingsModal 
-                isOpen={modalState.isSettings}
-                onClose={() => setModalState(prev => ({ ...prev, isSettings: false }))}
-                onSave={handleSaveSettings}
-                currentQrCodeUrl={qrCodeUrl}
-                currentNotificationSoundUrl={notificationSoundUrl}
-                currentStaffCallSoundUrl={staffCallSoundUrl}
-                currentPrinterConfig={printerConfig}
-                currentOpeningTime={openingTime}
-                currentClosingTime={closingTime}
-                onSavePrinterConfig={handleSavePrinterConfig}
-            />
-            <UserManagerModal 
-                isOpen={modalState.isUserManager}
-                onClose={() => setModalState(prev => ({ ...prev, isUserManager: false }))}
-                users={users}
-                setUsers={setUsers}
-                currentUser={currentUser}
-                branches={branches}
-                isEditMode={canEdit}
-            />
-            <BranchManagerModal 
-                isOpen={modalState.isBranchManager}
-                onClose={() => setModalState(prev => ({ ...prev, isBranchManager: false }))}
-                branches={branches}
-                setBranches={setBranches}
-            />
-            <LeaveRequestModal 
-                isOpen={modalState.isLeaveRequest}
-                onClose={() => setModalState(prev => ({ ...prev, isLeaveRequest: false }))}
-                currentUser={currentUser}
-                onSave={handleSaveLeaveRequest}
-                leaveRequests={leaveRequests}
-                initialDate={leaveRequestInitialDate}
-            />
-            <CashBillModal
-                isOpen={modalState.isCashBill}
-                order={orderForModal as CompletedOrder}
-                onClose={() => setModalState(prev => ({ ...prev, isCashBill: false }))}
-                restaurantName={restaurantName}
-                logoUrl={logoUrl}
-            />
         </div>
     );
 };

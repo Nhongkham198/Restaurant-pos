@@ -1,8 +1,11 @@
-import React, { useState, useEffect, useMemo } from 'react';
+
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import type { MenuItem, Table, OrderItem, ActiveOrder, StaffCall } from '../types';
 import { Menu } from './Menu';
 import { ItemCustomizationModal } from './ItemCustomizationModal';
 import Swal from 'sweetalert2';
+
+declare var html2canvas: any;
 
 interface CustomerViewProps {
     table: Table;
@@ -48,6 +51,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     const [isCartOpen, setIsCartOpen] = useState(false);
     const [isActiveOrderListOpen, setIsActiveOrderListOpen] = useState(false);
     const [itemToCustomize, setItemToCustomize] = useState<MenuItem | null>(null);
+    const billContentRef = useRef<HTMLDivElement>(null);
     
     // --- Session Persistence Logic ---
     useEffect(() => {
@@ -86,35 +90,34 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     useEffect(() => {
         // If user is logged in, but the table's PIN is suddenly cleared (Payment Confirmed)
         // or changed (Staff reset PIN), force logout immediately.
-        // We add `table.activePin !== undefined` to prevent a race condition on refresh
-        // where this effect runs before the table data is fully loaded from Firestore.
-        if (isAuthenticated && table.activePin !== undefined) {
-            if (table.activePin !== pinInput) {
-                // 1. Clear All Customer Data from localStorage
-                const sessionKey = `customer_session_${table.id}`;
-                const cartKey = `customer_cart_${table.id}`;
-                localStorage.removeItem(sessionKey);
-                localStorage.removeItem('customerSelectedBranch');
-                localStorage.removeItem(cartKey); // Clear the persisted cart on logout
+        // The check for `isAuthenticated` is sufficient to prevent race conditions on refresh,
+        // because it only becomes true after the PIN has been successfully validated against
+        // the loaded data from Firestore at least once.
+        if (isAuthenticated && table.activePin !== pinInput) {
+            // 1. Clear All Customer Data from localStorage
+            const sessionKey = `customer_session_${table.id}`;
+            const cartKey = `customer_cart_${table.id}`;
+            localStorage.removeItem(sessionKey);
+            localStorage.removeItem('customerSelectedBranch');
+            localStorage.removeItem(cartKey); // Clear the persisted cart on logout
 
-                // 2. Reset State
-                setIsAuthenticated(false);
-                setCustomerName('');
-                setPinInput('');
-                setCartItems([]);
-                setIsCartOpen(false);
-                setIsActiveOrderListOpen(false);
+            // 2. Reset State
+            setIsAuthenticated(false);
+            setCustomerName('');
+            setPinInput('');
+            setCartItems([]);
+            setIsCartOpen(false);
+            setIsActiveOrderListOpen(false);
 
-                // 3. Notify User
-                Swal.fire({
-                    icon: 'success',
-                    title: 'ขอบคุณที่ใช้บริการ',
-                    text: 'การชำระเงินเสร็จสิ้น หรือเซสชั่นหมดอายุ',
-                    timer: 3000,
-                    showConfirmButton: false,
-                    allowOutsideClick: false
-                });
-            }
+            // 3. Notify User
+            Swal.fire({
+                icon: 'success',
+                title: 'ขอบคุณที่ใช้บริการ',
+                text: 'การชำระเงินเสร็จสิ้น หรือเซสชั่นหมดอายุ',
+                timer: 3000,
+                showConfirmButton: false,
+                allowOutsideClick: false
+            });
         }
     }, [table.activePin, isAuthenticated, pinInput, table.id]);
 
@@ -197,6 +200,50 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
             showConfirmButton: false,
             timer: 3000
         });
+    };
+
+    const handleSaveBillAsImage = async () => {
+        if (!billContentRef.current) return;
+    
+        Swal.fire({
+            title: 'กำลังสร้างรูปภาพ...',
+            text: 'กรุณารอสักครู่',
+            allowOutsideClick: false,
+            didOpen: () => {
+                Swal.showLoading();
+            }
+        });
+    
+        try {
+            const canvas = await html2canvas(billContentRef.current, {
+                scale: 2, // Higher resolution
+                useCORS: true, // For any external images if they exist
+            });
+            const image = canvas.toDataURL('image/png');
+            const link = document.createElement('a');
+            link.href = image;
+            link.download = `bill-table-${table.name}-${new Date().toISOString().slice(0, 10)}.png`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            Swal.close();
+            Swal.fire({
+                toast: true,
+                position: 'top-end',
+                icon: 'success',
+                title: 'บันทึกรูปภาพสำเร็จ!',
+                showConfirmButton: false,
+                timer: 2000
+            });
+        } catch (error) {
+            console.error('Error generating bill image:', error);
+            Swal.fire({
+                icon: 'error',
+                title: 'เกิดข้อผิดพลาด',
+                text: 'ไม่สามารถสร้างรูปภาพได้',
+            });
+        }
     };
 
     // Calculate Cart Totals
@@ -386,58 +433,72 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
             {/* Active Orders List Modal (History) */}
             {isActiveOrderListOpen && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-end sm:items-center" onClick={() => setIsActiveOrderListOpen(false)}>
-                    <div className="bg-white w-full sm:max-w-md h-[80vh] sm:h-auto rounded-t-2xl sm:rounded-xl shadow-2xl flex flex-col overflow-hidden animate-slide-up" onClick={e => e.stopPropagation()}>
-                        <div className="p-4 border-b bg-gray-50 flex justify-between items-center sticky top-0">
-                            <h3 className="font-bold text-gray-800 text-lg">รายการที่สั่งไปแล้ว 🧾</h3>
-                            <button onClick={() => setIsActiveOrderListOpen(false)} className="p-1 rounded-full hover:bg-gray-200 text-gray-500">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                </svg>
-                            </button>
-                        </div>
+                    <div className="bg-white w-full sm:max-w-md h-[80vh] sm:h-auto sm:max-h-[90vh] rounded-t-2xl sm:rounded-xl shadow-2xl flex flex-col overflow-hidden animate-slide-up" onClick={e => e.stopPropagation()}>
                         
-                        <div className="flex-1 overflow-y-auto p-4 space-y-6">
-                            {activeOrders.length === 0 ? (
-                                <div className="text-center text-gray-400 py-10">ยังไม่มีรายการที่สั่ง</div>
-                            ) : (
-                                activeOrders.map((order) => (
-                                    <div key={order.id} className="border-b last:border-0 pb-4 last:pb-0">
-                                        <div className="flex justify-between items-center mb-2">
-                                            <span className="text-xs font-semibold bg-gray-100 text-gray-600 px-2 py-0.5 rounded">
-                                                ออเดอร์ #{String(order.orderNumber).padStart(3, '0')}
-                                            </span>
-                                            <span className={`text-xs px-2 py-0.5 rounded-full ${
-                                                order.status === 'served' ? 'bg-green-100 text-green-700' :
-                                                order.status === 'cooking' ? 'bg-yellow-100 text-yellow-700' :
-                                                'bg-blue-100 text-blue-700'
-                                            }`}>
-                                                {order.status === 'served' ? 'เสิร์ฟแล้ว' : order.status === 'cooking' ? 'กำลังปรุง' : 'รอคิว'}
-                                            </span>
+                        <div ref={billContentRef} className="flex-grow overflow-y-auto">
+                            <div className="p-4 border-b bg-gray-50 flex justify-between items-center sticky top-0">
+                                <h3 className="font-bold text-gray-800 text-lg">รายการที่สั่งไปแล้ว 🧾</h3>
+                            </div>
+                            
+                            <div className="p-4 space-y-6">
+                                {activeOrders.length === 0 ? (
+                                    <div className="text-center text-gray-400 py-10">ยังไม่มีรายการที่สั่ง</div>
+                                ) : (
+                                    activeOrders.map((order) => (
+                                        <div key={order.id} className="border-b last:border-0 pb-4 last:pb-0">
+                                            <div className="flex justify-between items-center mb-2">
+                                                <span className="text-xs font-semibold bg-gray-100 text-gray-600 px-2 py-0.5 rounded">
+                                                    ออเดอร์ #{String(order.orderNumber).padStart(3, '0')}
+                                                </span>
+                                                <span className={`text-xs px-2 py-0.5 rounded-full ${
+                                                    order.status === 'served' ? 'bg-green-100 text-green-700' :
+                                                    order.status === 'cooking' ? 'bg-yellow-100 text-yellow-700' :
+                                                    'bg-blue-100 text-blue-700'
+                                                }`}>
+                                                    {order.status === 'served' ? 'เสิร์ฟแล้ว' : order.status === 'cooking' ? 'กำลังปรุง' : 'รอคิว'}
+                                                </span>
+                                            </div>
+                                            <ul className="space-y-2">
+                                                {order.items.map((item, idx) => (
+                                                    <li key={idx} className="flex justify-between text-sm text-gray-700">
+                                                        <div>
+                                                            <span className="font-medium">{item.quantity}x {item.name}</span>
+                                                            {item.selectedOptions.length > 0 && (
+                                                                <span className="text-xs text-gray-500 ml-1">({item.selectedOptions.map(o=>o.name).join(', ')})</span>
+                                                            )}
+                                                        </div>
+                                                        <span className="font-mono text-gray-600">{(item.finalPrice * item.quantity).toLocaleString()}</span>
+                                                    </li>
+                                                ))}
+                                            </ul>
                                         </div>
-                                        <ul className="space-y-2">
-                                            {order.items.map((item, idx) => (
-                                                <li key={idx} className="flex justify-between text-sm text-gray-700">
-                                                    <div>
-                                                        <span className="font-medium">{item.quantity}x {item.name}</span>
-                                                        {item.selectedOptions.length > 0 && (
-                                                            <span className="text-xs text-gray-500 ml-1">({item.selectedOptions.map(o=>o.name).join(', ')})</span>
-                                                        )}
-                                                    </div>
-                                                    <span className="font-mono text-gray-600">{(item.finalPrice * item.quantity).toLocaleString()}</span>
-                                                </li>
-                                            ))}
-                                        </ul>
-                                    </div>
-                                ))
-                            )}
+                                    ))
+                                )}
+                            </div>
+
+                            <div className="p-4 bg-gray-50 border-t sticky bottom-0">
+                                <div className="flex justify-between items-center text-lg font-bold text-gray-800">
+                                    <span>ยอดรวมทั้งหมด</span>
+                                    <span className="text-blue-600">{billTotal.toLocaleString()} ฿</span>
+                                </div>
+                                <p className="text-xs text-gray-500 text-center mt-2">กรุณาชำระเงินที่เคาน์เตอร์เมื่อทานเสร็จ</p>
+                            </div>
                         </div>
 
-                        <div className="p-4 bg-gray-50 border-t">
-                            <div className="flex justify-between items-center text-lg font-bold text-gray-800">
-                                <span>ยอดรวมทั้งหมด</span>
-                                <span className="text-blue-600">{billTotal.toLocaleString()} ฿</span>
-                            </div>
-                            <p className="text-xs text-gray-500 text-center mt-2">กรุณาชำระเงินที่เคาน์เตอร์เมื่อทานเสร็จ</p>
+                        <div className="p-3 bg-white border-t flex flex-col gap-2">
+                            <button
+                                onClick={handleSaveBillAsImage}
+                                className="w-full bg-green-600 text-white font-bold py-3 rounded-xl shadow-lg hover:bg-green-700 transition-colors text-base flex items-center justify-center gap-2"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 9.293a1 1 0 011.414 0L10 11.586l2.293-2.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+                                    <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 111.414-1.414L9 9.586V4a1 1 0 011-1z" clipRule="evenodd" />
+                                </svg>
+                                บันทึกบิลเป็นรูปภาพ
+                            </button>
+                            <button onClick={() => setIsActiveOrderListOpen(false)} className="w-full py-2 text-gray-700 font-semibold rounded-lg hover:bg-gray-100">
+                                ปิด
+                            </button>
                         </div>
                     </div>
                 </div>
