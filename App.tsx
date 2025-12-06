@@ -300,12 +300,7 @@ const App: React.FC = () => {
         } else if (currentUser && ['admin', 'branch-admin', 'auditor'].includes(currentUser.role)) {
             // Also no settings for admin roles on mobile, logout is via profile
         } else {
-            items.push({
-                id: 'settings',
-                label: 'ตั้งค่า',
-                icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.972.094 2.22-.948 2.286-1.56.38-1.56 2.6 0 2.98.972.54 2.22.094 2.286.948.836 1.372-.734 2.942-2.106 2.106a1.532 1.532 0 01-.948-2.286c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286-.948c-1.372.836-2.942-.734-2.106-2.106a1.532 1.532 0 01.948-2.286c.38-1.56 2.6-1.56 2.98 0a1.532 1.532 0 012.286-.948c1.372.836 2.942-.734-2.106-2.106a1.532 1.532 0 01.948 2.286zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" /></svg>,
-                onClick: () => setModalState(prev => ({...prev, isSettings: true}))
-            });
+            // This case should not be reached for the specified roles.
         }
         
         return items;
@@ -1365,7 +1360,7 @@ const App: React.FC = () => {
                     />
                 )}
                 
-                <main className="flex-1 flex overflow-hidden">
+                <main className={`flex-1 flex overflow-hidden ${!isDesktop ? 'pb-20' : ''}`}>
                     {/* Desktop POS View */}
                     {currentView === 'pos' && isDesktop && (
                         <>
@@ -1424,13 +1419,13 @@ const App: React.FC = () => {
                             </aside>
                             <button
                                 onClick={() => setIsOrderSidebarVisible(!isOrderSidebarVisible)}
-                                className="absolute right-0 top-1/2 -translate-y-1/2 bg-gray-800 text-white p-6 rounded-l-full z-20"
+                                className="absolute right-0 top-1/2 -translate-y-1/2 bg-gray-800 text-white p-3 rounded-l-full z-20 shadow-lg"
                                 style={{ right: isOrderSidebarVisible ? '24rem' : '0' }}
                                 title={isOrderSidebarVisible ? "ซ่อน" : "แสดง"}
                             >
-                                <svg xmlns="http://www.w3.org/2000/svg" className={`h-10 w-10 transition-transform ${isOrderSidebarVisible ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M15 19l-7-7 7-7" /></svg>
-                                {!isOrderSidebarVisible && totalCartItemCount > 0 && (
-                                    <span className="absolute -top-2 -left-2 flex h-10 w-10 items-center justify-center rounded-full bg-red-500 text-lg font-bold text-white border-2 border-white">
+                                <svg xmlns="http://www.w3.org/2000/svg" className={`h-8 w-8 transition-transform ${isOrderSidebarVisible ? '' : 'rotate-180'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M15 19l-7-7 7-7" /></svg>
+                                {totalCartItemCount > 0 && (
+                                    <span className={`absolute -top-1 -left-1 flex h-9 w-9 items-center justify-center rounded-full bg-red-500 text-base font-bold text-white border-2 border-white transition-opacity ${isOrderSidebarVisible ? 'opacity-0' : 'opacity-100'}`}>
                                         {totalCartItemCount > 99 ? '99+' : totalCartItemCount}
                                     </span>
                                 )}
