@@ -71,12 +71,12 @@ export const DEFAULT_MENU_ITEMS: MenuItem[] = [
 export const DEFAULT_FLOORS: string[] = ['ชั้นล่าง', 'ชั้นบน'];
 
 export const DEFAULT_TABLES: Table[] = [
-    { id: 1, name: 'T1', floor: 'ชั้นล่าง' },
-    { id: 2, name: 'T2', floor: 'ชั้นล่าง' },
-    { id: 3, name: 'T3', floor: 'ชั้นล่าง' },
-    { id: 4, name: 'T1', floor: 'ชั้นบน' },
-    { id: 5, name: 'T2', floor: 'ชั้นบน' },
-    { id: 6, name: 'T3', floor: 'ชั้นบน' },
+    { id: 1, name: 'T1', floor: 'ชั้นล่าง', activePin: null, reservation: null },
+    { id: 2, name: 'T2', floor: 'ชั้นล่าง', activePin: null, reservation: null },
+    { id: 3, name: 'T3', floor: 'ชั้นล่าง', activePin: null, reservation: null },
+    { id: 4, name: 'T1', floor: 'ชั้นบน', activePin: null, reservation: null },
+    { id: 5, name: 'T2', floor: 'ชั้นบน', activePin: null, reservation: null },
+    { id: 6, name: 'T3', floor: 'ชั้นบน', activePin: null, reservation: null },
 ];
 
 export const DEFAULT_CATEGORIES: string[] = ['ทั้งหมด', 'อาหารจานเดียว', 'ของทานเล่น', 'เครื่องดื่ม'];

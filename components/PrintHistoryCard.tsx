@@ -42,10 +42,10 @@ export const PrintHistoryCard: React.FC<PrintHistoryCardProps> = ({ entry, isEdi
                     )}
                     <div className="flex-1 cursor-pointer" onClick={() => setIsExpanded(!isExpanded)}>
                         <div className="flex items-baseline gap-2 flex-wrap">
-                            <p className={`font-bold text-xl ${entry.isDeleted ? 'text-red-700 line-through' : 'text-blue-700'}`}>
+                            <p className={`font-bold text-xl ${entry.isDeleted ? 'text-red-700' : 'text-blue-700'}`}>
                                 <span className={entry.isDeleted ? 'text-red-400' : 'text-gray-500'}>#</span>{String(entry.orderNumber).padStart(3, '0')}
                             </p>
-                            <p className={`font-semibold text-lg truncate ${entry.isDeleted ? 'text-red-800 line-through' : 'text-gray-800'}`}>โต๊ะ {entry.tableName}</p>
+                            <p className={`font-semibold text-lg truncate ${entry.isDeleted ? 'text-red-800' : 'text-gray-800'}`}>โต๊ะ {entry.tableName}</p>
                             {entry.isReprint && !entry.isDeleted && <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 font-semibold">พิมพ์ซ้ำ</span>}
                             {entry.isDeleted && <span className="text-xs px-2 py-0.5 rounded-full bg-red-200 text-red-800 font-semibold">(ลบโดย: {entry.deletedBy})</span>}
                         </div>
@@ -66,7 +66,7 @@ export const PrintHistoryCard: React.FC<PrintHistoryCardProps> = ({ entry, isEdi
             </header>
 
             {isExpanded && (
-                <div className={`p-4 border-t ${entry.isDeleted ? 'line-through text-gray-500' : ''}`}>
+                <div className={`p-4 border-t ${entry.isDeleted ? 'text-gray-500' : ''}`}>
                     <div className="space-y-2">
                         <h4 className="font-semibold text-gray-700 mb-2">รายการที่พิมพ์</h4>
                         <ul className="list-disc list-inside text-sm text-gray-600 pl-2 space-y-1">

@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect, useMemo } from 'react';
 import type { ActiveOrder, OrderItem, User } from '../types';
 
@@ -52,6 +50,23 @@ export const TableBillModal: React.FC<TableBillModalProps> = ({
         return { subtotal, tax, total };
     }, [isEditMode, editedItems, order]);
 
+    const groupedItems = useMemo(() => {
+        if (!order) return {};
+        const items = isEditMode ? editedItems : order.items;
+        
+        // FIX: Changed type to { [key: string]: OrderItem[] } to help TypeScript's type inference with Object.entries.
+        const groups: { [key: string]: OrderItem[] } = {};
+        for (const item of items) {
+            const key = item.originalOrderNumber ?? order.orderNumber;
+            if (!groups[key]) {
+                groups[key] = [];
+            }
+            groups[key].push(item);
+        }
+        return groups;
+
+    }, [isEditMode, editedItems, order]);
+
     if (!isOpen || !order) {
         return null;
     }
@@ -78,6 +93,7 @@ export const TableBillModal: React.FC<TableBillModalProps> = ({
             <div className="bg-white rounded-lg shadow-xl w-full max-w-md transform transition-all flex flex-col" style={{maxHeight: '90vh'}} onClick={e => e.stopPropagation()}>
                 <header className="p-4 border-b bg-gray-50 rounded-t-lg">
                     <h3 className="text-2xl font-bold text-gray-800 text-center">
+                        {/* FIX: Corrected typo in 'Bill'. */}
                         บิลโต๊ะ {order.tableName} ({order.floor})
                     </h3>
                     {order.customerName && (
@@ -107,47 +123,55 @@ export const TableBillModal: React.FC<TableBillModalProps> = ({
                         <p className="text-base text-gray-600 mb-2">ลูกค้า: {order.customerCount} คน</p>
                     )}
 
-                    {(isEditMode ? editedItems : order.items).map(item => (
-                        <div key={item.cartItemId} className="flex items-center">
-                             <span className="bg-gray-200 text-gray-700 text-sm font-semibold mr-3 px-2.5 py-1 rounded-full">{item.quantity}x</span>
-                            <div className="flex-grow">
-                                <p className="font-medium text-gray-800 text-base">
-                                    {item.name}
-                                    {item.isTakeaway && <span className="text-purple-600 text-xs font-semibold ml-2">(กลับบ้าน)</span>}
-                                </p>
-                                {item.selectedOptions.length > 0 && (
-                                    <p className="text-xs text-gray-500 pl-1">
-                                        {item.selectedOptions.map(o => o.name).join(', ')}
-                                    </p>
-                                )}
-                                {item.notes && (
-                                    <p className="text-xs text-blue-600 pl-1">
-                                        หมายเหตุ: {item.notes}
-                                    </p>
-                                )}
-                                {item.isTakeaway && item.takeawayCutlery && item.takeawayCutlery.length > 0 && (
-                                    <p className="text-xs text-purple-600 pl-1">
-                                        รับ: {item.takeawayCutlery.map(c => {
-                                            if(c === 'spoon-fork') return 'ช้อนส้อม';
-                                            if(c === 'chopsticks') return 'ตะเกียบ';
-                                            if(c === 'other') return `อื่นๆ (${item.takeawayCutleryNotes})`;
-                                            if(c === 'none') return 'ไม่รับ';
-                                            return '';
-                                        }).filter(Boolean).join(', ')}
-                                    </p>
-                                )}
-                                {isEditMode && <p className="text-sm text-gray-500">{item.finalPrice.toLocaleString()} ฿</p>}
-                            </div>
-                             {isEditMode ? (
-                                <div className="flex items-center gap-2">
-                                    <button onClick={() => handleQuantityChange(item.cartItemId, item.quantity - 1)} className="w-7 h-7 rounded-full bg-blue-500 text-white font-bold flex items-center justify-center hover:bg-blue-600">-</button>
-                                    <button onClick={() => handleQuantityChange(item.cartItemId, item.quantity + 1)} className="w-7 h-7 rounded-full bg-blue-500 text-white font-bold flex items-center justify-center hover:bg-blue-600">+</button>
+                    {Object.entries(groupedItems)
+                        .sort(([numA], [numB]) => Number(numA) - Number(numB))
+                        .map(([orderNumStr, itemsInGroup]) => {
+                            const orderNum = Number(orderNumStr);
+                            const isMainBill = orderNum === order.orderNumber;
+
+                            return (
+                                <div key={orderNum} className="pt-2 first:pt-0">
+                                    {!isMainBill && (
+                                        <h4 className="text-sm font-semibold text-gray-500 mb-2 pb-1 border-b border-dashed">
+                                            (จากบิล #{String(orderNum).padStart(3, '0')})
+                                        </h4>
+                                    )}
+                                    <div className="space-y-3">
+                                        {/* FIX: Cast itemsInGroup to OrderItem[] to fix TypeScript error where it was inferred as 'unknown'. */}
+                                        {(itemsInGroup as OrderItem[]).map(item => (
+                                            <div key={item.cartItemId} className="flex items-center">
+                                                <span className="bg-gray-200 text-gray-700 text-sm font-semibold mr-3 px-2.5 py-1 rounded-full">{item.quantity}x</span>
+                                                <div className="flex-grow">
+                                                    <p className="font-medium text-gray-800 text-base">
+                                                        {item.name}
+                                                        {item.isTakeaway && <span className="text-purple-600 text-xs font-semibold ml-2">(กลับบ้าน)</span>}
+                                                    </p>
+                                                    {item.selectedOptions.length > 0 && (
+                                                        <p className="text-xs text-gray-500 pl-1">
+                                                            {item.selectedOptions.map(o => o.name).join(', ')}
+                                                        </p>
+                                                    )}
+                                                    {item.notes && (
+                                                        <p className="text-xs text-blue-600 pl-1">
+                                                            หมายเหตุ: {item.notes}
+                                                        </p>
+                                                    )}
+                                                    {isEditMode && <p className="text-sm text-gray-500">{item.finalPrice.toLocaleString()} ฿</p>}
+                                                </div>
+                                                {isEditMode ? (
+                                                    <div className="flex items-center gap-2">
+                                                        <button onClick={() => handleQuantityChange(item.cartItemId, item.quantity - 1)} className="w-7 h-7 rounded-full bg-blue-500 text-white font-bold flex items-center justify-center hover:bg-blue-600">-</button>
+                                                        <button onClick={() => handleQuantityChange(item.cartItemId, item.quantity + 1)} className="w-7 h-7 rounded-full bg-blue-500 text-white font-bold flex items-center justify-center hover:bg-blue-600">+</button>
+                                                    </div>
+                                                ) : (
+                                                    <p className="font-medium text-gray-800 text-base">{(item.quantity * item.finalPrice).toLocaleString()} ฿</p>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
-                            ) : (
-                                <p className="font-medium text-gray-800 text-base">{(item.quantity * item.finalPrice).toLocaleString()} ฿</p>
-                            )}
-                        </div>
-                    ))}
+                            );
+                    })}
                 </main>
 
                 <footer className="p-4 border-t bg-gray-50 rounded-b-lg space-y-3">

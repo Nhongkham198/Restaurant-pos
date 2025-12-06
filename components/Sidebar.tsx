@@ -77,7 +77,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
     const canPlaceOrder = currentOrderItems.length > 0 && selectedTable !== null;
     
     const availableTables = useMemo(() => {
-        return tables.filter(t => t.floor === selectedFloor);
+        return tables.filter(t => t.floor === selectedFloor).sort((a, b) => {
+            const numA = parseInt(a.name.replace(/[^0-9]/g, ''), 10);
+            const numB = parseInt(b.name.replace(/[^0-9]/g, ''), 10);
+            if (!isNaN(numA) && !isNaN(numB)) {
+                return numA - numB;
+            }
+            return a.name.localeCompare(b.name);
+        });
     }, [tables, selectedFloor]);
 
     const handleProfileClick = () => {
@@ -227,20 +234,36 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
     return (
         <div className="bg-gray-900 text-white w-full h-full flex flex-col shadow-2xl overflow-hidden border-l border-gray-800 transition-all duration-200">
-            <style>{`
-                .custom-scrollbar::-webkit-scrollbar {
-                    display: none !important;
-                    width: 0px;
-                    background: transparent;
-                }
-                .custom-scrollbar {
-                    -ms-overflow-style: none !important;
-                    scrollbar-width: none !important;
-                }
-            `}</style>
+            {isMobilePage && currentUser && (
+                <header className="p-3 flex justify-between items-center flex-shrink-0 z-30 shadow-lg border-b border-gray-800 relative">
+                    <div className="flex items-center gap-3 cursor-pointer" onClick={handleProfileClick}>
+                        <img 
+                            src={currentUser.profilePictureUrl || "https://img.icons8.com/fluency/48/user-male-circle.png"} 
+                            alt={currentUser.username} 
+                            className="h-10 w-10 rounded-full object-cover border-2 border-gray-700"
+                        />
+                        <div>
+                            <p className="font-semibold text-white leading-none">{currentUser.username}</p>
+                            <span className="text-xs bg-gray-700 text-gray-300 px-1.5 py-0.5 rounded font-mono">{currentUser.role}</span>
+                        </div>
+                    </div>
+                    <h1 className="text-xl font-bold text-red-500 absolute left-1/2 -translate-x-1/2">
+                        {restaurantName}
+                    </h1>
+                    <button 
+                        onClick={onOpenSearch} 
+                        className="p-2 text-gray-300 rounded-full hover:bg-gray-700"
+                        aria-label="Search Menu"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                    </button>
+                </header>
+            )}
             
             {/* Top section for customer info and tables */}
-            <div className="p-4 space-y-4 flex-shrink-0 bg-gray-900">
+            <div className="p-4 space-y-4 flex-shrink-0 bg-gray-900 overflow-y-auto">
                 {/* Customer Info */}
                 <div className="space-y-1">
                     <label className="text-xs font-medium text-gray-400">ชื่อลูกค้า (ถ้ามี)</label>
@@ -279,7 +302,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                             onChange={(e) => onSelectTable(e.target.value ? Number(e.target.value) : null)}
                             className="w-full p-2.5 bg-gray-800 rounded-lg border border-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-blue-600 transition-all"
                         >
-                            <option value="">-- กรุณาเลือกโต๊ะ --</option>
+                             <option value="">-- กรุณาเลือกโต๊ะ --</option>
                             {availableTables.map(table => (
                                 <option key={table.id} value={table.id}>{table.name}</option>
                             ))}
@@ -302,7 +325,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 </div>
 
                 {/* Reservation button */}
-                {selectedTable && (
+                {selectedTable && !isMobilePage && (
                     <div>
                         <button
                             onClick={handleReservationClick}
@@ -316,7 +339,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
             {/* Order Items List - Scrollable area */}
             <div 
-                className="flex-1 overflow-y-auto custom-scrollbar px-4 py-2 space-y-2 min-h-0 bg-gray-900"
+                className="flex-1 overflow-y-auto px-4 py-2 space-y-2 min-h-0 bg-gray-900"
             >
                 {currentOrderItems.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center text-gray-600">
@@ -324,7 +347,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
                          </div>
                         <p className="text-lg font-medium">ยังไม่มีรายการอาหาร</p>
-                        <p className="text-sm">เลือกเมนูจากด้านซ้ายเพื่อเริ่มสั่ง</p>
+                        <p className="text-sm">เลือกเมนูเพื่อเริ่มสั่ง</p>
                     </div>
                 ) : (
                     currentOrderItems.map(item => (
@@ -374,14 +397,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     </button>
                     <button
                         onClick={handleConfirmPlaceOrder}
-                        disabled={!canPlaceOrder || isPlacingOrder}
-                        className="col-span-2 flex-grow bg-gradient-to-r from-blue-600 to-blue-500 p-3 rounded-xl hover:from-blue-500 hover:to-blue-400 text-white font-bold shadow-lg shadow-blue-900/30 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-all transform active:scale-95"
+                        disabled={isPlacingOrder}
+                        className="col-span-2 flex-grow bg-blue-600 p-3 rounded-xl hover:bg-blue-700 text-white font-bold shadow-lg shadow-blue-900/30 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-all transform active:scale-95"
                     >
                         {isPlacingOrder ? (
                             <>
                                 <svg className="animate-spin -ml-1 mr-2 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
                                 <span>กำลังส่ง...</span>
                             </>
+                        ) : !canPlaceOrder ? (
+                            'กรุณาเลือกโต๊ะ'
                         ) : (
                             'ยืนยันออเดอร์'
                         )}

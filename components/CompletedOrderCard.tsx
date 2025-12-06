@@ -50,10 +50,10 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({ order, o
                     )}
                     <div className="flex-1 cursor-pointer" onClick={() => setIsExpanded(!isExpanded)}>
                         <div className="flex items-baseline gap-2 flex-wrap">
-                            <p className={`font-bold text-xl ${order.isDeleted ? 'text-red-700 line-through' : 'text-teal-700'}`}>
+                            <p className={`font-bold text-xl ${order.isDeleted ? 'text-red-700' : 'text-teal-700'}`}>
                                 <span className={order.isDeleted ? 'text-red-400' : 'text-gray-500'}>#</span>{String(order.orderNumber).padStart(3, '0')}
                             </p>
-                            <p className={`font-semibold text-lg truncate ${order.isDeleted ? 'text-red-800 line-through' : 'text-gray-800'}`}>โต๊ะ {order.tableName} ({order.floor})</p>
+                            <p className={`font-semibold text-lg truncate ${order.isDeleted ? 'text-red-800' : 'text-gray-800'}`}>โต๊ะ {order.tableName} ({order.floor})</p>
                             {order.isDeleted && <span className="text-xs px-2 py-0.5 rounded-full bg-red-200 text-red-800 font-semibold">(ลบโดย: {order.deletedBy})</span>}
                         </div>
                         {order.customerName && !order.isDeleted && (
@@ -63,7 +63,7 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({ order, o
                     </div>
                 </div>
                 <div className="flex items-center gap-4 cursor-pointer" onClick={() => setIsExpanded(!isExpanded)}>
-                    <p className={`text-2xl font-bold ${order.isDeleted ? 'text-red-700 line-through' : 'text-gray-800'}`}>{total.toLocaleString(undefined, { minimumFractionDigits: 2 })} ฿</p>
+                    <p className={`text-2xl font-bold ${order.isDeleted ? 'text-red-700' : 'text-gray-800'}`}>{total.toLocaleString(undefined, { minimumFractionDigits: 2 })} ฿</p>
                     <svg className={`w-5 h-5 text-gray-500 transition-transform ${isExpanded ? 'rotate-180' : ''}`} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                       <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
                     </svg>
@@ -71,7 +71,7 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({ order, o
             </header>
 
             {isExpanded && (
-                <div className={`p-4 border-t ${order.isDeleted ? 'line-through text-gray-500' : ''}`}>
+                <div className={`p-4 border-t ${order.isDeleted ? 'text-gray-500' : ''}`}>
                     <div className="grid grid-cols-2 gap-4 mb-4 text-base">
                         <div className={order.isDeleted ? 'text-gray-500' : 'text-gray-600'}>
                             <p><strong>ลูกค้า:</strong> {order.customerCount} คน</p>

@@ -341,10 +341,9 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({ completedOrders, can
             html = `คุณเป็น Admin และกำลังจะลบ <b>${totalSelected}</b> รายการออกจากระบบอย่างถาวร<br/><br/><b class="text-red-600">การกระทำนี้ไม่สามารถย้อนกลับได้!</b>`;
             confirmButtonText = 'ใช่, ลบถาวร!';
         } else {
-            // Apply user's requested changes for non-admins for psychological effect
             title = 'ยืนยันการลบรายการ?';
-            html = `คุณกำลังจะลบข้อมูล <b>${totalSelected}</b> รายการที่เลือก<br/><br/>รายการเหล่านี้จะถูกลบข้อมูลถาวรและไม่สามารถกู้คืนได้`;
-            confirmButtonText = 'ใช่, ลบเลย!';
+            html = `คุณกำลังจะลบ <b>${totalSelected}</b> รายการที่เลือก<br/><br/>รายการเหล่านี้จะถูกลบถาวรและไม่สามารถกู้คืนได้`;
+            confirmButtonText = 'ใช่';
         }
 
         Swal.fire({

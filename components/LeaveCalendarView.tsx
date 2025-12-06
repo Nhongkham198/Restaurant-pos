@@ -300,7 +300,7 @@ export const LeaveCalendarView: React.FC<LeaveCalendarViewProps> = ({ leaveReque
                                         <th className="py-2 px-4 text-right">จัดการ</th>
                                     </tr>
                                 </thead>
-                                <tbody className="text-sm">
+                                <tbody className="text-sm text-gray-800">
                                     {[...visibleRequests].sort((a, b) => b.id - a.id).map(req => (
                                         <tr key={req.id} className="border-b hover:bg-gray-50">
                                             <td className="py-3 px-4 text-gray-500">{new Date(req.id).toLocaleDateString('th-TH')}</td>
@@ -365,4 +365,3 @@ export const LeaveCalendarView: React.FC<LeaveCalendarViewProps> = ({ leaveReque
             />
         </>
     );
-};

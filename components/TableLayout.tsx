@@ -1,5 +1,3 @@
-
-
 import React, { useState, useMemo, useEffect } from 'react';
 import type { Table, ActiveOrder, User, PrinterConfig, Branch } from '../types';
 import { printerService } from '../services/printerService';
@@ -18,16 +16,15 @@ interface TableCardProps {
 
 const TableCard: React.FC<TableCardProps> = ({ table, orders, onTableSelect, onShowBill, onGeneratePin, currentUser, printerConfig, selectedBranch }) => {
     const isOccupied = orders.length > 0;
-    const hasSplitBill = orders.length > 1;
+    const hasSplitBill = orders.some(o => o.isSplitChild || o.splitCount);
     const mainOrder = orders[0];
-    const isReserved = !!table.reservation && !isOccupied; // Only show reserved if not occupied
+    const isReserved = !!table.reservation && !isOccupied;
 
-    // Check permissions for Static QR Code
     const isAdminOrManager = currentUser?.role === 'admin' || currentUser?.role === 'branch-admin';
 
     const combinedTotal = useMemo(() => {
         return orders.reduce((tableSum, order) => {
-            const subtotal = order.items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+            const subtotal = order.items.reduce((sum, item) => sum + item.finalPrice * item.quantity, 0);
             return tableSum + subtotal + order.taxAmount;
         }, 0);
     }, [orders]);
@@ -65,10 +62,7 @@ const TableCard: React.FC<TableCardProps> = ({ table, orders, onTableSelect, onS
     }
 
     const totalCustomers = orders.reduce((sum, order) => {
-        if (hasSplitBill && order.parentOrderId) {
-            return sum;
-        }
-        return sum + order.customerCount;
+        return sum + (order.isSplitChild ? 0 : order.customerCount);
     }, 0);
 
     const handleShowStaticQr = (e: React.MouseEvent) => {
@@ -102,10 +96,9 @@ const TableCard: React.FC<TableCardProps> = ({ table, orders, onTableSelect, onS
             `,
             showCloseButton: true,
             showConfirmButton: false,
-            // Add Deny Button as "Print" Action
             showDenyButton: true,
             denyButtonText: '🖨️ พิมพ์ QR Code',
-            denyButtonColor: '#3b82f6', // Blue color to look like a primary action
+            denyButtonColor: '#3b82f6',
         }).then(async (result) => {
             if (result.isDenied) {
                 if (printerConfig?.kitchen) {
@@ -139,9 +132,22 @@ const TableCard: React.FC<TableCardProps> = ({ table, orders, onTableSelect, onS
         });
     };
 
+    const getBillButtonText = (order: ActiveOrder) => {
+        if (order.mergedOrderNumbers && order.mergedOrderNumbers.length > 0) {
+            const allNumbers = [...new Set([order.orderNumber, ...order.mergedOrderNumbers])].sort((a,b) => a - b);
+            return `บิล #${allNumbers.map(n => String(n).padStart(3, '0')).join('+')}`;
+        }
+        if (order.isSplitChild && order.parentOrderId && order.splitIndex) {
+            return `บิล #${String(order.parentOrderId).padStart(3, '0')}.${order.splitIndex} (บิลย่อย)`;
+        }
+        if (order.splitCount && order.splitCount > 0) {
+            return `บิล #${String(order.orderNumber).padStart(3, '0')} (บิลหลัก)`;
+        }
+        return `ดูบิล #${String(order.orderNumber).padStart(3, '0')}`;
+    };
+
     return (
         <div className={`border-2 rounded-lg p-4 flex flex-col justify-between transition-all duration-300 ${cardStyle} relative group`}>
-            {/* Admin Only: Static QR Code Button */}
             {isAdminOrManager && (
                 <div className="absolute top-2 right-2 z-10">
                     <button 
@@ -175,7 +181,7 @@ const TableCard: React.FC<TableCardProps> = ({ table, orders, onTableSelect, onS
                 )}
                 {isOccupied && (
                     <div className="mt-2 text-base text-gray-700 space-y-1">
-                        {hasSplitBill ? <p><strong>ออเดอร์:</strong> {orders.length} บิล</p> : <p><strong>ออเดอร์:</strong> #{String(orders[0]?.orderNumber).padStart(3, '0')}</p>}
+                         <p><strong>ออเดอร์:</strong> {orders.length} บิล</p>
                         <p><strong>ลูกค้า:</strong> {totalCustomers} คน</p>
                         <p><strong>รายการ:</strong> {totalItems} รายการ</p>
                         <p className={`font-bold text-xl text-red-700 mt-2`}>
@@ -184,7 +190,6 @@ const TableCard: React.FC<TableCardProps> = ({ table, orders, onTableSelect, onS
                     </div>
                 )}
 
-                {/* Reservation Info */}
                 {isReserved && table.reservation && (
                      <div className="mt-3 bg-white/60 px-3 py-2 rounded border border-purple-300 text-sm">
                         <p className="font-bold text-purple-800">คุณ {table.reservation.name}</p>
@@ -193,7 +198,6 @@ const TableCard: React.FC<TableCardProps> = ({ table, orders, onTableSelect, onS
                     </div>
                 )}
                 
-                {/* PIN Management Area - Visible to all staff */}
                 <div className="mt-3">
                     {table.activePin ? (
                         <div className="flex items-center justify-between bg-white/60 px-3 py-2 rounded border border-gray-300">
@@ -230,7 +234,7 @@ const TableCard: React.FC<TableCardProps> = ({ table, orders, onTableSelect, onS
                             onClick={() => onShowBill(order.id)}
                             className={`w-full text-white font-bold py-2 px-4 rounded-lg transition-colors text-base bg-blue-500 hover:bg-blue-600`}
                         >
-                            {hasSplitBill ? `ดูบิล #${order.orderNumber}` : 'ดูบิล / ชำระเงิน'}
+                           {getBillButtonText(order)}
                         </button>
                     ))
                 ) : (
@@ -268,7 +272,14 @@ export const TableLayout: React.FC<TableLayoutProps> = ({ tables, activeOrders, 
     }, [floors, selectedFloor]);
 
     const tablesOnFloor = useMemo(() => {
-        return tables.filter(t => t.floor === selectedFloor).sort((a,b) => a.id - b.id);
+        return tables.filter(t => t.floor === selectedFloor).sort((a, b) => {
+            const numA = parseInt(a.name.replace(/[^0-9]/g, ''), 10);
+            const numB = parseInt(b.name.replace(/[^0-9]/g, ''), 10);
+            if (!isNaN(numA) && !isNaN(numB)) {
+                return numA - numB;
+            }
+            return a.name.localeCompare(b.name);
+        });
     }, [tables, selectedFloor]);
 
     return (
@@ -293,7 +304,7 @@ export const TableLayout: React.FC<TableLayoutProps> = ({ tables, activeOrders, 
             {tablesOnFloor.length > 0 ? (
                 <div className="flex-1 overflow-y-auto grid grid-cols-[repeat(auto-fit,224px)] justify-center gap-4 p-2 pb-24">
                     {tablesOnFloor.map(table => {
-                        const ordersForTable = activeOrders.filter(o => o.tableName === table.name && o.floor === table.floor);
+                        const ordersForTable = activeOrders.filter(o => o.tableId === table.id);
                         return (
                              <TableCard
                                 key={table.id}

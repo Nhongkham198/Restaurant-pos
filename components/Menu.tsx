@@ -18,7 +18,6 @@ interface MenuProps {
     onDeleteCategory: (name: string) => void;
     onAddCategory: (name: string) => void;
     onImportMenu: (importedItems: MenuItem[], newCategories: string[]) => void;
-    totalItems: number;
 }
 
 export const Menu: React.FC<MenuProps> = ({ 
@@ -34,7 +33,6 @@ export const Menu: React.FC<MenuProps> = ({
     onDeleteCategory, 
     onAddCategory,
     onImportMenu,
-    totalItems
 }) => {
     const [selectedCategory, setSelectedCategory] = useState('ทั้งหมด');
     const [searchTerm, setSearchTerm] = useState('');
@@ -478,11 +476,6 @@ export const Menu: React.FC<MenuProps> = ({
                                 aria-label="Scroll categories right"
                             >
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5l7 7-7 7" /></svg>
-                                {totalItems > 0 && (
-                                    <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs font-bold text-white border-2 border-white">
-                                        {totalItems > 99 ? '99+' : totalItems}
-                                    </span>
-                                )}
                             </button>
                         )}
                     </div>

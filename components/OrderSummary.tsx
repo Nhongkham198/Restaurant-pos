@@ -28,10 +28,9 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({ items, onQuantityCha
                             // FIX: Use the unique cartItemId for the key instead of the non-unique item.id.
                             key={item.cartItemId}
                             item={item}
-                            onQuantityChange={onQuantityChange}
                             onRemoveItem={onRemoveItem}
-                            // FIX: Pass a dummy function for onToggleTakeaway to satisfy OrderListItem's required props, as this view doesn't use it.
-                            onToggleTakeaway={() => {}}
+                            // OrderListItem requires onEditItem, but this summary view doesn't support it.
+                            onEditItem={() => {}}
                         />
                     ))}
                 </div>

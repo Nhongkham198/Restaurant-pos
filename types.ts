@@ -59,6 +59,7 @@ export interface OrderItem extends MenuItem {
     notes?: string;
     takeawayCutlery?: TakeawayCutleryOption[];
     takeawayCutleryNotes?: string;
+    originalOrderNumber?: number;
 }
 
 export interface PaymentDetails {
@@ -70,7 +71,6 @@ export interface PaymentDetails {
 interface BaseOrder {
     id: number;
     orderNumber: number;
-    // FIX: Add tableId to BaseOrder to link orders with tables directly, resolving compilation errors.
     tableId: number;
     tableName: string;
     customerName?: string;
@@ -82,12 +82,14 @@ interface BaseOrder {
     taxAmount: number;
     placedBy: string;
     parentOrderId?: number | null;
-    // Kept for legacy compatibility, but new logic uses item-level cutlery
     takeawayCutlery?: TakeawayCutleryOption[];
     takeawayCutleryNotes?: string;
-    // ADD: Add soft delete properties
-    isDeleted?: boolean; // Soft delete flag
-    deletedBy?: string; // Username of the person who deleted it
+    isDeleted?: boolean;
+    deletedBy?: string;
+    mergedOrderNumbers?: number[];
+    splitCount?: number;
+    isSplitChild?: boolean;
+    splitIndex?: number;
 }
 
 export interface ActiveOrder extends BaseOrder {
@@ -132,7 +134,7 @@ export interface Table {
     id: number;
     name: string;
     floor: string;
-    activePin?: string; // PIN code for customer self-service verification
+    activePin?: string | null; // PIN code for customer self-service verification
     reservation?: Reservation | null;
 }
 

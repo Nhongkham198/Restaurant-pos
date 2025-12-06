@@ -73,7 +73,12 @@ export function useFirestoreSync<T>(
                             console.warn(`'branches' collection is empty in Firestore. Re-initializing with default value.`);
                             docRef.set({ value: currentInitialValue });
                             setValue(currentInitialValue);
-                        } else {
+                        } else if (collectionKey === 'orderCounter' && typeof valueToSet !== 'number') {
+                            console.warn(`'orderCounter' is not a number. Resetting to initial value.`);
+                            docRef.set({ value: currentInitialValue });
+                            setValue(currentInitialValue);
+                        }
+                        else {
                             setValue(valueToSet as T);
                         }
                     } else {
