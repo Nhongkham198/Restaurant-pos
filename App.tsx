@@ -225,12 +225,11 @@ const App: React.FC = () => {
 
     // --- REFS ---
     const prevActiveOrdersRef = useRef<ActiveOrder[] | undefined>(undefined);
-    const prevLeaveRequestsRef = useRef<LeaveRequest[]>([]);
-    const isInitialLeaveLoadRef = useRef(true);
     const staffCallAudioRef = useRef<HTMLAudioElement | null>(null);
     const prevUserRef = useRef<User | null>(null);
     const activeCallRef = useRef<StaffCall | null>(null);
     const overdueTimersRef = useRef<Map<number, number>>(new Map());
+    const shownNotificationsRef = useRef<Set<number>>(new Set());
 
     // ============================================================================
     // 2. COMPUTED VALUES (MEMO)
@@ -253,18 +252,19 @@ const App: React.FC = () => {
     const leaveBadgeCount = useMemo(() => {
         if (!currentUser) return 0;
         
-        if (currentUser.role === 'admin') {
-            return leaveRequests.filter(req => req.status === 'pending').length;
-        }
-        
-        if (currentUser.role === 'branch-admin' || currentUser.role === 'auditor') {
-            return leaveRequests.filter(req => 
-                req.status === 'pending' && 
-                currentUser.allowedBranchIds?.includes(req.branchId)
-            ).length;
-        }
+        const filterPredicate = (req: LeaveRequest) => {
+            if (req.status !== 'pending') return false;
 
-        return 0;
+            if (currentUser.role === 'admin') {
+                return req.branchId === 1; // Admin only sees branch 1 pending
+            }
+            if (currentUser.role === 'branch-admin' || currentUser.role === 'auditor') {
+                return currentUser.allowedBranchIds?.includes(req.branchId) ?? false;
+            }
+            return false; // Other roles don't see a badge
+        };
+
+        return leaveRequests.filter(filterPredicate).length;
     }, [leaveRequests, currentUser]);
 
     const mobileNavItems = useMemo(() => {
@@ -447,6 +447,7 @@ const App: React.FC = () => {
     useEffect(() => {
         const latestCall = staffCalls.length > 0 ? staffCalls[staffCalls.length - 1] : null;
 
+        // Check if there's a new, valid call that hasn't been shown yet
         if (latestCall && latestCall.tableName && latestCall.id !== activeCallRef.current?.id) {
             if (staffCallSoundUrl && isAudioUnlocked) {
                 if (staffCallAudioRef.current) {
@@ -466,64 +467,93 @@ const App: React.FC = () => {
                 timer: 30000,
                 timerProgressBar: true,
             }).then(() => {
+                // Remove the call from state once the alert is closed
                 setStaffCalls(prevCalls => prevCalls.filter(call => call.id !== latestCall.id));
                 activeCallRef.current = null;
             });
         }
         
+        // Auto-cleanup stale calls (older than 1 minute or without a table name)
         const oneMinuteAgo = Date.now() - 60000;
-        const freshCalls = staffCalls.filter(call => call.timestamp > oneMinuteAgo && call.tableName);
-        if (freshCalls.length < staffCalls.length) {
-            setStaffCalls(freshCalls);
+        const freshAndValidCalls = staffCalls.filter(call => call.timestamp > oneMinuteAgo && call.tableName);
+        if (freshAndValidCalls.length < staffCalls.length) {
+            setStaffCalls(freshAndValidCalls);
         }
 
     }, [staffCalls, setStaffCalls, staffCallSoundUrl, isAudioUnlocked]);
     
-    // --- EFFECT: New Leave Request Notification ---
-    useEffect(() => {
-        if (isInitialLeaveLoadRef.current) {
-            isInitialLeaveLoadRef.current = false;
-            prevLeaveRequestsRef.current = leaveRequests;
+    // Refactored leave notification handler
+    const showLeaveNotification = useCallback((req: LeaveRequest) => {
+        // Prevent notification if:
+        // 1. User not logged in
+        // 2. User has already acknowledged this request
+        // 3. This exact notification is already on screen (prevents duplicates on re-renders)
+        if (!currentUser || (req.acknowledgedBy?.includes(currentUser.id)) || shownNotificationsRef.current.has(req.id)) {
             return;
         }
 
-        if (leaveRequests.length > prevLeaveRequestsRef.current.length) {
-            const prevIds = new Set(prevLeaveRequestsRef.current.map(r => r.id));
-            const newRequests = leaveRequests.filter(r => !prevIds.has(r.id));
-            
-            newRequests.forEach(req => {
-                if (!currentUser) return;
+        let shouldNotify = false;
+        if (currentUser.role === 'admin' && req.branchId === 1) {
+            shouldNotify = true;
+        } else if (['branch-admin', 'auditor'].includes(currentUser.role)) {
+            if (currentUser.allowedBranchIds?.includes(req.branchId)) {
+                shouldNotify = true;
+            }
+        }
 
-                let shouldNotify = false;
-                
-                if (currentUser.role === 'admin' && req.branchId === 1) { // Admin for branch 1 only
-                    shouldNotify = true;
-                } else if (['branch-admin', 'auditor'].includes(currentUser.role)) {
-                    if (currentUser.allowedBranchIds?.includes(req.branchId)) {
-                        shouldNotify = true;
-                    }
-                }
+        if (shouldNotify) {
+            // Mark notification as "currently showing" to prevent duplicates
+            shownNotificationsRef.current.add(req.id);
 
-                if (shouldNotify) {
-                    const branchName = branches.find(b => b.id === req.branchId)?.name || `สาขา #${req.branchId}`;
-                    const leaveType = req.type === 'sick' ? 'ลาป่วย' : req.type === 'personal' ? 'ลากิจ' : 'ลาพักร้อน/อื่นๆ';
+            const branchName = branches.find(b => b.id === req.branchId)?.name || `สาขา #${req.branchId}`;
+            const leaveTypeMapping: { [key in LeaveRequest['type']]: string } = {
+                'sick': 'ลาป่วย',
+                'personal': 'ลากิจ',
+                'vacation': 'ลาไม่รับเงินเดือน',
+                'leave-without-pay': 'ลาไม่รับเงินเดือน',
+                'other': 'อื่นๆ'
+            };
+            const leaveType = leaveTypeMapping[req.type] || 'การลา';
 
-                    Swal.fire({
-                        toast: true,
-                        position: 'top-end',
-                        icon: 'info',
-                        title: 'มีคำขอวันลาใหม่',
-                        html: `<b>${req.username}</b> (${branchName})<br/>ได้ส่งคำขอ<b>${leaveType}</b>`,
-                        showConfirmButton: false,
-                        timer: 10000,
-                        timerProgressBar: true
-                    });
+            Swal.fire({
+                title: 'มีคำขอวันลาใหม่',
+                html: `พนักงาน <b>${req.username}</b> (${branchName})<br/>ได้ส่งคำขอ<b>${leaveType}</b>`,
+                icon: 'info',
+                confirmButtonText: 'รับทราบ',
+                allowOutsideClick: false,
+            }).then((result) => {
+                // Remove from "currently showing" set once the user interacts with it
+                shownNotificationsRef.current.delete(req.id);
+
+                if (result.isConfirmed) {
+                    setLeaveRequests(prevRequests =>
+                        prevRequests.map(leaveReq => {
+                            if (leaveReq.id === req.id) {
+                                const newAcknowledgedBy = Array.from(new Set([...(leaveReq.acknowledgedBy || []), currentUser.id]));
+                                return { ...leaveReq, acknowledgedBy: newAcknowledgedBy };
+                            }
+                            return leaveReq;
+                        })
+                    );
                 }
             });
         }
+    }, [currentUser, branches, setLeaveRequests]);
 
-        prevLeaveRequestsRef.current = leaveRequests;
-    }, [leaveRequests, currentUser, branches]);
+    // --- EFFECT: Leave Request Notification (REFACTORED) ---
+    useEffect(() => {
+        // This effect runs whenever leave requests change or the user logs in.
+        // It checks ALL pending requests and tries to show a notification if it hasn't been
+        // acknowledged or isn't already being shown.
+        if (leaveRequests && currentUser) {
+            leaveRequests.forEach(req => {
+                if (req.status === 'pending') {
+                    showLeaveNotification(req);
+                }
+            });
+        }
+    }, [leaveRequests, currentUser, showLeaveNotification]); // Correct dependencies
+
 
     // --- EFFECT: Manage User State Persistence & FCM Token ---
     useEffect(() => {
@@ -1194,12 +1224,14 @@ const App: React.FC = () => {
         if (!targetOrder) return;
     
         const sourceOrders = activeOrders.filter(o => sourceOrderIds.includes(o.id));
-        const allItemsToMerge = sourceOrders.flatMap(o => o.items);
+        const allItemsToMerge = sourceOrders.flatMap(o => o.items.map(item => ({
+            ...item,
+            originalOrderNumber: item.originalOrderNumber ?? o.orderNumber
+        })));
         const sourceOrderNumbers = sourceOrders.map(o => o.orderNumber);
     
         setActiveOrders(prev => prev.map(o => {
             if (o.id === targetOrderId) {
-                // Concatenate item arrays instead of merging quantities
                 const newItems = [...o.items, ...allItemsToMerge];
     
                 const newMergedNumbers = Array.from(new Set([
@@ -1360,7 +1392,7 @@ const App: React.FC = () => {
                     />
                 )}
                 
-                <main className={`flex-1 flex overflow-hidden ${!isDesktop ? 'pb-20' : ''}`}>
+                <main className={`flex-1 flex overflow-hidden ${!isDesktop ? 'pb-16' : ''}`}>
                     {/* Desktop POS View */}
                     {currentView === 'pos' && isDesktop && (
                         <>
@@ -1419,13 +1451,13 @@ const App: React.FC = () => {
                             </aside>
                             <button
                                 onClick={() => setIsOrderSidebarVisible(!isOrderSidebarVisible)}
-                                className="absolute right-0 top-1/2 -translate-y-1/2 bg-gray-800 text-white p-3 rounded-l-full z-20 shadow-lg"
+                                className="absolute right-0 top-1/2 -translate-y-1/2 bg-gray-800 text-white p-4 rounded-l-full z-20 shadow-lg"
                                 style={{ right: isOrderSidebarVisible ? '24rem' : '0' }}
                                 title={isOrderSidebarVisible ? "ซ่อน" : "แสดง"}
                             >
-                                <svg xmlns="http://www.w3.org/2000/svg" className={`h-8 w-8 transition-transform ${isOrderSidebarVisible ? '' : 'rotate-180'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M15 19l-7-7 7-7" /></svg>
+                                <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 transition-transform ${isOrderSidebarVisible ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M9 5l7 7-7 7" /></svg>
                                 {totalCartItemCount > 0 && (
-                                    <span className={`absolute -top-1 -left-1 flex h-9 w-9 items-center justify-center rounded-full bg-red-500 text-base font-bold text-white border-2 border-white transition-opacity ${isOrderSidebarVisible ? 'opacity-0' : 'opacity-100'}`}>
+                                    <span className={`absolute -top-2 -left-1 flex h-10 w-10 items-center justify-center rounded-full bg-red-500 text-lg font-bold text-white border-2 border-white transition-opacity ${isOrderSidebarVisible ? 'opacity-0' : 'opacity-100'}`}>
                                         {totalCartItemCount > 99 ? '99+' : totalCartItemCount}
                                     </span>
                                 )}
