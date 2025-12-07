@@ -30,7 +30,8 @@ import type {
     LeaveRequest,
     StaffCall,
     PaymentDetails,
-    CancellationReason
+    CancellationReason,
+    OrderCounter
 } from './types';
 import { useFirestoreSync } from './hooks/useFirestoreSync';
 import { functionsService } from './services/firebaseFunctionsService';
@@ -85,12 +86,6 @@ declare global {
         };
     }
 }
-
-const isSameDay = (d1: Date, d2: Date) => {
-    return d1.getFullYear() === d2.getFullYear() &&
-           d1.getMonth() === d2.getMonth() &&
-           d1.getDate() === d2.getDate();
-};
 
 const App: React.FC = () => {
     // ============================================================================
@@ -177,7 +172,7 @@ const App: React.FC = () => {
     const [printHistory, setPrintHistory] = useFirestoreSync<PrintHistoryEntry[]>(branchId, 'printHistory', []);
     const [staffCalls, setStaffCalls] = useFirestoreSync<StaffCall[]>(branchId, 'staffCalls', []);
     const [leaveRequests, setLeaveRequests] = useFirestoreSync<LeaveRequest[]>(null, 'leaveRequests', []);
-    const [orderCounter, setOrderCounter] = useFirestoreSync<number>(branchId, 'orderCounter', 0);
+    const [orderCounter, setOrderCounter] = useFirestoreSync<OrderCounter>(branchId, 'orderCounter', { count: 0, lastResetDate: new Date().toISOString().split('T')[0] });
 
 
     // --- POS-SPECIFIC LOCAL STATE ---
@@ -744,6 +739,23 @@ const App: React.FC = () => {
         setItemToCustomize(null);
         setOrderItemToEdit(null); // Clear the specific item being edited
     };
+    
+    const getNextOrderNumber = (): { nextOrderId: number, newCounterState: OrderCounter } => {
+        const today = new Date();
+        const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+        
+        let nextOrderId;
+        let newCounterState: OrderCounter;
+    
+        if (orderCounter && orderCounter.lastResetDate === todayStr) {
+            nextOrderId = orderCounter.count + 1;
+            newCounterState = { count: nextOrderId, lastResetDate: todayStr };
+        } else {
+            nextOrderId = 1;
+            newCounterState = { count: 1, lastResetDate: todayStr };
+        }
+        return { nextOrderId, newCounterState };
+    };
 
     // --- Order & POS Handlers ---
     const handleClearOrder = () => {
@@ -812,7 +824,7 @@ const App: React.FC = () => {
         if (!tableOverride || orderItems.length === 0) return;
     
         setIsPlacingOrder(true);
-        const nextOrderId = orderCounter + 1;
+        const { nextOrderId, newCounterState } = getNextOrderNumber();
 
         const itemsWithOrigin = orderItems.map(item => ({
             ...item,
@@ -865,7 +877,7 @@ const App: React.FC = () => {
             newOrder.taxAmount = newOrder.taxRate > 0 ? subtotal * (newOrder.taxRate / 100) : 0;
             
             setActiveOrders(prev => [...prev, newOrder]);
-            setOrderCounter(nextOrderId);
+            setOrderCounter(newCounterState);
             setLastPlacedOrderId(newOrder.orderNumber);
             setModalState(prev => ({ ...prev, isOrderSuccess: true }));
 
@@ -1136,7 +1148,6 @@ const App: React.FC = () => {
                 cancelledIds.includes(o.id) ? { ...o, isDeleted: true, deletedBy: username } : o
             ));
             setPrintHistory(prev => prev.map(p => 
-                // FIX: Corrected typo 'o' to 'p' to match the map function's parameter.
                 printIds.includes(p.id) ? { ...p, isDeleted: true, deletedBy: username } : p
             ));
         }
@@ -1156,7 +1167,7 @@ const App: React.FC = () => {
         const newSplitCount = (originalOrder.splitCount || 0) + 1;
     
         // 1. Create the new (split) order
-        const nextOrderId = orderCounter + 1;
+        const { nextOrderId, newCounterState } = getNextOrderNumber();
         const newSplitOrder: ActiveOrder = {
             ...originalOrder,
             id: Date.now(),
@@ -1187,7 +1198,7 @@ const App: React.FC = () => {
             ...prev.map(o => o.id === originalOrder.id ? { ...o, items: updatedOriginalItems, splitCount: newSplitCount } : o),
             newSplitOrder
         ]);
-        setOrderCounter(nextOrderId);
+        setOrderCounter(newCounterState);
     
         handleModalClose();
     };

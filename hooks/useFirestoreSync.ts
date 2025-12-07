@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { db } from '../firebaseConfig';
-import type { Table } from '../types';
+import type { Table, OrderCounter } from '../types';
 
 export function useFirestoreSync<T>(
     branchId: string | null,
@@ -73,10 +73,18 @@ export function useFirestoreSync<T>(
                             console.warn(`'branches' collection is empty in Firestore. Re-initializing with default value.`);
                             docRef.set({ value: currentInitialValue });
                             setValue(currentInitialValue);
-                        } else if (collectionKey === 'orderCounter' && typeof valueToSet !== 'number') {
-                            console.warn(`'orderCounter' is not a number. Resetting to initial value.`);
-                            docRef.set({ value: currentInitialValue });
-                            setValue(currentInitialValue);
+                        } else if (collectionKey === 'orderCounter') {
+                            const isValidCounter = valueToSet && typeof valueToSet === 'object' &&
+                                'count' in valueToSet && typeof (valueToSet as any).count === 'number' &&
+                                'lastResetDate' in valueToSet && typeof (valueToSet as any).lastResetDate === 'string';
+                            
+                            if (!isValidCounter) {
+                                console.warn(`'orderCounter' has an invalid format. Resetting to initial value.`);
+                                docRef.set({ value: currentInitialValue });
+                                setValue(currentInitialValue);
+                            } else {
+                                setValue(valueToSet as T);
+                            }
                         }
                         else {
                             setValue(valueToSet as T);

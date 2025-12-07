@@ -231,3 +231,8 @@ export interface PrintHistoryEntry {
     isDeleted?: boolean; // Soft delete flag
     deletedBy?: string; // Username of the person who deleted it
 }
+
+export interface OrderCounter {
+    count: number;
+    lastResetDate: string; // YYYY-MM-DD format
+}
