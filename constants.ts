@@ -66,6 +66,15 @@ export const DEFAULT_MENU_ITEMS: MenuItem[] = [
     { id: 3, name: 'เฟรนช์ฟรายส์', price: 45, category: 'ของทานเล่น', imageUrl: 'https://firebasestorage.googleapis.com/v0/b/restaurant-pos-f8bd4.appspot.com/o/menu%2Ffrench-fries.jpg?alt=media', cookingTime: 4 },
     { id: 4, name: 'โค้ก', price: 20, category: 'เครื่องดื่ม', imageUrl: 'https://firebasestorage.googleapis.com/v0/b/restaurant-pos-f8bd4.appspot.com/o/menu%2Fcoke.jpg?alt=media', cookingTime: 1 },
     { id: 5, name: 'น้ำเปล่า', price: 15, category: 'เครื่องดื่ม', imageUrl: 'https://firebasestorage.googleapis.com/v0/b/restaurant-pos-f8bd4.appspot.com/o/menu%2Fwater.jpg?alt=media', cookingTime: 1 },
+    { id: 6, name: 'ซุปกิมจิ', price: 150, category: 'อาหารเกาหลี', imageUrl: 'https://firebasestorage.googleapis.com/v0/b/restaurant-pos-f8bd4.appspot.com/o/menu%2Fkimchi-jjigae.jpg?alt=media', cookingTime: 10 },
+    { id: 7, name: 'จาจังมยอน (บะหมี่ซอสดำ)', price: 160, category: 'อาหารเกาหลี', imageUrl: 'https://firebasestorage.googleapis.com/v0/b/restaurant-pos-f8bd4.appspot.com/o/menu%2Fjajangmyeon.jpg?alt=media', cookingTime: 12 },
+    { id: 8, name: 'จาจังบับ (ข้าวหน้าซอสจาจัง)', price: 160, category: 'อาหารเกาหลี', imageUrl: 'https://firebasestorage.googleapis.com/v0/b/restaurant-pos-f8bd4.appspot.com/o/menu%2Fjajangbap.jpg?alt=media', cookingTime: 12 },
+    { id: 9, name: 'ต๊อกบกกี (ต๊อกผัดซอสเกาหลี)', price: 120, category: 'อาหารเกาหลี', imageUrl: 'https://firebasestorage.googleapis.com/v0/b/restaurant-pos-f8bd4.appspot.com/o/menu%2Ftteokbokki.jpg?alt=media', cookingTime: 8 },
+    { id: 10, name: 'คิมมาริ (สาหร่ายห่อวุ้นเส้นทอด)', price: 90, category: 'ของทานเล่น', imageUrl: 'https://firebasestorage.googleapis.com/v0/b/restaurant-pos-f8bd4.appspot.com/o/menu%2Fkimmari.jpg?alt=media', cookingTime: 7 },
+    { id: 11, name: 'กุนมันดู (เกี๊ยวทอดเกาหลี)', price: 90, category: 'ของทานเล่น', imageUrl: 'https://firebasestorage.googleapis.com/v0/b/restaurant-pos-f8bd4.appspot.com/o/menu%2Fgun-mandu.jpg?alt=media', cookingTime: 7 },
+    { id: 12, name: 'บิบิมบับ (ข้าวยำเกาหลี)', price: 180, category: 'อาหารเกาหลี', imageUrl: 'https://firebasestorage.googleapis.com/v0/b/restaurant-pos-f8bd4.appspot.com/o/menu%2Fbibimbap.jpg?alt=media', cookingTime: 10 },
+    { id: 13, name: 'เจยุก บกกึม หมู/ไก่ผัดซอสโคชูจัง (กับข้าว)', price: 170, category: 'อาหารเกาหลี', imageUrl: 'https://firebasestorage.googleapis.com/v0/b/restaurant-pos-f8bd4.appspot.com/o/menu%2Fjeyuk-bokkeum.jpg?alt=media', cookingTime: 12 },
+    { id: 14, name: 'ซาวครีม ชิ้กเก้น (ไก่ทอดซอสซาวครีม)', price: 150, category: 'ของทานเล่น', imageUrl: 'https://firebasestorage.googleapis.com/v0/b/restaurant-pos-f8bd4.appspot.com/o/menu%2Fsour-cream-chicken.jpg?alt=media', cookingTime: 15 },
 ];
 
 export const DEFAULT_FLOORS: string[] = ['ชั้นล่าง', 'ชั้นบน'];
@@ -79,7 +88,7 @@ export const DEFAULT_TABLES: Table[] = [
     { id: 6, name: 'T3', floor: 'ชั้นบน', activePin: null, reservation: null },
 ];
 
-export const DEFAULT_CATEGORIES: string[] = ['ทั้งหมด', 'อาหารจานเดียว', 'ของทานเล่น', 'เครื่องดื่ม'];
+export const DEFAULT_CATEGORIES: string[] = ['ทั้งหมด', 'อาหารจานเดียว', 'อาหารเกาหลี', 'ของทานเล่น', 'เครื่องดื่ม'];
 export const DEFAULT_STOCK_CATEGORIES: string[] = ['ทั้งหมด', 'ของสด', 'ของแห้ง', 'เครื่องปรุง', 'เครื่องดื่ม'];
 export const DEFAULT_STOCK_UNITS: string[] = ['กิโลกรัม', 'ลิตร', 'ขวด', 'แพ็ค', 'ชิ้น', 'ฟอง', 'ถุง'];
 

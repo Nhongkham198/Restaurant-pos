@@ -18,6 +18,7 @@ interface MenuProps {
     onDeleteCategory: (name: string) => void;
     onAddCategory: (name: string) => void;
     onImportMenu: (importedItems: MenuItem[], newCategories: string[]) => void;
+    recommendedMenuItemIds: number[];
 }
 
 export const Menu: React.FC<MenuProps> = ({ 
@@ -33,6 +34,7 @@ export const Menu: React.FC<MenuProps> = ({
     onDeleteCategory, 
     onAddCategory,
     onImportMenu,
+    recommendedMenuItemIds,
 }) => {
     const [selectedCategory, setSelectedCategory] = useState('ทั้งหมด');
     const [searchTerm, setSearchTerm] = useState('');
@@ -508,6 +510,7 @@ export const Menu: React.FC<MenuProps> = ({
                         onDragStart={() => (dragItem.current = item.id)}
                         onDragEnter={() => (dragOverItem.current = item.id)}
                         onDragEnd={handleDragSort}
+                        isRecommended={recommendedMenuItemIds.includes(item.id)}
                     />
                 ))}
             </div>

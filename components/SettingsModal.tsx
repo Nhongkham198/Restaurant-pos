@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import type { PrinterConfig, ReceiptPrintSettings, KitchenPrinterSettings, CashierPrinterSettings } from '../types';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import type { PrinterConfig, ReceiptPrintSettings, KitchenPrinterSettings, CashierPrinterSettings, MenuItem } from '../types';
 import { printerService } from '../services/printerService';
 import Swal from 'sweetalert2';
 
@@ -14,6 +14,9 @@ interface SettingsModalProps {
     currentOpeningTime: string | null;
     currentClosingTime: string | null;
     onSavePrinterConfig: (newPrinterConfig: PrinterConfig) => void;
+    menuItems: MenuItem[];
+    currentRecommendedMenuItemIds: number[] | null;
+    onSaveRecommendedItems: (ids: number[]) => void;
 }
 
 const DEFAULT_RECEIPT_OPTIONS: ReceiptPrintSettings = {
@@ -111,10 +114,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     currentPrinterConfig,
     currentOpeningTime, 
     currentClosingTime,
-    onSavePrinterConfig
+    onSavePrinterConfig,
+    menuItems,
+    currentRecommendedMenuItemIds,
+    onSaveRecommendedItems,
 }) => {
     
-    const [activeTab, setActiveTab] = useState<'general' | 'sound' | 'staffCallSound' | 'qrcode' | 'kitchen' | 'cashier'>('general');
+    const [activeTab, setActiveTab] = useState<'general' | 'sound' | 'staffCallSound' | 'qrcode' | 'kitchen' | 'cashier' | 'recommended'>('general');
     const [settingsForm, setSettingsForm] = useState({
         qrCodeUrl: '',
         soundDataUrl: '',
@@ -133,6 +139,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         cashier: ConnectionStatus;
     }>({ kitchen: 'idle', cashier: 'idle' });
     
+    const [localRecommendedIds, setLocalRecommendedIds] = useState(new Set<number>());
+    const [recommendSearchTerm, setRecommendSearchTerm] = useState('');
+
     const soundFileInputRef = useRef<HTMLInputElement>(null);
     const staffCallSoundFileInputRef = useRef<HTMLInputElement>(null);
     const qrCodeFileInputRef = useRef<HTMLInputElement>(null);
@@ -141,6 +150,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         if (isOpen) {
             setActiveTab('general'); // Reset to general tab on open
             setConnectionStatus({ kitchen: 'idle', cashier: 'idle' }); // Reset connection status
+            setLocalRecommendedIds(new Set(currentRecommendedMenuItemIds || []));
+            setRecommendSearchTerm('');
+
             const finalKitchenConf: KitchenPrinterSettings = {
                 ...DEFAULT_KITCHEN_PRINTER,
                 ...(currentPrinterConfig?.kitchen || {})
@@ -171,7 +183,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 }
             });
         }
-    }, [isOpen, currentQrCodeUrl, currentNotificationSoundUrl, currentStaffCallSoundUrl, currentPrinterConfig, currentOpeningTime, currentClosingTime]);
+    }, [isOpen, currentQrCodeUrl, currentNotificationSoundUrl, currentStaffCallSoundUrl, currentPrinterConfig, currentOpeningTime, currentClosingTime, currentRecommendedMenuItemIds]);
 
     const handleSoundFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -350,12 +362,31 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         });
     };
 
+    const handleToggleRecommend = (itemId: number) => {
+        setLocalRecommendedIds(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(itemId)) {
+                newSet.delete(itemId);
+            } else {
+                newSet.add(itemId);
+            }
+            return newSet;
+        });
+    };
+
+    const filteredMenuItems = useMemo(() => {
+        if (!recommendSearchTerm) return menuItems;
+        return menuItems.filter(item => item.name.toLowerCase().includes(recommendSearchTerm.toLowerCase()));
+    }, [menuItems, recommendSearchTerm]);
+
+
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         const finalConfig: PrinterConfig = {
             kitchen: settingsForm.printerConfig.kitchen,
             cashier: settingsForm.printerConfig.cashier,
         };
+        onSaveRecommendedItems(Array.from(localRecommendedIds));
         onSave(
             settingsForm.qrCodeUrl, 
             settingsForm.soundDataUrl, 
@@ -386,6 +417,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                      <div className="px-4 sm:px-6 border-b border-gray-200 flex-shrink-0 overflow-x-auto">
                         <nav className="-mb-px flex space-x-4 sm:space-x-6">
                             <TabButton label="ทั่วไป" isActive={activeTab === 'general'} onClick={() => setActiveTab('general')} />
+                            <TabButton label="เมนูแนะนำ" isActive={activeTab === 'recommended'} onClick={() => setActiveTab('recommended')} />
                             <TabButton label="เสียงแจ้งเตือน" isActive={activeTab === 'sound'} onClick={() => setActiveTab('sound')} />
                             <TabButton label="เสียงเรียกพนักงาน" isActive={activeTab === 'staffCallSound'} onClick={() => setActiveTab('staffCallSound')} />
                             <TabButton label="QR Code" isActive={activeTab === 'qrcode'} onClick={() => setActiveTab('qrcode')} />
@@ -419,6 +451,36 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                             className="mt-1 block w-full border border-gray-300 p-2 rounded-md shadow-sm"
                                         />
                                     </div>
+                                </div>
+                            </div>
+                        )}
+                        {activeTab === 'recommended' && (
+                             <div>
+                                <h4 className="text-lg font-semibold text-gray-700 mb-2">จัดการเมนูแนะนำ</h4>
+                                <p className="text-sm text-gray-500 mb-4">เลือกรายการอาหารที่จะแสดงเป็นเมนูแนะนำในหน้า POS</p>
+                                <input 
+                                    type="text" 
+                                    placeholder="ค้นหาเมนู..." 
+                                    value={recommendSearchTerm} 
+                                    onChange={(e) => setRecommendSearchTerm(e.target.value)} 
+                                    className="w-full p-2 border border-gray-300 rounded-md mb-4"
+                                />
+                                <div className="max-h-96 overflow-y-auto space-y-2 border p-2 rounded-md bg-gray-50">
+                                    {filteredMenuItems.map(item => (
+                                        <label key={item.id} className="flex items-center gap-3 p-2 rounded-md hover:bg-gray-100 cursor-pointer bg-white">
+                                            <input
+                                                type="checkbox"
+                                                checked={localRecommendedIds.has(item.id)}
+                                                onChange={() => handleToggleRecommend(item.id)}
+                                                className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                            />
+                                            <img src={item.imageUrl} alt={item.name} className="w-12 h-12 rounded-md object-cover"/>
+                                            <span className="font-medium text-gray-800">{item.name}</span>
+                                        </label>
+                                    ))}
+                                    {filteredMenuItems.length === 0 && (
+                                        <p className="text-center text-gray-500 py-4">ไม่พบเมนู</p>
+                                    )}
                                 </div>
                             </div>
                         )}
