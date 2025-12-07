@@ -45,12 +45,12 @@ exports.sendHighPriorityOrderNotification = functions.region('asia-southeast1').
         }
         const allUsers = usersDoc.data().value || [];
 
-        // Filter for POS and kitchen staff, collect all their tokens from the `fcmTokens` array.
+        // Filter for kitchen staff, collect all their tokens from the `fcmTokens` array.
         const branchIdNumber = parseInt(context.params.branchId, 10);
-        const targetRoles = ['pos', 'kitchen'];
+        const targetRoles = ['kitchen']; // MODIFIED: Only target kitchen staff
         const allStaffTokens = allUsers
             .filter(user => 
-                targetRoles.includes(user.role) && // Send to both POS and Kitchen
+                targetRoles.includes(user.role) && // Send only to Kitchen
                 user.fcmTokens && Array.isArray(user.fcmTokens) && user.fcmTokens.length > 0 &&
                 user.allowedBranchIds &&
                 user.allowedBranchIds.includes(branchIdNumber)
@@ -61,11 +61,11 @@ exports.sendHighPriorityOrderNotification = functions.region('asia-southeast1').
         const staffTokens = [...new Set(allStaffTokens)];
 
         if (staffTokens.length === 0) {
-            console.log('No POS or Kitchen staff with registered devices found for this branch.');
+            console.log('No Kitchen staff with registered devices found for this branch.');
             return null;
         }
         
-        console.log(`Found ${staffTokens.length} POS/Kitchen staff tokens to notify.`);
+        console.log(`Found ${staffTokens.length} Kitchen staff tokens to notify.`);
 
         // Construct the high-priority message payload.
         // We include a 'data' payload for the service worker to have more control.
