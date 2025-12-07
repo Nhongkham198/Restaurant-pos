@@ -41,31 +41,16 @@ export const TableBillModal: React.FC<TableBillModalProps> = ({
     }, [order]);
 
     const { subtotal, tax, total } = useMemo(() => {
-        const items = isEditMode ? editedItems : order?.items || [];
-        const currentTaxRate = order?.taxRate || 0;
-        
-        const subtotal = items.reduce((sum, item) => sum + item.finalPrice * item.quantity, 0);
-        const tax = currentTaxRate > 0 ? subtotal * (currentTaxRate / 100) : 0;
-        const total = subtotal + tax;
-        return { subtotal, tax, total };
-    }, [isEditMode, editedItems, order]);
-
-    const groupedItems = useMemo(() => {
-        if (!order) return {};
+        if (!order) return { subtotal: 0, tax: 0, total: 0 };
         const items = isEditMode ? editedItems : order.items;
+        const currentTaxRate = order.taxRate || 0;
         
-        // FIX: Changed type to { [key: string]: OrderItem[] } to help TypeScript's type inference with Object.entries.
-        const groups: { [key: string]: OrderItem[] } = {};
-        for (const item of items) {
-            const key = item.originalOrderNumber ?? order.orderNumber;
-            if (!groups[key]) {
-                groups[key] = [];
-            }
-            groups[key].push(item);
-        }
-        return groups;
-
+        const currentSubtotal = items.reduce((sum, item) => sum + item.finalPrice * item.quantity, 0);
+        const currentTax = currentTaxRate > 0 ? currentSubtotal * (currentTaxRate / 100) : 0;
+        const currentTotal = currentSubtotal + currentTax;
+        return { subtotal: currentSubtotal, tax: currentTax, total: currentTotal };
     }, [isEditMode, editedItems, order]);
+
 
     if (!isOpen || !order) {
         return null;
@@ -88,12 +73,17 @@ export const TableBillModal: React.FC<TableBillModalProps> = ({
     // Only allow cancellation if status is 'waiting' (matching "Start Cooking" button in kitchen)
     const isCancelableStatus = order.status === 'waiting';
 
+    const itemsToRender = isEditMode ? editedItems : order.items;
+
+    // We need to know where the merged items begin to render the sub-header
+    let lastOrderNumber = order.orderNumber;
+
+
     return (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4" onClick={onClose}>
             <div className="bg-white rounded-lg shadow-xl w-full max-w-md transform transition-all flex flex-col" style={{maxHeight: '90vh'}} onClick={e => e.stopPropagation()}>
                 <header className="p-4 border-b bg-gray-50 rounded-t-lg">
                     <h3 className="text-2xl font-bold text-gray-800 text-center">
-                        {/* FIX: Corrected typo in 'Bill'. */}
                         บิลโต๊ะ {order.tableName} ({order.floor})
                     </h3>
                     {order.customerName && (
@@ -123,60 +113,55 @@ export const TableBillModal: React.FC<TableBillModalProps> = ({
                         <p className="text-base text-gray-600 mb-2">ลูกค้า: {order.customerCount} คน</p>
                     )}
 
-                    {Object.entries(groupedItems)
-                        .sort(([numA], [numB]) => Number(numA) - Number(numB))
-                        .map(([orderNumStr, itemsInGroup]) => {
-                            const orderNum = Number(orderNumStr);
-                            const isMainBill = orderNum === order.orderNumber;
+                    <div className="space-y-3">
+                        {itemsToRender.map((item, index) => {
+                             const currentOrderNum = item.originalOrderNumber ?? order.orderNumber;
+                             const showHeader = index > 0 && currentOrderNum !== (itemsToRender[index - 1].originalOrderNumber ?? order.orderNumber);
 
                             return (
-                                <div key={orderNum} className="pt-2 first:pt-0">
-                                    {!isMainBill && (
-                                        <h4 className="text-sm font-semibold text-gray-500 mb-2 pb-1 border-b border-dashed">
-                                            (จากบิล #{String(orderNum).padStart(3, '0')})
+                                <React.Fragment key={item.cartItemId}>
+                                    {showHeader && (
+                                        <h4 className="text-sm font-semibold text-gray-500 pt-3 mt-3 border-t border-dashed">
+                                            (จากบิล #{String(currentOrderNum).padStart(3, '0')})
                                         </h4>
                                     )}
-                                    <div className="space-y-3">
-                                        {/* FIX: Cast itemsInGroup to OrderItem[] to fix TypeScript error where it was inferred as 'unknown'. */}
-                                        {(itemsInGroup as OrderItem[]).map(item => (
-                                            <div key={item.cartItemId} className="flex items-center">
-                                                <span className="bg-gray-200 text-gray-700 text-sm font-semibold mr-3 px-2.5 py-1 rounded-full">{item.quantity}x</span>
-                                                <div className="flex-grow">
-                                                    <p className="font-medium text-gray-800 text-base">
-                                                        {item.name}
-                                                        {item.isTakeaway && <span className="text-purple-600 text-xs font-semibold ml-2">(กลับบ้าน)</span>}
-                                                    </p>
-                                                    {item.selectedOptions.length > 0 && (
-                                                        <p className="text-xs text-gray-500 pl-1">
-                                                            {item.selectedOptions.map(o => o.name).join(', ')}
-                                                        </p>
-                                                    )}
-                                                    {item.notes && (
-                                                        <p className="text-xs text-blue-600 pl-1">
-                                                            หมายเหตุ: {item.notes}
-                                                        </p>
-                                                    )}
-                                                    {isEditMode && <p className="text-sm text-gray-500">{item.finalPrice.toLocaleString()} ฿</p>}
-                                                </div>
-                                                {isEditMode ? (
-                                                    <div className="flex items-center gap-2">
-                                                        <button onClick={() => handleQuantityChange(item.cartItemId, item.quantity - 1)} className="w-7 h-7 rounded-full bg-blue-500 text-white font-bold flex items-center justify-center hover:bg-blue-600">-</button>
-                                                        <button onClick={() => handleQuantityChange(item.cartItemId, item.quantity + 1)} className="w-7 h-7 rounded-full bg-blue-500 text-white font-bold flex items-center justify-center hover:bg-blue-600">+</button>
-                                                    </div>
-                                                ) : (
-                                                    <p className="font-medium text-gray-800 text-base">{(item.quantity * item.finalPrice).toLocaleString()} ฿</p>
-                                                )}
+                                    <div className="flex items-center">
+                                        <span className="bg-gray-200 text-gray-700 text-sm font-semibold mr-3 px-2.5 py-1 rounded-full">{item.quantity}x</span>
+                                        <div className="flex-grow">
+                                            <p className="font-medium text-gray-800 text-base">
+                                                {item.name}
+                                                {item.isTakeaway && <span className="text-purple-600 text-xs font-semibold ml-2">(กลับบ้าน)</span>}
+                                            </p>
+                                            {item.selectedOptions.length > 0 && (
+                                                <p className="text-xs text-gray-500 pl-1">
+                                                    {item.selectedOptions.map(o => o.name).join(', ')}
+                                                </p>
+                                            )}
+                                            {item.notes && (
+                                                <p className="text-xs text-blue-600 pl-1">
+                                                    หมายเหตุ: {item.notes}
+                                                </p>
+                                            )}
+                                            {isEditMode && <p className="text-sm text-gray-500">{item.finalPrice.toLocaleString()} ฿</p>}
+                                        </div>
+                                        {isEditMode ? (
+                                            <div className="flex items-center gap-2">
+                                                <button onClick={() => handleQuantityChange(item.cartItemId, item.quantity - 1)} className="w-7 h-7 rounded-full bg-blue-500 text-white font-bold flex items-center justify-center hover:bg-blue-600">-</button>
+                                                <button onClick={() => handleQuantityChange(item.cartItemId, item.quantity + 1)} className="w-7 h-7 rounded-full bg-blue-500 text-white font-bold flex items-center justify-center hover:bg-blue-600">+</button>
                                             </div>
-                                        ))}
+                                        ) : (
+                                            <p className="font-medium text-gray-800 text-base">{(item.quantity * item.finalPrice).toLocaleString()} ฿</p>
+                                        )}
                                     </div>
-                                </div>
+                                </React.Fragment>
                             );
-                    })}
+                        })}
+                    </div>
                 </main>
 
                 <footer className="p-4 border-t bg-gray-50 rounded-b-lg space-y-3">
                     <div className="space-y-1 text-base text-gray-800">
-                        {order.taxAmount > 0 && (
+                        {tax > 0 && (
                             <>
                                 <div className="flex justify-between">
                                     <span>ยอดรวม (ก่อนภาษี)</span>

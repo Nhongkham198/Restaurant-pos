@@ -7,8 +7,7 @@ export const printerService = {
      */
     printKitchenOrder: async (order: ActiveOrder, config: KitchenPrinterSettings): Promise<void> => {
         if (!config.ipAddress) {
-            console.warn("Printer Server IP not configured");
-            return;
+            throw new Error("ไม่ได้ตั้งค่า IP ของเครื่องพิมพ์ครัว");
         }
 
         const url = `http://${config.ipAddress}:${config.port || 3001}/print`;

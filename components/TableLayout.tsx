@@ -101,7 +101,7 @@ const TableCard: React.FC<TableCardProps> = ({ table, orders, onTableSelect, onS
             denyButtonColor: '#3b82f6',
         }).then(async (result) => {
             if (result.isDenied) {
-                if (printerConfig?.kitchen) {
+                if (printerConfig?.kitchen?.ipAddress) {
                     try {
                          Swal.fire({
                             title: 'กำลังส่งคำสั่งพิมพ์...',
@@ -125,7 +125,7 @@ const TableCard: React.FC<TableCardProps> = ({ table, orders, onTableSelect, onS
                     Swal.fire({
                         icon: 'warning',
                         title: 'ไม่ได้ตั้งค่าเครื่องพิมพ์',
-                        text: 'กรุณาตั้งค่าเครื่องพิมพ์ครัวในเมนูตั้งค่าก่อน',
+                        text: 'กรุณาตั้งค่า IP Address ของเครื่องพิมพ์ครัวในเมนู "ตั้งค่า" ก่อน',
                     });
                 }
             }

@@ -740,21 +740,39 @@ const App: React.FC = () => {
         setOrderItemToEdit(null); // Clear the specific item being edited
     };
     
-    const getNextOrderNumber = (): { nextOrderId: number, newCounterState: OrderCounter } => {
+    const getNextOrderNumber = async (): Promise<number> => {
+        if (!db || !selectedBranch) {
+            throw new Error("Database connection or branch not available to generate order number.");
+        }
+        const branchId = selectedBranch.id.toString();
+        const counterDocRef = db.doc(`branches/${branchId}/orderCounter/data`);
+    
         const today = new Date();
         const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
         
-        let nextOrderId;
-        let newCounterState: OrderCounter;
+        try {
+            const orderNumber = await db.runTransaction(async (transaction: firebase.firestore.Transaction) => {
+                const counterDoc = await transaction.get(counterDocRef);
+                const counterData = counterDoc.data()?.value as OrderCounter | undefined;
     
-        if (orderCounter && orderCounter.lastResetDate === todayStr) {
-            nextOrderId = orderCounter.count + 1;
-            newCounterState = { count: nextOrderId, lastResetDate: todayStr };
-        } else {
-            nextOrderId = 1;
-            newCounterState = { count: 1, lastResetDate: todayStr };
+                let nextOrderId;
+                // Robustly check counterData and lastResetDate format
+                if (counterData && typeof counterData.count === 'number' && typeof counterData.lastResetDate === 'string' && counterData.lastResetDate === todayStr) {
+                    nextOrderId = counterData.count + 1;
+                } else {
+                    nextOrderId = 1; // Reset if it's a new day, or data is missing/malformed
+                }
+                
+                const newCounterState: OrderCounter = { count: nextOrderId, lastResetDate: todayStr };
+                transaction.set(counterDocRef, { value: newCounterState });
+                
+                return nextOrderId;
+            });
+            return orderNumber;
+        } catch (error) {
+            console.error("Order counter transaction failed:", error);
+            throw new Error("Could not generate a new order number due to a database error.");
         }
-        return { nextOrderId, newCounterState };
     };
 
     // --- Order & POS Handlers ---
@@ -824,39 +842,20 @@ const App: React.FC = () => {
         if (!tableOverride || orderItems.length === 0) return;
     
         setIsPlacingOrder(true);
-        const { nextOrderId, newCounterState } = getNextOrderNumber();
-
-        const itemsWithOrigin = orderItems.map(item => ({
-            ...item,
-            originalOrderNumber: nextOrderId,
-        }));
-
-        const orderPayload: PlaceOrderPayload = {
-            branchId: String(selectedBranch!.id),
-            tableName: tableOverride.name,
-            floor: tableOverride.floor,
-            customerCount: custCount,
-            items: itemsWithOrigin,
-            orderType: 'dine-in',
-            taxRate: isTaxEnabled ? taxRate : 0,
-            placedBy: currentUser!.username,
-            sendToKitchen: sendToKitchen
-        };
-    
+        
         try {
-            if (!functionsService.placeOrder) {
-                throw new Error("Cloud Function not available.");
-            }
-            const response = await functionsService.placeOrder(orderPayload);
-            if (!response.success) {
-                throw new Error(response.error || "Backend function returned an error.");
-            }
-            setLastPlacedOrderId(response.orderNumber!);
-            setModalState(prev => ({ ...prev, isOrderSuccess: true }));
+            // Step 1: Get a guaranteed unique order number. This is the core fix.
+            const nextOrderId = await getNextOrderNumber();
     
-        } catch (error: any) {
-            console.warn("Backend function call failed for placeOrder. Using client-side fallback.", error);
+            const itemsWithOrigin = orderItems.map(item => ({
+                ...item,
+                originalOrderNumber: nextOrderId,
+            }));
             
+            // Step 2: Since the cloud function doesn't exist, we will directly execute the fallback logic.
+            // This simplifies the flow and removes the dependency on the unimplemented cloud function.
+            console.warn("Using client-side fallback for placing order.");
+                
             const newOrder: ActiveOrder = {
                 id: Date.now(),
                 orderNumber: nextOrderId,
@@ -876,12 +875,17 @@ const App: React.FC = () => {
             const subtotal = newOrder.items.reduce((sum, item) => sum + item.finalPrice * item.quantity, 0);
             newOrder.taxAmount = newOrder.taxRate > 0 ? subtotal * (newOrder.taxRate / 100) : 0;
             
+            // Update active orders list
             setActiveOrders(prev => [...prev, newOrder]);
-            setOrderCounter(newCounterState);
+            
+            // NOTE: We DO NOT call setOrderCounter() anymore.
+            // The transaction inside getNextOrderNumber() has already updated Firestore.
+            // The useFirestoreSync hook's listener will automatically update the local state.
+            
             setLastPlacedOrderId(newOrder.orderNumber);
             setModalState(prev => ({ ...prev, isOrderSuccess: true }));
-
-            // Automatically print to kitchen if enabled
+    
+            // Step 3: Handle printing after the order is successfully created.
             if (sendToKitchen && printerConfig?.kitchen) {
                 try {
                     await printerService.printKitchenOrder(newOrder, printerConfig.kitchen);
@@ -911,10 +915,15 @@ const App: React.FC = () => {
                         orderItemsPreview: newOrder.items.map(i => `${i.quantity}x ${i.name}`),
                         isReprint: false,
                     }]);
-                    Swal.fire('พิมพ์ไม่สำเร็จ', 'ไม่สามารถเชื่อมต่อเครื่องพิมพ์ครัวได้', 'error');
+                    Swal.fire('พิมพ์ไม่สำเร็จ', printError.message || 'ไม่สามารถเชื่อมต่อเครื่องพิมพ์ครัวได้', 'error');
                 }
             }
-    
+        
+        } catch (error: any) {
+            // This catch block will now only catch errors from getNextOrderNumber().
+            console.error("Failed to place order:", error);
+            Swal.fire('เกิดข้อผิดพลาด', error.message || 'ไม่สามารถสร้างออเดอร์ได้ กรุณาลองใหม่อีกครั้ง', 'error');
+        
         } finally {
             setIsPlacingOrder(false);
             if (!isCustomerMode) {
@@ -1010,7 +1019,7 @@ const App: React.FC = () => {
                     orderItemsPreview: [`ยอดรวม: ${order.items.reduce((s, i) => s + (i.finalPrice * i.quantity), 0) + order.taxAmount}฿`],
                     isReprint: false,
                 }]);
-                Swal.fire('พิมพ์ไม่สำเร็จ', 'ไม่สามารถเชื่อมต่อเครื่องพิมพ์ใบเสร็จได้', 'error');
+                Swal.fire('พิมพ์ไม่สำเร็จ', printError.message || 'ไม่สามารถเชื่อมต่อเครื่องพิมพ์ใบเสร็จได้', 'error');
             }
         }
     };
@@ -1167,40 +1176,48 @@ const App: React.FC = () => {
         const newSplitCount = (originalOrder.splitCount || 0) + 1;
     
         // 1. Create the new (split) order
-        const { nextOrderId, newCounterState } = getNextOrderNumber();
-        const newSplitOrder: ActiveOrder = {
-            ...originalOrder,
-            id: Date.now(),
-            orderNumber: nextOrderId,
-            items: itemsToSplit,
-            parentOrderId: originalOrder.orderNumber,
-            isSplitChild: true,
-            splitIndex: newSplitCount,
-            mergedOrderNumbers: [], // Reset merged numbers for the new bill
-        };
-    
-        // 2. Update the original order by removing/reducing quantities
-        const updatedOriginalItems: OrderItem[] = [];
-        originalOrder.items.forEach(origItem => {
-            const splitItem = itemsToSplit.find(si => si.cartItemId === origItem.cartItemId);
-            if (splitItem) {
-                const remainingQty = origItem.quantity - splitItem.quantity;
-                if (remainingQty > 0) {
-                    updatedOriginalItems.push({ ...origItem, quantity: remainingQty });
-                }
-            } else {
-                updatedOriginalItems.push(origItem);
+        // The getNextOrderNumber function is now async. We need to handle this inside an async context.
+        // A simple way is to wrap this logic in an async IIFE.
+        (async () => {
+            try {
+                const nextOrderId = await getNextOrderNumber();
+                const newSplitOrder: ActiveOrder = {
+                    ...originalOrder,
+                    id: Date.now(),
+                    orderNumber: nextOrderId,
+                    items: itemsToSplit,
+                    parentOrderId: originalOrder.orderNumber,
+                    isSplitChild: true,
+                    splitIndex: newSplitCount,
+                    mergedOrderNumbers: [], // Reset merged numbers for the new bill
+                };
+            
+                // 2. Update the original order by removing/reducing quantities
+                const updatedOriginalItems: OrderItem[] = [];
+                originalOrder.items.forEach(origItem => {
+                    const splitItem = itemsToSplit.find(si => si.cartItemId === origItem.cartItemId);
+                    if (splitItem) {
+                        const remainingQty = origItem.quantity - splitItem.quantity;
+                        if (remainingQty > 0) {
+                            updatedOriginalItems.push({ ...origItem, quantity: remainingQty });
+                        }
+                    } else {
+                        updatedOriginalItems.push(origItem);
+                    }
+                });
+            
+                // 3. Update state
+                setActiveOrders(prev => [
+                    ...prev.map(o => o.id === originalOrder.id ? { ...o, items: updatedOriginalItems, splitCount: newSplitCount } : o),
+                    newSplitOrder
+                ]);
+            
+                handleModalClose();
+            } catch (error) {
+                console.error("Failed to split bill:", error);
+                Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถแยกบิลได้', 'error');
             }
-        });
-    
-        // 3. Update state
-        setActiveOrders(prev => [
-            ...prev.map(o => o.id === originalOrder.id ? { ...o, items: updatedOriginalItems, splitCount: newSplitCount } : o),
-            newSplitOrder
-        ]);
-        setOrderCounter(newCounterState);
-    
-        handleModalClose();
+        })();
     };
     
     const handleConfirmMoveTable = (orderId: number, newTableId: number) => {
@@ -1231,31 +1248,45 @@ const App: React.FC = () => {
     };
     
     const handleConfirmMerge = (sourceOrderIds: number[], targetOrderId: number) => {
-        const targetOrder = activeOrders.find(o => o.id === targetOrderId);
-        if (!targetOrder) return;
-    
+        // Find all necessary data before the state update.
         const sourceOrders = activeOrders.filter(o => sourceOrderIds.includes(o.id));
+        
+        // If for some reason there are no source orders, just close the modal.
+        if (sourceOrders.length === 0) {
+            handleModalClose();
+            return;
+        }
+    
         const allItemsToMerge = sourceOrders.flatMap(o => o.items.map(item => ({
             ...item,
             originalOrderNumber: item.originalOrderNumber ?? o.orderNumber
         })));
         const sourceOrderNumbers = sourceOrders.map(o => o.orderNumber);
     
-        setActiveOrders(prev => prev.map(o => {
-            if (o.id === targetOrderId) {
-                const newItems = [...o.items, ...allItemsToMerge];
-    
-                const newMergedNumbers = Array.from(new Set([
-                    ...(o.mergedOrderNumbers || []),
-                    ...sourceOrderNumbers
-                ])).sort((a, b) => a - b);
-    
-                return { ...o, items: newItems, mergedOrderNumbers: newMergedNumbers };
-            }
-            return o;
-        }));
-    
-        setActiveOrders(prev => prev.filter(o => !sourceOrderIds.includes(o.id)));
+        // Perform a single, atomic state update.
+        setActiveOrders(prevActiveOrders => {
+            // First, create a new array without the source orders that are being merged.
+            const filteredOrders = prevActiveOrders.filter(o => !sourceOrderIds.includes(o.id));
+            
+            // Then, map over this new array to update the target order.
+            const updatedOrders = filteredOrders.map(o => {
+                if (o.id === targetOrderId) {
+                    // This is the target order. Add the merged items and metadata.
+                    const newItems = [...o.items, ...allItemsToMerge];
+        
+                    const newMergedNumbers = Array.from(new Set([
+                        ...(o.mergedOrderNumbers || []),
+                        ...sourceOrderNumbers
+                    ])).sort((a, b) => a - b);
+        
+                    return { ...o, items: newItems, mergedOrderNumbers: newMergedNumbers };
+                }
+                // This is not the target order, return it as is.
+                return o;
+            });
+            
+            return updatedOrders;
+        });
         
         handleModalClose();
     };

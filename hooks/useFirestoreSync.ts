@@ -74,16 +74,39 @@ export function useFirestoreSync<T>(
                             docRef.set({ value: currentInitialValue });
                             setValue(currentInitialValue);
                         } else if (collectionKey === 'orderCounter') {
-                            const isValidCounter = valueToSet && typeof valueToSet === 'object' &&
-                                'count' in valueToSet && typeof (valueToSet as any).count === 'number' &&
-                                'lastResetDate' in valueToSet && typeof (valueToSet as any).lastResetDate === 'string';
+                            const counterData = valueToSet as any;
                             
-                            if (!isValidCounter) {
+                            // New robust validation logic
+                            if (!counterData || typeof counterData !== 'object' || typeof counterData.count !== 'number' || !counterData.lastResetDate) {
                                 console.warn(`'orderCounter' has an invalid format. Resetting to initial value.`);
                                 docRef.set({ value: currentInitialValue });
                                 setValue(currentInitialValue);
+                                return;
+                            }
+
+                            const { count, lastResetDate } = counterData;
+                            let correctedDateString = '';
+
+                            if (typeof lastResetDate === 'string') {
+                                if (/^\d{4}-\d{2}-\d{2}$/.test(lastResetDate)) {
+                                    correctedDateString = lastResetDate;
+                                }
+                            } else if (lastResetDate && typeof lastResetDate.toDate === 'function') {
+                                // It's a Firestore Timestamp, convert it.
+                                const dateObj = lastResetDate.toDate();
+                                const year = dateObj.getFullYear();
+                                const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+                                const day = String(dateObj.getDate()).padStart(2, '0');
+                                correctedDateString = `${year}-${month}-${day}`;
+                            }
+                            
+                            if (correctedDateString) {
+                                const validCounter: OrderCounter = { count, lastResetDate: correctedDateString };
+                                setValue(validCounter as T);
                             } else {
-                                setValue(valueToSet as T);
+                                console.warn(`'orderCounter' has an invalid date format. Resetting to initial value.`);
+                                docRef.set({ value: currentInitialValue });
+                                setValue(currentInitialValue);
                             }
                         }
                         else {
