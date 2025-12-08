@@ -15,6 +15,8 @@ interface CustomerViewProps {
     onPlaceOrder: (items: OrderItem[], customerName: string, customerCount: number) => void;
     onStaffCall: (table: Table, customerName: string) => void;
     recommendedMenuItemIds: number[];
+    logoUrl: string | null;
+    restaurantName: string;
 }
 
 export const CustomerView: React.FC<CustomerViewProps> = ({
@@ -25,7 +27,9 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     allBranchOrders,
     onPlaceOrder,
     onStaffCall,
-    recommendedMenuItemIds
+    recommendedMenuItemIds,
+    logoUrl,
+    restaurantName
 }) => {
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [customerName, setCustomerName] = useState('');
@@ -466,9 +470,22 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                 <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-end sm:items-center" onClick={() => setIsActiveOrderListOpen(false)}>
                     <div className="bg-white w-full sm:max-w-md h-[80vh] sm:h-auto sm:max-h-[90vh] rounded-t-2xl sm:rounded-xl shadow-2xl flex flex-col overflow-hidden animate-slide-up" onClick={e => e.stopPropagation()}>
                         
-                        <div ref={billContentRef} className="flex-grow overflow-y-auto">
-                            <div className="p-4 border-b bg-gray-50 flex justify-between items-center sticky top-0">
-                                <h3 className="font-bold text-gray-800 text-lg">รายการที่สั่งไปแล้ว 🧾</h3>
+                        <div ref={billContentRef} className="flex-grow overflow-y-auto bg-white">
+                            <div className="p-4 text-center border-b border-gray-200">
+                                {logoUrl && (
+                                    <img 
+                                        src={logoUrl} 
+                                        alt="Logo" 
+                                        className="h-16 mx-auto mb-2 object-contain" 
+                                        crossOrigin="anonymous" 
+                                    />
+                                )}
+                                <h2 className="text-xl font-bold text-gray-800">{restaurantName}</h2>
+                                <p className="text-sm text-gray-500">โต๊ะ: {table.name} ({table.floor})</p>
+                                <p className="text-sm text-gray-500">ลูกค้า: {customerName}</p>
+                            </div>
+                             <div className="p-4 border-b bg-gray-50">
+                                <h3 className="font-bold text-gray-800 text-lg text-center">รายการที่สั่งไปแล้ว 🧾</h3>
                             </div>
                             
                             <div className="p-4 space-y-6">
@@ -507,7 +524,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                                 )}
                             </div>
 
-                            <div className="p-4 bg-gray-50 border-t sticky bottom-0">
+                            <div className="p-4 bg-gray-50 border-t">
                                 <div className="flex justify-between items-center text-lg font-bold text-gray-800">
                                     <span>ยอดรวมทั้งหมด</span>
                                     <span className="text-blue-600">{billTotal.toLocaleString()} ฿</span>

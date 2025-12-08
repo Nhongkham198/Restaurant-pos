@@ -1305,6 +1305,8 @@ const App: React.FC = () => {
                     onPlaceOrder={(items, name) => handlePlaceOrder(items, name, 1, customerTable)}
                     onStaffCall={(table, custName) => setStaffCalls(prev => [...prev, {id: Date.now(), tableId: table.id, tableName: table.name, customerName: custName, branchId: selectedBranch!.id, timestamp: Date.now()}])}
                     recommendedMenuItemIds={recommendedMenuItemIds}
+                    logoUrl={logoUrl}
+                    restaurantName={restaurantName}
                 />
              );
         }
