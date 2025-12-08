@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import type { MenuItem, Table, OrderItem, ActiveOrder, StaffCall } from '../types';
 import { Menu } from './Menu';
@@ -15,6 +14,7 @@ interface CustomerViewProps {
     allBranchOrders: ActiveOrder[]; // Added to calculate global queue position
     onPlaceOrder: (items: OrderItem[], customerName: string, customerCount: number) => void;
     onStaffCall: (table: Table, customerName: string) => void;
+    recommendedMenuItemIds: number[];
 }
 
 export const CustomerView: React.FC<CustomerViewProps> = ({
@@ -24,7 +24,8 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     activeOrders,
     allBranchOrders,
     onPlaceOrder,
-    onStaffCall
+    onStaffCall,
+    recommendedMenuItemIds
 }) => {
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [customerName, setCustomerName] = useState('');
@@ -405,7 +406,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                     onDeleteCategory={() => {}}
                     onAddCategory={() => {}}
                     onImportMenu={() => {}}
-                    totalItems={totalCartItemsCount}
+                    recommendedMenuItemIds={recommendedMenuItemIds}
                 />
             </div>
 
