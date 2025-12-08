@@ -63,22 +63,23 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
             try {
                 const { name, pin } = JSON.parse(savedSession);
 
-                // IMPORTANT FIX for refresh persistence:
-                // Only perform actions if table.activePin is loaded from the database.
-                // If it's undefined, we wait for the next render when Firestore data arrives.
-                // This prevents a race condition where the session is deleted before the correct PIN is loaded.
-                if (table.activePin !== undefined) {
+                // FIX: Use a truthy check for `table.activePin`. This ensures the check
+                // only runs when a valid PIN (a non-empty string) is loaded from Firestore,
+                // preventing a race condition where the default `null` value causes the
+                // session to be prematurely deleted on page refresh.
+                if (table.activePin) {
                     if (pin === table.activePin) {
                         // PIN is correct, authenticate the session.
                         setCustomerName(name);
                         setPinInput(pin);
                         setIsAuthenticated(true);
                     } else {
-                        // PIN is incorrect (changed by staff), the session is invalid.
+                        // A different PIN is active, so this session is invalid.
                         localStorage.removeItem(sessionKey);
                     }
                 }
-                // If table.activePin is not available yet, do nothing and wait for the component to re-render.
+                // If table.activePin is null or undefined, we do nothing and wait.
+                // The auto-logout effect will handle cases where the pin is cleared later.
                 
             } catch (e) {
                 // If parsing fails, the session data is corrupt.
@@ -121,6 +122,28 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
             });
         }
     }, [table.activePin, isAuthenticated, pinInput, table.id]);
+    
+    const checkSessionValidity = (): boolean => {
+        if (table.activePin !== pinInput) {
+            const sessionKey = `customer_session_${table.id}`;
+            localStorage.removeItem(sessionKey);
+            localStorage.removeItem(cartKey);
+            localStorage.removeItem('customerSelectedBranch');
+
+            Swal.fire({
+                icon: 'warning',
+                title: 'เซสชั่นหมดอายุ',
+                text: 'โต๊ะนี้ได้ทำการชำระเงินแล้ว หรือมีการเปลี่ยนแปลงข้อมูล กรุณาเข้าสู่ระบบใหม่อีกครั้ง',
+                allowOutsideClick: false,
+                confirmButtonText: 'รับทราบ'
+            }).then(() => {
+                window.location.reload();
+            });
+            return false;
+        }
+        return true;
+    };
+
 
     // Login Handler
     const handleLogin = (e: React.FormEvent) => {
@@ -144,10 +167,12 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     };
 
     const handleSelectItem = (item: MenuItem) => {
+        if (!checkSessionValidity()) return;
         setItemToCustomize(item);
     };
 
     const handleConfirmCustomization = (itemToAdd: OrderItem) => {
+        if (!checkSessionValidity()) return;
         setCartItems(prev => {
             const existingItem = prev.find(i => i.cartItemId === itemToAdd.cartItemId);
             if (existingItem) {
@@ -167,10 +192,12 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     };
 
     const handleRemoveItem = (cartItemId: string) => {
+        if (!checkSessionValidity()) return;
         setCartItems(prev => prev.filter(i => i.cartItemId !== cartItemId));
     };
 
     const handleSubmitOrder = () => {
+        if (!checkSessionValidity()) return;
         if (cartItems.length === 0) return;
 
         Swal.fire({
@@ -183,6 +210,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
             confirmButtonColor: '#10B981'
         }).then((result) => {
             if (result.isConfirmed) {
+                if (!checkSessionValidity()) return;
                 onPlaceOrder(cartItems, customerName, 1); 
                 setCartItems([]);
                 setIsCartOpen(false);
@@ -191,6 +219,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     };
 
     const handleCallStaffClick = () => {
+        if (!checkSessionValidity()) return;
         onStaffCall(table, customerName);
         Swal.fire({
             toast: true,
@@ -204,6 +233,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     };
 
     const handleSaveBillAsImage = async () => {
+        if (!checkSessionValidity()) return;
         if (!billContentRef.current) return;
     
         Swal.fire({
@@ -365,7 +395,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                          {/* Right Side: Status & Bill */}
                         <div 
                             className="flex flex-col items-end gap-1.5 cursor-pointer hover:opacity-80 transition-opacity group"
-                            onClick={() => setIsActiveOrderListOpen(true)}
+                            onClick={() => { if (checkSessionValidity()) setIsActiveOrderListOpen(true); }}
                         >
                              {orderStatus && (
                                 <span className={`text-xs font-bold px-2 py-1 rounded-full border shadow-sm ${orderStatus.color} animate-pulse`}>
@@ -414,7 +444,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
             {totalCartItemsCount > 0 && (
                 <div className="absolute bottom-6 left-4 right-4 z-20">
                     <button 
-                        onClick={() => setIsCartOpen(true)}
+                        onClick={() => { if (checkSessionValidity()) setIsCartOpen(true); }}
                         className="w-full bg-blue-600 text-white shadow-xl rounded-xl p-4 flex justify-between items-center animate-bounce-in"
                     >
                         <div className="flex items-center gap-3">

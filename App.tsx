@@ -871,7 +871,7 @@ const App: React.FC = () => {
                 orderType: 'dine-in',
                 taxRate: isTaxEnabled ? taxRate : 0,
                 taxAmount: 0, 
-                placedBy: currentUser!.username,
+                placedBy: currentUser ? currentUser.username : (custName || `โต๊ะ ${tableOverride.name}`),
             };
             const subtotal = newOrder.items.reduce((sum, item) => sum + item.finalPrice * item.quantity, 0);
             newOrder.taxAmount = newOrder.taxRate > 0 ? subtotal * (newOrder.taxRate / 100) : 0;
@@ -895,7 +895,7 @@ const App: React.FC = () => {
                         timestamp: Date.now(),
                         orderNumber: newOrder.orderNumber,
                         tableName: newOrder.tableName,
-                        printedBy: currentUser!.username,
+                        printedBy: currentUser ? currentUser.username : (custName || `โต๊ะ ${tableOverride.name}`),
                         printerType: 'kitchen',
                         status: 'success',
                         errorMessage: null,
@@ -909,7 +909,7 @@ const App: React.FC = () => {
                         timestamp: Date.now(),
                         orderNumber: newOrder.orderNumber,
                         tableName: newOrder.tableName,
-                        printedBy: currentUser!.username,
+                        printedBy: currentUser ? currentUser.username : (custName || `โต๊ะ ${tableOverride.name}`),
                         printerType: 'kitchen',
                         status: 'failed',
                         errorMessage: printError.message || 'Unknown print error',
