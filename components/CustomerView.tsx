@@ -15,8 +15,6 @@ interface CustomerViewProps {
     onPlaceOrder: (items: OrderItem[], customerName: string, customerCount: number) => void;
     onStaffCall: (table: Table, customerName: string) => void;
     recommendedMenuItemIds: number[];
-    logoUrl: string | null;
-    restaurantName: string;
 }
 
 export const CustomerView: React.FC<CustomerViewProps> = ({
@@ -27,9 +25,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     allBranchOrders,
     onPlaceOrder,
     onStaffCall,
-    recommendedMenuItemIds,
-    logoUrl,
-    restaurantName
+    recommendedMenuItemIds
 }) => {
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [customerName, setCustomerName] = useState('');
@@ -57,6 +53,8 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     const [isActiveOrderListOpen, setIsActiveOrderListOpen] = useState(false);
     const [itemToCustomize, setItemToCustomize] = useState<MenuItem | null>(null);
     const billContentRef = useRef<HTMLDivElement>(null);
+    const [lastCompletedOrder, setLastCompletedOrder] = useState<ActiveOrder | null>(null);
+    const prevActiveOrdersRef = useRef<ActiveOrder[]>(activeOrders);
     
     // --- Session Persistence Logic ---
     useEffect(() => {
@@ -92,40 +90,57 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         }
     }, [table.id, table.activePin]);
 
-    // --- Auto-Logout Logic (Real-time Security) ---
+    const handleLogout = () => {
+        const sessionKey = `customer_session_${table.id}`;
+        localStorage.removeItem(sessionKey);
+        localStorage.removeItem(cartKey);
+        localStorage.removeItem('customerSelectedBranch');
+
+        // Reset all relevant states to log the user out
+        setIsAuthenticated(false);
+        setCustomerName('');
+        setPinInput('');
+        setCartItems([]);
+        setIsCartOpen(false);
+        setIsActiveOrderListOpen(false);
+        setLastCompletedOrder(null);
+    };
+
+    // --- Detect Payment & Trigger Save Bill/Logout Flow ---
     useEffect(() => {
-        // If user is logged in, but the table's PIN is suddenly cleared (Payment Confirmed)
-        // or changed (Staff reset PIN), force logout immediately.
-        // The check for `isAuthenticated` is sufficient to prevent race conditions on refresh,
-        // because it only becomes true after the PIN has been successfully validated against
-        // the loaded data from Firestore at least once.
-        if (isAuthenticated && table.activePin !== pinInput) {
-            // 1. Clear All Customer Data from localStorage
-            const sessionKey = `customer_session_${table.id}`;
-            const cartKey = `customer_cart_${table.id}`;
-            localStorage.removeItem(sessionKey);
-            localStorage.removeItem('customerSelectedBranch');
-            localStorage.removeItem(cartKey); // Clear the persisted cart on logout
+        if (isAuthenticated && prevActiveOrdersRef.current.length > activeOrders.length) {
+            const completedOrder = prevActiveOrdersRef.current.find(
+                prevOrder => !activeOrders.some(activeOrder => activeOrder.id === prevOrder.id)
+            );
 
-            // 2. Reset State
-            setIsAuthenticated(false);
-            setCustomerName('');
-            setPinInput('');
-            setCartItems([]);
-            setIsCartOpen(false);
-            setIsActiveOrderListOpen(false);
+            if (completedOrder) {
+                setLastCompletedOrder(completedOrder);
+                setIsActiveOrderListOpen(true);
 
-            // 3. Notify User
-            Swal.fire({
-                icon: 'success',
-                title: 'ขอบคุณที่ใช้บริการ',
-                text: 'การชำระเงินเสร็จสิ้น หรือเซสชั่นหมดอายุ',
-                timer: 3000,
-                showConfirmButton: false,
-                allowOutsideClick: false
-            });
+                setTimeout(() => {
+                    Swal.fire({
+                        title: 'ชำระเงินเรียบร้อย',
+                        text: "คุณต้องการบันทึกใบเสร็จหรือไม่?",
+                        icon: 'success',
+                        showCancelButton: true,
+                        confirmButtonText: 'ใช่, บันทึก',
+                        cancelButtonText: 'ไม่, ออกจากระบบ',
+                        confirmButtonColor: '#3085d6',
+                        cancelButtonColor: '#d33',
+                        allowOutsideClick: false,
+                    }).then(async (result) => {
+                        if (result.isConfirmed) {
+                            await handleSaveBillAsImage();
+                            handleLogout();
+                        } else {
+                            handleLogout();
+                        }
+                    });
+                }, 100); // Small delay to ensure modal renders for screenshot
+            }
         }
-    }, [table.activePin, isAuthenticated, pinInput, table.id]);
+        prevActiveOrdersRef.current = activeOrders;
+    }, [activeOrders, isAuthenticated]);
     
     const checkSessionValidity = (): boolean => {
         if (table.activePin !== pinInput) {
@@ -237,7 +252,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     };
 
     const handleSaveBillAsImage = async () => {
-        if (!checkSessionValidity()) return;
+        // Session validity is checked before this is called
         if (!billContentRef.current) return;
     
         Swal.fire({
@@ -263,14 +278,9 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
             document.body.removeChild(link);
             
             Swal.close();
-            Swal.fire({
-                toast: true,
-                position: 'top-end',
-                icon: 'success',
-                title: 'บันทึกรูปภาพสำเร็จ!',
-                showConfirmButton: false,
-                timer: 2000
-            });
+            // The success message is now handled by the calling Swal flow.
+            // This function resolves a promise, so the caller knows it's done.
+            return Promise.resolve(); 
         } catch (error) {
             console.error('Error generating bill image:', error);
             Swal.fire({
@@ -278,6 +288,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                 title: 'เกิดข้อผิดพลาด',
                 text: 'ไม่สามารถสร้างรูปภาพได้',
             });
+            return Promise.reject();
         }
     };
 
@@ -285,13 +296,15 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     const cartTotalAmount = useMemo(() => cartItems.reduce((sum, i) => sum + (i.finalPrice * i.quantity), 0), [cartItems]);
     const totalCartItemsCount = useMemo(() => cartItems.reduce((sum, i) => sum + i.quantity, 0), [cartItems]);
 
-    // Calculate Confirmed Bill Total (Active Orders)
-    const billTotal = useMemo(() => {
-        return activeOrders.reduce((sum, order) => {
+    const isFinalBill = !!lastCompletedOrder;
+    const ordersForBill = useMemo(() => isFinalBill ? [lastCompletedOrder!] : activeOrders, [isFinalBill, lastCompletedOrder, activeOrders]);
+    const totalForBill = useMemo(() => {
+        return ordersForBill.reduce((sum, order) => {
             const subtotal = order.items.reduce((s, i) => s + (i.finalPrice * i.quantity), 0);
             return sum + subtotal + order.taxAmount;
         }, 0);
-    }, [activeOrders]);
+    }, [ordersForBill]);
+
 
     // --- Dynamic Order Status Logic ---
     const orderStatus = useMemo(() => {
@@ -401,7 +414,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                             className="flex flex-col items-end gap-1.5 cursor-pointer hover:opacity-80 transition-opacity group"
                             onClick={() => { if (checkSessionValidity()) setIsActiveOrderListOpen(true); }}
                         >
-                             {orderStatus && (
+                             {orderStatus && !isFinalBill && (
                                 <span className={`text-xs font-bold px-2 py-1 rounded-full border shadow-sm ${orderStatus.color} animate-pulse`}>
                                     {orderStatus.text}
                                 </span>
@@ -414,7 +427,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                                     </svg>
                                 </div>
                                 <div className="flex items-center gap-1 justify-end">
-                                    <span className="text-base font-bold text-blue-600 leading-none border-b border-dashed border-blue-300 group-hover:text-blue-700 transition-colors">{billTotal.toLocaleString()} ฿</span>
+                                    <span className="text-base font-bold text-blue-600 leading-none border-b border-dashed border-blue-300 group-hover:text-blue-700 transition-colors">{totalForBill.toLocaleString()} ฿</span>
                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                                     </svg>
@@ -470,29 +483,16 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                 <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-end sm:items-center" onClick={() => setIsActiveOrderListOpen(false)}>
                     <div className="bg-white w-full sm:max-w-md h-[80vh] sm:h-auto sm:max-h-[90vh] rounded-t-2xl sm:rounded-xl shadow-2xl flex flex-col overflow-hidden animate-slide-up" onClick={e => e.stopPropagation()}>
                         
-                        <div ref={billContentRef} className="flex-grow overflow-y-auto bg-white">
-                            <div className="p-4 text-center border-b border-gray-200">
-                                {logoUrl && (
-                                    <img 
-                                        src={logoUrl} 
-                                        alt="Logo" 
-                                        className="h-16 mx-auto mb-2 object-contain" 
-                                        crossOrigin="anonymous" 
-                                    />
-                                )}
-                                <h2 className="text-xl font-bold text-gray-800">{restaurantName}</h2>
-                                <p className="text-sm text-gray-500">โต๊ะ: {table.name} ({table.floor})</p>
-                                <p className="text-sm text-gray-500">ลูกค้า: {customerName}</p>
-                            </div>
-                             <div className="p-4 border-b bg-gray-50">
-                                <h3 className="font-bold text-gray-800 text-lg text-center">รายการที่สั่งไปแล้ว 🧾</h3>
+                        <div ref={billContentRef} className="flex-grow overflow-y-auto">
+                            <div className="p-4 border-b bg-gray-50 flex justify-between items-center sticky top-0">
+                                <h3 className="font-bold text-gray-800 text-lg">{isFinalBill ? 'ใบเสร็จ 🧾' : 'รายการที่สั่งไปแล้ว 🧾'}</h3>
                             </div>
                             
                             <div className="p-4 space-y-6">
-                                {activeOrders.length === 0 ? (
+                                {ordersForBill.length === 0 ? (
                                     <div className="text-center text-gray-400 py-10">ยังไม่มีรายการที่สั่ง</div>
                                 ) : (
-                                    activeOrders.map((order) => (
+                                    ordersForBill.map((order) => (
                                         <div key={order.id} className="border-b last:border-0 pb-4 last:pb-0">
                                             <div className="flex justify-between items-center mb-2">
                                                 <span className="text-xs font-semibold bg-gray-100 text-gray-600 px-2 py-0.5 rounded">
@@ -503,7 +503,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                                                     order.status === 'cooking' ? 'bg-yellow-100 text-yellow-700' :
                                                     'bg-blue-100 text-blue-700'
                                                 }`}>
-                                                    {order.status === 'served' ? 'เสิร์ฟแล้ว' : order.status === 'cooking' ? 'กำลังปรุง' : 'รอคิว'}
+                                                    {isFinalBill ? 'ชำระแล้ว' : (order.status === 'served' ? 'เสิร์ฟแล้ว' : order.status === 'cooking' ? 'กำลังปรุง' : 'รอคิว')}
                                                 </span>
                                             </div>
                                             <ul className="space-y-2">
@@ -524,12 +524,14 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                                 )}
                             </div>
 
-                            <div className="p-4 bg-gray-50 border-t">
+                            <div className="p-4 bg-gray-50 border-t sticky bottom-0">
                                 <div className="flex justify-between items-center text-lg font-bold text-gray-800">
                                     <span>ยอดรวมทั้งหมด</span>
-                                    <span className="text-blue-600">{billTotal.toLocaleString()} ฿</span>
+                                    <span className="text-blue-600">{totalForBill.toLocaleString()} ฿</span>
                                 </div>
-                                <p className="text-xs text-gray-500 text-center mt-2">กรุณาชำระเงินที่เคาน์เตอร์เมื่อทานเสร็จ</p>
+                                 <p className="text-xs text-gray-500 text-center mt-2">
+                                    {isFinalBill ? 'ขอบคุณที่ใช้บริการ' : 'กรุณาชำระเงินที่เคาน์เตอร์เมื่อทานเสร็จ'}
+                                </p>
                             </div>
                         </div>
 

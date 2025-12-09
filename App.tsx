@@ -421,23 +421,45 @@ const App: React.FC = () => {
         }
     }, [branches]); // Depends on branches being loaded
 
-    // --- EFFECT: Notification Sound for New Orders ---
+    // --- EFFECT: New Order Notification for Kitchen Staff (FIXED LOGIC) ---
     useEffect(() => {
-        if (currentView !== 'kitchen' || !notificationSoundUrl || !isAudioUnlocked) return;
-
-        const newOrders = activeOrders.filter(order =>
-            !prevActiveOrdersRef.current?.some(prevOrder => prevOrder.id === order.id)
-        );
-
-        if (newOrders.length > 0) {
-            const audio = new Audio(notificationSoundUrl);
-            audio.play().catch(error => {
-                console.error("Audio playback failed:", error);
-            });
+        // 1. Handle initial load: set baseline and exit.
+        if (prevActiveOrdersRef.current === undefined) {
+            prevActiveOrdersRef.current = activeOrders;
+            return;
         }
 
+        // 2. Check for blockers: if any, exit without updating the ref.
+        if (currentUser?.role !== 'kitchen' || !notificationSoundUrl || !isAudioUnlocked) {
+            return;
+        }
+    
+        // 3. All checks passed, proceed with notification logic.
+        const newOrders = activeOrders.filter(order =>
+            !prevActiveOrdersRef.current!.some(prevOrder => prevOrder.id === order.id)
+        );
+    
+        if (newOrders.length > 0) {
+            const audio = new Audio(notificationSoundUrl);
+            audio.play().catch(error => console.error("Audio playback failed:", error));
+    
+            newOrders.forEach(order => {
+                Swal.fire({
+                    toast: true,
+                    position: 'top-end',
+                    icon: 'info',
+                    title: '🔔 มีออเดอร์ใหม่!',
+                    html: `<b>โต๊ะ ${order.tableName}</b> (ออเดอร์ #${String(order.orderNumber).padStart(3, '0')})`,
+                    showConfirmButton: false,
+                    timer: 5000,
+                    timerProgressBar: true,
+                });
+            });
+        }
+    
+        // 4. IMPORTANT: Update the ref *only after* the comparison has been done.
         prevActiveOrdersRef.current = activeOrders;
-    }, [activeOrders, currentView, notificationSoundUrl, isAudioUnlocked]);
+    }, [activeOrders, currentUser, notificationSoundUrl, isAudioUnlocked]);
     
     // --- EFFECT: Staff Call Notification Sound & Alert ---
     useEffect(() => {
@@ -1305,8 +1327,6 @@ const App: React.FC = () => {
                     onPlaceOrder={(items, name) => handlePlaceOrder(items, name, 1, customerTable)}
                     onStaffCall={(table, custName) => setStaffCalls(prev => [...prev, {id: Date.now(), tableId: table.id, tableName: table.name, customerName: custName, branchId: selectedBranch!.id, timestamp: Date.now()}])}
                     recommendedMenuItemIds={recommendedMenuItemIds}
-                    logoUrl={logoUrl}
-                    restaurantName={restaurantName}
                 />
              );
         }
@@ -1502,9 +1522,11 @@ const App: React.FC = () => {
                                 style={{ right: isOrderSidebarVisible ? '24rem' : '0' }}
                                 title={isOrderSidebarVisible ? "ซ่อน" : "แสดง"}
                             >
-                                <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 transition-transform ${isOrderSidebarVisible ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M9 5l7 7-7 7" /></svg>
+                                <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 transition-transform ${!isOrderSidebarVisible ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M9 5l7 7-7 7" /></svg>
                                 {totalCartItemCount > 0 && (
-                                    <span className={`absolute -top-2 -left-1 flex h-10 w-10 items-center justify-center rounded-full bg-red-500 text-lg font-bold text-white border-2 border-white transition-opacity ${isOrderSidebarVisible ? 'opacity-0' : 'opacity-100'}`}>
+                                    <span
+                                        key={totalCartItemCount}
+                                        className={`animate-pop-in absolute -top-2 -left-1 flex h-10 w-10 items-center justify-center rounded-full bg-red-500 text-lg font-bold text-white border-2 border-white transition-opacity ${isOrderSidebarVisible ? 'opacity-0' : 'opacity-100'}`}>
                                         {totalCartItemCount > 99 ? '99+' : totalCartItemCount}
                                     </span>
                                 )}

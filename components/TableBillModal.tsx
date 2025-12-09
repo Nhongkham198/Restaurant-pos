@@ -70,9 +70,6 @@ export const TableBillModal: React.FC<TableBillModalProps> = ({
     };
 
     const canCancel = !!currentUser;
-    // Only allow cancellation if status is 'waiting' (matching "Start Cooking" button in kitchen)
-    const isCancelableStatus = order.status === 'waiting';
-
     const itemsToRender = isEditMode ? editedItems : order.items;
 
     // We need to know where the merged items begin to render the sub-header
@@ -192,14 +189,17 @@ export const TableBillModal: React.FC<TableBillModalProps> = ({
                             <button onClick={() => onInitiateMerge(order)} className="w-full bg-teal-500 hover:bg-teal-600 text-white font-bold py-3 px-4 rounded-lg transition-colors">รวมบิล</button>
                             <button onClick={() => onInitiatePayment(order)} className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg transition-colors">ชำระเงิน</button>
                             
-                            {canCancel && isCancelableStatus ? (
-                                <div className="grid grid-cols-2 gap-2">
-                                    <button onClick={onClose} className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-3 px-4 rounded-lg transition-colors">ปิด</button>
-                                    <button onClick={() => onInitiateCancel(order)} className="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-4 rounded-lg transition-colors">ยกเลิกออเดอร์</button>
-                                </div>
-                            ) : (
-                                <button onClick={onClose} className="w-full bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-3 px-4 rounded-lg transition-colors">ปิด</button>
-                            )}
+                            <div className="grid grid-cols-2 gap-2">
+                                <button onClick={onClose} className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-3 px-4 rounded-lg transition-colors">ปิด</button>
+                                <button
+                                    onClick={() => onInitiateCancel(order)}
+                                    disabled={!canCancel}
+                                    title="ยกเลิกออเดอร์"
+                                    className="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-4 rounded-lg transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+                                >
+                                    ยกเลิกออเดอร์
+                                </button>
+                            </div>
                         </div>
                     )}
                 </footer>

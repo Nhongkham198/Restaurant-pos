@@ -117,9 +117,12 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({ completedOrders, can
             return true;
         });
 
-        if (!searchTerm) return dateFiltered;
+        // Sort by most recent first
+        const sorted = dateFiltered.sort((a, b) => b.completionTime - a.completionTime);
+
+        if (!searchTerm) return sorted;
         const lowercasedTerm = searchTerm.toLowerCase();
-        return dateFiltered.filter(order => 
+        return sorted.filter(order => 
             String(order.orderNumber).includes(lowercasedTerm) ||
             order.tableName.toLowerCase().includes(lowercasedTerm)
         );
@@ -141,9 +144,12 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({ completedOrders, can
             return true;
         });
 
-        if (!searchTerm) return dateFiltered;
+        // Sort by most recent first
+        const sorted = dateFiltered.sort((a, b) => b.cancellationTime - a.cancellationTime);
+
+        if (!searchTerm) return sorted;
         const lowercasedTerm = searchTerm.toLowerCase();
-        return dateFiltered.filter(order => 
+        return sorted.filter(order => 
             String(order.orderNumber).includes(lowercasedTerm) ||
             order.tableName.toLowerCase().includes(lowercasedTerm) ||
             order.cancellationReason.toLowerCase().includes(lowercasedTerm) ||
@@ -167,9 +173,12 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({ completedOrders, can
             return true;
         });
 
-        if (!searchTerm) return dateFiltered;
+        // Sort by most recent first
+        const sorted = dateFiltered.sort((a, b) => b.timestamp - a.timestamp);
+
+        if (!searchTerm) return sorted;
         const lowercasedTerm = searchTerm.toLowerCase();
-        return dateFiltered.filter(entry => 
+        return sorted.filter(entry => 
             String(entry.orderNumber).includes(lowercasedTerm) ||
             entry.tableName.toLowerCase().includes(lowercasedTerm) ||
             entry.printedBy.toLowerCase().includes(lowercasedTerm)
