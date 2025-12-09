@@ -76,7 +76,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
 
     const dailyStats = useMemo(() => {
         const totalSales = filteredCompletedOrders.reduce((sum, order) => {
-            const subtotal = order.items.reduce((itemSum, item) => itemSum + item.price * item.quantity, 0);
+            const subtotal = order.items.reduce((itemSum, item) => itemSum + item.finalPrice * item.quantity, 0);
             return sum + subtotal + order.taxAmount;
         }, 0);
         
@@ -103,7 +103,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
             const orderHour = new Date(order.completionTime).getHours();
             const hourIndex = hours.indexOf(orderHour);
             if (hourIndex > -1) {
-                const orderTotal = order.items.reduce((sum, item) => sum + item.price * item.quantity, 0) + order.taxAmount;
+                const orderTotal = order.items.reduce((sum, item) => sum + item.finalPrice * item.quantity, 0) + order.taxAmount;
                 salesByHour[hourIndex] += orderTotal;
             }
         });
@@ -132,6 +132,25 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
             labels: ['ทานที่ร้าน', 'กลับบ้าน'],
             data: [dineInItems, takeawayItems],
             colors: ['#3b82f6', '#8b5cf6']
+        };
+    }, [filteredCompletedOrders]);
+
+    const categorySalesData = useMemo(() => {
+        const salesByCategory: Record<string, number> = {};
+        filteredCompletedOrders.forEach(order => {
+            order.items.forEach(item => {
+                const category = item.category || 'ไม่มีหมวดหมู่';
+                const itemTotal = item.finalPrice * item.quantity;
+                salesByCategory[category] = (salesByCategory[category] || 0) + itemTotal;
+            });
+        });
+
+        const sortedCategories = Object.entries(salesByCategory).sort(([, a], [, b]) => b - a);
+
+        return {
+            labels: sortedCategories.map(([label]) => label),
+            data: sortedCategories.map(([, data]) => data),
+            colors: ['#10b981', '#f59e0b', '#ec4899', '#3b82f6', '#8b5cf6', '#ef4444', '#6b7280']
         };
     }, [filteredCompletedOrders]);
 
@@ -169,7 +188,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
                         maxValue={hourlySalesData.maxValue}
                     />
                 </div>
-                <div>
+                <div className="flex flex-col gap-6">
+                    <PieChart
+                        title="สัดส่วนยอดขายตามหมวดหมู่"
+                        data={categorySalesData.data}
+                        labels={categorySalesData.labels}
+                        colors={categorySalesData.colors}
+                    />
                      <PieChart
                         title="ประเภทรายการ (ทานที่ร้าน / กลับบ้าน)"
                         data={orderItemTypeData.data}
