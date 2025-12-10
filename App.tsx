@@ -1,3 +1,5 @@
+
+
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 
 import { 
@@ -36,7 +38,9 @@ import type {
 import { useFirestoreSync } from './hooks/useFirestoreSync';
 import { functionsService } from './services/firebaseFunctionsService';
 import { printerService } from './services/printerService';
+// FIX: Updated Firebase imports to use the v9 compatibility layer, which provides the v8 namespaced API.
 import firebase from 'firebase/compat/app';
+import 'firebase/compat/firestore';
 import 'firebase/compat/messaging';
 import { isFirebaseConfigured, db } from './firebaseConfig';
 
@@ -748,6 +752,17 @@ const App: React.FC = () => {
         setSelectedBranch(branch);
     };
 
+    const handleUpdateCurrentUser = (updates: Partial<User>) => {
+        // Update the main `users` array which triggers the Firestore sync
+        setUsers(prevUsers =>
+            prevUsers.map(user =>
+                user.id === currentUser?.id ? { ...user, ...updates } : user
+            )
+        );
+        // Also update the local `currentUser` state for immediate UI feedback
+        setCurrentUser(prev => (prev ? { ...prev, ...updates } : null));
+    };
+
     // --- Modal Handlers ---
     const handleModalClose = () => {
         setModalState({
@@ -776,7 +791,8 @@ const App: React.FC = () => {
         try {
             const orderNumber = await db.runTransaction(async (transaction: firebase.firestore.Transaction) => {
                 const counterDoc = await transaction.get(counterDocRef);
-                const counterData = counterDoc.data()?.value as OrderCounter | undefined;
+                // FIX: Property 'value' does not exist on type 'unknown'. Explicitly cast the result of data() to a type with a 'value' property before accessing it.
+                const counterData = (counterDoc.data() as { value: OrderCounter | undefined })?.value;
     
                 let nextOrderId;
                 // Robustly check counterData and lastResetDate format
@@ -909,36 +925,40 @@ const App: React.FC = () => {
             setModalState(prev => ({ ...prev, isOrderSuccess: true }));
     
             // Step 3: Handle printing after the order is successfully created.
-            if (sendToKitchen && printerConfig?.kitchen) {
-                try {
-                    await printerService.printKitchenOrder(newOrder, printerConfig.kitchen);
-                    setPrintHistory(prev => [...prev, {
-                        id: Date.now(),
-                        timestamp: Date.now(),
-                        orderNumber: newOrder.orderNumber,
-                        tableName: newOrder.tableName,
-                        printedBy: currentUser ? currentUser.username : (custName || `โต๊ะ ${tableOverride.name}`),
-                        printerType: 'kitchen',
-                        status: 'success',
-                        errorMessage: null,
-                        orderItemsPreview: newOrder.items.map(i => `${i.quantity}x ${i.name}`),
-                        isReprint: false,
-                    }]);
-                } catch (printError: any) {
-                    console.error("Kitchen print failed:", printError);
-                    setPrintHistory(prev => [...prev, {
-                        id: Date.now(),
-                        timestamp: Date.now(),
-                        orderNumber: newOrder.orderNumber,
-                        tableName: newOrder.tableName,
-                        printedBy: currentUser ? currentUser.username : (custName || `โต๊ะ ${tableOverride.name}`),
-                        printerType: 'kitchen',
-                        status: 'failed',
-                        errorMessage: printError.message || 'Unknown print error',
-                        orderItemsPreview: newOrder.items.map(i => `${i.quantity}x ${i.name}`),
-                        isReprint: false,
-                    }]);
-                    Swal.fire('พิมพ์ไม่สำเร็จ', printError.message || 'ไม่สามารถเชื่อมต่อเครื่องพิมพ์ครัวได้', 'error');
+            if (sendToKitchen) {
+                if (printerConfig?.kitchen?.ipAddress) {
+                    try {
+                        await printerService.printKitchenOrder(newOrder, printerConfig.kitchen);
+                        setPrintHistory(prev => [...prev, {
+                            id: Date.now(),
+                            timestamp: Date.now(),
+                            orderNumber: newOrder.orderNumber,
+                            tableName: newOrder.tableName,
+                            printedBy: currentUser ? currentUser.username : (custName || `โต๊ะ ${tableOverride.name}`),
+                            printerType: 'kitchen',
+                            status: 'success',
+                            errorMessage: null,
+                            orderItemsPreview: newOrder.items.map(i => `${i.quantity}x ${i.name}`),
+                            isReprint: false,
+                        }]);
+                    } catch (printError: any) {
+                        console.error("Kitchen print failed:", printError);
+                        setPrintHistory(prev => [...prev, {
+                            id: Date.now(),
+                            timestamp: Date.now(),
+                            orderNumber: newOrder.orderNumber,
+                            tableName: newOrder.tableName,
+                            printedBy: currentUser ? currentUser.username : (custName || `โต๊ะ ${tableOverride.name}`),
+                            printerType: 'kitchen',
+                            status: 'failed',
+                            errorMessage: printError.message || 'Unknown print error',
+                            orderItemsPreview: newOrder.items.map(i => `${i.quantity}x ${i.name}`),
+                            isReprint: false,
+                        }]);
+                        Swal.fire('พิมพ์ไม่สำเร็จ', printError.message || 'ไม่สามารถเชื่อมต่อเครื่องพิมพ์ครัวได้', 'error');
+                    }
+                } else {
+                    Swal.fire('พิมพ์ไม่สำเร็จ', 'ไม่ได้ตั้งค่า IP ของเครื่องพิมพ์ครัว', 'error');
                 }
             }
         
@@ -1422,7 +1442,7 @@ const App: React.FC = () => {
                    kitchenBadgeCount={totalKitchenBadgeCount}
                    tablesBadgeCount={tablesBadgeCount}
                    leaveBadgeCount={leaveBadgeCount}
-                   onUpdateCurrentUser={(updates) => setCurrentUser(prev => prev ? {...prev, ...updates} : null)}
+                   onUpdateCurrentUser={handleUpdateCurrentUser}
                    onUpdateLogoUrl={setLogoUrl}
                    onUpdateRestaurantName={setRestaurantName}
                 />
@@ -1461,8 +1481,8 @@ const App: React.FC = () => {
                 <main className={`flex-1 flex overflow-hidden ${!isDesktop ? 'pb-16' : ''}`}>
                     {/* Desktop POS View */}
                     {currentView === 'pos' && isDesktop && (
-                        <>
-                            <div className="flex-1 overflow-hidden">
+                        <div className="flex-1 flex overflow-hidden relative">
+                            <div className="flex-1 overflow-y-auto">
                                 <Menu
                                     menuItems={menuItems}
                                     setMenuItems={setMenuItems}
@@ -1472,108 +1492,124 @@ const App: React.FC = () => {
                                     onEditItem={(item) => { setItemToEdit(item); setModalState(prev => ({...prev, isMenuItem: true})); }}
                                     onAddNewItem={() => { setItemToEdit(null); setModalState(prev => ({...prev, isMenuItem: true})); }}
                                     onDeleteItem={handleDeleteMenuItem}
-                                    onAddCategory={handleAddCategory}
                                     onUpdateCategory={handleUpdateCategory}
                                     onDeleteCategory={handleDeleteCategory}
-                                    onImportMenu={(newItems, newCats) => {
-                                        setMenuItems(newItems);
-                                        setCategories(prev => Array.from(new Set([...prev, ...newCats])));
+                                    onAddCategory={handleAddCategory}
+                                    onImportMenu={(items, cats) => {
+                                        setMenuItems(items);
+                                        setCategories(prev => Array.from(new Set([...prev, ...cats])));
                                     }}
                                     recommendedMenuItemIds={recommendedMenuItemIds}
                                 />
                             </div>
-                            <aside className={`transition-all duration-300 ${isOrderSidebarVisible ? 'w-96' : 'w-0'}`}>
-                                <Sidebar
-                                    currentOrderItems={currentOrderItems}
-                                    onQuantityChange={handleQuantityChange}
-                                    onRemoveItem={handleRemoveItem}
-                                    onClearOrder={handleClearOrder}
-                                    onPlaceOrder={handlePlaceOrder}
-                                    isPlacingOrder={isPlacingOrder}
-                                    tables={tables}
-                                    selectedTable={selectedTable}
-                                    onSelectTable={setSelectedTableId}
-                                    customerName={customerName}
-                                    onCustomerNameChange={setCustomerName}
-                                    customerCount={customerCount}
-                                    onCustomerCountChange={setCustomerCount}
-                                    isEditMode={isEditMode}
-                                    onAddNewTable={handleAddTable}
-                                    onRemoveLastTable={handleRemoveLastTable}
-                                    floors={floors}
-                                    selectedFloor={selectedSidebarFloor}
-                                    onFloorChange={setSelectedSidebarFloor}
-                                    onAddFloor={handleAddFloor}
-                                    onRemoveFloor={handleRemoveFloor}
-                                    sendToKitchen={sendToKitchen}
-                                    onSendToKitchenChange={(enabled, details) => { setSendToKitchen(enabled); setNotSentToKitchenDetails(details); }}
-                                    onUpdateReservation={(tableId, reservation) => setTables(prev => prev.map(t => t.id === tableId ? {...t, reservation} : t))}
-                                    onOpenSearch={() => setModalState(prev => ({...prev, isMenuSearch: true}))}
-                                    currentUser={currentUser}
-                                    onEditOrderItem={handleUpdateOrderItem}
-                                    onViewChange={setCurrentView}
-                                    restaurantName={restaurantName}
-                                    onLogout={handleLogout}
-                                />
-                            </aside>
-                            <button
-                                onClick={() => setIsOrderSidebarVisible(!isOrderSidebarVisible)}
-                                className="absolute right-0 top-1/2 -translate-y-1/2 bg-gray-800 text-white p-4 rounded-l-full z-20 shadow-lg"
-                                style={{ right: isOrderSidebarVisible ? '24rem' : '0' }}
-                                title={isOrderSidebarVisible ? "ซ่อน" : "แสดง"}
+                            <aside 
+                                className={`flex-shrink-0 transition-all duration-300 overflow-hidden ${isOrderSidebarVisible ? 'w-96' : 'w-0'}`}
                             >
-                                <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 transition-transform ${!isOrderSidebarVisible ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M9 5l7 7-7 7" /></svg>
-                                {totalCartItemCount > 0 && (
-                                    <span
-                                        key={totalCartItemCount}
-                                        className={`animate-pop-in absolute -top-2 -left-1 flex h-10 w-10 items-center justify-center rounded-full bg-red-500 text-lg font-bold text-white border-2 border-white transition-opacity ${isOrderSidebarVisible ? 'opacity-0' : 'opacity-100'}`}>
-                                        {totalCartItemCount > 99 ? '99+' : totalCartItemCount}
-                                    </span>
+                                {isOrderSidebarVisible && (
+                                    <Sidebar
+                                        currentOrderItems={currentOrderItems}
+                                        onQuantityChange={handleQuantityChange}
+                                        onRemoveItem={handleRemoveItem}
+                                        onClearOrder={handleClearOrder}
+                                        onPlaceOrder={handlePlaceOrder}
+                                        isPlacingOrder={isPlacingOrder}
+                                        tables={tables}
+                                        selectedTable={selectedTable}
+                                        onSelectTable={setSelectedTableId}
+                                        customerName={customerName}
+                                        onCustomerNameChange={setCustomerName}
+                                        customerCount={customerCount}
+                                        onCustomerCountChange={setCustomerCount}
+                                        isEditMode={isEditMode}
+                                        onAddNewTable={handleAddTable}
+                                        onRemoveLastTable={handleRemoveLastTable}
+                                        floors={floors}
+                                        selectedFloor={selectedSidebarFloor}
+                                        onFloorChange={setSelectedSidebarFloor}
+                                        onAddFloor={handleAddFloor}
+                                        onRemoveFloor={handleRemoveFloor}
+                                        sendToKitchen={sendToKitchen}
+                                        onSendToKitchenChange={(enabled, details) => {
+                                            setSendToKitchen(enabled);
+                                            setNotSentToKitchenDetails(details);
+                                        }}
+                                        onUpdateReservation={(tableId, reservation) => setTables(prev => prev.map(t => t.id === tableId ? {...t, reservation} : t))}
+                                        onOpenSearch={() => setModalState(prev => ({...prev, isMenuSearch: true}))}
+                                        currentUser={currentUser}
+                                        onEditOrderItem={handleUpdateOrderItem}
+                                        onViewChange={setCurrentView}
+                                        restaurantName={restaurantName}
+                                        onLogout={handleLogout}
+                                    />
                                 )}
-                            </button>
-                        </>
+                            </aside>
+                            <div 
+                                className="absolute top-1/2 -translate-y-1/2 z-20 transition-all duration-300"
+                                style={{ right: isOrderSidebarVisible ? '24rem' : '0rem' }}
+                            >
+                                <button 
+                                    onClick={() => setIsOrderSidebarVisible(!isOrderSidebarVisible)}
+                                    className="bg-gray-800 text-white p-2 rounded-l-full shadow-lg hover:bg-gray-700 relative"
+                                    title={isOrderSidebarVisible ? "ซ่อนรายการ" : "แสดงรายการ"}
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 transition-transform ${isOrderSidebarVisible ? '' : 'rotate-180'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                    </svg>
+                                    {totalCartItemCount > 0 && (
+                                        <span 
+                                            key={totalCartItemCount} 
+                                            className="absolute -top-2 -left-3 flex h-8 w-8 items-center justify-center rounded-full bg-red-600 text-base font-bold text-white border-2 border-white animate-pop-in"
+                                        >
+                                            {totalCartItemCount > 99 ? '99+' : totalCartItemCount}
+                                        </span>
+                                    )}
+                                </button>
+                            </div>
+                        </div>
                     )}
 
                     {/* Non-Desktop Views */}
                     {!isDesktop && (
                         <div className="flex-1 flex flex-col overflow-hidden">
                             {currentView === 'pos' ? (
-                                <div className="flex-1 flex overflow-hidden">
-                                    <div className="flex-1 overflow-hidden">
-                                        <Sidebar
-                                            isMobilePage={true}
-                                            currentOrderItems={currentOrderItems}
-                                            onQuantityChange={handleQuantityChange}
-                                            onRemoveItem={handleRemoveItem}
-                                            onClearOrder={handleClearOrder}
-                                            onPlaceOrder={handlePlaceOrder}
-                                            isPlacingOrder={isPlacingOrder}
-                                            tables={tables}
-                                            selectedTable={selectedTable}
-                                            onSelectTable={setSelectedTableId}
-                                            customerName={customerName}
-                                            onCustomerNameChange={setCustomerName}
-                                            customerCount={customerCount}
-                                            onCustomerCountChange={setCustomerCount}
-                                            isEditMode={isEditMode}
-                                            onAddNewTable={handleAddTable}
-                                            onRemoveLastTable={handleRemoveLastTable}
-                                            floors={floors}
-                                            selectedFloor={selectedSidebarFloor}
-                                            onFloorChange={setSelectedSidebarFloor}
-                                            onAddFloor={handleAddFloor}
-                                            onRemoveFloor={handleRemoveFloor}
-                                            sendToKitchen={sendToKitchen}
-                                            onSendToKitchenChange={(enabled, details) => { setSendToKitchen(enabled); setNotSentToKitchenDetails(details); }}
-                                            onUpdateReservation={(tableId, reservation) => setTables(prev => prev.map(t => t.id === tableId ? {...t, reservation} : t))}
-                                            onOpenSearch={() => setModalState(prev => ({...prev, isMenuSearch: true}))}
-                                            currentUser={currentUser}
-                                            onEditOrderItem={handleUpdateOrderItem}
-                                            onViewChange={setCurrentView}
-                                            restaurantName={restaurantName}
-                                            onLogout={handleLogout}
-                                        />
-                                    </div>
+                                <div className="w-full flex flex-col h-full overflow-hidden">
+                                    {/* The Sidebar component in mobile mode contains the header and all POS functionality */}
+                                    <Sidebar
+                                        isMobilePage={true}
+                                        currentOrderItems={currentOrderItems}
+                                        onQuantityChange={handleQuantityChange}
+                                        onRemoveItem={handleRemoveItem}
+                                        onClearOrder={handleClearOrder}
+                                        onPlaceOrder={handlePlaceOrder}
+                                        isPlacingOrder={isPlacingOrder}
+                                        tables={tables}
+                                        selectedTable={selectedTable}
+                                        onSelectTable={setSelectedTableId}
+                                        customerName={customerName}
+                                        onCustomerNameChange={setCustomerName}
+                                        customerCount={customerCount}
+                                        onCustomerCountChange={setCustomerCount}
+                                        isEditMode={isEditMode}
+                                        onAddNewTable={handleAddTable}
+                                        onRemoveLastTable={handleRemoveLastTable}
+                                        floors={floors}
+                                        selectedFloor={selectedSidebarFloor}
+                                        onFloorChange={setSelectedSidebarFloor}
+                                        onAddFloor={handleAddFloor}
+                                        onRemoveFloor={handleRemoveFloor}
+                                        sendToKitchen={sendToKitchen}
+                                        onSendToKitchenChange={(enabled, details) => {
+                                            setSendToKitchen(enabled);
+                                            setNotSentToKitchenDetails(details);
+                                        }}
+                                        onUpdateReservation={(tableId, reservation) => setTables(prev => prev.map(t => t.id === tableId ? {...t, reservation} : t))}
+                                        onOpenSearch={() => setModalState(prev => ({...prev, isMenuSearch: true}))}
+                                        currentUser={currentUser}
+                                        onEditOrderItem={handleUpdateOrderItem}
+                                        onViewChange={setCurrentView}
+                                        restaurantName={restaurantName}
+                                        onLogout={handleLogout}
+                                    />
                                 </div>
                             ) : (
                                 <div className="w-full flex flex-col h-full">

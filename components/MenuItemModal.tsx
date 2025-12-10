@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import type { MenuItem, MenuOption, MenuOptionGroup } from '../types';
 import Swal from 'sweetalert2';
 
@@ -7,7 +7,7 @@ interface MenuItemModalProps {
     onClose: () => void;
     onSave: (item: Omit<MenuItem, 'id'> & { id?: number }) => void;
     itemToEdit: MenuItem | null;
-    categories: string[];
+    categories: any[];
     onAddCategory: (name: string) => void;
 }
 
@@ -26,6 +26,20 @@ export const MenuItemModal: React.FC<MenuItemModalProps> = ({ isOpen, onClose, o
     const [isAddingCategory, setIsAddingCategory] = useState(false);
     const [newCategoryName, setNewCategoryName] = useState('');
 
+    const normalizedCategories = useMemo(() => {
+        if (!Array.isArray(categories)) return [];
+        return categories.map(cat => {
+            if (typeof cat === 'object' && cat !== null && 'name' in cat && typeof (cat as any).name === 'string') {
+                return (cat as any).name;
+            }
+            if (typeof cat === 'string') {
+                return cat;
+            }
+            return null;
+        }).filter((catName): catName is string => typeof catName === 'string');
+    }, [categories]);
+
+
     useEffect(() => {
         if (isOpen) {
             setIsAddingCategory(false);
@@ -38,11 +52,11 @@ export const MenuItemModal: React.FC<MenuItemModalProps> = ({ isOpen, onClose, o
                 });
                 setPriceString(String(itemToEdit.price));
             } else {
-                setFormState({ ...initialFormState, category: categories.find(c => c !== 'ทั้งหมด') || '', optionGroups: [] });
+                setFormState({ ...initialFormState, category: normalizedCategories.find(c => c !== 'ทั้งหมด') || '', optionGroups: [] });
                 setPriceString('0');
             }
         }
-    }, [isOpen, itemToEdit, categories]);
+    }, [isOpen, itemToEdit, normalizedCategories]);
 
     const handlePriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const val = e.target.value;
@@ -55,7 +69,7 @@ export const MenuItemModal: React.FC<MenuItemModalProps> = ({ isOpen, onClose, o
 
     const handleAddCategoryClick = () => {
         const trimmedName = newCategoryName.trim();
-        if (trimmedName && !categories.includes(trimmedName)) {
+        if (trimmedName && !normalizedCategories.includes(trimmedName)) {
             onAddCategory(trimmedName);
             setFormState(prev => ({ ...prev, category: trimmedName }));
             setNewCategoryName('');
@@ -149,7 +163,7 @@ export const MenuItemModal: React.FC<MenuItemModalProps> = ({ isOpen, onClose, o
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full flex flex-col" style={{maxHeight: '90vh'}} onClick={e => e.stopPropagation()}>
                 <h2 className="text-2xl font-bold p-6 border-b text-gray-800 flex-shrink-0">{itemToEdit ? 'แก้ไขเมนู' : 'เพิ่มเมนูใหม่'}</h2>
-                <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto">
+                <form id="menu-item-form" onSubmit={handleSubmit} className="flex-1 overflow-y-auto">
                     <div className="p-6 space-y-4">
                         {/* Basic Info */}
                         <div>
@@ -172,7 +186,7 @@ export const MenuItemModal: React.FC<MenuItemModalProps> = ({ isOpen, onClose, o
                                 <div className="flex items-center gap-2 mt-1">
                                     <select value={formState.category} onChange={(e) => setFormState(prev => ({...prev, category: e.target.value}))} className={`${inputClasses} mt-0 flex-grow`} required>
                                         <option value="" disabled>-- เลือกหมวดหมู่ --</option>
-                                        {categories.filter(c => c !== 'ทั้งหมด').map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                                        {normalizedCategories.filter(c => c !== 'ทั้งหมด').map(cat => <option key={cat} value={cat}>{cat}</option>)}
                                     </select>
                                     <button type="button" onClick={() => setIsAddingCategory(true)} className="px-3 py-2 bg-blue-100 text-blue-800 rounded-md hover:bg-blue-200 h-[42px]">+</button>
                                 </div>
@@ -221,7 +235,7 @@ export const MenuItemModal: React.FC<MenuItemModalProps> = ({ isOpen, onClose, o
                 </form>
                 <div className="flex-shrink-0 flex justify-end gap-2 p-4 bg-gray-50 border-t">
                     <button type="button" onClick={onClose} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300">ยกเลิก</button>
-                    <button type="submit" form="menu-item-form" onClick={handleSubmit} className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">บันทึก</button>
+                    <button type="submit" form="menu-item-form" className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">บันทึก</button>
                 </div>
             </div>
         </div>

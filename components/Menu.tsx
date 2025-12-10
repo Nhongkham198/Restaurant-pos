@@ -8,7 +8,7 @@ declare var XLSX: any;
 interface MenuProps {
     menuItems: MenuItem[];
     setMenuItems: (items: MenuItem[]) => void;
-    categories: string[];
+    categories: any[];
     onSelectItem: (item: MenuItem) => void;
     isEditMode: boolean;
     onEditItem: (item: MenuItem) => void;
@@ -44,6 +44,19 @@ export const Menu: React.FC<MenuProps> = ({
     const categoryScrollRef = useRef<HTMLDivElement>(null);
     const [showLeftArrow, setShowLeftArrow] = useState(false);
     const [showRightArrow, setShowRightArrow] = useState(false);
+
+    const normalizedCategories = useMemo(() => {
+        if (!Array.isArray(categories)) return [];
+        return categories.map(cat => {
+            if (typeof cat === 'object' && cat !== null && 'name' in cat && typeof (cat as any).name === 'string') {
+                return (cat as any).name;
+            }
+            if (typeof cat === 'string') {
+                return cat;
+            }
+            return null;
+        }).filter((catName): catName is string => typeof catName === 'string');
+    }, [categories]);
 
     const handleDragSort = () => {
         if (dragItem.current === null || dragOverItem.current === null || dragItem.current === dragOverItem.current) {
@@ -415,7 +428,7 @@ export const Menu: React.FC<MenuProps> = ({
                             ref={categoryScrollRef}
                             className="flex overflow-x-auto whitespace-nowrap gap-2 items-center py-2 custom-scrollbar"
                         >
-                            {categories.map(category => (
+                            {normalizedCategories.map(category => (
                                 <div key={category} className="relative group flex-shrink-0">
                                     <button
                                         onClick={() => setSelectedCategory(category)}

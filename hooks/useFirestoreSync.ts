@@ -65,12 +65,8 @@ export function useFirestoreSync<T>(
                             valueToSet = cleanedUniqueTables;
                         }
 
-                        if (collectionKey === 'users' && Array.isArray(valueToSet) && valueToSet.length === 0 && Array.isArray(currentInitialValue) && currentInitialValue.length > 0) {
-                            console.warn(`'users' collection is empty in Firestore. Re-initializing with default value.`);
-                            docRef.set({ value: currentInitialValue });
-                            setValue(currentInitialValue);
-                        } else if (collectionKey === 'branches' && Array.isArray(valueToSet) && valueToSet.length === 0 && Array.isArray(currentInitialValue) && currentInitialValue.length > 0) {
-                            console.warn(`'branches' collection is empty in Firestore. Re-initializing with default value.`);
+                        if (collectionKey === 'menuItems' && Array.isArray(valueToSet) && valueToSet.length === 0 && Array.isArray(currentInitialValue) && currentInitialValue.length > 0) {
+                            console.warn(`'menuItems' for branch ${branchId} is empty in Firestore. Re-initializing with default value.`);
                             docRef.set({ value: currentInitialValue });
                             setValue(currentInitialValue);
                         } else if (collectionKey === 'orderCounter') {

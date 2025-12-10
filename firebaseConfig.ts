@@ -1,4 +1,7 @@
 
+
+
+// FIX: Updated Firebase imports to use the v9 compatibility layer, which provides the v8 namespaced API and fixes initialization errors.
 import firebase from "firebase/compat/app";
 import "firebase/compat/firestore";
 import "firebase/compat/functions";
