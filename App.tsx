@@ -338,6 +338,22 @@ const App: React.FC = () => {
         return () => window.removeEventListener('resize', handleResize);
     }, []);
 
+    // --- EFFECT: Pre-fetch notification sounds for Service Worker cache ---
+    useEffect(() => {
+        if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+            const soundsToCache = [];
+            if (notificationSoundUrl) soundsToCache.push(notificationSoundUrl);
+            if (staffCallSoundUrl) soundsToCache.push(staffCallSoundUrl);
+            
+            if (soundsToCache.length > 0) {
+                // Try to fetch them to ensure they are in browser cache/SW cache
+                soundsToCache.forEach(url => {
+                    fetch(url, { mode: 'no-cors' }).catch(err => console.warn('Failed to prefetch sound:', url, err));
+                });
+            }
+        }
+    }, [notificationSoundUrl, staffCallSoundUrl]);
+
     // --- EFFECT: Overdue Order Timer Management (setTimeout per order) ---
     useEffect(() => {
         const activeCookingOrderIds = new Set<number>();
@@ -685,6 +701,27 @@ const App: React.FC = () => {
     // ============================================================================
     // 4. HANDLERS
     // ============================================================================
+    
+    // Explicitly request notification permission
+    const requestNotificationPermission = async () => {
+        if ('Notification' in window && Notification.permission !== 'granted') {
+            try {
+                const permission = await Notification.requestPermission();
+                console.log('Notification permission status:', permission);
+                if (permission === 'granted') {
+                    // Try to re-sync token if permission granted
+                    if (isFirebaseConfigured && firebase.messaging.isSupported()) {
+                        const messaging = firebase.messaging();
+                        const token = await messaging.getToken({ vapidKey: 'BKo-M6Q2dJz_7L5_FkC5q_w3O2u6G7mY9e0z5N6n_Y1mQ8z_Z0z3z_X9y_Y9y_X9y_X' });
+                        if(token) setCurrentFcmToken(token);
+                    }
+                }
+            } catch (error) {
+                console.error('Error requesting notification permission:', error);
+            }
+        }
+    };
+
     const handleAudioUnlock = useCallback(async () => {
         if (!isAudioUnlocked) {
             // A common technique to unlock audio context in browsers.
@@ -705,15 +742,9 @@ const App: React.FC = () => {
             });
         }
         
-        // Also request notification permission on user gesture (Audio unlock is usually a click)
-        if ('Notification' in window && Notification.permission !== 'granted' && Notification.permission !== 'denied') {
-            try {
-                const permission = await Notification.requestPermission();
-                console.log('Notification permission status:', permission);
-            } catch (error) {
-                console.error('Error requesting notification permission:', error);
-            }
-        }
+        // Ensure notification permission is requested on user interaction
+        await requestNotificationPermission();
+        
     }, [isAudioUnlocked]);
     
     // --- Auth & Branch Handlers ---
@@ -721,14 +752,7 @@ const App: React.FC = () => {
         const user = users.find(u => u.username === username && u.password === password);
         if (user) {
             // Explicitly request notification permission on login (User Gesture)
-            if ('Notification' in window) {
-                try {
-                    const permission = await Notification.requestPermission();
-                    console.log('Notification permission requested on login:', permission);
-                } catch (e) {
-                    console.error('Failed to request notification permission:', e);
-                }
-            }
+            await requestNotificationPermission();
 
             setCurrentUser(user);
             

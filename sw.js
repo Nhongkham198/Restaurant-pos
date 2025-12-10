@@ -24,17 +24,19 @@ messaging.onBackgroundMessage(function(payload) {
     body: payload.data?.body || 'มีรายการอาหารใหม่ส่งเข้าครัว',
     icon: payload.data?.icon || '/icon.svg',
     // Sound Note: Background sound support varies by browser/OS. 
-    // Standard web push relies on system notification sounds.
-    sound: payload.data?.sound, 
+    // We try to use the sound from payload or fallback.
+    sound: payload.data?.sound || '/default-notification.mp3',
     vibrate: payload.data?.vibrate ? JSON.parse(payload.data.vibrate) : [200, 100, 200],
     // Essential for "waking up" the user when screen is off/app hidden
     tag: 'restaurant-pos-notification', // Keeps notifications grouped but allows renotify
     renotify: true, // Forces sound/vibration even if a notification with same tag exists
     requireInteraction: true, // Keeps notification on screen until user interacts
     data: {
-        url: '/' // Target URL to open on click
-    }
+        url: payload.data?.url || '/' // Target URL to open on click
+    },
+    timestamp: Date.now() // Adds a timestamp to help OS prioritize
   };
+  
   return self.registration.showNotification(notificationTitle, notificationOptions);
 });
 
@@ -43,18 +45,21 @@ self.addEventListener('notificationclick', function(event) {
   console.log('[SW] Notification click received.');
   event.notification.close();
 
+  const targetUrl = event.notification.data?.url || '/';
+
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(windowClients => {
       // Check if there is already a window/tab open with the target URL
       for (let i = 0; i < windowClients.length; i++) {
         const client = windowClients[i];
+        // Check if the client matches our scope and is focusable
         if (client.url.includes(self.registration.scope) && 'focus' in client) {
           return client.focus();
         }
       }
       // If no window is open, open a new one
       if (clients.openWindow) {
-        return clients.openWindow('/');
+        return clients.openWindow(targetUrl);
       }
     })
   );
@@ -121,11 +126,11 @@ self.addEventListener('fetch', event => {
     return; // Let the browser handle it
   }
 
-  // --- Image Caching Strategy: Cache First, then Network Fallback ---
-  // This strategy makes images load instantly after the first time.
-  const isImageRequest = /\.(jpg|jpeg|png|gif|svg|webp)$/i.test(url.pathname) || url.hostname.includes('firebasestorage.googleapis.com');
+  // --- Image & Media Caching Strategy: Cache First, then Network Fallback ---
+  // This strategy makes images/audio load instantly after the first time.
+  const isMediaRequest = /\.(jpg|jpeg|png|gif|svg|webp|mp3|wav)$/i.test(url.pathname) || url.hostname.includes('firebasestorage.googleapis.com');
 
-  if (isImageRequest) {
+  if (isMediaRequest) {
     event.respondWith(
       caches.open(IMAGE_CACHE_NAME).then(async (cache) => {
         // IMPORTANT: Ignore search parameters (like ?retry=1) when looking in cache.
@@ -146,13 +151,13 @@ self.addEventListener('fetch', event => {
           }
           return fetchResponse;
         } catch (error) {
-          console.error(`[SW] Failed to fetch image: ${event.request.url}`, error);
+          console.error(`[SW] Failed to fetch media: ${event.request.url}`, error);
           // Optional: return a placeholder image on failure
           // return caches.match('/placeholder-image.svg');
         }
       })
     );
-    return; // End execution for image requests
+    return; // End execution for media requests
   }
 
   // --- App Shell & Other Requests Strategy: Stale-While-Revalidate ---
