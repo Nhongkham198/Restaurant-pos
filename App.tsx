@@ -685,31 +685,51 @@ const App: React.FC = () => {
     // ============================================================================
     // 4. HANDLERS
     // ============================================================================
-    const handleAudioUnlock = useCallback(() => {
-        if (isAudioUnlocked) return;
+    const handleAudioUnlock = useCallback(async () => {
+        if (!isAudioUnlocked) {
+            // A common technique to unlock audio context in browsers.
+            const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+            if (audioContext.state === 'suspended') {
+                audioContext.resume();
+            }
 
-        // A common technique to unlock audio context in browsers.
-        const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-        if (audioContext.state === 'suspended') {
-            audioContext.resume();
+            // Play a tiny, silent audio file. This can also help.
+            const silentAudio = new Audio('data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=');
+            silentAudio.play().then(() => {
+                setIsAudioUnlocked(true);
+                console.log("Audio playback unlocked successfully.");
+            }).catch(error => {
+                console.warn("Attempt to unlock audio failed.", error);
+                // Be optimistic and assume context resume might have worked.
+                setIsAudioUnlocked(true);
+            });
         }
-
-        // Play a tiny, silent audio file. This can also help.
-        const silentAudio = new Audio('data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=');
-        silentAudio.play().then(() => {
-            setIsAudioUnlocked(true);
-            console.log("Audio playback unlocked successfully.");
-        }).catch(error => {
-            console.warn("Attempt to unlock audio failed.", error);
-            // Be optimistic and assume context resume might have worked.
-            setIsAudioUnlocked(true);
-        });
+        
+        // Also request notification permission on user gesture (Audio unlock is usually a click)
+        if ('Notification' in window && Notification.permission !== 'granted' && Notification.permission !== 'denied') {
+            try {
+                const permission = await Notification.requestPermission();
+                console.log('Notification permission status:', permission);
+            } catch (error) {
+                console.error('Error requesting notification permission:', error);
+            }
+        }
     }, [isAudioUnlocked]);
     
     // --- Auth & Branch Handlers ---
-    const handleLogin = (username: string, password: string): { success: boolean, error?: string } => {
+    const handleLogin = async (username: string, password: string): Promise<{ success: boolean, error?: string }> => {
         const user = users.find(u => u.username === username && u.password === password);
         if (user) {
+            // Explicitly request notification permission on login (User Gesture)
+            if ('Notification' in window) {
+                try {
+                    const permission = await Notification.requestPermission();
+                    console.log('Notification permission requested on login:', permission);
+                } catch (e) {
+                    console.error('Failed to request notification permission:', e);
+                }
+            }
+
             setCurrentUser(user);
             
             // Auto-navigate based on role

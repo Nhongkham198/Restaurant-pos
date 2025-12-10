@@ -23,10 +23,41 @@ messaging.onBackgroundMessage(function(payload) {
   const notificationOptions = {
     body: payload.data?.body || 'มีรายการอาหารใหม่ส่งเข้าครัว',
     icon: payload.data?.icon || '/icon.svg',
-    sound: payload.data?.sound,
-    vibrate: payload.data?.vibrate ? JSON.parse(payload.data.vibrate) : [200, 100, 200]
+    // Sound Note: Background sound support varies by browser/OS. 
+    // Standard web push relies on system notification sounds.
+    sound: payload.data?.sound, 
+    vibrate: payload.data?.vibrate ? JSON.parse(payload.data.vibrate) : [200, 100, 200],
+    // Essential for "waking up" the user when screen is off/app hidden
+    tag: 'restaurant-pos-notification', // Keeps notifications grouped but allows renotify
+    renotify: true, // Forces sound/vibration even if a notification with same tag exists
+    requireInteraction: true, // Keeps notification on screen until user interacts
+    data: {
+        url: '/' // Target URL to open on click
+    }
   };
   return self.registration.showNotification(notificationTitle, notificationOptions);
+});
+
+// Handle Notification Click - Focuses existing window or opens new one
+self.addEventListener('notificationclick', function(event) {
+  console.log('[SW] Notification click received.');
+  event.notification.close();
+
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(windowClients => {
+      // Check if there is already a window/tab open with the target URL
+      for (let i = 0; i < windowClients.length; i++) {
+        const client = windowClients[i];
+        if (client.url.includes(self.registration.scope) && 'focus' in client) {
+          return client.focus();
+        }
+      }
+      // If no window is open, open a new one
+      if (clients.openWindow) {
+        return clients.openWindow('/');
+      }
+    })
+  );
 });
 
 
