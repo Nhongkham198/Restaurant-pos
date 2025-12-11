@@ -1,5 +1,5 @@
 
-
+// ... imports
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import type { MenuItem, Table, OrderItem, ActiveOrder, StaffCall, CompletedOrder } from '../types';
 import { Menu } from './Menu';
@@ -36,6 +36,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     logoUrl,
     restaurantName,
 }) => {
+    // ... state ...
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [customerName, setCustomerName] = useState('');
     const [pinInput, setPinInput] = useState('');
@@ -529,6 +530,22 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     const translateMenu = async () => {
         setIsTranslating(true);
         try {
+            // Check for API key availability silently to avoid crashing if not set
+            if (!process.env.API_KEY) {
+                console.warn("Gemini API Key is missing. Translation skipped.");
+                // Give a small feedback to the user but don't crash
+                Swal.fire({
+                    toast: true,
+                    position: 'top-end',
+                    icon: 'warning',
+                    title: 'ระบบแปลภาษาไม่พร้อมใช้งาน',
+                    showConfirmButton: false,
+                    timer: 2000
+                });
+                setLanguage('th'); 
+                return;
+            }
+
             const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
             const staticText = [
@@ -558,19 +575,22 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                 textToTranslate[text] = text;
             });
     
-            const prompt = `Translate the JSON values from Thai to English. Return a JSON object with identical keys and translated values.\n${JSON.stringify(textToTranslate, null, 2)}`;
+            const prompt = `Translate the values of the following JSON object from Thai to English. Return ONLY the JSON object. Do not include markdown formatting or explanations.\n${JSON.stringify(textToTranslate, null, 2)}`;
             
             const response = await ai.models.generateContent({
                 model: 'gemini-2.5-flash',
                 contents: prompt,
+                config: {
+                    responseMimeType: 'application/json'
+                }
             });
     
-            const translatedJsonString = response.text.replace(/```json\n?|\n?```/g, '').trim();
-            const result = JSON.parse(translatedJsonString);
+            // With JSON mode, we should be able to parse directly
+            const result = JSON.parse(response.text);
             setTranslations(result);
         } catch (error) {
             console.error("Translation failed:", error);
-            Swal.fire('Translation Error', 'Could not translate the menu.', 'error');
+            Swal.fire('Translation Unavailable', 'Cannot translate at this time.', 'info');
             setLanguage('th'); // Revert to Thai on error
         } finally {
             setIsTranslating(false);
@@ -605,6 +625,8 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         return categories.map(cat => translations[cat] || cat);
     }, [categories, language, translations]);
 
+    // ... (rest of the file remains unchanged from here down to JSX)
+    
     // --- LOGIN SCREEN ---
     if (!isAuthenticated) {
         return (
