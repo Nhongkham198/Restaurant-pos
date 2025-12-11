@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 
 import { 
@@ -948,7 +947,8 @@ const App: React.FC = () => {
                 floor: tableOverride.floor,
                 customerCount: custCount,
                 items: itemsWithOrigin,
-                status: sendToKitchen ? 'waiting' : 'served',
+                // FIX: Customer orders must always go to kitchen ('waiting'). Staff orders respect the toggle.
+                status: (isCustomerMode || sendToKitchen) ? 'waiting' : 'served',
                 orderTime: Date.now(),
                 orderType: 'dine-in',
                 taxRate: isTaxEnabled ? taxRate : 0,
@@ -969,7 +969,9 @@ const App: React.FC = () => {
             setModalState(prev => ({ ...prev, isOrderSuccess: true }));
     
             // Step 3: Handle printing after the order is successfully created.
-            if (sendToKitchen) {
+            // Only print if sendToKitchen is enabled OR if it's customer mode (since we force customer mode to 'waiting', we likely want to print too)
+            // Actually, we should probably always try to print for Kitchen if status is waiting.
+            if ((isCustomerMode || sendToKitchen)) {
                 if (printerConfig?.kitchen?.ipAddress) {
                     try {
                         await printerService.printKitchenOrder(newOrder, printerConfig.kitchen);
@@ -999,10 +1001,15 @@ const App: React.FC = () => {
                             orderItemsPreview: newOrder.items.map(i => `${i.quantity}x ${i.name}`),
                             isReprint: false,
                         }]);
-                        Swal.fire('พิมพ์ไม่สำเร็จ', printError.message || 'ไม่สามารถเชื่อมต่อเครื่องพิมพ์ครัวได้', 'error');
+                        // Only show alert to staff, customers might get confused or it might interrupt flow
+                        if (!isCustomerMode) {
+                             Swal.fire('พิมพ์ไม่สำเร็จ', printError.message || 'ไม่สามารถเชื่อมต่อเครื่องพิมพ์ครัวได้', 'error');
+                        }
                     }
                 } else {
-                    Swal.fire('พิมพ์ไม่สำเร็จ', 'ไม่ได้ตั้งค่า IP ของเครื่องพิมพ์ครัว', 'error');
+                     if (!isCustomerMode) {
+                        Swal.fire('พิมพ์ไม่สำเร็จ', 'ไม่ได้ตั้งค่า IP ของเครื่องพิมพ์ครัว', 'error');
+                     }
                 }
             }
         
@@ -1391,6 +1398,7 @@ const App: React.FC = () => {
                     onPlaceOrder={(items, name) => handlePlaceOrder(items, name, 1, customerTable)}
                     onStaffCall={(table, custName) => setStaffCalls(prev => [...prev, {id: Date.now(), tableId: table.id, tableName: table.name, customerName: custName, branchId: selectedBranch!.id, timestamp: Date.now()}])}
                     recommendedMenuItemIds={recommendedMenuItemIds}
+                    logoUrl={logoUrl} // Pass logoUrl to CustomerView
                 />
              );
         }

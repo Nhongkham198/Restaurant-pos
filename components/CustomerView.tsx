@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import type { MenuItem, Table, OrderItem, ActiveOrder, StaffCall } from '../types';
 import { Menu } from './Menu';
@@ -15,6 +16,7 @@ interface CustomerViewProps {
     onPlaceOrder: (items: OrderItem[], customerName: string, customerCount: number) => void;
     onStaffCall: (table: Table, customerName: string) => void;
     recommendedMenuItemIds: number[];
+    logoUrl: string | null;
 }
 
 export const CustomerView: React.FC<CustomerViewProps> = ({
@@ -25,7 +27,8 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     allBranchOrders,
     onPlaceOrder,
     onStaffCall,
-    recommendedMenuItemIds
+    recommendedMenuItemIds,
+    logoUrl
 }) => {
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [customerName, setCustomerName] = useState('');
@@ -56,6 +59,9 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     const [lastCompletedOrder, setLastCompletedOrder] = useState<ActiveOrder | null>(null);
     const prevActiveOrdersRef = useRef<ActiveOrder[]>(activeOrders);
     
+    // Track if we are currently handling a payment success flow to prevent conflicting PIN reset logic
+    const isProcessingPaymentRef = useRef(false);
+    
     // --- Session Persistence Logic ---
     useEffect(() => {
         const sessionKey = `customer_session_${table.id}`;
@@ -65,26 +71,16 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
             try {
                 const { name, pin } = JSON.parse(savedSession);
 
-                // FIX: Use a truthy check for `table.activePin`. This ensures the check
-                // only runs when a valid PIN (a non-empty string) is loaded from Firestore,
-                // preventing a race condition where the default `null` value causes the
-                // session to be prematurely deleted on page refresh.
                 if (table.activePin) {
                     if (pin === table.activePin) {
-                        // PIN is correct, authenticate the session.
                         setCustomerName(name);
                         setPinInput(pin);
                         setIsAuthenticated(true);
                     } else {
-                        // A different PIN is active, so this session is invalid.
                         localStorage.removeItem(sessionKey);
                     }
                 }
-                // If table.activePin is null or undefined, we do nothing and wait.
-                // The auto-logout effect will handle cases where the pin is cleared later.
-                
             } catch (e) {
-                // If parsing fails, the session data is corrupt.
                 localStorage.removeItem(sessionKey);
             }
         }
@@ -96,7 +92,6 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         localStorage.removeItem(cartKey);
         localStorage.removeItem('customerSelectedBranch');
 
-        // Reset all relevant states to log the user out
         setIsAuthenticated(false);
         setCustomerName('');
         setPinInput('');
@@ -104,6 +99,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         setIsCartOpen(false);
         setIsActiveOrderListOpen(false);
         setLastCompletedOrder(null);
+        isProcessingPaymentRef.current = false;
     };
 
     // --- Detect Payment & Trigger Save Bill/Logout Flow ---
@@ -114,13 +110,14 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
             );
 
             if (completedOrder) {
+                isProcessingPaymentRef.current = true;
                 setLastCompletedOrder(completedOrder);
                 setIsActiveOrderListOpen(true);
 
                 setTimeout(() => {
                     Swal.fire({
                         title: 'ชำระเงินเรียบร้อย',
-                        text: "คุณต้องการบันทึกใบเสร็จหรือไม่?",
+                        text: "ท่านต้องการบันทึกภาพบิลลงในมือถือของท่านไหม?",
                         icon: 'success',
                         showCancelButton: true,
                         confirmButtonText: 'ใช่, บันทึก',
@@ -136,28 +133,70 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                             handleLogout();
                         }
                     });
-                }, 100); // Small delay to ensure modal renders for screenshot
+                }, 200); 
             }
         }
         prevActiveOrdersRef.current = activeOrders;
     }, [activeOrders, isAuthenticated]);
     
+    const isFinalBill = !!lastCompletedOrder;
+    const ordersForBill = useMemo(() => isFinalBill ? [lastCompletedOrder!] : activeOrders, [isFinalBill, lastCompletedOrder, activeOrders]);
+    const totalForBill = useMemo(() => {
+        return ordersForBill.reduce((sum, order) => {
+            const subtotal = order.items.reduce((s, i) => s + (i.finalPrice * i.quantity), 0);
+            return sum + subtotal + order.taxAmount;
+        }, 0);
+    }, [ordersForBill]);
+
+    // --- Monitor Session validity (PIN Changes) ---
+    useEffect(() => {
+        // If authenticated, but PIN doesn't match anymore
+        if (isAuthenticated && table.activePin !== pinInput) {
+            
+            // If we are already processing a payment success flow, ignore this generic PIN reset logic
+            // to avoid double prompts or premature logout.
+            if (isProcessingPaymentRef.current) return;
+
+            // If there are orders (meaning manual reset while eating), allow saving bill.
+            // Note: If orders just cleared due to payment, processingPaymentRef should catch it.
+            if (ordersForBill.length > 0) {
+                setIsActiveOrderListOpen(true);
+                
+                setTimeout(() => {
+                    Swal.fire({
+                        title: 'รหัส PIN ถูกรีเซต',
+                        text: "ท่านต้องการบันทึกภาพบิลลงในมือถือของท่านไหม?",
+                        icon: 'info',
+                        showCancelButton: true,
+                        confirmButtonText: 'บันทึกภาพบิล',
+                        cancelButtonText: 'ออกจากระบบ',
+                        confirmButtonColor: '#3085d6',
+                        cancelButtonColor: '#d33',
+                        allowOutsideClick: false
+                    }).then(async (result) => {
+                        if (result.isConfirmed) {
+                            await handleSaveBillAsImage();
+                        }
+                        handleLogout();
+                    });
+                }, 300);
+            } else {
+                // No orders, just kick out
+                Swal.fire({
+                    title: 'สิ้นสุดการบริการ',
+                    text: 'ขอบคุณที่ใช้บริการ',
+                    timer: 2000,
+                    showConfirmButton: false,
+                    allowOutsideClick: false
+                }).then(() => {
+                    handleLogout();
+                });
+            }
+        }
+    }, [table.activePin, isAuthenticated, pinInput, ordersForBill.length]);
+
     const checkSessionValidity = (): boolean => {
         if (table.activePin !== pinInput) {
-            const sessionKey = `customer_session_${table.id}`;
-            localStorage.removeItem(sessionKey);
-            localStorage.removeItem(cartKey);
-            localStorage.removeItem('customerSelectedBranch');
-
-            Swal.fire({
-                icon: 'warning',
-                title: 'เซสชั่นหมดอายุ',
-                text: 'โต๊ะนี้ได้ทำการชำระเงินแล้ว หรือมีการเปลี่ยนแปลงข้อมูล กรุณาเข้าสู่ระบบใหม่อีกครั้ง',
-                allowOutsideClick: false,
-                confirmButtonText: 'รับทราบ'
-            }).then(() => {
-                window.location.reload();
-            });
             return false;
         }
         return true;
@@ -278,8 +317,6 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
             document.body.removeChild(link);
             
             Swal.close();
-            // The success message is now handled by the calling Swal flow.
-            // This function resolves a promise, so the caller knows it's done.
             return Promise.resolve(); 
         } catch (error) {
             console.error('Error generating bill image:', error);
@@ -296,23 +333,12 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     const cartTotalAmount = useMemo(() => cartItems.reduce((sum, i) => sum + (i.finalPrice * i.quantity), 0), [cartItems]);
     const totalCartItemsCount = useMemo(() => cartItems.reduce((sum, i) => sum + i.quantity, 0), [cartItems]);
 
-    const isFinalBill = !!lastCompletedOrder;
-    const ordersForBill = useMemo(() => isFinalBill ? [lastCompletedOrder!] : activeOrders, [isFinalBill, lastCompletedOrder, activeOrders]);
-    const totalForBill = useMemo(() => {
-        return ordersForBill.reduce((sum, order) => {
-            const subtotal = order.items.reduce((s, i) => s + (i.finalPrice * i.quantity), 0);
-            return sum + subtotal + order.taxAmount;
-        }, 0);
-    }, [ordersForBill]);
-
 
     // --- Dynamic Order Status Logic ---
     const orderStatus = useMemo(() => {
         if (activeOrders.length === 0) return null;
 
-        // Check if any order is currently cooking
         const isCooking = activeOrders.some(o => o.status === 'cooking');
-        // Check if all orders are served
         const allServed = activeOrders.every(o => o.status === 'served');
         
         if (isCooking) {
@@ -322,12 +348,8 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
             return { text: 'เสิร์ฟครบแล้ว 😋', color: 'bg-green-100 text-green-700 border-green-200' };
         }
         
-        // Default: Waiting in queue (status = 'waiting')
-        // Calculate queue position
-        // Find the timestamp of the earliest waiting order for THIS table
         const myEarliestOrderTime = Math.min(...activeOrders.filter(o => o.status === 'waiting').map(o => o.orderTime));
         
-        // Count how many orders in the ENTIRE branch are ahead of this time (and are waiting or cooking)
         const queueAhead = allBranchOrders.filter(o => 
             (o.status === 'waiting' || o.status === 'cooking') && 
             o.orderTime < myEarliestOrderTime
@@ -335,6 +357,10 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
 
         return { text: `รอคิว... (${queueAhead} คิว) ⏳`, color: 'bg-blue-100 text-blue-700 border-blue-200' };
     }, [activeOrders, allBranchOrders]);
+
+    const allOrdersServed = useMemo(() => {
+        return activeOrders.length > 0 && activeOrders.every(o => o.status === 'served');
+    }, [activeOrders]);
 
 
     // --- LOGIN SCREEN ---
@@ -399,6 +425,24 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                         <p className="text-xs text-gray-500 mt-1">คุณ{customerName}</p>
                     </div>
                     <div className="flex items-start gap-2">
+                        {/* Save Bill Button - Only shows when all served */}
+                        {allOrdersServed && (
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setIsActiveOrderListOpen(true);
+                                    setTimeout(() => handleSaveBillAsImage(), 500);
+                                }}
+                                className="flex flex-col items-center justify-center p-2 bg-green-100 text-green-800 rounded-lg shadow-sm hover:bg-green-200 active:bg-green-300 transition-colors"
+                                title="บันทึกบิล"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                </svg>
+                                <span className="text-[9px] font-bold mt-0.5">บันทึกบิล</span>
+                            </button>
+                        )}
+
                         <button
                             onClick={handleCallStaffClick}
                             className="flex flex-col items-center justify-center p-2 bg-yellow-100 text-yellow-800 rounded-lg shadow-sm hover:bg-yellow-200 active:bg-yellow-300 transition-colors"
@@ -484,7 +528,10 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                     <div className="bg-white w-full sm:max-w-md h-[80vh] sm:h-auto sm:max-h-[90vh] rounded-t-2xl sm:rounded-xl shadow-2xl flex flex-col overflow-hidden animate-slide-up" onClick={e => e.stopPropagation()}>
                         
                         <div ref={billContentRef} className="flex-grow overflow-y-auto">
-                            <div className="p-4 border-b bg-gray-50 flex justify-between items-center sticky top-0">
+                            <div className="p-4 border-b bg-gray-50 flex flex-col items-center sticky top-0">
+                                {logoUrl && (
+                                    <img src={logoUrl} alt="Logo" className="h-16 w-auto object-contain mb-2" crossOrigin="anonymous" />
+                                )}
                                 <h3 className="font-bold text-gray-800 text-lg">{isFinalBill ? 'ใบเสร็จ 🧾' : 'รายการที่สั่งไปแล้ว 🧾'}</h3>
                             </div>
                             

@@ -1,7 +1,8 @@
+
 import React, { useState } from 'react';
 
 interface LoginScreenProps {
-    onLogin: (username: string, password: string) => { success: boolean; error?: string };
+    onLogin: (username: string, password: string) => Promise<{ success: boolean; error?: string }> | { success: boolean; error?: string };
 }
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
@@ -9,12 +10,28 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError(''); // Clear previous error
-        const result = onLogin(username, password);
-        if (!result.success) {
-            setError(result.error || 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง');
+
+        // Request notification permission immediately on user interaction (Click/Submit)
+        // This fixes the issue where browsers block the prompt if it happens after an async operation.
+        if ('Notification' in window && Notification.permission === 'default') {
+            try {
+                await Notification.requestPermission();
+            } catch (err) {
+                console.warn('Failed to request notification permission:', err);
+            }
+        }
+
+        try {
+            const result = await onLogin(username, password);
+            if (!result.success) {
+                setError(result.error || 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง');
+            }
+        } catch (err) {
+            console.error("Login error:", err);
+            setError('เกิดข้อผิดพลาดในการเข้าสู่ระบบ');
         }
     };
 
