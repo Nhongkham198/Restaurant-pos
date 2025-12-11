@@ -5,7 +5,6 @@
 import firebase from "firebase/compat/app";
 import "firebase/compat/firestore";
 import "firebase/compat/functions";
-import "firebase/compat/messaging";
 
 // TODO: Replace the following with your app's Firebase project configuration
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional
@@ -28,7 +27,6 @@ export const isFirebaseConfigured =
 let app;
 let db: any = null; // Initialize db as null
 let functions: any = null; // Initialize functions as null
-let messaging: any = null; // Initialize messaging as null
 
 if (isFirebaseConfigured) {
   try {
@@ -40,15 +38,10 @@ if (isFirebaseConfigured) {
     }
     db = firebase.firestore();
     functions = firebase.functions();
-    
-    // Initialize messaging if supported
-    if (firebase.messaging.isSupported()) {
-      messaging = firebase.messaging();
-    }
   } catch (e) {
     console.error("Error initializing Firebase. Please check your config.", e);
-    // isFirebaseConfigured should remain true, but db/functions/messaging will be null, and errors will be caught.
+    // isFirebaseConfigured should remain true, but db will be null, and errors will be caught.
   }
 }
 
-export { db, functions, messaging };
+export { db, functions };
