@@ -593,11 +593,14 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
             // Determine aggregate status from the relevant orders
             const hasCooking = relevantOrders.some(o => o.status === 'cooking');
             const hasWaiting = relevantOrders.some(o => o.status === 'waiting');
+            const allServed = relevantOrders.every(o => o.status === 'served');
             
+            // Priority 1: Cooking
             if (hasCooking) {
                 return { text: t('กำลังปรุง... 🍳'), color: 'bg-orange-100 text-orange-700 border-orange-200' };
             }
             
+            // Priority 2: Waiting
             if (hasWaiting) {
                  const myEarliestOrderTime = Math.min(
                     ...relevantOrders
@@ -613,8 +616,13 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                 return { text: `${t('รอคิว...')} (${queueAhead} ${t('คิว')}) ⏳`, color: 'bg-blue-100 text-blue-700 border-blue-200' };
             }
             
-            // If we have relevant orders but none are waiting or cooking, they must all be 'served'.
-            return { text: t('เสิร์ฟครบแล้ว 😋'), color: 'bg-green-100 text-green-700 border-green-200' };
+            // Priority 3: All Served
+            if (allServed) {
+                 return { text: t('เสิร์ฟครบแล้ว 😋'), color: 'bg-green-100 text-green-700 border-green-200' };
+            }
+            
+            // Fallback: should not be reached if statuses are only waiting, cooking, served
+            return null;
 
         } catch (e) {
             console.error("Error calculating orderStatus:", e);
