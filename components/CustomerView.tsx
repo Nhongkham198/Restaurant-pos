@@ -136,6 +136,9 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
             const items: OrderItem[] = [];
             // Strategy 1: ID Match (Persistent via LocalStorage)
             const myOrderSet = new Set(myOrderNumbers);
+            
+            // Normalize current user name for robust matching
+            const currentNormName = customerName?.trim().toLowerCase();
 
             if (Array.isArray(allBranchOrders)) {
                 allBranchOrders.forEach(order => {
@@ -144,9 +147,10 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                         
                         // Strategy 2: Session/Name Match (Immediate Fallback)
                         // If I am logged in and the order belongs to this table and my name, it's mine.
-                        const isMyOrderByName = isAuthenticated && customerName && 
+                        const orderNormName = order.customerName?.trim().toLowerCase();
+                        const isMyOrderByName = isAuthenticated && currentNormName && 
                                               order.tableId === table.id && 
-                                              order.customerName === customerName;
+                                              orderNormName === currentNormName;
 
                         order.items.forEach(item => {
                             if (!item) return; // Safety check for null items
@@ -184,11 +188,12 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         if (!isAuthenticated || !customerName) return;
 
         try {
+            const currentNormName = customerName.trim().toLowerCase();
             // Scan active orders for this table. If we find an order with my name that I don't track yet, track it.
-            // This handles the immediate update after placing an order.
             const newMyOrderIds: number[] = [];
             activeOrders.forEach(order => {
-                if (order && order.customerName === customerName && !myOrderNumbers.includes(order.orderNumber)) {
+                const orderNormName = order.customerName?.trim().toLowerCase();
+                if (order && orderNormName === currentNormName && !myOrderNumbers.includes(order.orderNumber)) {
                     newMyOrderIds.push(order.orderNumber);
                 }
             });
@@ -567,14 +572,18 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
             const myOrdersStatuses = new Set<string>();
             const myWaitingOrderTimes: number[] = [];
             
+            // Normalize user name for comparison
+            const currentNormName = customerName?.trim().toLowerCase();
+
             allBranchOrders.forEach(order => {
                 // Safety check
                 if (!order || !order.items) return;
 
                 // Robust check: Is this "my" order? (Same logic as myItems calculation)
-                const isMyOrderByName = isAuthenticated && customerName && 
+                const orderNormName = order.customerName?.trim().toLowerCase();
+                const isMyOrderByName = isAuthenticated && currentNormName && 
                                       order.tableId === table.id && 
-                                      order.customerName === customerName;
+                                      orderNormName === currentNormName;
 
                 // If this order contains any of my items OR is my order by name/table
                 const hasMyItems = order.items.some(item => 
@@ -613,6 +622,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                 return { text: `${t('รอคิว...')} (${queueAhead} ${t('คิว')}) ⏳`, color: 'bg-blue-100 text-blue-700 border-blue-200' };
             }
             
+            // If we have items but no specific status found (maybe default case), return served/completed or default
             return { text: t('เสิร์ฟครบแล้ว 😋'), color: 'bg-green-100 text-green-700 border-green-200' };
         } catch (e) {
             console.error("Error calculating orderStatus:", e);
