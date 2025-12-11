@@ -278,49 +278,49 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                 confirmButtonColor: '#3085d6',
                 denyButtonColor: '#aaa',
                 allowOutsideClick: false,
-            }).then((result) => {
-                if (result.isConfirmed) { // User wants to save
+                // --- FIX: Capture DOM element before closing Swal using preConfirm ---
+                preConfirm: async () => {
                     const billElement = document.getElementById('customer-final-bill');
                     if (billElement) {
-                        Swal.fire({
-                            title: t('กำลังสร้างรูปภาพ...'),
-                            allowOutsideClick: false,
-                            didOpen: () => Swal.showLoading()
-                        });
-
-                        html2canvas(billElement, { scale: 2, useCORS: true }).then(canvas => {
-                            const image = canvas.toDataURL('image/png');
-                            const link = document.createElement('a');
-                            link.href = image;
-                            link.download = `bill-${latestCompletedOrder.tableName}-${customerName}-${new Date().toISOString().slice(0, 10)}.png`;
-                            
-                            // --- FIX FOR MOBILE DOWNLOAD ---
-                            document.body.appendChild(link);
-                            link.click();
-                            document.body.removeChild(link);
-                            // -----------------------------
-
-                            // --- FIX FOR LOGOUT RACE CONDITION ---
-                            Swal.fire({
-                                title: t('บันทึกสำเร็จ!'),
-                                text: t('บิลของคุณถูกบันทึกเป็นรูปภาพแล้ว'),
-                                icon: 'success',
-                                timer: 2000,
-                                showConfirmButton: false
-                            }).then(() => {
-                                handleLogout();
-                            });
-                            // -------------------------------------
-
-                        }).catch(err => {
+                        try {
+                            const canvas = await html2canvas(billElement, { scale: 2, useCORS: true });
+                            return canvas.toDataURL('image/png');
+                        } catch (err) {
                             console.error('Failed to save bill as image', err);
-                            Swal.fire(t('เกิดข้อผิดพลาด'), t('ไม่สามารถบันทึกบิลได้'), 'error');
+                            // Return null to indicate failure but don't crash Swal
+                            return null;
+                        }
+                    }
+                    return null;
+                }
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    const imageUrl = result.value;
+                    if (imageUrl) {
+                        // Create download link
+                        const link = document.createElement('a');
+                        link.href = imageUrl;
+                        link.download = `bill-${latestCompletedOrder.tableName}-${customerName}-${new Date().toISOString().slice(0, 10)}.png`;
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+
+                        Swal.fire({
+                            title: t('บันทึกสำเร็จ!'),
+                            text: t('บิลของคุณถูกบันทึกเป็นรูปภาพแล้ว'),
+                            icon: 'success',
+                            timer: 2000,
+                            showConfirmButton: false
+                        }).then(() => {
                             handleLogout();
                         });
                     } else {
-                         handleLogout();
+                        // If result.value is null (capture failed)
+                        Swal.fire(t('เกิดข้อผิดพลาด'), t('ไม่สามารถบันทึกบิลได้'), 'error')
+                        .then(() => handleLogout());
                     }
-                } else { // User clicked "No" or closed the dialog
+                } else { 
+                    // User clicked Deny (No) or closed
                     handleLogout();
                 }
             });
