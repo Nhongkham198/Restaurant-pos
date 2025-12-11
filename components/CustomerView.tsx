@@ -134,19 +134,28 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     const myItems = useMemo(() => {
         try {
             const items: OrderItem[] = [];
-            if (myOrderNumbers.length === 0) return items;
-
+            // Strategy 1: ID Match (Persistent via LocalStorage)
             const myOrderSet = new Set(myOrderNumbers);
 
             if (Array.isArray(allBranchOrders)) {
                 allBranchOrders.forEach(order => {
                     // Safety check: ensure order and order.items exist
                     if (order && Array.isArray(order.items)) {
+                        
+                        // Strategy 2: Session/Name Match (Immediate Fallback)
+                        // If I am logged in and the order belongs to this table and my name, it's mine.
+                        const isMyOrderByName = isAuthenticated && customerName && 
+                                              order.tableId === table.id && 
+                                              order.customerName === customerName;
+
                         order.items.forEach(item => {
                             if (!item) return; // Safety check for null items
-                            // Check if this item originated from one of my orders
+                            
+                            // Check if item matches ID list
                             const originId = item.originalOrderNumber ?? order.orderNumber;
-                            if (myOrderSet.has(originId)) {
+                            const isMyItemById = myOrderSet.has(originId);
+
+                            if (isMyItemById || isMyOrderByName) {
                                 items.push(item);
                             }
                         });
@@ -158,7 +167,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
             console.error("Error calculating myItems:", e);
             return [];
         }
-    }, [allBranchOrders, myOrderNumbers]);
+    }, [allBranchOrders, myOrderNumbers, isAuthenticated, customerName, table.id]);
 
     // Calculate totals specifically for ME
     const myTotal = useMemo(() => {
@@ -556,21 +565,31 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
             // Check status of my items by looking at their parent orders in activeOrders/allBranchOrders
             // We need to find the status of the orders these items belong to.
             const myOrdersStatuses = new Set<string>();
+            const myWaitingOrderTimes: number[] = [];
             
             allBranchOrders.forEach(order => {
                 // Safety check
                 if (!order || !order.items) return;
 
-                // If this order contains any of my items
+                // Robust check: Is this "my" order? (Same logic as myItems calculation)
+                const isMyOrderByName = isAuthenticated && customerName && 
+                                      order.tableId === table.id && 
+                                      order.customerName === customerName;
+
+                // If this order contains any of my items OR is my order by name/table
                 const hasMyItems = order.items.some(item => 
                     item && (
                         (item.originalOrderNumber && myOrderNumbers.includes(item.originalOrderNumber)) ||
-                        myOrderNumbers.includes(order.orderNumber)
+                        myOrderNumbers.includes(order.orderNumber) ||
+                        isMyOrderByName
                     )
                 );
                 
                 if (hasMyItems) {
                     myOrdersStatuses.add(order.status);
+                    if (order.status === 'waiting') {
+                        myWaitingOrderTimes.push(order.orderTime);
+                    }
                 }
             });
 
@@ -578,18 +597,19 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                 return { text: t('กำลังปรุง... 🍳'), color: 'bg-orange-100 text-orange-700 border-orange-200' };
             }
             if (myOrdersStatuses.has('waiting')) {
-                 const myOrders = allBranchOrders.filter(o => o.status === 'waiting' && myOrderNumbers.includes(o.orderNumber));
-                 
-                 // Handle empty array case for Math.min
+                 // Calculate queue position
+                 // Find the earliest time among MY waiting orders
                  let myEarliestOrderTime = Date.now();
-                 if (myOrders.length > 0) {
-                     myEarliestOrderTime = Math.min(...myOrders.map(o => o.orderTime));
+                 if (myWaitingOrderTimes.length > 0) {
+                     myEarliestOrderTime = Math.min(...myWaitingOrderTimes);
                  }
 
+                 // Count how many waiting/cooking orders are older than my earliest order
                  const queueAhead = allBranchOrders.filter(o => 
                     (o.status === 'waiting' || o.status === 'cooking') && 
                     o.orderTime < myEarliestOrderTime
                 ).length;
+
                 return { text: `${t('รอคิว...')} (${queueAhead} ${t('คิว')}) ⏳`, color: 'bg-blue-100 text-blue-700 border-blue-200' };
             }
             
@@ -598,7 +618,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
             console.error("Error calculating orderStatus:", e);
             return null;
         }
-    }, [myItems, allBranchOrders, myOrderNumbers, language, translations]);
+    }, [myItems, allBranchOrders, myOrderNumbers, language, translations, isAuthenticated, customerName, table.id]);
 
 
     const t = (text: string): string => {
