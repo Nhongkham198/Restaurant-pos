@@ -76,6 +76,8 @@ export const KitchenOrderCard: React.FC<KitchenOrderCardProps> = ({ order, onCom
                         )}
                         <span className="text-gray-500">|</span>
                         <span>ลูกค้า: {order.customerCount} คน</span>
+                        <span className="text-gray-500">|</span>
+                        <span className="text-sm text-gray-400">ผู้ส่ง: <span className="text-green-300">{order.placedBy}</span></span>
                     </div>
                 </div>
                 <div className="flex flex-col items-end gap-2 flex-shrink-0">

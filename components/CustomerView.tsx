@@ -5,6 +5,7 @@ import type { MenuItem, Table, OrderItem, ActiveOrder, StaffCall, CompletedOrder
 import { Menu } from './Menu';
 import { ItemCustomizationModal } from './ItemCustomizationModal';
 import Swal from 'sweetalert2';
+import { GoogleGenAI } from "@google/genai";
 
 declare var html2canvas: any;
 
@@ -62,6 +63,10 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
             return [];
         }
     });
+
+    const [language, setLanguage] = useState<'th' | 'en'>('th');
+    const [translations, setTranslations] = useState<Record<string, string> | null>(null);
+    const [isTranslating, setIsTranslating] = useState(false);
 
     useEffect(() => {
         localStorage.setItem(cartKey, JSON.stringify(cartItems));
@@ -256,18 +261,39 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                 if (result.isConfirmed) { // User wants to save
                     const billElement = document.getElementById('customer-final-bill');
                     if (billElement) {
-                        Swal.fire({ title: 'กำลังสร้างรูปภาพ...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+                        Swal.fire({
+                            title: t('กำลังสร้างรูปภาพ...'),
+                            allowOutsideClick: false,
+                            didOpen: () => Swal.showLoading()
+                        });
+
                         html2canvas(billElement, { scale: 2, useCORS: true }).then(canvas => {
                             const image = canvas.toDataURL('image/png');
                             const link = document.createElement('a');
                             link.href = image;
                             link.download = `bill-${latestCompletedOrder.tableName}-${customerName}-${new Date().toISOString().slice(0, 10)}.png`;
+                            
+                            // --- FIX FOR MOBILE DOWNLOAD ---
+                            document.body.appendChild(link);
                             link.click();
-                            handleLogout();
-                            Swal.close();
+                            document.body.removeChild(link);
+                            // -----------------------------
+
+                            // --- FIX FOR LOGOUT RACE CONDITION ---
+                            Swal.fire({
+                                title: t('บันทึกสำเร็จ!'),
+                                text: t('บิลของคุณถูกบันทึกเป็นรูปภาพแล้ว'),
+                                icon: 'success',
+                                timer: 2000,
+                                showConfirmButton: false
+                            }).then(() => {
+                                handleLogout();
+                            });
+                            // -------------------------------------
+
                         }).catch(err => {
                             console.error('Failed to save bill as image', err);
-                            Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถบันทึกบิลได้', 'error');
+                            Swal.fire(t('เกิดข้อผิดพลาด'), t('ไม่สามารถบันทึกบิลได้'), 'error');
                             handleLogout();
                         });
                     } else {
@@ -365,7 +391,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
             toast: true,
             position: 'top-end',
             icon: 'success',
-            title: 'เพิ่มลงตะกร้าแล้ว',
+            title: t('เพิ่มลงตะกร้าแล้ว'),
             showConfirmButton: false,
             timer: 1500
         });
@@ -381,12 +407,12 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         if (cartItems.length === 0) return;
 
         Swal.fire({
-            title: 'ยืนยันการสั่งอาหาร?',
-            text: `สั่งอาหาร ${cartItems.reduce((sum, i) => sum + i.quantity, 0)} รายการ`,
+            title: t('ยืนยันการสั่งอาหาร?'),
+            text: `${t('สั่งอาหาร')} ${cartItems.reduce((sum, i) => sum + i.quantity, 0)} ${t('รายการ')}`,
             icon: 'question',
             showCancelButton: true,
-            confirmButtonText: 'สั่งเลย',
-            cancelButtonText: 'ตรวจสอบก่อน',
+            confirmButtonText: t('สั่งเลย'),
+            cancelButtonText: t('ตรวจสอบก่อน'),
             confirmButtonColor: '#10B981'
         }).then((result) => {
             if (result.isConfirmed) {
@@ -407,8 +433,8 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
             toast: true,
             position: 'top-end',
             icon: 'success',
-            title: 'ส่งสัญญาณเรียกพนักงานแล้ว',
-            text: 'กรุณารอสักครู่...',
+            title: t('ส่งสัญญาณเรียกพนักงานแล้ว'),
+            text: t('กรุณารอสักครู่...'),
             showConfirmButton: false,
             timer: 3000
         });
@@ -418,8 +444,8 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         if (!billContentRef.current) return;
     
         Swal.fire({
-            title: 'กำลังสร้างรูปภาพ...',
-            text: 'กรุณารอสักครู่',
+            title: t('กำลังสร้างรูปภาพ...'),
+            text: t('กรุณารอสักครู่'),
             allowOutsideClick: false,
             didOpen: () => {
                 Swal.showLoading();
@@ -445,8 +471,8 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
             console.error('Error generating bill image:', error);
             Swal.fire({
                 icon: 'error',
-                title: 'เกิดข้อผิดพลาด',
-                text: 'ไม่สามารถสร้างรูปภาพได้',
+                title: t('เกิดข้อผิดพลาด'),
+                text: t('ไม่สามารถสร้างรูปภาพได้'),
             });
             return Promise.reject();
         }
@@ -478,7 +504,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         });
 
         if (myOrdersStatuses.has('cooking')) {
-            return { text: 'กำลังปรุง... 🍳', color: 'bg-orange-100 text-orange-700 border-orange-200' };
+            return { text: t('กำลังปรุง... 🍳'), color: 'bg-orange-100 text-orange-700 border-orange-200' };
         }
         if (myOrdersStatuses.has('waiting')) {
              const myEarliestOrderTime = Math.min(...allBranchOrders.filter(o => o.status === 'waiting' && myOrderNumbers.includes(o.orderNumber)).map(o => o.orderTime));
@@ -486,12 +512,98 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                 (o.status === 'waiting' || o.status === 'cooking') && 
                 o.orderTime < myEarliestOrderTime
             ).length;
-            return { text: `รอคิว... (${queueAhead} คิว) ⏳`, color: 'bg-blue-100 text-blue-700 border-blue-200' };
+            return { text: `${t('รอคิว...')} (${queueAhead} ${t('คิว')}) ⏳`, color: 'bg-blue-100 text-blue-700 border-blue-200' };
         }
         
-        return { text: 'เสิร์ฟครบแล้ว 😋', color: 'bg-green-100 text-green-700 border-green-200' };
-    }, [myItems, allBranchOrders, myOrderNumbers]);
+        return { text: t('เสิร์ฟครบแล้ว 😋'), color: 'bg-green-100 text-green-700 border-green-200' };
+    }, [myItems, allBranchOrders, myOrderNumbers, language, translations]);
 
+
+    const t = (text: string): string => {
+        if (language === 'th' || !translations) {
+            return text;
+        }
+        return translations[text] || text;
+    };
+    
+    const translateMenu = async () => {
+        setIsTranslating(true);
+        try {
+            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    
+            const staticText = [
+                'เมนูอาหาร 🍽️', 'โต๊ะ', 'คุณ', 'เรียกพนักงาน', 'ยอดของฉัน', 'ดูตะกร้า', 'ยังไม่รวมกับยอดบิล', 'รายการของฉัน',
+                'ยังไม่มีรายการที่สั่ง', 'ยอดรวมของฉัน', '* ราคานี้เป็นเฉพาะรายการที่คุณสั่ง', 'บันทึกรายการของฉัน', 'ปิด',
+                'รายการในตะกร้า (ยังไม่สั่ง)', 'ไม่มีสินค้าในตะกร้า', 'ยอดในตะกร้า', 'ยืนยันสั่งอาหาร 🚀', 'เพิ่มลงตะกร้าแล้ว',
+                'ยืนยันการสั่งอาหาร?', 'สั่งอาหาร', 'รายการ', 'สั่งเลย', 'ตรวจสอบก่อน', 'ส่งสัญญาณเรียกพนักงานแล้ว', 'กรุณารอสักครู่...',
+                'กำลังสร้างรูปภาพ...', 'เกิดข้อผิดพลาด', 'ไม่สามารถสร้างรูปภาพได้', 'กำลังปรุง... 🍳', 'รอคิว...', 'คิว', 'เสิร์ฟครบแล้ว 😋',
+                'บันทึกสำเร็จ!', 'บิลของคุณถูกบันทึกเป็นรูปภาพแล้ว'
+            ];
+    
+            const dynamicText = new Set<string>();
+            menuItems.forEach(item => {
+                dynamicText.add(item.name);
+                item.optionGroups?.forEach(group => {
+                    dynamicText.add(group.name);
+                    group.options.forEach(option => dynamicText.add(option.name));
+                });
+            });
+            categories.forEach(cat => dynamicText.add(cat));
+    
+            const allText = [...staticText, ...Array.from(dynamicText)];
+            const uniqueText = Array.from(new Set(allText));
+            
+            const textToTranslate: Record<string, string> = {};
+            uniqueText.forEach(text => {
+                textToTranslate[text] = text;
+            });
+    
+            const prompt = `Translate the JSON values from Thai to English. Return a JSON object with identical keys and translated values.\n${JSON.stringify(textToTranslate, null, 2)}`;
+            
+            const response = await ai.models.generateContent({
+                model: 'gemini-2.5-flash',
+                contents: prompt,
+            });
+    
+            const translatedJsonString = response.text.replace(/```json\n?|\n?```/g, '').trim();
+            const result = JSON.parse(translatedJsonString);
+            setTranslations(result);
+        } catch (error) {
+            console.error("Translation failed:", error);
+            Swal.fire('Translation Error', 'Could not translate the menu.', 'error');
+            setLanguage('th'); // Revert to Thai on error
+        } finally {
+            setIsTranslating(false);
+        }
+    };
+    
+    const handleLanguageSwitch = (lang: 'th' | 'en') => {
+        setLanguage(lang);
+        if (lang === 'en' && !translations) {
+            translateMenu();
+        }
+    };
+
+    const translatedMenuItems = useMemo(() => {
+        if (language === 'th' || !translations) return menuItems;
+        return menuItems.map(item => ({
+            ...item,
+            name: translations[item.name] || item.name,
+            optionGroups: item.optionGroups?.map(group => ({
+                ...group,
+                name: translations[group.name] || group.name,
+                options: group.options.map(option => ({
+                    ...option,
+                    name: translations[option.name] || option.name
+                }))
+            }))
+        }));
+    }, [menuItems, language, translations]);
+
+    const translatedCategories = useMemo(() => {
+        if (language === 'th' || !translations) return categories;
+        return categories.map(cat => translations[cat] || cat);
+    }, [categories, language, translations]);
 
     // --- LOGIN SCREEN ---
     if (!isAuthenticated) {
@@ -544,27 +656,37 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     // --- MENU SCREEN ---
     return (
         <div className="h-screen flex flex-col bg-gray-50 overflow-hidden">
+            {isTranslating && (
+                <div className="absolute inset-0 bg-white/80 z-50 flex flex-col items-center justify-center">
+                    <svg className="animate-spin h-8 w-8 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                    <p className="mt-2 text-gray-600">Translating...</p>
+                </div>
+            )}
             {/* Header */}
             <header className="bg-white shadow-sm px-4 py-3 z-10 relative">
+                <div className="absolute top-3 left-3 z-20 bg-gray-100 rounded-full shadow p-1 flex text-xs">
+                    <button onClick={() => handleLanguageSwitch('th')} className={`px-3 py-1 rounded-full font-semibold ${language === 'th' ? 'bg-blue-600 text-white' : 'text-gray-600'}`}>TH</button>
+                    <button onClick={() => handleLanguageSwitch('en')} className={`px-3 py-1 rounded-full font-semibold ${language === 'en' ? 'bg-blue-600 text-white' : 'text-gray-600'}`}>EN</button>
+                </div>
                 <div className="flex justify-between items-start">
                     <div>
                         <h1 className="font-bold text-gray-800 text-lg flex items-center gap-2">
-                            เมนูอาหาร 🍽️ 
-                            <span className="text-xs font-normal text-gray-500 bg-gray-100 px-2 py-1 rounded-full">โต๊ะ {table.name}</span>
+                            {t('เมนูอาหาร 🍽️')}
+                            <span className="text-xs font-normal text-gray-500 bg-gray-100 px-2 py-1 rounded-full">{t('โต๊ะ')} {table.name}</span>
                         </h1>
-                        <p className="text-xs text-gray-500 mt-1">คุณ{customerName}</p>
+                        <p className="text-xs text-gray-500 mt-1">{t('คุณ')}{customerName}</p>
                     </div>
                     <div className="flex items-start gap-2">
                         {/* Only show Call Staff button */}
                         <button
                             onClick={handleCallStaffClick}
                             className="flex flex-col items-center justify-center p-2 bg-yellow-100 text-yellow-800 rounded-lg shadow-sm hover:bg-yellow-200 active:bg-yellow-300 transition-colors"
-                            title="เรียกพนักงาน"
+                            title={t('เรียกพนักงาน')}
                         >
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
                                 <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z" />
                             </svg>
-                            <span className="text-[9px] font-bold mt-0.5">เรียก</span>
+                            <span className="text-[9px] font-bold mt-0.5">{t('เรียก')}</span>
                         </button>
                          {/* Right Side: Status & Bill */}
                         <div 
@@ -578,7 +700,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                             )}
                             <div className="text-right">
                                 <div className="flex items-center justify-end gap-1 text-gray-400 text-[10px]">
-                                    <span>ยอดของฉัน</span>
+                                    <span>{t('ยอดของฉัน')}</span>
                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                     </svg>
@@ -598,9 +720,9 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
             {/* Menu Content */}
             <div className="flex-1 overflow-hidden relative">
                 <Menu 
-                    menuItems={menuItems}
+                    menuItems={translatedMenuItems}
                     setMenuItems={() => {}} // Read-only
-                    categories={categories}
+                    categories={translatedCategories}
                     onSelectItem={handleSelectItem}
                     isEditMode={false}
                     onEditItem={() => {}}
@@ -626,8 +748,8 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                                 {totalCartItemsCount}
                             </span>
                             <div className="text-left leading-tight">
-                                <span className="font-bold text-lg block">ดูตะกร้า</span>
-                                <span className="text-xs font-light text-blue-100">ยังไม่รวมกับยอดบิล</span>
+                                <span className="font-bold text-lg block">{t('ดูตะกร้า')}</span>
+                                <span className="text-xs font-light text-blue-100">{t('ยังไม่รวมกับยอดบิล')}</span>
                             </div>
                         </div>
                         <span className="font-bold text-lg">{cartTotalAmount.toLocaleString()} ฿</span>
@@ -645,22 +767,22 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                                 {logoUrl && (
                                     <img src={logoUrl} alt="Logo" className="h-16 w-auto object-contain mb-2" crossOrigin="anonymous" />
                                 )}
-                                <h3 className="font-bold text-gray-800 text-lg">รายการของฉัน (คุณ{customerName}) 🧾</h3>
+                                <h3 className="font-bold text-gray-800 text-lg">{t('รายการของฉัน')} ({t('คุณ')}{customerName}) 🧾</h3>
                             </div>
                             
                             <div className="p-4 space-y-4">
                                 {myItems.length === 0 ? (
-                                    <div className="text-center text-gray-400 py-10">ยังไม่มีรายการที่สั่ง</div>
+                                    <div className="text-center text-gray-400 py-10">{t('ยังไม่มีรายการที่สั่ง')}</div>
                                 ) : (
                                     <ul className="space-y-3">
                                         {myItems.map((item, idx) => (
                                             <li key={idx} className="flex justify-between text-sm text-gray-700 border-b pb-2 last:border-0">
                                                 <div>
-                                                    <span className="font-medium">{item.quantity}x {item.name}</span>
+                                                    <span className="font-medium">{item.quantity}x {t(item.name)}</span>
                                                     {item.isTakeaway && <span className="text-purple-600 text-xs ml-1">(กลับบ้าน)</span>}
                                                     {item.selectedOptions.length > 0 && (
                                                         <div className="text-xs text-gray-500 ml-1">
-                                                            {item.selectedOptions.map(o=>o.name).join(', ')}
+                                                            {item.selectedOptions.map(o=>t(o.name)).join(', ')}
                                                         </div>
                                                     )}
                                                 </div>
@@ -673,11 +795,11 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
 
                             <div className="p-4 bg-gray-50 border-t sticky bottom-0">
                                 <div className="flex justify-between items-center text-lg font-bold text-gray-800">
-                                    <span>ยอดรวมของฉัน</span>
+                                    <span>{t('ยอดรวมของฉัน')}</span>
                                     <span className="text-blue-600">{myTotal.toLocaleString()} ฿</span>
                                 </div>
                                 <p className="text-xs text-gray-500 text-center mt-2">
-                                    * ราคานี้เป็นเฉพาะรายการที่คุณสั่ง
+                                    {t('* ราคานี้เป็นเฉพาะรายการที่คุณสั่ง')}
                                 </p>
                             </div>
                         </div>
@@ -690,12 +812,12 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                             >
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                                     <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 9.293a1 1 0 011.414 0L10 11.586l2.293-2.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
-                                    <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 01111.414-1.414L9 9.586V4a1 1 0 011-1z" clipRule="evenodd" />
+                                    <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 011.414-1.414L9 9.586V4a1 1 0 011-1z" clipRule="evenodd" />
                                 </svg>
-                                บันทึกรายการของฉัน
+                                {t('บันทึกรายการของฉัน')}
                             </button>
                             <button onClick={() => setIsActiveOrderListOpen(false)} className="w-full py-2 text-gray-700 font-semibold rounded-lg hover:bg-gray-100">
-                                ปิด
+                                {t('ปิด')}
                             </button>
                         </div>
                     </div>
@@ -707,7 +829,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                 <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-end sm:justify-center items-end sm:items-center">
                     <div className="bg-white w-full sm:max-w-md h-[90vh] sm:h-[80vh] rounded-t-2xl sm:rounded-2xl shadow-2xl flex flex-col animate-slide-up">
                         <div className="p-4 border-b flex justify-between items-center">
-                            <h2 className="text-xl font-bold text-gray-800">รายการในตะกร้า (ยังไม่สั่ง)</h2>
+                            <h2 className="text-xl font-bold text-gray-800">{t('รายการในตะกร้า (ยังไม่สั่ง)')}</h2>
                             <button onClick={() => setIsCartOpen(false)} className="p-2 bg-gray-100 rounded-full hover:bg-gray-200">
                                 <svg className="w-6 h-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -719,9 +841,9 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                             {cartItems.map(item => (
                                 <div key={item.cartItemId} className="flex justify-between items-start border-b pb-4">
                                     <div className="flex-1">
-                                        <p className="font-bold text-gray-800">{item.name}</p>
+                                        <p className="font-bold text-gray-800">{t(item.name)}</p>
                                         <p className="text-sm text-gray-500">
-                                            {item.selectedOptions.map(o => o.name).join(', ')}
+                                            {item.selectedOptions.map(o => t(o.name)).join(', ')}
                                         </p>
                                         {item.notes && <p className="text-sm text-yellow-600">** {item.notes}</p>}
                                         <p className="text-blue-600 font-semibold mt-1">{item.finalPrice.toLocaleString()} ฿ x {item.quantity}</p>
@@ -730,27 +852,27 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                                         onClick={() => handleRemoveItem(item.cartItemId)}
                                         className="text-red-500 p-2"
                                     >
-                                        ลบ
+                                        {t('ลบ')}
                                     </button>
                                 </div>
                             ))}
                             {cartItems.length === 0 && (
                                 <div className="text-center text-gray-400 py-10">
-                                    ไม่มีสินค้าในตะกร้า
+                                    {t('ไม่มีสินค้าในตะกร้า')}
                                 </div>
                             )}
                         </div>
 
                         <div className="p-4 border-t bg-gray-50">
                             <div className="flex justify-between mb-4 text-lg font-bold">
-                                <span>ยอดในตะกร้า</span>
+                                <span>{t('ยอดในตะกร้า')}</span>
                                 <span>{cartTotalAmount.toLocaleString()} ฿</span>
                             </div>
                             <button 
                                 onClick={handleSubmitOrder}
                                 className="w-full bg-green-600 text-white font-bold py-4 rounded-xl shadow-lg hover:bg-green-700 transition-colors text-lg"
                             >
-                                ยืนยันสั่งอาหาร 🚀
+                                {t('ยืนยันสั่งอาหาร 🚀')}
                             </button>
                         </div>
                     </div>
@@ -760,7 +882,11 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
             <ItemCustomizationModal 
                 isOpen={!!itemToCustomize} 
                 onClose={() => setItemToCustomize(null)} 
-                item={itemToCustomize} 
+                item={itemToCustomize ? {
+                    ...itemToCustomize,
+                    name: t(itemToCustomize.name),
+                    optionGroups: itemToCustomize.optionGroups?.map(g => ({...g, name: t(g.name), options: g.options.map(o => ({...o, name: t(o.name)}))}))
+                } : null}
                 onConfirm={handleConfirmCustomization} 
             />
         </div>
