@@ -821,7 +821,7 @@ const App: React.FC = () => {
         setOrderItemToEdit(null); // Clear the specific item being edited
     };
     
-    const getNextOrderNumber = async (): Promise<number> => {
+    const getNextOrderNumber = async (transaction?: firebase.firestore.Transaction): Promise<number> => {
         if (!db || !selectedBranch) {
             throw new Error("Database connection or branch not available to generate order number.");
         }
@@ -831,22 +831,35 @@ const App: React.FC = () => {
         const today = new Date();
         const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
         
+        // If provided a transaction, read from it. Otherwise, assume external transaction context.
+        if (transaction) {
+             const counterDoc = await transaction.get(counterDocRef);
+             const counterData = (counterDoc.data() as { value: OrderCounter | undefined })?.value;
+             let nextOrderId;
+             if (counterData && typeof counterData.count === 'number' && typeof counterData.lastResetDate === 'string' && counterData.lastResetDate === todayStr) {
+                 nextOrderId = counterData.count + 1;
+             } else {
+                 nextOrderId = 1;
+             }
+             transaction.set(counterDocRef, { value: { count: nextOrderId, lastResetDate: todayStr } });
+             return nextOrderId;
+        }
+
+        // Fallback for non-transactional call (should be avoided for main flow)
         try {
-            const orderNumber = await db.runTransaction(async (transaction: firebase.firestore.Transaction) => {
-                const counterDoc = await transaction.get(counterDocRef);
-                // FIX: Property 'value' does not exist on type 'unknown'. Explicitly cast the result of data() to a type with a 'value' property before accessing it.
+            const orderNumber = await db.runTransaction(async (t: firebase.firestore.Transaction) => {
+                const counterDoc = await t.get(counterDocRef);
                 const counterData = (counterDoc.data() as { value: OrderCounter | undefined })?.value;
     
                 let nextOrderId;
-                // Robustly check counterData and lastResetDate format
                 if (counterData && typeof counterData.count === 'number' && typeof counterData.lastResetDate === 'string' && counterData.lastResetDate === todayStr) {
                     nextOrderId = counterData.count + 1;
                 } else {
-                    nextOrderId = 1; // Reset if it's a new day, or data is missing/malformed
+                    nextOrderId = 1; 
                 }
                 
                 const newCounterState: OrderCounter = { count: nextOrderId, lastResetDate: todayStr };
-                transaction.set(counterDocRef, { value: newCounterState });
+                t.set(counterDocRef, { value: newCounterState });
                 
                 return nextOrderId;
             });
@@ -926,95 +939,115 @@ const App: React.FC = () => {
         setIsPlacingOrder(true);
         
         try {
-            // Step 1: Get a guaranteed unique order number. This is the core fix.
-            const nextOrderId = await getNextOrderNumber();
-    
-            const itemsWithOrigin = orderItems.map(item => ({
-                ...item,
-                originalOrderNumber: nextOrderId,
-            }));
-            
-            // Step 2: Since the cloud function doesn't exist, we will directly execute the fallback logic.
-            // This simplifies the flow and removes the dependency on the unimplemented cloud function.
-            console.warn("Using client-side fallback for placing order.");
+            const branchIdStr = selectedBranch!.id.toString();
+            const counterRef = db.doc(`branches/${branchIdStr}/orderCounter/data`);
+            const activeOrdersRef = db.doc(`branches/${branchIdStr}/activeOrders/data`);
+
+            // Use a single transaction for everything to ensure atomicity
+            await db.runTransaction(async (transaction: firebase.firestore.Transaction) => {
+                // 1. Get Counter
+                const counterDoc = await transaction.get(counterRef);
+                const counterData = (counterDoc.data() as { value: OrderCounter | undefined })?.value;
                 
-            const newOrder: ActiveOrder = {
-                id: Date.now(),
-                orderNumber: nextOrderId,
-                tableId: tableOverride.id,
-                tableName: tableOverride.name,
-                customerName: custName,
-                floor: tableOverride.floor,
-                customerCount: custCount,
-                items: itemsWithOrigin,
-                // FIX: Customer orders must always go to kitchen ('waiting'). Staff orders respect the toggle.
-                status: (isCustomerMode || sendToKitchen) ? 'waiting' : 'served',
-                orderTime: Date.now(),
-                orderType: 'dine-in',
-                taxRate: isTaxEnabled ? taxRate : 0,
-                taxAmount: 0, 
-                placedBy: currentUser ? currentUser.username : (custName || `โต๊ะ ${tableOverride.name}`),
-            };
-            const subtotal = newOrder.items.reduce((sum, item) => sum + item.finalPrice * item.quantity, 0);
-            newOrder.taxAmount = newOrder.taxRate > 0 ? subtotal * (newOrder.taxRate / 100) : 0;
-            
-            // Update active orders list
-            setActiveOrders(prev => [...prev, newOrder]);
-            
-            // NOTE: We DO NOT call setOrderCounter() anymore.
-            // The transaction inside getNextOrderNumber() has already updated Firestore.
-            // The useFirestoreSync hook's listener will automatically update the local state.
-            
-            setLastPlacedOrderId(newOrder.orderNumber);
-            setModalState(prev => ({ ...prev, isOrderSuccess: true }));
-    
-            // Step 3: Handle printing after the order is successfully created.
-            // Only print if sendToKitchen is enabled OR if it's customer mode (since we force customer mode to 'waiting', we likely want to print too)
-            // Actually, we should probably always try to print for Kitchen if status is waiting.
-            if ((isCustomerMode || sendToKitchen)) {
-                if (printerConfig?.kitchen?.ipAddress) {
-                    try {
-                        await printerService.printKitchenOrder(newOrder, printerConfig.kitchen);
-                        setPrintHistory(prev => [...prev, {
-                            id: Date.now(),
-                            timestamp: Date.now(),
-                            orderNumber: newOrder.orderNumber,
-                            tableName: newOrder.tableName,
-                            printedBy: currentUser ? currentUser.username : (custName || `โต๊ะ ${tableOverride.name}`),
-                            printerType: 'kitchen',
-                            status: 'success',
-                            errorMessage: null,
-                            orderItemsPreview: newOrder.items.map(i => `${i.quantity}x ${i.name}`),
-                            isReprint: false,
-                        }]);
-                    } catch (printError: any) {
-                        console.error("Kitchen print failed:", printError);
-                        setPrintHistory(prev => [...prev, {
-                            id: Date.now(),
-                            timestamp: Date.now(),
-                            orderNumber: newOrder.orderNumber,
-                            tableName: newOrder.tableName,
-                            printedBy: currentUser ? currentUser.username : (custName || `โต๊ะ ${tableOverride.name}`),
-                            printerType: 'kitchen',
-                            status: 'failed',
-                            errorMessage: printError.message || 'Unknown print error',
-                            orderItemsPreview: newOrder.items.map(i => `${i.quantity}x ${i.name}`),
-                            isReprint: false,
-                        }]);
-                        // Only show alert to staff, customers might get confused or it might interrupt flow
-                        if (!isCustomerMode) {
-                             Swal.fire('พิมพ์ไม่สำเร็จ', printError.message || 'ไม่สามารถเชื่อมต่อเครื่องพิมพ์ครัวได้', 'error');
-                        }
-                    }
-                } else {
-                     if (!isCustomerMode) {
-                        Swal.fire('พิมพ์ไม่สำเร็จ', 'ไม่ได้ตั้งค่า IP ของเครื่องพิมพ์ครัว', 'error');
-                     }
+                const today = new Date();
+                const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+                
+                let nextOrderId = 1;
+                if (counterData && typeof counterData.count === 'number' && typeof counterData.lastResetDate === 'string' && counterData.lastResetDate === todayStr) {
+                    nextOrderId = counterData.count + 1;
                 }
-            }
+
+                // 2. Get Current Active Orders
+                const activeOrdersDoc = await transaction.get(activeOrdersRef);
+                // FIX: Cast result data to the correct type to avoid 'unknown' errors
+                const currentActiveOrders = (activeOrdersDoc.data() as { value: ActiveOrder[] | undefined })?.value || [];
+
+                // 3. Prepare New Order
+                const itemsWithOrigin = orderItems.map(item => ({
+                    ...item,
+                    originalOrderNumber: nextOrderId,
+                }));
+
+                const newOrder: ActiveOrder = {
+                    id: Date.now(),
+                    orderNumber: nextOrderId,
+                    tableId: tableOverride.id,
+                    tableName: tableOverride.name,
+                    customerName: custName,
+                    floor: tableOverride.floor,
+                    customerCount: custCount,
+                    items: itemsWithOrigin,
+                    // Force 'waiting' for customer mode
+                    status: (isCustomerMode || sendToKitchen) ? 'waiting' : 'served',
+                    orderTime: Date.now(),
+                    orderType: 'dine-in',
+                    taxRate: isTaxEnabled ? taxRate : 0,
+                    taxAmount: 0, 
+                    placedBy: currentUser ? currentUser.username : (custName || `โต๊ะ ${tableOverride.name}`),
+                };
+                const subtotal = newOrder.items.reduce((sum, item) => sum + item.finalPrice * item.quantity, 0);
+                newOrder.taxAmount = newOrder.taxRate > 0 ? subtotal * (newOrder.taxRate / 100) : 0;
+
+                // 4. Commit Writes
+                transaction.set(counterRef, { value: { count: nextOrderId, lastResetDate: todayStr } });
+                transaction.set(activeOrdersRef, { value: [...currentActiveOrders, newOrder] });
+                
+                // Store ID for post-transaction usage (modal/printing)
+                setLastPlacedOrderId(nextOrderId);
+                
+                // If we need to print, we can pass the order object out or reconstruct it.
+                // For simplicity, we'll reconstruct it or use the one we just made.
+                // We can't use side effects (like printing) inside the transaction because it might retry.
+                // So we just return the new order from the transaction block.
+                return newOrder;
+            }).then(async (newOrder: ActiveOrder) => {
+                // Post-transaction logic
+                setModalState(prev => ({ ...prev, isOrderSuccess: true }));
+
+                // Handle printing
+                if ((isCustomerMode || sendToKitchen)) {
+                    if (printerConfig?.kitchen?.ipAddress) {
+                        try {
+                            await printerService.printKitchenOrder(newOrder, printerConfig.kitchen);
+                            setPrintHistory(prev => [...prev, {
+                                id: Date.now(),
+                                timestamp: Date.now(),
+                                orderNumber: newOrder.orderNumber,
+                                tableName: newOrder.tableName,
+                                printedBy: currentUser ? currentUser.username : (custName || `โต๊ะ ${tableOverride.name}`),
+                                printerType: 'kitchen',
+                                status: 'success',
+                                errorMessage: null,
+                                orderItemsPreview: newOrder.items.map(i => `${i.quantity}x ${i.name}`),
+                                isReprint: false,
+                            }]);
+                        } catch (printError: any) {
+                            console.error("Kitchen print failed:", printError);
+                            setPrintHistory(prev => [...prev, {
+                                id: Date.now(),
+                                timestamp: Date.now(),
+                                orderNumber: newOrder.orderNumber,
+                                tableName: newOrder.tableName,
+                                printedBy: currentUser ? currentUser.username : (custName || `โต๊ะ ${tableOverride.name}`),
+                                printerType: 'kitchen',
+                                status: 'failed',
+                                errorMessage: printError.message || 'Unknown print error',
+                                orderItemsPreview: newOrder.items.map(i => `${i.quantity}x ${i.name}`),
+                                isReprint: false,
+                            }]);
+                            if (!isCustomerMode) {
+                                 Swal.fire('พิมพ์ไม่สำเร็จ', printError.message || 'ไม่สามารถเชื่อมต่อเครื่องพิมพ์ครัวได้', 'error');
+                            }
+                        }
+                    } else {
+                         if (!isCustomerMode) {
+                            Swal.fire('พิมพ์ไม่สำเร็จ', 'ไม่ได้ตั้งค่า IP ของเครื่องพิมพ์ครัว', 'error');
+                         }
+                    }
+                }
+            });
         
         } catch (error: any) {
-            // This catch block will now only catch errors from getNextOrderNumber().
             console.error("Failed to place order:", error);
             Swal.fire('เกิดข้อผิดพลาด', error.message || 'ไม่สามารถสร้างออเดอร์ได้ กรุณาลองใหม่อีกครั้ง', 'error');
         
