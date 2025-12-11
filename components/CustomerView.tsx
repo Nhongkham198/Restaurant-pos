@@ -590,22 +590,14 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                 return null;
             }
 
-            // Determine aggregate status from the relevant orders
-            const hasCooking = relevantOrders.some(o => o.status === 'cooking');
-            const hasWaiting = relevantOrders.some(o => o.status === 'waiting');
-            const allServed = relevantOrders.every(o => o.status === 'served');
-            
-            // Priority 1: Cooking
-            if (hasCooking) {
+            // Check for statuses in order of priority.
+            if (relevantOrders.some(o => o.status === 'cooking')) {
                 return { text: t('กำลังปรุง... 🍳'), color: 'bg-orange-100 text-orange-700 border-orange-200' };
             }
             
-            // Priority 2: Waiting
-            if (hasWaiting) {
+            if (relevantOrders.some(o => o.status === 'waiting')) {
                  const myEarliestOrderTime = Math.min(
-                    ...relevantOrders
-                        .filter(o => o.status === 'waiting')
-                        .map(o => o.orderTime)
+                    ...relevantOrders.filter(o => o.status === 'waiting').map(o => o.orderTime)
                 );
 
                  const queueAhead = allBranchOrders.filter(o => 
@@ -616,13 +608,8 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                 return { text: `${t('รอคิว...')} (${queueAhead} ${t('คิว')}) ⏳`, color: 'bg-blue-100 text-blue-700 border-blue-200' };
             }
             
-            // Priority 3: All Served
-            if (allServed) {
-                 return { text: t('เสิร์ฟครบแล้ว 😋'), color: 'bg-green-100 text-green-700 border-green-200' };
-            }
-            
-            // Fallback: should not be reached if statuses are only waiting, cooking, served
-            return null;
+            // If no orders are cooking or waiting, and we have relevant orders, they must all be served.
+            return { text: t('เสิร์ฟครบแล้ว 😋'), color: 'bg-green-100 text-green-700 border-green-200' };
 
         } catch (e) {
             console.error("Error calculating orderStatus:", e);
