@@ -74,16 +74,35 @@ const TableCard: React.FC<TableCardProps> = ({ table, orders, onTableSelect, onS
         }
 
         // FIX: Use window.location.origin + window.location.pathname to get the clean base URL.
-        // This avoids issues where hashes (#) or existing query params interfere with the customer mode link.
-        const baseUrl = window.location.origin + window.location.pathname;
+        // Clean up any trailing slashes or index.html to ensure the link works perfectly
+        let baseUrl = window.location.origin + window.location.pathname;
+        baseUrl = baseUrl.replace(/\/index\.html$/, '').replace(/\/$/, '');
+
         const customerUrl = `${baseUrl}?mode=customer&branchId=${selectedBranch.id}&tableId=${table.id}`;
         
         const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(customerUrl)}`;
         
-        const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-        const warningHtml = isLocal 
-            ? `<p class="text-xs text-red-600 font-bold mt-2">คำเตือน: QR Code นี้จะใช้ไม่ได้บนมือถือ เพราะคุณกำลังใช้งานบน Localhost. กรุณาพิมพ์จากหน้าเว็บที่ Deploy แล้วเท่านั้น</p>`
-            : '';
+        const hostname = window.location.hostname;
+        const isLocal = hostname === 'localhost' || hostname === '127.0.0.1';
+        const isVercel = hostname.includes('.vercel.app');
+        
+        let warningHtml = '';
+        if (isLocal) {
+            warningHtml = `<p class="text-xs text-red-600 font-bold mt-2">คำเตือน: QR Code นี้จะสแกนไม่ได้บนมือถือ (Localhost)</p>`;
+        } else if (isVercel) {
+            warningHtml = `
+                <div class="mt-3 p-2 bg-red-50 border border-red-200 rounded text-xs text-left text-red-800">
+                    <strong>⚠️ สำคัญ: หากสแกนแล้วเจอหน้า Login ของ Vercel</strong>
+                    <p class="mt-1">เกิดจากระบบความปลอดภัยของ Vercel (Deployment Protection)</p>
+                    <ul class="list-disc list-inside mt-1 ml-1">
+                        <li>ไปที่ Vercel Dashboard > Settings</li>
+                        <li>เลือกเมนู <strong>Deployment Protection</strong></li>
+                        <li>เปลี่ยน <strong>Vercel Authentication</strong> เป็น <strong>Disabled</strong></li>
+                        <li>กด Save แล้วลองสแกนใหม่</li>
+                    </ul>
+                </div>
+            `;
+        }
 
         Swal.fire({
             title: `QR Code โต๊ะ ${table.name}`,
@@ -92,9 +111,9 @@ const TableCard: React.FC<TableCardProps> = ({ table, orders, onTableSelect, onS
                     <div class="bg-white p-4 border rounded-lg shadow-inner">
                         <img src="${qrApiUrl}" alt="QR Code" class="w-48 h-48" />
                     </div>
-                    <div class="text-center">
-                        <p class="text-sm text-gray-500">QR Code นี้เป็นแบบถาวร (Static)</p>
-                        <p class="text-sm text-blue-600 font-medium">พิมพ์และนำไปติดที่โต๊ะได้เลย</p>
+                    <div class="text-center w-full">
+                        <p class="text-sm text-gray-500">QR Code สำหรับลูกค้า</p>
+                        <p class="text-xs text-blue-500 mt-1 truncate px-4">${customerUrl}</p>
                         ${warningHtml}
                     </div>
                 </div>
