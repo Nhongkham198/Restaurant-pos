@@ -354,7 +354,7 @@ const App: React.FC = () => {
         }
     }, [notificationSoundUrl, staffCallSoundUrl]);
 
-    // --- EFFECT: Overdue Order Timer Management (setTimeout per order) ---
+    // --- EFFECT: Overdue Order Timer Management (FIXED) ---
     useEffect(() => {
         const activeCookingOrderIds = new Set<number>();
         const fifteenMinutes = 15 * 60 * 1000;
@@ -363,42 +363,47 @@ const App: React.FC = () => {
             if (order.status === 'cooking' && order.cookingStartTime) {
                 activeCookingOrderIds.add(order.id);
 
-                // If a timer doesn't already exist for this cooking order, create one.
                 if (!overdueTimersRef.current.has(order.id)) {
                     const elapsedTime = Date.now() - order.cookingStartTime;
                     const remainingTime = fifteenMinutes - elapsedTime;
 
                     if (remainingTime <= 0) {
-                        // Already overdue on load, trigger immediately if not already marked.
                         if (!order.isOverdue) {
-                             setActiveOrders(prevOrders => prevOrders.map(o => o.id === order.id ? { ...o, isOverdue: true } : o));
-                             Swal.fire({
+                            setActiveOrders(prevOrders => prevOrders.map(o => o.id === order.id ? { ...o, isOverdue: true } : o));
+                            Swal.fire({
                                 title: `ออเดอร์ #${String(order.orderNumber).padStart(3, '0')} ล่าช้า!`,
                                 html: `<b>โต๊ะ ${order.tableName}</b> ใช้เวลาทำอาหารเกิน 15 นาทีแล้ว`,
                                 icon: 'warning',
                                 confirmButtonText: 'รับทราบ'
-                             });
+                            });
                         }
                     } else {
-                        // Set a new timer for the remaining time.
                         const timerId = window.setTimeout(() => {
-                             setActiveOrders(currentOrders => {
-                                 const targetOrder = currentOrders.find(o => o.id === order.id);
-                                 // Check if it's still cooking when the timer fires
-                                 if (targetOrder && targetOrder.status === 'cooking' && !targetOrder.isOverdue) {
-                                     Swal.fire({
-                                        title: `แจ้งเตือนออเดอร์ล่าช้า!`,
-                                        html: `ออเดอร์ <b>#${String(targetOrder.orderNumber).padStart(3, '0')}</b> (โต๊ะ ${targetOrder.tableName})<br/>ใช้เวลาทำอาหารเกิน 15 นาทีแล้ว`,
-                                        icon: 'warning',
-                                        confirmButtonText: 'รับทราบ'
-                                     });
-                                     // Update the order to be overdue
-                                     return currentOrders.map(o => o.id === order.id ? { ...o, isOverdue: true } : o);
-                                 }
-                                 return currentOrders; // No change needed
-                             });
-                             // Remove from ref after it has fired
-                             overdueTimersRef.current.delete(order.id);
+                            let orderToNotify: ActiveOrder | null = null;
+                            
+                            // This updater function is now pure: it only computes the next state.
+                            setActiveOrders(currentOrders => {
+                                const targetOrder = currentOrders.find(o => o.id === order.id);
+                                if (targetOrder && targetOrder.status === 'cooking' && !targetOrder.isOverdue) {
+                                    orderToNotify = targetOrder; // Capture the order that needs notification
+                                    return currentOrders.map(o => o.id === order.id ? { ...o, isOverdue: true } : o);
+                                }
+                                return currentOrders;
+                            });
+
+                            // Perform the side effect (notification) after the state update has been queued.
+                            // This is still technically racy but is a common pattern to work around this.
+                            // The key is that the side effect is NOT inside the state updater function itself.
+                            if (orderToNotify) {
+                                Swal.fire({
+                                    title: `แจ้งเตือนออเดอร์ล่าช้า!`,
+                                    html: `ออเดอร์ <b>#${String(orderToNotify.orderNumber).padStart(3, '0')}</b> (โต๊ะ ${orderToNotify.tableName})<br/>ใช้เวลาทำอาหารเกิน 15 นาทีแล้ว`,
+                                    icon: 'warning',
+                                    confirmButtonText: 'รับทราบ'
+                                });
+                            }
+                            
+                            overdueTimersRef.current.delete(order.id);
                         }, remainingTime);
                         overdueTimersRef.current.set(order.id, timerId);
                     }
@@ -414,7 +419,6 @@ const App: React.FC = () => {
             }
         });
         
-        // Cleanup on component unmount
         return () => {
             overdueTimersRef.current.forEach(timerId => clearTimeout(timerId));
         };
