@@ -530,8 +530,11 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     const translateMenu = async () => {
         setIsTranslating(true);
         try {
-            // Check for API key availability silently to avoid crashing if not set
-            if (!process.env.API_KEY) {
+            // Use the provided key as fallback or main key
+            const apiKey = process.env.API_KEY || "AIzaSyCfQvFBBkaxteAf-R8dCbj9qew01UokHbs";
+
+            // Check for API key availability
+            if (!apiKey) {
                 console.warn("Gemini API Key is missing. Translation skipped.");
                 // Give a small feedback to the user but don't crash
                 Swal.fire({
@@ -546,7 +549,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                 return;
             }
 
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+            const ai = new GoogleGenAI({ apiKey: apiKey });
     
             const staticText = [
                 'เมนูอาหาร 🍽️', 'โต๊ะ', 'คุณ', 'เรียกพนักงาน', 'ยอดของฉัน', 'ดูตะกร้า', 'ยังไม่รวมกับยอดบิล', 'รายการของฉัน',
