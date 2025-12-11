@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 
 import { 
@@ -469,9 +470,18 @@ const App: React.FC = () => {
                     icon: 'info',
                     title: '🔔 มีออเดอร์ใหม่!',
                     html: `<b>โต๊ะ ${order.tableName}</b> (ออเดอร์ #${String(order.orderNumber).padStart(3, '0')})`,
-                    showConfirmButton: false,
-                    timer: 5000,
+                    showConfirmButton: true,
+                    confirmButtonText: 'ไปที่หน้าครัว',
+                    timer: 10000,
                     timerProgressBar: true,
+                    didOpen: (toast) => {
+                        toast.addEventListener('mouseenter', Swal.stopTimer)
+                        toast.addEventListener('mouseleave', Swal.resumeTimer)
+                    }
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        setCurrentView('kitchen');
+                    }
                 });
             });
         }
