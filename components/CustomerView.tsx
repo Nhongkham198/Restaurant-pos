@@ -1,6 +1,7 @@
 
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import type { MenuItem, Table, OrderItem, ActiveOrder, StaffCall } from '../types';
+import type { MenuItem, Table, OrderItem, ActiveOrder, StaffCall, CompletedOrder } from '../types';
 import { Menu } from './Menu';
 import { ItemCustomizationModal } from './ItemCustomizationModal';
 import Swal from 'sweetalert2';
@@ -13,10 +14,12 @@ interface CustomerViewProps {
     categories: string[];
     activeOrders: ActiveOrder[];
     allBranchOrders: ActiveOrder[]; // Added to calculate global queue position and find merged items
+    completedOrders: CompletedOrder[];
     onPlaceOrder: (items: OrderItem[], customerName: string, customerCount: number) => void;
     onStaffCall: (table: Table, customerName: string) => void;
     recommendedMenuItemIds: number[];
     logoUrl: string | null;
+    restaurantName: string;
 }
 
 export const CustomerView: React.FC<CustomerViewProps> = ({
@@ -25,10 +28,12 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     categories,
     activeOrders,
     allBranchOrders,
+    completedOrders,
     onPlaceOrder,
     onStaffCall,
     recommendedMenuItemIds,
-    logoUrl
+    logoUrl,
+    restaurantName,
 }) => {
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [customerName, setCustomerName] = useState('');
@@ -165,32 +170,117 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     // --- Detect Payment & Trigger Save Bill/Logout Flow ---
     useEffect(() => {
         if (!isAuthenticated) return;
-
+    
         const currentCount = myItems.length;
         const prevCount = prevMyItemsCountRef.current;
-
-        // Condition: previously I had items, now I have 0. This means they were completed/paid (removed from active list).
-        // Merging doesn't trigger this because items would still exist in 'allBranchOrders'.
+    
         if (prevCount > 0 && currentCount === 0 && !isProcessingPaymentRef.current) {
             isProcessingPaymentRef.current = true;
-            
-            // Wait a bit to ensure UI transition
-            setTimeout(() => {
+    
+            // Find the most recently completed order that belongs to me
+            const myJustCompletedOrders = completedOrders.filter(o =>
+                myOrderNumbers.some(myNum =>
+                    o.orderNumber === myNum || (o.mergedOrderNumbers && o.mergedOrderNumbers.includes(myNum))
+                )
+            );
+    
+            const latestCompletedOrder = myJustCompletedOrders.sort((a, b) => b.completionTime - a.completionTime)[0];
+    
+            if (!latestCompletedOrder) {
+                // Failsafe: if we can't find the order, show a simple message and log out.
                 Swal.fire({
                     title: 'ขอบคุณที่มาอุดหนุนครับ/ค่ะ 🙏',
                     text: "รายการของคุณชำระเงินเรียบร้อยแล้ว",
                     icon: 'success',
                     confirmButtonText: 'ออกจากระบบ',
-                    confirmButtonColor: '#3085d6',
                     allowOutsideClick: false,
                 }).then(() => {
                     handleLogout();
                 });
-            }, 500);
+                return;
+            }
+    
+            // Build the bill HTML for display and for html2canvas
+            const subtotal = latestCompletedOrder.items.reduce((sum, item) => sum + item.finalPrice * item.quantity, 0);
+            const total = subtotal + latestCompletedOrder.taxAmount;
+    
+            const billHtml = `
+                <div id="customer-final-bill" class="text-left p-4 bg-white font-sans text-black">
+                    ${logoUrl ? `<img src="${logoUrl}" alt="Logo" class="mx-auto h-20 w-auto object-contain mb-4" crossOrigin="anonymous" />` : ''}
+                    <h3 class="text-center text-xl font-bold mb-2">${restaurantName}</h3>
+                    <p class="text-center text-xs text-gray-500 mb-4">ใบเสร็จรับเงิน (อย่างย่อ)</p>
+                    <div class="text-sm space-y-1 mb-4">
+                        <p><strong>โต๊ะ:</strong> ${latestCompletedOrder.tableName}</p>
+                        <p><strong>ลูกค้า:</strong> ${customerName}</p>
+                        <p><strong>วันที่:</strong> ${new Date(latestCompletedOrder.completionTime).toLocaleString('th-TH')}</p>
+                    </div>
+                    <div class="border-t border-b border-dashed border-gray-400 py-2 my-2 space-y-1 text-sm">
+                        ${latestCompletedOrder.items.map(item => `
+                            <div class="flex justify-between">
+                                <span class="pr-2">${item.quantity}x ${item.name}</span>
+                                <span>${(item.finalPrice * item.quantity).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                    <div class="text-sm space-y-1 mt-4">
+                         <div class="flex justify-between">
+                            <span>ยอดรวม</span>
+                            <span>${subtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })} ฿</span>
+                        </div>
+                        ${latestCompletedOrder.taxAmount > 0 ? `
+                        <div class="flex justify-between">
+                            <span>ภาษี (${latestCompletedOrder.taxRate}%)</span>
+                            <span>${latestCompletedOrder.taxAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} ฿</span>
+                        </div>
+                        ` : ''}
+                        <div class="flex justify-between font-bold text-base mt-2 pt-2 border-t border-gray-400">
+                            <span>ยอดสุทธิ</span>
+                            <span>${total.toLocaleString(undefined, { minimumFractionDigits: 2 })} ฿</span>
+                        </div>
+                    </div>
+                    <p class="text-center text-sm font-semibold mt-6">ขอบคุณที่มาอุดหนุนร้านเรานะคะ 🙏</p>
+                </div>
+            `;
+    
+            Swal.fire({
+                title: 'ชำระเงินเรียบร้อย!',
+                html: `<div class="max-h-60 overflow-y-auto border rounded-lg">${billHtml}</div><p class="mt-4">ท่านต้องการบันทึกบิลนี้หรือไม่?</p>`,
+                icon: 'success',
+                showDenyButton: true,
+                confirmButtonText: 'ใช่, บันทึกบิล & ออก',
+                denyButtonText: 'ไม่ใช่, ออกเลย',
+                confirmButtonColor: '#3085d6',
+                denyButtonColor: '#aaa',
+                allowOutsideClick: false,
+            }).then((result) => {
+                if (result.isConfirmed) { // User wants to save
+                    const billElement = document.getElementById('customer-final-bill');
+                    if (billElement) {
+                        Swal.fire({ title: 'กำลังสร้างรูปภาพ...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+                        html2canvas(billElement, { scale: 2, useCORS: true }).then(canvas => {
+                            const image = canvas.toDataURL('image/png');
+                            const link = document.createElement('a');
+                            link.href = image;
+                            link.download = `bill-${latestCompletedOrder.tableName}-${customerName}-${new Date().toISOString().slice(0, 10)}.png`;
+                            link.click();
+                            handleLogout();
+                            Swal.close();
+                        }).catch(err => {
+                            console.error('Failed to save bill as image', err);
+                            Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถบันทึกบิลได้', 'error');
+                            handleLogout();
+                        });
+                    } else {
+                         handleLogout();
+                    }
+                } else { // User clicked "No" or closed the dialog
+                    handleLogout();
+                }
+            });
         }
-
+    
         prevMyItemsCountRef.current = currentCount;
-    }, [myItems.length, isAuthenticated]);
+    }, [myItems.length, isAuthenticated, completedOrders, myOrderNumbers, logoUrl, restaurantName, customerName]);
     
 
     // --- Monitor Session validity (PIN Changes) ---
