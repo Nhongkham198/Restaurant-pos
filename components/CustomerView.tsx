@@ -16,7 +16,7 @@ interface CustomerViewProps {
     activeOrders: ActiveOrder[];
     allBranchOrders: ActiveOrder[]; // Added to calculate global queue position and find merged items
     completedOrders: CompletedOrder[];
-    onPlaceOrder: (items: OrderItem[], customerName: string, customerCount: number) => void;
+    onPlaceOrder: (items: OrderItem[], customerName: string, customerCount: number) => Promise<void> | void;
     onStaffCall: (table: Table, customerName: string) => void;
     recommendedMenuItemIds: number[];
     logoUrl: string | null;
@@ -137,15 +137,20 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
 
         const myOrderSet = new Set(myOrderNumbers);
 
-        allBranchOrders.forEach(order => {
-            order.items.forEach(item => {
-                // Check if this item originated from one of my orders
-                const originId = item.originalOrderNumber ?? order.orderNumber;
-                if (myOrderSet.has(originId)) {
-                    items.push(item);
+        if (Array.isArray(allBranchOrders)) {
+            allBranchOrders.forEach(order => {
+                // Safety check: ensure order and order.items exist
+                if (order && Array.isArray(order.items)) {
+                    order.items.forEach(item => {
+                        // Check if this item originated from one of my orders
+                        const originId = item.originalOrderNumber ?? order.orderNumber;
+                        if (myOrderSet.has(originId)) {
+                            items.push(item);
+                        }
+                    });
                 }
             });
-        });
+        }
         return items;
     }, [allBranchOrders, myOrderNumbers]);
 
@@ -162,7 +167,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         // This handles the immediate update after placing an order.
         const newMyOrderIds: number[] = [];
         activeOrders.forEach(order => {
-            if (order.customerName === customerName && !myOrderNumbers.includes(order.orderNumber)) {
+            if (order && order.customerName === customerName && !myOrderNumbers.includes(order.orderNumber)) {
                 newMyOrderIds.push(order.orderNumber);
             }
         });
@@ -403,11 +408,11 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         setCartItems(prev => prev.filter(i => i.cartItemId !== cartItemId));
     };
 
-    const handleSubmitOrder = () => {
+    const handleSubmitOrder = async () => {
         if (!checkSessionValidity()) return;
         if (cartItems.length === 0) return;
 
-        Swal.fire({
+        const result = await Swal.fire({
             title: t('ยืนยันการสั่งอาหาร?'),
             text: `${t('สั่งอาหาร')} ${cartItems.reduce((sum, i) => sum + i.quantity, 0)} ${t('รายการ')}`,
             icon: 'question',
@@ -415,16 +420,44 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
             confirmButtonText: t('สั่งเลย'),
             cancelButtonText: t('ตรวจสอบก่อน'),
             confirmButtonColor: '#10B981'
-        }).then((result) => {
-            if (result.isConfirmed) {
-                if (!checkSessionValidity()) return;
-                // onPlaceOrder triggers App.tsx to create order.
-                // We rely on the useEffect monitoring activeOrders to catch the new order ID.
-                onPlaceOrder(cartItems, customerName, 1); 
+        });
+
+        if (result.isConfirmed) {
+            if (!checkSessionValidity()) return;
+            
+            // Show loading state
+            Swal.fire({
+                title: t('กำลังส่งรายการ...'),
+                allowOutsideClick: false,
+                didOpen: () => { Swal.showLoading(); }
+            });
+
+            try {
+                // Call onPlaceOrder (App.tsx handles this async)
+                await onPlaceOrder(cartItems, customerName, 1); 
+                
+                // Clear cart immediately
                 setCartItems([]);
                 setIsCartOpen(false);
+
+                // Show success message immediately here (since App.tsx modal isn't visible in customer mode)
+                await Swal.fire({
+                    icon: 'success',
+                    title: t('สั่งอาหารสำเร็จ!'),
+                    text: t('รายการอาหารถูกส่งเข้าครัวแล้ว'),
+                    timer: 2500,
+                    showConfirmButton: false
+                });
+
+            } catch (error) {
+                console.error("Order failed", error);
+                Swal.fire({
+                    icon: 'error',
+                    title: t('เกิดข้อผิดพลาด'),
+                    text: t('ไม่สามารถสั่งอาหารได้ กรุณาลองใหม่อีกครั้ง'),
+                });
             }
-        });
+        }
     };
 
     const handleCallStaffClick = () => {
@@ -492,17 +525,22 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         // We need to find the status of the orders these items belong to.
         const myOrdersStatuses = new Set<string>();
         
-        allBranchOrders.forEach(order => {
-            // If this order contains any of my items
-            const hasMyItems = order.items.some(item => 
-                (item.originalOrderNumber && myOrderNumbers.includes(item.originalOrderNumber)) ||
-                myOrderNumbers.includes(order.orderNumber)
-            );
-            
-            if (hasMyItems) {
-                myOrdersStatuses.add(order.status);
-            }
-        });
+        if (Array.isArray(allBranchOrders)) {
+            allBranchOrders.forEach(order => {
+                // Safety check
+                if (!order || !order.items) return;
+
+                // If this order contains any of my items
+                const hasMyItems = order.items.some(item => 
+                    (item.originalOrderNumber && myOrderNumbers.includes(item.originalOrderNumber)) ||
+                    myOrderNumbers.includes(order.orderNumber)
+                );
+                
+                if (hasMyItems) {
+                    myOrdersStatuses.add(order.status);
+                }
+            });
+        }
 
         if (myOrdersStatuses.has('cooking')) {
             return { text: t('กำลังปรุง... 🍳'), color: 'bg-orange-100 text-orange-700 border-orange-200' };
@@ -528,6 +566,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     };
     
     const translateMenu = async () => {
+        // ... (existing translateMenu logic)
         setIsTranslating(true);
         try {
             // Use the provided key as fallback or main key
@@ -536,7 +575,6 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
             // Check for API key availability
             if (!apiKey) {
                 console.warn("Gemini API Key is missing. Translation skipped.");
-                // Give a small feedback to the user but don't crash
                 Swal.fire({
                     toast: true,
                     position: 'top-end',
@@ -557,7 +595,8 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                 'รายการในตะกร้า (ยังไม่สั่ง)', 'ไม่มีสินค้าในตะกร้า', 'ยอดในตะกร้า', 'ยืนยันสั่งอาหาร 🚀', 'เพิ่มลงตะกร้าแล้ว',
                 'ยืนยันการสั่งอาหาร?', 'สั่งอาหาร', 'รายการ', 'สั่งเลย', 'ตรวจสอบก่อน', 'ส่งสัญญาณเรียกพนักงานแล้ว', 'กรุณารอสักครู่...',
                 'กำลังสร้างรูปภาพ...', 'เกิดข้อผิดพลาด', 'ไม่สามารถสร้างรูปภาพได้', 'กำลังปรุง... 🍳', 'รอคิว...', 'คิว', 'เสิร์ฟครบแล้ว 😋',
-                'บันทึกสำเร็จ!', 'บิลของคุณถูกบันทึกเป็นรูปภาพแล้ว'
+                'บันทึกสำเร็จ!', 'บิลของคุณถูกบันทึกเป็นรูปภาพแล้ว', 'สั่งอาหารสำเร็จ!', 'รายการอาหารถูกส่งเข้าครัวแล้ว',
+                'กำลังส่งรายการ...', 'ไม่สามารถสั่งอาหารได้ กรุณาลองใหม่', 'เกิดข้อผิดพลาด'
             ];
     
             const dynamicText = new Set<string>();
@@ -588,13 +627,12 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                 }
             });
     
-            // With JSON mode, we should be able to parse directly
             const result = JSON.parse(response.text);
             setTranslations(result);
         } catch (error) {
             console.error("Translation failed:", error);
             Swal.fire('Translation Unavailable', 'Cannot translate at this time.', 'info');
-            setLanguage('th'); // Revert to Thai on error
+            setLanguage('th'); 
         } finally {
             setIsTranslating(false);
         }
