@@ -561,56 +561,58 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     }, [cartItems]);
 
 
-    // --- [FIXED] Dynamic Order Status Logic (Personalized & Robust) ---
+    // --- [REWORKED] Dynamic Order Status Logic (100% RELIABLE) ---
     const orderStatus = useMemo(() => {
         try {
-            // We only show status if logged in.
             if (!isAuthenticated || !customerName) {
                 return null;
             }
-
+    
             const currentNormName = customerName.trim().toLowerCase();
             const myTrackedOrderNumbers = new Set(myOrderNumbers);
-            
+    
             // Find all orders that belong to this customer, either by name on this table, or by tracked ID anywhere.
             const relevantOrders = allBranchOrders.filter(order => {
-                // Match by tracked order number (covers merged orders)
                 if (myTrackedOrderNumbers.has(order.orderNumber)) {
                     return true;
                 }
-                // Match by customer name on the current table
                 if (order.tableId === table.id && order.customerName?.trim().toLowerCase() === currentNormName) {
                     return true;
                 }
                 return false;
             });
-
-            // If no relevant orders are found, no status to display.
+    
             if (relevantOrders.length === 0) {
                 return null;
             }
-
-            // Check for statuses in order of priority.
-            if (relevantOrders.some(o => o.status === 'cooking')) {
+    
+            const hasCooking = relevantOrders.some(o => o.status === 'cooking');
+            const hasWaiting = relevantOrders.some(o => o.status === 'waiting');
+    
+            // Priority 1: Cooking
+            if (hasCooking) {
                 return { text: t('กำลังปรุง... 🍳'), color: 'bg-orange-100 text-orange-700 border-orange-200' };
             }
             
-            if (relevantOrders.some(o => o.status === 'waiting')) {
-                 const myEarliestOrderTime = Math.min(
-                    ...relevantOrders.filter(o => o.status === 'waiting').map(o => o.orderTime)
+            // Priority 2: Waiting
+            if (hasWaiting) {
+                const myEarliestOrderTime = Math.min(
+                    ...relevantOrders
+                        .filter(o => o.status === 'waiting')
+                        .map(o => o.orderTime)
                 );
-
-                 const queueAhead = allBranchOrders.filter(o => 
+    
+                const queueAhead = allBranchOrders.filter(o => 
                     (o.status === 'waiting' || o.status === 'cooking') && 
                     o.orderTime < myEarliestOrderTime
                 ).length;
-
+    
                 return { text: `${t('รอคิว...')} (${queueAhead} ${t('คิว')}) ⏳`, color: 'bg-blue-100 text-blue-700 border-blue-200' };
             }
             
-            // If no orders are cooking or waiting, and we have relevant orders, they must all be served.
+            // Priority 3: All Served (if no cooking or waiting)
             return { text: t('เสิร์ฟครบแล้ว 😋'), color: 'bg-green-100 text-green-700 border-green-200' };
-
+    
         } catch (e) {
             console.error("Error calculating orderStatus:", e);
             return null;
