@@ -132,48 +132,63 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     // We scan ALL branch orders because if a bill is merged to another table, it won't be in 'activeOrders' (which is filtered by table).
     // We look for items that have an 'originalOrderNumber' matching one of 'myOrderNumbers'.
     const myItems = useMemo(() => {
-        const items: OrderItem[] = [];
-        if (myOrderNumbers.length === 0) return items;
+        try {
+            const items: OrderItem[] = [];
+            if (myOrderNumbers.length === 0) return items;
 
-        const myOrderSet = new Set(myOrderNumbers);
+            const myOrderSet = new Set(myOrderNumbers);
 
-        if (Array.isArray(allBranchOrders)) {
-            allBranchOrders.forEach(order => {
-                // Safety check: ensure order and order.items exist
-                if (order && Array.isArray(order.items)) {
-                    order.items.forEach(item => {
-                        // Check if this item originated from one of my orders
-                        const originId = item.originalOrderNumber ?? order.orderNumber;
-                        if (myOrderSet.has(originId)) {
-                            items.push(item);
-                        }
-                    });
-                }
-            });
+            if (Array.isArray(allBranchOrders)) {
+                allBranchOrders.forEach(order => {
+                    // Safety check: ensure order and order.items exist
+                    if (order && Array.isArray(order.items)) {
+                        order.items.forEach(item => {
+                            if (!item) return; // Safety check for null items
+                            // Check if this item originated from one of my orders
+                            const originId = item.originalOrderNumber ?? order.orderNumber;
+                            if (myOrderSet.has(originId)) {
+                                items.push(item);
+                            }
+                        });
+                    }
+                });
+            }
+            return items;
+        } catch (e) {
+            console.error("Error calculating myItems:", e);
+            return [];
         }
-        return items;
     }, [allBranchOrders, myOrderNumbers]);
 
     // Calculate totals specifically for ME
     const myTotal = useMemo(() => {
-        return myItems.reduce((sum, item) => sum + (item.finalPrice * item.quantity), 0);
+        try {
+            return myItems.reduce((sum, item) => sum + (item.finalPrice * item.quantity), 0);
+        } catch (e) {
+            console.error("Error calculating myTotal:", e);
+            return 0;
+        }
     }, [myItems]);
 
     // Auto-add new orders to "My Orders" if I placed them
     useEffect(() => {
         if (!isAuthenticated || !customerName) return;
 
-        // Scan active orders for this table. If we find an order with my name that I don't track yet, track it.
-        // This handles the immediate update after placing an order.
-        const newMyOrderIds: number[] = [];
-        activeOrders.forEach(order => {
-            if (order && order.customerName === customerName && !myOrderNumbers.includes(order.orderNumber)) {
-                newMyOrderIds.push(order.orderNumber);
-            }
-        });
+        try {
+            // Scan active orders for this table. If we find an order with my name that I don't track yet, track it.
+            // This handles the immediate update after placing an order.
+            const newMyOrderIds: number[] = [];
+            activeOrders.forEach(order => {
+                if (order && order.customerName === customerName && !myOrderNumbers.includes(order.orderNumber)) {
+                    newMyOrderIds.push(order.orderNumber);
+                }
+            });
 
-        if (newMyOrderIds.length > 0) {
-            setMyOrderNumbers(prev => [...prev, ...newMyOrderIds]);
+            if (newMyOrderIds.length > 0) {
+                setMyOrderNumbers(prev => [...prev, ...newMyOrderIds]);
+            }
+        } catch (e) {
+            console.error("Error updating myOrderNumbers:", e);
         }
     }, [activeOrders, customerName, isAuthenticated, myOrderNumbers]);
 
@@ -513,48 +528,76 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     };
 
     // Calculate Cart Totals
-    const cartTotalAmount = useMemo(() => cartItems.reduce((sum, i) => sum + (i.finalPrice * i.quantity), 0), [cartItems]);
-    const totalCartItemsCount = useMemo(() => cartItems.reduce((sum, i) => sum + i.quantity, 0), [cartItems]);
+    const cartTotalAmount = useMemo(() => {
+        try {
+            return cartItems.reduce((sum, i) => sum + (i.finalPrice * i.quantity), 0);
+        } catch (e) {
+            console.error("Error calculating cartTotalAmount:", e);
+            return 0;
+        }
+    }, [cartItems]);
+    
+    const totalCartItemsCount = useMemo(() => {
+        try {
+            return cartItems.reduce((sum, i) => sum + i.quantity, 0);
+        } catch (e) {
+            console.error("Error calculating totalCartItemsCount:", e);
+            return 0;
+        }
+    }, [cartItems]);
 
 
     // --- Dynamic Order Status Logic (Personalized) ---
     const orderStatus = useMemo(() => {
-        if (myItems.length === 0) return null;
+        try {
+            if (myItems.length === 0) return null;
+            if (!Array.isArray(allBranchOrders) || allBranchOrders.length === 0) return null;
 
-        // Check status of my items by looking at their parent orders in activeOrders/allBranchOrders
-        // We need to find the status of the orders these items belong to.
-        const myOrdersStatuses = new Set<string>();
-        
-        if (Array.isArray(allBranchOrders)) {
+            // Check status of my items by looking at their parent orders in activeOrders/allBranchOrders
+            // We need to find the status of the orders these items belong to.
+            const myOrdersStatuses = new Set<string>();
+            
             allBranchOrders.forEach(order => {
                 // Safety check
                 if (!order || !order.items) return;
 
                 // If this order contains any of my items
                 const hasMyItems = order.items.some(item => 
-                    (item.originalOrderNumber && myOrderNumbers.includes(item.originalOrderNumber)) ||
-                    myOrderNumbers.includes(order.orderNumber)
+                    item && (
+                        (item.originalOrderNumber && myOrderNumbers.includes(item.originalOrderNumber)) ||
+                        myOrderNumbers.includes(order.orderNumber)
+                    )
                 );
                 
                 if (hasMyItems) {
                     myOrdersStatuses.add(order.status);
                 }
             });
-        }
 
-        if (myOrdersStatuses.has('cooking')) {
-            return { text: t('กำลังปรุง... 🍳'), color: 'bg-orange-100 text-orange-700 border-orange-200' };
+            if (myOrdersStatuses.has('cooking')) {
+                return { text: t('กำลังปรุง... 🍳'), color: 'bg-orange-100 text-orange-700 border-orange-200' };
+            }
+            if (myOrdersStatuses.has('waiting')) {
+                 const myOrders = allBranchOrders.filter(o => o.status === 'waiting' && myOrderNumbers.includes(o.orderNumber));
+                 
+                 // Handle empty array case for Math.min
+                 let myEarliestOrderTime = Date.now();
+                 if (myOrders.length > 0) {
+                     myEarliestOrderTime = Math.min(...myOrders.map(o => o.orderTime));
+                 }
+
+                 const queueAhead = allBranchOrders.filter(o => 
+                    (o.status === 'waiting' || o.status === 'cooking') && 
+                    o.orderTime < myEarliestOrderTime
+                ).length;
+                return { text: `${t('รอคิว...')} (${queueAhead} ${t('คิว')}) ⏳`, color: 'bg-blue-100 text-blue-700 border-blue-200' };
+            }
+            
+            return { text: t('เสิร์ฟครบแล้ว 😋'), color: 'bg-green-100 text-green-700 border-green-200' };
+        } catch (e) {
+            console.error("Error calculating orderStatus:", e);
+            return null;
         }
-        if (myOrdersStatuses.has('waiting')) {
-             const myEarliestOrderTime = Math.min(...allBranchOrders.filter(o => o.status === 'waiting' && myOrderNumbers.includes(o.orderNumber)).map(o => o.orderTime));
-             const queueAhead = allBranchOrders.filter(o => 
-                (o.status === 'waiting' || o.status === 'cooking') && 
-                o.orderTime < myEarliestOrderTime
-            ).length;
-            return { text: `${t('รอคิว...')} (${queueAhead} ${t('คิว')}) ⏳`, color: 'bg-blue-100 text-blue-700 border-blue-200' };
-        }
-        
-        return { text: t('เสิร์ฟครบแล้ว 😋'), color: 'bg-green-100 text-green-700 border-green-200' };
     }, [myItems, allBranchOrders, myOrderNumbers, language, translations]);
 
 
