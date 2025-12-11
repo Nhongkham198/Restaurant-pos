@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import type { Table, ActiveOrder, User, PrinterConfig, Branch } from '../types';
 import { printerService } from '../services/printerService';
@@ -72,7 +73,10 @@ const TableCard: React.FC<TableCardProps> = ({ table, orders, onTableSelect, onS
             return;
         }
 
-        const customerUrl = `${window.location.origin}/?mode=customer&branchId=${selectedBranch.id}&tableId=${table.id}`;
+        // FIX: Use window.location.href to get the full path, ensuring sub-directories are included.
+        const baseUrl = window.location.href.split('?')[0];
+        const customerUrl = `${baseUrl}?mode=customer&branchId=${selectedBranch.id}&tableId=${table.id}`;
+        
         const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(customerUrl)}`;
         
         const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
