@@ -73,8 +73,9 @@ const TableCard: React.FC<TableCardProps> = ({ table, orders, onTableSelect, onS
             return;
         }
 
-        // FIX: Use window.location.href to get the full path, ensuring sub-directories are included.
-        const baseUrl = window.location.href.split('?')[0];
+        // FIX: Use window.location.origin + window.location.pathname to get the clean base URL.
+        // This avoids issues where hashes (#) or existing query params interfere with the customer mode link.
+        const baseUrl = window.location.origin + window.location.pathname;
         const customerUrl = `${baseUrl}?mode=customer&branchId=${selectedBranch.id}&tableId=${table.id}`;
         
         const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(customerUrl)}`;
