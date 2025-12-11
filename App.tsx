@@ -270,7 +270,7 @@ const App: React.FC = () => {
     const mobileNavItems = useMemo(() => {
         const items: NavItem[] = [
             {id: 'pos', label: 'POS', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4z" /><path fillRule="evenodd" d="M18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h2a1 1 0 100-2H9z" clipRule="evenodd" /></svg>, view: 'pos'},
-            {id: 'tables', label: 'ผังโต๊ะ', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M2 5a2 2 0 012-2h12a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V5zm2 1v8h8V6H4z" /></svg>, view: 'tables', badge: tablesBadgeCount},
+            {id: 'tables', label: 'ผังโต๊ะ', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M2 5a2 2 0 012-2h12a2 2 0 012 2v10a2 2 0 01-2-2H4a2 2 0 01-2-2V5zm2 1v8h8V6H4z" /></svg>, view: 'tables', badge: tablesBadgeCount},
         ];
 
         if (currentUser?.role === 'admin' || currentUser?.role === 'branch-admin' || currentUser?.role === 'auditor') {
@@ -615,7 +615,7 @@ const App: React.FC = () => {
             // Handle FCM Token Logic
             if (isFirebaseConfigured && firebase.messaging.isSupported()) {
                 const messaging = firebase.messaging();
-                messaging.getToken({ vapidKey: 'BKo-M6Q2dJz_7L5_FkC5q_w3O2u6G7mY9e0z5N6n_Y1mQ8z_Z0z3z_X9y_Y9y_X9y_X' })
+                messaging.getToken({ vapidKey: 'BDBGk_J108hNL-aQh-fFzAIpMwlD8TztXugeAnQj2hcmLAAjY0p8hWlGF3a0cSIwJhY_Jd3Tj3Y-2-fB8dJL_4' })
                 .then((token) => {
                     if (token) {
                         setCurrentFcmToken(token);
@@ -726,7 +726,7 @@ const App: React.FC = () => {
                     // Try to re-sync token if permission granted
                     if (isFirebaseConfigured && firebase.messaging.isSupported()) {
                         const messaging = firebase.messaging();
-                        const token = await messaging.getToken({ vapidKey: 'BKo-M6Q2dJz_7L5_FkC5q_w3O2u6G7mY9e0z5N6n_Y1mQ8z_Z0z3z_X9y_Y9y_X9y_X' });
+                        const token = await messaging.getToken({ vapidKey: 'BDBGk_J108hNL-aQh-fFzAIpMwlD8TztXugeAnQj2hcmLAAjY0p8hWlGF3a0cSIwJhY_Jd3Tj3Y-2-fB8dJL_4' });
                         if(token) setCurrentFcmToken(token);
                     }
                 }
