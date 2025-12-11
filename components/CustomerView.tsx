@@ -1,3 +1,4 @@
+
 // ... imports
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import type { MenuItem, Table, OrderItem, ActiveOrder, StaffCall, CompletedOrder } from '../types';
@@ -560,48 +561,50 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     }, [cartItems]);
 
 
-    // --- Dynamic Order Status Logic (Personalized) ---
+    // --- [FIXED] Dynamic Order Status Logic (Personalized & Robust) ---
     const orderStatus = useMemo(() => {
         try {
-            // Priority 1: Check myItems (orders explicitly tracked in local storage or session)
-            let relevantOrders: ActiveOrder[] = [];
-            
-            // Normalize current user name for robust matching
-            const currentNormName = customerName?.trim().toLowerCase();
-
-            if (myItems.length > 0) {
-                 // Get parent orders for my items
-                 const myOrderIds = new Set(myItems.map(i => i.originalOrderNumber || 0));
-                 relevantOrders = allBranchOrders.filter(o => myOrderIds.has(o.orderNumber));
-            } 
-            
-            // Priority 2: Fallback - Look for ANY active order for this table/name if we have no tracked items yet
-            // This fixes the "disappearing badge" if local storage sync misses a beat or on fresh load
-            if (relevantOrders.length === 0 && isAuthenticated && currentNormName) {
-                 relevantOrders = allBranchOrders.filter(o => 
-                    o.tableId === table.id && 
-                    (o.customerName?.trim().toLowerCase() === currentNormName)
-                );
+            // We only show status if logged in.
+            if (!isAuthenticated || !customerName) {
+                return null;
             }
 
-            if (relevantOrders.length === 0) return null;
+            const currentNormName = customerName.trim().toLowerCase();
+            const myTrackedOrderNumbers = new Set(myOrderNumbers);
+            
+            // Find all orders that belong to this customer, either by name on this table, or by tracked ID anywhere.
+            const relevantOrders = allBranchOrders.filter(order => {
+                // Match by tracked order number (covers merged orders)
+                if (myTrackedOrderNumbers.has(order.orderNumber)) {
+                    return true;
+                }
+                // Match by customer name on the current table
+                if (order.tableId === table.id && order.customerName?.trim().toLowerCase() === currentNormName) {
+                    return true;
+                }
+                return false;
+            });
 
-            // Determine aggregate status
+            // If no relevant orders are found, no status to display.
+            if (relevantOrders.length === 0) {
+                return null;
+            }
+
+            // Determine aggregate status from the relevant orders
             const hasCooking = relevantOrders.some(o => o.status === 'cooking');
             const hasWaiting = relevantOrders.some(o => o.status === 'waiting');
-
+            
             if (hasCooking) {
                 return { text: t('กำลังปรุง... 🍳'), color: 'bg-orange-100 text-orange-700 border-orange-200' };
             }
             
             if (hasWaiting) {
-                 // Calculate queue position
-                 const myWaitingOrders = relevantOrders.filter(o => o.status === 'waiting');
-                 if (myWaitingOrders.length === 0) return null; // Should not happen given hasWaiting check
+                 const myEarliestOrderTime = Math.min(
+                    ...relevantOrders
+                        .filter(o => o.status === 'waiting')
+                        .map(o => o.orderTime)
+                );
 
-                 const myEarliestOrderTime = Math.min(...myWaitingOrders.map(o => o.orderTime));
-
-                 // Count how many orders in the WHOLE BRANCH are waiting/cooking and were placed BEFORE my earliest order
                  const queueAhead = allBranchOrders.filter(o => 
                     (o.status === 'waiting' || o.status === 'cooking') && 
                     o.orderTime < myEarliestOrderTime
@@ -610,18 +613,14 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                 return { text: `${t('รอคิว...')} (${queueAhead} ${t('คิว')}) ⏳`, color: 'bg-blue-100 text-blue-700 border-blue-200' };
             }
             
-            // If all served
-            const allServed = relevantOrders.every(o => o.status === 'served');
-            if (allServed) {
-                 return { text: t('เสิร์ฟครบแล้ว 😋'), color: 'bg-green-100 text-green-700 border-green-200' };
-            }
+            // If we have relevant orders but none are waiting or cooking, they must all be 'served'.
+            return { text: t('เสิร์ฟครบแล้ว 😋'), color: 'bg-green-100 text-green-700 border-green-200' };
 
-            return null;
         } catch (e) {
             console.error("Error calculating orderStatus:", e);
             return null;
         }
-    }, [myItems, allBranchOrders, myOrderNumbers, language, translations, isAuthenticated, customerName, table.id]);
+    }, [allBranchOrders, myOrderNumbers, isAuthenticated, customerName, table.id, translations]);
 
 
     const t = (text: string): string => {
