@@ -546,7 +546,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
 
             // 2. PRIORITY 1: COOKING
             if (myTableOrders.some(o => o.status === 'cooking')) {
-                 return { text: t('กำลังปรุง... 🍳'), color: 'bg-orange-100 text-orange-800 border-orange-200' };
+                 return { text: t('กำลังปรุง... 🍳'), color: 'bg-orange-500 text-white border-orange-600' };
             }
 
             // 3. PRIORITY 2: WAITING (Calculate Real Queue)
@@ -562,16 +562,16 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
 
                 // Better Text Logic: If queueCount is 0, it means I am next (or being prepped).
                 if (queueCount === 0) {
-                    return { text: `${t('รอคิว')} (${t('คิวที่ 1')} ☝️)`, color: 'bg-blue-100 text-blue-800 border-blue-200' };
+                    return { text: `${t('รอคิว')} (${t('คิวที่ 1')} ☝️)`, color: 'bg-blue-600 text-white border-blue-700' };
                 }
 
-                return { text: `${t('รอคิว...')} (${t('อีก')} ${queueCount} ${t('คิว')}) ⏳`, color: 'bg-blue-100 text-blue-800 border-blue-200' };
+                return { text: `${t('รอคิว...')} (${t('อีก')} ${queueCount} ${t('คิว')}) ⏳`, color: 'bg-blue-600 text-white border-blue-700' };
             }
 
             // 4. PRIORITY 3: SERVED
             const allServed = myTableOrders.every(o => o.status === 'served' || o.status === 'completed');
             if (allServed) {
-                 return { text: t('เสิร์ฟครบแล้ว 😋'), color: 'bg-green-100 text-green-800 border-green-200' };
+                 return { text: t('เสิร์ฟครบแล้ว 😋'), color: 'bg-green-500 text-white border-green-600' };
             }
 
             return null;
