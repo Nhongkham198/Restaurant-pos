@@ -763,10 +763,18 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                 </div>
                 <div className="flex justify-between items-start">
                     <div>
-                        <h1 className="font-bold text-gray-800 text-lg flex items-center gap-2">
-                            {t('เมนูอาหาร 🍽️')}
-                            <span className="text-xs font-normal text-gray-500 bg-gray-100 px-2 py-1 rounded-full">{t('โต๊ะ')} {table.name}</span>
-                        </h1>
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <h1 className="font-bold text-gray-800 text-lg">{t('เมนูอาหาร 🍽️')}</h1>
+                            <span className="text-xs font-normal text-gray-500 bg-gray-100 px-2 py-1 rounded-full whitespace-nowrap">
+                                {t('โต๊ะ')} {table.name}
+                            </span>
+                            {/* STATUS BADGE MOVED HERE (Next to table name) */}
+                            {orderStatus && (
+                                <span className={`text-xs font-bold px-2 py-1 rounded-full border shadow-sm ${orderStatus.color} animate-pulse whitespace-nowrap`}>
+                                    {orderStatus.text}
+                                </span>
+                            )}
+                        </div>
                         <p className="text-xs text-gray-500 mt-1">{t('คุณ')}{customerName}</p>
                     </div>
                     <div className="flex items-start gap-2">
@@ -781,16 +789,11 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                             </svg>
                             <span className="text-[9px] font-bold mt-0.5">{t('เรียก')}</span>
                         </button>
-                         {/* Right Side: Status & Bill */}
+                         {/* Right Side: Bill Only (Status moved to left) */}
                         <div 
                             className="flex flex-col items-end gap-1.5 cursor-pointer hover:opacity-80 transition-opacity group"
                             onClick={() => { if (checkSessionValidity()) setIsActiveOrderListOpen(true); }}
                         >
-                             {orderStatus && (
-                                <span className={`text-xs font-bold px-2 py-1 rounded-full border shadow-sm ${orderStatus.color} animate-pulse`}>
-                                    {orderStatus.text}
-                                </span>
-                            )}
                             <div className="text-right">
                                 <div className="flex items-center justify-end gap-1 text-gray-400 text-[10px]">
                                     <span>{t('ยอดของฉัน')}</span>
