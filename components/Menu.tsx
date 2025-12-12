@@ -509,7 +509,7 @@ export const Menu: React.FC<MenuProps> = ({
                     >
                         <div className="text-gray-400 group-hover:text-blue-500 transition-colors">
                              <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 4v16m8-8H4" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4v16m8-8H4" />
                             </svg>
                         </div>
                         <p className="mt-2 font-semibold text-gray-500 group-hover:text-blue-600 transition-colors">เพิ่มเมนูใหม่</p>

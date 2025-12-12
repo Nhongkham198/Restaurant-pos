@@ -535,24 +535,24 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     // --- [REWORKED] Dynamic Order Status Logic (GLOBAL QUEUE) ---
     const orderStatus = useMemo(() => {
         try {
-            // 1. Get ALL active orders for this specific table
-            // Use String comparison for safety
+            // 1. Check if user has active items they placed
+            if (myItems.length === 0) return null;
+
+            // 2. Try to find these orders in the branch data
             const myTableOrders = allBranchOrders ? allBranchOrders.filter(o => String(o.tableId) === String(table.id)) : [];
 
-            // If user has 'My Total' > 0 but no active orders found, they might be waiting for initial sync or status 'waiting'.
-            // Force a status if we know there should be one based on My Items logic
-            if (myTableOrders.length === 0 && myItems.length > 0) {
-                 return { text: `${t('รอคิว')} (${t('คิวที่ 1')} ☝️)`, color: 'bg-blue-600 text-white border-blue-700' };
+            // 3. Fallback: If I have items locally but branch orders are empty (sync delay),
+            //    SHOW WAITING STATUS IMMEDIATELY. Do not return null.
+            if (myTableOrders.length === 0) {
+                 return { text: t('รอคิว'), color: 'bg-blue-600 text-white border-blue-700' };
             }
 
-            if (myTableOrders.length === 0) return null;
-
-            // 2. PRIORITY 1: COOKING
+            // 4. PRIORITY 1: COOKING
             if (myTableOrders.some(o => o.status === 'cooking')) {
                  return { text: t('กำลังปรุง... 🍳'), color: 'bg-orange-500 text-white border-orange-600' };
             }
 
-            // 3. PRIORITY 2: WAITING (Calculate Real Queue)
+            // 5. PRIORITY 2: WAITING
             const waitingOrders = myTableOrders.filter(o => o.status === 'waiting');
             if (waitingOrders.length > 0) {
                 const myEarliestOrderTime = Math.min(...waitingOrders.map(o => o.orderTime));
@@ -563,7 +563,6 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                     o.orderTime < myEarliestOrderTime
                 ).length;
 
-                // Better Text Logic: If queueCount is 0, it means I am next (or being prepped).
                 if (queueCount === 0) {
                     return { text: `${t('รอคิว')} (${t('คิวที่ 1')} ☝️)`, color: 'bg-blue-600 text-white border-blue-700' };
                 }
@@ -571,17 +570,19 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                 return { text: `${t('รอคิว...')} (${t('อีก')} ${queueCount} ${t('คิว')}) ⏳`, color: 'bg-blue-600 text-white border-blue-700' };
             }
 
-            // 4. PRIORITY 3: SERVED
+            // 6. PRIORITY 3: SERVED
             const allServed = myTableOrders.every(o => o.status === 'served' || o.status === 'completed');
             if (allServed) {
                  return { text: t('เสิร์ฟครบแล้ว 😋'), color: 'bg-green-500 text-white border-green-600' };
             }
 
-            return null;
+            // Default fallback
+            return { text: t('รอคิว'), color: 'bg-blue-600 text-white border-blue-700' };
 
         } catch (e) {
             console.error("Status Calc Error", e);
-            return null;
+            // Fallback on error if we know we have items
+            return myItems.length > 0 ? { text: t('รอคิว'), color: 'bg-blue-600 text-white border-blue-700' } : null;
         }
     }, [allBranchOrders, isAuthenticated, table.id, translations, myItems.length]);
 
@@ -769,25 +770,20 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
 
                 {/* Main Header Content */}
                 <div className="px-4 py-3 flex justify-between items-start">
-                    <div className="flex-1 flex flex-col items-start gap-1">
-                        <div className="flex items-center gap-2">
+                    <div className="flex-1">
+                        <div className="flex flex-wrap items-center gap-2 mb-1">
                             <span className="text-sm font-medium text-gray-600 bg-gray-100 px-3 py-1 rounded-full border border-gray-200 whitespace-nowrap">
                                 {t('โต๊ะ')} <span className="text-gray-900 font-bold">{table.name}</span>
                             </span>
-                            <span className="text-xs text-gray-400 mt-0.5">{t('คุณ')}{customerName}</span>
-                        </div>
-                        
-                        {/* STATUS BADGE - Explicitly placed here on a new line or block to ensure visibility */}
-                        <div className="mt-1 h-6">
-                            {orderStatus ? (
+                            
+                            {/* STATUS BADGE - NOW INLINE and RELAXED LOGIC */}
+                            {orderStatus && (
                                 <span className={`text-xs font-bold px-3 py-1 rounded-full border shadow-sm ${orderStatus.color} animate-pulse whitespace-nowrap flex items-center gap-1 z-10`}>
                                     {orderStatus.text}
                                 </span>
-                            ) : (
-                                // Placeholder height to prevent layout shift if needed, or render nothing
-                                <span className="text-xs text-transparent">.</span>
                             )}
                         </div>
+                        <p className="text-xs text-gray-400 pl-1">{t('คุณ')}{customerName}</p>
                     </div>
 
                     <div className="flex items-start gap-2 flex-shrink-0">
