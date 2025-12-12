@@ -566,67 +566,67 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     // --- [REWORKED] Dynamic Order Status Logic (100% RELIABLE) ---
     const orderStatus = useMemo(() => {
         try {
-            if (!isAuthenticated || !customerName) {
-                return null;
-            }
-    
-            const currentNormName = customerName.trim().toLowerCase();
+            // Early exit if not logged in
+            if (!isAuthenticated || !customerName) return null;
+
+            // Normalize current user data
+            const normName = customerName.trim().toLowerCase();
+            const currentTableId = table.id;
             const myTrackedOrderNumbers = new Set(myOrderNumbers);
-    
-            // Ensure allBranchOrders is a valid array before filtering
-            if (!Array.isArray(allBranchOrders)) {
-                return null;
+
+            // Ensure we have orders to check
+            if (!Array.isArray(allBranchOrders) || allBranchOrders.length === 0) return null;
+
+            // Filter relevant orders based on:
+            // 1. Table ID AND Customer Name (Primary: Real-time match)
+            // 2. Tracked Order ID (Secondary: Merged/Moved match)
+            const relevantOrders = allBranchOrders.filter(order => {
+                // Check table & name match (Loose equality for tableId to handle string/number)
+                // eslint-disable-next-line eqeqeq
+                const isTableNameMatch = (order.tableId == currentTableId) && 
+                                       (order.customerName?.trim().toLowerCase() === normName);
+                
+                // Check tracked ID match
+                const isIdMatch = myTrackedOrderNumbers.has(order.orderNumber);
+
+                return isTableNameMatch || isIdMatch;
+            });
+
+            if (relevantOrders.length === 0) return null;
+
+            // Determine status priority
+            // Priority 1: Cooking
+            const cookingOrder = relevantOrders.find(o => o.status === 'cooking');
+            if (cookingOrder) {
+                 return { text: t('กำลังปรุง... 🍳'), color: 'bg-orange-100 text-orange-800 border-orange-200' };
             }
 
-            // Find all orders that belong to this customer, either by name on this table, or by tracked ID anywhere.
-            const relevantOrders = allBranchOrders.filter(order => {
-                // 1. Match by tracked order number (covers merged orders)
-                if (myTrackedOrderNumbers.has(order.orderNumber)) {
-                    return true;
-                }
-                
-                // 2. Match by customer name on the current table (for newly placed orders not yet in local storage)
-                // Use loose equality for tableId to handle string/number mismatch possibilities
-                // eslint-disable-next-line eqeqeq
-                if (order.tableId == table.id && order.customerName?.trim().toLowerCase() === currentNormName) {
-                    return true;
-                }
-                return false;
-            });
-    
-            if (relevantOrders.length === 0) {
-                return null;
-            }
-    
-            const hasCooking = relevantOrders.some(o => o.status === 'cooking');
-            const hasWaiting = relevantOrders.some(o => o.status === 'waiting');
-    
-            // Priority 1: Cooking (Highest)
-            if (hasCooking) {
-                return { text: t('กำลังปรุง... 🍳'), color: 'bg-orange-100 text-orange-700 border-orange-200' };
-            }
-            
             // Priority 2: Waiting
-            if (hasWaiting) {
-                const myEarliestOrderTime = Math.min(
-                    ...relevantOrders
-                        .filter(o => o.status === 'waiting')
-                        .map(o => o.orderTime)
-                );
-    
-                const queueAhead = allBranchOrders.filter(o => 
+            const waitingOrders = relevantOrders.filter(o => o.status === 'waiting');
+            if (waitingOrders.length > 0) {
+                // Find the earliest order time among MY waiting orders
+                const myFirstOrderTime = Math.min(...waitingOrders.map(o => o.orderTime));
+
+                // Count how many orders in the WHOLE BRANCH are ahead of me
+                // (Status is waiting or cooking, and time is earlier)
+                const queueCount = allBranchOrders.filter(o => 
                     (o.status === 'waiting' || o.status === 'cooking') && 
-                    o.orderTime < myEarliestOrderTime
+                    o.orderTime < myFirstOrderTime
                 ).length;
-    
-                return { text: `${t('รอคิว...')} (${queueAhead} ${t('คิว')}) ⏳`, color: 'bg-blue-100 text-blue-700 border-blue-200' };
+
+                return { text: `${t('รอคิว...')} (${queueCount} ${t('คิว')}) ⏳`, color: 'bg-blue-100 text-blue-800 border-blue-200' };
             }
-            
-            // Priority 3: All Served (if no cooking or waiting)
-            return { text: t('เสิร์ฟครบแล้ว 😋'), color: 'bg-green-100 text-green-700 border-green-200' };
-    
+
+            // Priority 3: Served (All items must be served)
+            const servedOrders = relevantOrders.filter(o => o.status === 'served');
+            if (servedOrders.length > 0 && servedOrders.length === relevantOrders.length) {
+                 return { text: t('เสิร์ฟครบแล้ว 😋'), color: 'bg-green-100 text-green-800 border-green-200' };
+            }
+
+            return null;
+
         } catch (e) {
-            console.error("Error calculating orderStatus:", e);
+            console.error("Status Calc Error", e);
             return null;
         }
     }, [allBranchOrders, myOrderNumbers, isAuthenticated, customerName, table.id, translations]);
