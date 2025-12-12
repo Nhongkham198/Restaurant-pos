@@ -148,8 +148,10 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                         // Strategy 2: Session/Name Match (Immediate Fallback)
                         // If I am logged in and the order belongs to this table and my name, it's mine.
                         const orderNormName = order.customerName?.trim().toLowerCase();
+                        // Use loose equality for table ID (number vs string safety)
+                        // eslint-disable-next-line eqeqeq
                         const isMyOrderByName = isAuthenticated && currentNormName && 
-                                              order.tableId === table.id && 
+                                              order.tableId == table.id && 
                                               orderNormName === currentNormName;
 
                         order.items.forEach(item => {
@@ -571,12 +573,22 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
             const currentNormName = customerName.trim().toLowerCase();
             const myTrackedOrderNumbers = new Set(myOrderNumbers);
     
+            // Ensure allBranchOrders is a valid array before filtering
+            if (!Array.isArray(allBranchOrders)) {
+                return null;
+            }
+
             // Find all orders that belong to this customer, either by name on this table, or by tracked ID anywhere.
             const relevantOrders = allBranchOrders.filter(order => {
+                // 1. Match by tracked order number (covers merged orders)
                 if (myTrackedOrderNumbers.has(order.orderNumber)) {
                     return true;
                 }
-                if (order.tableId === table.id && order.customerName?.trim().toLowerCase() === currentNormName) {
+                
+                // 2. Match by customer name on the current table (for newly placed orders not yet in local storage)
+                // Use loose equality for tableId to handle string/number mismatch possibilities
+                // eslint-disable-next-line eqeqeq
+                if (order.tableId == table.id && order.customerName?.trim().toLowerCase() === currentNormName) {
                     return true;
                 }
                 return false;
@@ -589,7 +601,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
             const hasCooking = relevantOrders.some(o => o.status === 'cooking');
             const hasWaiting = relevantOrders.some(o => o.status === 'waiting');
     
-            // Priority 1: Cooking
+            // Priority 1: Cooking (Highest)
             if (hasCooking) {
                 return { text: t('กำลังปรุง... 🍳'), color: 'bg-orange-100 text-orange-700 border-orange-200' };
             }
@@ -627,6 +639,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         return translations[text] || text;
     };
     
+    // ... (rest of the file follows)
     const translateMenu = async () => {
         // ... (existing translateMenu logic)
         setIsTranslating(true);
