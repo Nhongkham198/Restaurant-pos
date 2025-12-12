@@ -149,11 +149,6 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                                               order.tableId == table.id && 
                                               orderNormName === currentNormName;
 
-                        // Strategy 3: Table Match (Fallback for visibility)
-                        // If I am authenticated on this table, and I haven't claimed specific orders yet,
-                        // treat all orders on this table as "visible" contextually, but for "My Items" list,
-                        // we stick to strict ownership or name match.
-                        
                         order.items.forEach(item => {
                             if (!item) return; 
                             
@@ -537,55 +532,49 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     }, [cartItems]);
 
 
-    // --- [REWORKED] Dynamic Order Status Logic (100% RELIABLE) ---
+    // --- [REWORKED] Dynamic Order Status Logic (GLOBAL QUEUE) ---
     const orderStatus = useMemo(() => {
         try {
-            if (!isAuthenticated) return null;
+            // Safety Check
+            if (!isAuthenticated || !allBranchOrders || allBranchOrders.length === 0) return null;
 
-            // Normalize
-            const currentTableId = table.id;
-            
-            // Ensure we have orders to check
-            if (!Array.isArray(allBranchOrders) || allBranchOrders.length === 0) return null;
+            // 1. Get ALL active orders for this specific table (spatial matching)
+            // This covers orders placed by customers (self) AND staff (POS).
+            // Use loose equality for tableId to handle string vs number ID mismatch.
+            // eslint-disable-next-line eqeqeq
+            const myTableOrders = allBranchOrders.filter(o => o.tableId == table.id);
 
-            // STRATEGY:
-            // 1. Get ALL orders for this table (spatial matching).
-            //    This solves the issue where staff ordered, or customer changed device.
-            //    If I am sitting at Table 2, I should see Table 2's order status.
-            const relevantOrders = allBranchOrders.filter(order => {
-                // Loose equality check for safety (string vs number)
-                // eslint-disable-next-line eqeqeq
-                return order.tableId == currentTableId;
-            });
+            // If no orders for this table, no status to show.
+            if (myTableOrders.length === 0) return null;
 
-            if (relevantOrders.length === 0) return null;
-
-            // Prioritize status display: Cooking > Waiting > Served
-            
-            // 1. Cooking
-            if (relevantOrders.some(o => o.status === 'cooking')) {
+            // 2. PRIORITY 1: COOKING
+            // If ANY order for this table is currently 'cooking', show Cooking status.
+            if (myTableOrders.some(o => o.status === 'cooking')) {
                  return { text: t('กำลังปรุง... 🍳'), color: 'bg-orange-100 text-orange-800 border-orange-200' };
             }
 
-            // 2. Waiting
-            const waitingOrders = relevantOrders.filter(o => o.status === 'waiting');
+            // 3. PRIORITY 2: WAITING (Calculate Real Queue)
+            // If there are 'waiting' orders, we need to calculate how many orders are ahead of us.
+            const waitingOrders = myTableOrders.filter(o => o.status === 'waiting');
             if (waitingOrders.length > 0) {
-                // Find the earliest order time among THIS TABLE'S waiting orders
-                const myFirstOrderTime = Math.min(...waitingOrders.map(o => o.orderTime));
+                // Find the OLDEST order time among MY waiting orders (first in, first out logic)
+                const myEarliestOrderTime = Math.min(...waitingOrders.map(o => o.orderTime));
 
-                // Count how many orders in the WHOLE BRANCH are ahead of me
+                // Count how many orders in the WHOLE BRANCH (allBranchOrders) are:
+                // a) Status is 'waiting' OR 'cooking' (Active queue)
+                // b) Were placed BEFORE my earliest order (orderTime < myEarliestOrderTime)
                 const queueCount = allBranchOrders.filter(o => 
                     (o.status === 'waiting' || o.status === 'cooking') && 
-                    o.orderTime < myFirstOrderTime
+                    o.orderTime < myEarliestOrderTime
                 ).length;
 
                 return { text: `${t('รอคิว...')} (${queueCount} ${t('คิว')}) ⏳`, color: 'bg-blue-100 text-blue-800 border-blue-200' };
             }
 
-            // 3. Served (Only if we have orders and they are ALL served)
-            // (If we have mixed served/waiting, the above logic prioritizes waiting)
-            const servedOrders = relevantOrders.filter(o => o.status === 'served');
-            if (servedOrders.length > 0) {
+            // 4. PRIORITY 3: SERVED
+            // If all orders for this table are 'served' (or completed) and none are waiting/cooking.
+            const allServed = myTableOrders.every(o => o.status === 'served' || o.status === 'completed');
+            if (allServed) {
                  return { text: t('เสิร์ฟครบแล้ว 😋'), color: 'bg-green-100 text-green-800 border-green-200' };
             }
 
