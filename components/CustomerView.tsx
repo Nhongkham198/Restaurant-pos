@@ -1,6 +1,6 @@
 
 // ... imports
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import type { MenuItem, Table, OrderItem, ActiveOrder, StaffCall, CompletedOrder } from '../types';
 import { Menu } from './Menu';
 import { ItemCustomizationModal } from './ItemCustomizationModal';
@@ -531,6 +531,13 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         }
     }, [cartItems]);
 
+    // Use useCallback for t to ensure stability, though it depends on language/translations
+    const t = useCallback((text: string): string => {
+        if (language === 'th' || !translations) {
+            return text;
+        }
+        return translations[text] || text;
+    }, [language, translations]);
 
     // --- [REWORKED] Dynamic Order Status Logic (GLOBAL QUEUE) ---
     const orderStatus = useMemo(() => {
@@ -539,7 +546,10 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
             if (myItems.length === 0) return null;
 
             // 2. Try to find these orders in the branch data
-            const myTableOrders = allBranchOrders ? allBranchOrders.filter(o => String(o.tableId) === String(table.id)) : [];
+            // Safety check: allBranchOrders might be undefined during initial load or error
+            if (!Array.isArray(allBranchOrders)) return null;
+
+            const myTableOrders = allBranchOrders.filter(o => String(o.tableId) === String(table.id));
 
             // 3. Fallback: If I have items locally but branch orders are empty (sync delay),
             //    SHOW WAITING STATUS IMMEDIATELY. Do not return null.
@@ -584,15 +594,8 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
             // Fallback on error if we know we have items
             return myItems.length > 0 ? { text: t('รอคิว'), color: 'bg-blue-600 text-white border-blue-700' } : null;
         }
-    }, [allBranchOrders, isAuthenticated, table.id, translations, myItems.length]);
+    }, [allBranchOrders, isAuthenticated, table.id, t, myItems.length]);
 
-
-    const t = (text: string): string => {
-        if (language === 'th' || !translations) {
-            return text;
-        }
-        return translations[text] || text;
-    };
     
     // ... (rest of the file follows)
     const translateMenu = async () => {
@@ -683,11 +686,11 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
             optionGroups: item.optionGroups?.map(group => ({
                 ...group,
                 name: translations[group.name] || group.name,
-                options: group.options.map(option => ({
+                options: group.options?.map(option => ({
                     ...option,
                     name: translations[option.name] || option.name
-                }))
-            }))
+                })) || [] // Added safeguard
+            })) || [] // Added safeguard
         }));
     }, [menuItems, language, translations]);
 
@@ -778,7 +781,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                             
                             {/* STATUS BADGE - NOW INLINE and RELAXED LOGIC */}
                             {orderStatus && (
-                                <span className={`text-xs font-bold px-3 py-1 rounded-full border shadow-sm ${orderStatus.color} animate-pulse whitespace-nowrap flex items-center gap-1 z-10`}>
+                                <span className={`text-xs font-bold px-3 py-1 rounded-full border shadow-sm ${orderStatus.color} whitespace-nowrap flex items-center gap-1 z-10`}>
                                     {orderStatus.text}
                                 </span>
                             )}
@@ -990,7 +993,14 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                 item={itemToCustomize ? {
                     ...itemToCustomize,
                     name: t(itemToCustomize.name),
-                    optionGroups: itemToCustomize.optionGroups?.map(g => ({...g, name: t(g.name), options: g.options.map(o => ({...o, name: t(o.name)}))}))
+                    optionGroups: itemToCustomize.optionGroups?.map(g => ({
+                        ...g,
+                        name: t(g.name),
+                        options: g.options?.map(o => ({
+                            ...o,
+                            name: t(o.name)
+                        })) || []
+                    })) || []
                 } : null}
                 onConfirm={handleConfirmCustomization} 
             />
