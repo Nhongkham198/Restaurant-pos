@@ -535,13 +535,16 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     // --- [REWORKED] Dynamic Order Status Logic (GLOBAL QUEUE) ---
     const orderStatus = useMemo(() => {
         try {
-            // Safety Check
-            if (!isAuthenticated || !allBranchOrders || allBranchOrders.length === 0) return null;
+            // 1. Get ALL active orders for this specific table
+            // Use String comparison for safety
+            const myTableOrders = allBranchOrders ? allBranchOrders.filter(o => String(o.tableId) === String(table.id)) : [];
 
-            // 1. Get ALL active orders for this specific table (spatial matching using String comparison)
-            const myTableOrders = allBranchOrders.filter(o => String(o.tableId) === String(table.id));
+            // If user has 'My Total' > 0 but no active orders found, they might be waiting for initial sync or status 'waiting'.
+            // Force a status if we know there should be one based on My Items logic
+            if (myTableOrders.length === 0 && myItems.length > 0) {
+                 return { text: `${t('รอคิว')} (${t('คิวที่ 1')} ☝️)`, color: 'bg-blue-600 text-white border-blue-700' };
+            }
 
-            // If no orders for this table, no status to show.
             if (myTableOrders.length === 0) return null;
 
             // 2. PRIORITY 1: COOKING
@@ -580,7 +583,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
             console.error("Status Calc Error", e);
             return null;
         }
-    }, [allBranchOrders, isAuthenticated, table.id, translations]);
+    }, [allBranchOrders, isAuthenticated, table.id, translations, myItems.length]);
 
 
     const t = (text: string): string => {
@@ -766,20 +769,25 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
 
                 {/* Main Header Content */}
                 <div className="px-4 py-3 flex justify-between items-start">
-                    <div className="flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex-1 flex flex-col items-start gap-1">
+                        <div className="flex items-center gap-2">
                             <span className="text-sm font-medium text-gray-600 bg-gray-100 px-3 py-1 rounded-full border border-gray-200 whitespace-nowrap">
                                 {t('โต๊ะ')} <span className="text-gray-900 font-bold">{table.name}</span>
                             </span>
-                            
-                            {/* STATUS BADGE - Explicitly placed here next to table name */}
-                            {orderStatus && (
+                            <span className="text-xs text-gray-400 mt-0.5">{t('คุณ')}{customerName}</span>
+                        </div>
+                        
+                        {/* STATUS BADGE - Explicitly placed here on a new line or block to ensure visibility */}
+                        <div className="mt-1 h-6">
+                            {orderStatus ? (
                                 <span className={`text-xs font-bold px-3 py-1 rounded-full border shadow-sm ${orderStatus.color} animate-pulse whitespace-nowrap flex items-center gap-1 z-10`}>
                                     {orderStatus.text}
                                 </span>
+                            ) : (
+                                // Placeholder height to prevent layout shift if needed, or render nothing
+                                <span className="text-xs text-transparent">.</span>
                             )}
                         </div>
-                        <p className="text-xs text-gray-400 mt-1 pl-1">{t('คุณ')}{customerName}</p>
                     </div>
 
                     <div className="flex items-start gap-2 flex-shrink-0">
