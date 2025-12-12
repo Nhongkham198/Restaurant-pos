@@ -538,41 +538,37 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
             // Safety Check
             if (!isAuthenticated || !allBranchOrders || allBranchOrders.length === 0) return null;
 
-            // 1. Get ALL active orders for this specific table (spatial matching)
-            // This covers orders placed by customers (self) AND staff (POS).
-            // Use loose equality for tableId to handle string vs number ID mismatch.
-            // eslint-disable-next-line eqeqeq
-            const myTableOrders = allBranchOrders.filter(o => o.tableId == table.id);
+            // 1. Get ALL active orders for this specific table (spatial matching using String comparison)
+            const myTableOrders = allBranchOrders.filter(o => String(o.tableId) === String(table.id));
 
             // If no orders for this table, no status to show.
             if (myTableOrders.length === 0) return null;
 
             // 2. PRIORITY 1: COOKING
-            // If ANY order for this table is currently 'cooking', show Cooking status.
             if (myTableOrders.some(o => o.status === 'cooking')) {
                  return { text: t('กำลังปรุง... 🍳'), color: 'bg-orange-100 text-orange-800 border-orange-200' };
             }
 
             // 3. PRIORITY 2: WAITING (Calculate Real Queue)
-            // If there are 'waiting' orders, we need to calculate how many orders are ahead of us.
             const waitingOrders = myTableOrders.filter(o => o.status === 'waiting');
             if (waitingOrders.length > 0) {
-                // Find the OLDEST order time among MY waiting orders (first in, first out logic)
                 const myEarliestOrderTime = Math.min(...waitingOrders.map(o => o.orderTime));
 
-                // Count how many orders in the WHOLE BRANCH (allBranchOrders) are:
-                // a) Status is 'waiting' OR 'cooking' (Active queue)
-                // b) Were placed BEFORE my earliest order (orderTime < myEarliestOrderTime)
+                // Count how many orders in the WHOLE BRANCH are waiting/cooking AND came before me
                 const queueCount = allBranchOrders.filter(o => 
                     (o.status === 'waiting' || o.status === 'cooking') && 
                     o.orderTime < myEarliestOrderTime
                 ).length;
 
-                return { text: `${t('รอคิว...')} (${queueCount} ${t('คิว')}) ⏳`, color: 'bg-blue-100 text-blue-800 border-blue-200' };
+                // Better Text Logic: If queueCount is 0, it means I am next (or being prepped).
+                if (queueCount === 0) {
+                    return { text: `${t('รอคิว')} (${t('คิวที่ 1')} ☝️)`, color: 'bg-blue-100 text-blue-800 border-blue-200' };
+                }
+
+                return { text: `${t('รอคิว...')} (${t('อีก')} ${queueCount} ${t('คิว')}) ⏳`, color: 'bg-blue-100 text-blue-800 border-blue-200' };
             }
 
             // 4. PRIORITY 3: SERVED
-            // If all orders for this table are 'served' (or completed) and none are waiting/cooking.
             const allServed = myTableOrders.every(o => o.status === 'served' || o.status === 'completed');
             if (allServed) {
                  return { text: t('เสิร์ฟครบแล้ว 😋'), color: 'bg-green-100 text-green-800 border-green-200' };
@@ -626,7 +622,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                 'ยืนยันการสั่งอาหาร?', 'สั่งอาหาร', 'รายการ', 'สั่งเลย', 'ตรวจสอบก่อน', 'ส่งสัญญาณเรียกพนักงานแล้ว', 'กรุณารอสักครู่...',
                 'กำลังสร้างรูปภาพ...', 'เกิดข้อผิดพลาด', 'ไม่สามารถสร้างรูปภาพได้', 'กำลังปรุง... 🍳', 'รอคิว...', 'คิว', 'เสิร์ฟครบแล้ว 😋',
                 'บันทึกสำเร็จ!', 'บิลของคุณถูกบันทึกเป็นรูปภาพแล้ว', 'สั่งอาหารสำเร็จ!', 'รายการอาหารถูกส่งเข้าครัวแล้ว',
-                'กำลังส่งรายการ...', 'ไม่สามารถสั่งอาหารได้ กรุณาลองใหม่', 'เกิดข้อผิดพลาด'
+                'กำลังส่งรายการ...', 'ไม่สามารถสั่งอาหารได้ กรุณาลองใหม่', 'เกิดข้อผิดพลาด', 'คิวที่ 1', 'อีก'
             ];
     
             const dynamicText = new Set<string>();
@@ -770,13 +766,13 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
 
                 {/* Main Header Content */}
                 <div className="px-4 py-3 flex justify-between items-start">
-                    <div>
+                    <div className="flex-1">
                         <div className="flex flex-wrap items-center gap-2">
-                            <span className="text-sm font-medium text-gray-600 bg-gray-100 px-3 py-1 rounded-full border border-gray-200">
+                            <span className="text-sm font-medium text-gray-600 bg-gray-100 px-3 py-1 rounded-full border border-gray-200 whitespace-nowrap">
                                 {t('โต๊ะ')} <span className="text-gray-900 font-bold">{table.name}</span>
                             </span>
                             
-                            {/* STATUS BADGE - Explicitly placed here */}
+                            {/* STATUS BADGE - Explicitly placed here next to table name */}
                             {orderStatus && (
                                 <span className={`text-xs font-bold px-3 py-1 rounded-full border shadow-sm ${orderStatus.color} animate-pulse whitespace-nowrap flex items-center gap-1 z-10`}>
                                     {orderStatus.text}
@@ -786,7 +782,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                         <p className="text-xs text-gray-400 mt-1 pl-1">{t('คุณ')}{customerName}</p>
                     </div>
 
-                    <div className="flex items-start gap-2">
+                    <div className="flex items-start gap-2 flex-shrink-0">
                         {/* Only show Call Staff button */}
                         <button
                             onClick={handleCallStaffClick}
