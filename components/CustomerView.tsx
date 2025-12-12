@@ -756,42 +756,51 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                 </div>
             )}
             {/* Header */}
-            <header className="bg-white shadow-sm px-4 py-3 z-10 relative">
-                <div className="absolute top-3 left-3 z-20 bg-gray-100 rounded-full shadow p-1 flex text-xs">
-                    <button onClick={() => handleLanguageSwitch('th')} className={`px-3 py-1 rounded-full font-semibold ${language === 'th' ? 'bg-blue-600 text-white' : 'text-gray-600'}`}>TH</button>
-                    <button onClick={() => handleLanguageSwitch('en')} className={`px-3 py-1 rounded-full font-semibold ${language === 'en' ? 'bg-blue-600 text-white' : 'text-gray-600'}`}>EN</button>
+            <header className="bg-white shadow-md z-30 relative">
+                {/* Top Row: Language & Title (Mobile Friendly) */}
+                <div className="flex justify-between items-center px-4 py-2 border-b border-gray-100 bg-gray-50/50">
+                    <h1 className="font-bold text-gray-800 text-lg flex items-center gap-2">
+                        {t('เมนูอาหาร 🍽️')}
+                    </h1>
+                    <div className="flex bg-white rounded-full shadow-sm p-1 text-xs border border-gray-200">
+                        <button onClick={() => handleLanguageSwitch('th')} className={`px-3 py-1 rounded-full font-semibold transition-colors ${language === 'th' ? 'bg-blue-600 text-white' : 'text-gray-500 hover:bg-gray-100'}`}>TH</button>
+                        <button onClick={() => handleLanguageSwitch('en')} className={`px-3 py-1 rounded-full font-semibold transition-colors ${language === 'en' ? 'bg-blue-600 text-white' : 'text-gray-500 hover:bg-gray-100'}`}>EN</button>
+                    </div>
                 </div>
-                <div className="flex justify-between items-start">
+
+                {/* Main Header Content */}
+                <div className="px-4 py-3 flex justify-between items-start">
                     <div>
-                        <div className="flex items-center gap-2 flex-wrap">
-                            <h1 className="font-bold text-gray-800 text-lg">{t('เมนูอาหาร 🍽️')}</h1>
-                            <span className="text-xs font-normal text-gray-500 bg-gray-100 px-2 py-1 rounded-full whitespace-nowrap">
-                                {t('โต๊ะ')} {table.name}
+                        <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-sm font-medium text-gray-600 bg-gray-100 px-3 py-1 rounded-full border border-gray-200">
+                                {t('โต๊ะ')} <span className="text-gray-900 font-bold">{table.name}</span>
                             </span>
-                            {/* STATUS BADGE MOVED HERE (Next to table name) */}
+                            
+                            {/* STATUS BADGE - Explicitly placed here */}
                             {orderStatus && (
-                                <span className={`text-xs font-bold px-2 py-1 rounded-full border shadow-sm ${orderStatus.color} animate-pulse whitespace-nowrap`}>
+                                <span className={`text-xs font-bold px-3 py-1 rounded-full border shadow-sm ${orderStatus.color} animate-pulse whitespace-nowrap flex items-center gap-1 z-10`}>
                                     {orderStatus.text}
                                 </span>
                             )}
                         </div>
-                        <p className="text-xs text-gray-500 mt-1">{t('คุณ')}{customerName}</p>
+                        <p className="text-xs text-gray-400 mt-1 pl-1">{t('คุณ')}{customerName}</p>
                     </div>
+
                     <div className="flex items-start gap-2">
                         {/* Only show Call Staff button */}
                         <button
                             onClick={handleCallStaffClick}
-                            className="flex flex-col items-center justify-center p-2 bg-yellow-100 text-yellow-800 rounded-lg shadow-sm hover:bg-yellow-200 active:bg-yellow-300 transition-colors"
+                            className="flex flex-col items-center justify-center p-2 bg-yellow-50 text-yellow-700 border border-yellow-200 rounded-lg shadow-sm hover:bg-yellow-100 active:bg-yellow-200 transition-colors"
                             title={t('เรียกพนักงาน')}
                         >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                                 <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z" />
                             </svg>
-                            <span className="text-[9px] font-bold mt-0.5">{t('เรียก')}</span>
+                            <span className="text-[10px] font-bold mt-0.5">{t('เรียก')}</span>
                         </button>
                          {/* Right Side: Bill Only (Status moved to left) */}
                         <div 
-                            className="flex flex-col items-end gap-1.5 cursor-pointer hover:opacity-80 transition-opacity group"
+                            className="flex flex-col items-end gap-1 cursor-pointer hover:opacity-80 transition-opacity group bg-white p-1 rounded"
                             onClick={() => { if (checkSessionValidity()) setIsActiveOrderListOpen(true); }}
                         >
                             <div className="text-right">
