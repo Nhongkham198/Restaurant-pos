@@ -129,35 +129,34 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     };
 
     // --- IDENTIFY MY ITEMS (Even if merged) ---
-    // We scan ALL branch orders because if a bill is merged to another table, it won't be in 'activeOrders' (which is filtered by table).
-    // We look for items that have an 'originalOrderNumber' matching one of 'myOrderNumbers'.
     const myItems = useMemo(() => {
         try {
             const items: OrderItem[] = [];
             // Strategy 1: ID Match (Persistent via LocalStorage)
             const myOrderSet = new Set(myOrderNumbers);
             
-            // Normalize current user name for robust matching
+            // Normalize current user name
             const currentNormName = customerName?.trim().toLowerCase();
 
             if (Array.isArray(allBranchOrders)) {
                 allBranchOrders.forEach(order => {
-                    // Safety check: ensure order and order.items exist
                     if (order && Array.isArray(order.items)) {
                         
-                        // Strategy 2: Session/Name Match (Immediate Fallback)
-                        // If I am logged in and the order belongs to this table and my name, it's mine.
+                        // Strategy 2: Session/Name Match
                         const orderNormName = order.customerName?.trim().toLowerCase();
-                        // Use loose equality for table ID (number vs string safety)
                         // eslint-disable-next-line eqeqeq
                         const isMyOrderByName = isAuthenticated && currentNormName && 
                                               order.tableId == table.id && 
                                               orderNormName === currentNormName;
 
+                        // Strategy 3: Table Match (Fallback for visibility)
+                        // If I am authenticated on this table, and I haven't claimed specific orders yet,
+                        // treat all orders on this table as "visible" contextually, but for "My Items" list,
+                        // we stick to strict ownership or name match.
+                        
                         order.items.forEach(item => {
-                            if (!item) return; // Safety check for null items
+                            if (!item) return; 
                             
-                            // Check if item matches ID list
                             const originId = item.originalOrderNumber ?? order.orderNumber;
                             const isMyItemById = myOrderSet.has(originId);
 
@@ -191,7 +190,6 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
 
         try {
             const currentNormName = customerName.trim().toLowerCase();
-            // Scan active orders for this table. If we find an order with my name that I don't track yet, track it.
             const newMyOrderIds: number[] = [];
             activeOrders.forEach(order => {
                 const orderNormName = order.customerName?.trim().toLowerCase();
@@ -229,7 +227,6 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
             const latestCompletedOrder = myJustCompletedOrders.sort((a, b) => b.completionTime - a.completionTime)[0];
     
             if (!latestCompletedOrder) {
-                // Failsafe: if we can't find the order, show a simple message and log out.
                 Swal.fire({
                     title: 'ขอบคุณที่มาอุดหนุนครับ/ค่ะ 🙏',
                     text: "รายการของคุณชำระเงินเรียบร้อยแล้ว",
@@ -294,7 +291,6 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                 confirmButtonColor: '#3085d6',
                 denyButtonColor: '#aaa',
                 allowOutsideClick: false,
-                // --- FIX: Capture DOM element before closing Swal using preConfirm ---
                 preConfirm: async () => {
                     const billElement = document.getElementById('customer-final-bill');
                     if (billElement) {
@@ -303,7 +299,6 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                             return canvas.toDataURL('image/png');
                         } catch (err) {
                             console.error('Failed to save bill as image', err);
-                            // Return null to indicate failure but don't crash Swal
                             return null;
                         }
                     }
@@ -313,7 +308,6 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                 if (result.isConfirmed) {
                     const imageUrl = result.value;
                     if (imageUrl) {
-                        // Create download link
                         const link = document.createElement('a');
                         link.href = imageUrl;
                         link.download = `bill-${latestCompletedOrder.tableName}-${customerName}-${new Date().toISOString().slice(0, 10)}.png`;
@@ -331,12 +325,10 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                             handleLogout();
                         });
                     } else {
-                        // If result.value is null (capture failed)
                         Swal.fire(t('เกิดข้อผิดพลาด'), t('ไม่สามารถบันทึกบิลได้'), 'error')
                         .then(() => handleLogout());
                     }
                 } else { 
-                    // User clicked Deny (No) or closed
                     handleLogout();
                 }
             });
@@ -348,23 +340,12 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
 
     // --- Monitor Session validity (PIN Changes) ---
     useEffect(() => {
-        // If authenticated, but PIN doesn't match anymore
         if (isAuthenticated && table.activePin !== pinInput) {
-            
-            // If we are already processing a payment success flow, ignore this generic PIN reset logic
             if (isProcessingPaymentRef.current) return;
 
-            // If I still have active items, allow me to stay (maybe just a PIN refresh) or show merged status
             if (myItems.length > 0) {
-                // If items exist but PIN changed, it's weird but we shouldn't just kick if they are eating.
-                // However, security-wise, if PIN changed, maybe we should re-verify?
-                // For now, per requirement "don't logout if merged", we trust the session unless explicitly cleared.
-                // But if the Table itself was cleared (no active orders at all on table), that's different.
-                
-                // If table is completely empty but I have items elsewhere (merged), I'm effectively a guest on another table now.
-                // We'll let them stay to view their bill.
+                // Table PIN changed but I have active items? Allow stay.
             } else {
-                // No items and PIN changed? Likely a table reset for new customer.
                  Swal.fire({
                     title: 'สิ้นสุดการบริการ',
                     text: 'ขอบคุณที่ใช้บริการ 🙏',
@@ -379,7 +360,6 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     }, [table.activePin, isAuthenticated, pinInput, myItems.length]);
 
     const checkSessionValidity = (): boolean => {
-        // We relax the PIN check if the user has active items (might be merged/moved)
         if (myItems.length > 0) return true;
         if (table.activePin !== pinInput) {
             return false;
@@ -400,7 +380,6 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
             return;
         }
         
-        // Save session
         localStorage.setItem(`customer_session_${table.id}`, JSON.stringify({
             name: customerName.trim(),
             pin: pinInput
@@ -456,7 +435,6 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         if (result.isConfirmed) {
             if (!checkSessionValidity()) return;
             
-            // Show loading state
             Swal.fire({
                 title: t('กำลังส่งรายการ...'),
                 allowOutsideClick: false,
@@ -464,14 +442,10 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
             });
 
             try {
-                // Call onPlaceOrder (App.tsx handles this async)
                 await onPlaceOrder(cartItems, customerName, 1); 
-                
-                // Clear cart immediately
                 setCartItems([]);
                 setIsCartOpen(false);
 
-                // Show success message immediately here (since App.tsx modal isn't visible in customer mode)
                 await Swal.fire({
                     icon: 'success',
                     title: t('สั่งอาหารสำเร็จ!'),
@@ -519,8 +493,8 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     
         try {
             const canvas = await html2canvas(billContentRef.current, {
-                scale: 2, // Higher resolution
-                useCORS: true, // For any external images if they exist
+                scale: 2, 
+                useCORS: true, 
             });
             const image = canvas.toDataURL('image/png');
             const link = document.createElement('a');
@@ -566,49 +540,40 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     // --- [REWORKED] Dynamic Order Status Logic (100% RELIABLE) ---
     const orderStatus = useMemo(() => {
         try {
-            // Early exit if not logged in
-            if (!isAuthenticated || !customerName) return null;
+            if (!isAuthenticated) return null;
 
-            // Normalize current user data
-            const normName = customerName.trim().toLowerCase();
+            // Normalize
             const currentTableId = table.id;
-            const myTrackedOrderNumbers = new Set(myOrderNumbers);
-
+            
             // Ensure we have orders to check
             if (!Array.isArray(allBranchOrders) || allBranchOrders.length === 0) return null;
 
-            // Filter relevant orders based on:
-            // 1. Table ID AND Customer Name (Primary: Real-time match)
-            // 2. Tracked Order ID (Secondary: Merged/Moved match)
+            // STRATEGY:
+            // 1. Get ALL orders for this table (spatial matching).
+            //    This solves the issue where staff ordered, or customer changed device.
+            //    If I am sitting at Table 2, I should see Table 2's order status.
             const relevantOrders = allBranchOrders.filter(order => {
-                // Check table & name match (Loose equality for tableId to handle string/number)
+                // Loose equality check for safety (string vs number)
                 // eslint-disable-next-line eqeqeq
-                const isTableNameMatch = (order.tableId == currentTableId) && 
-                                       (order.customerName?.trim().toLowerCase() === normName);
-                
-                // Check tracked ID match
-                const isIdMatch = myTrackedOrderNumbers.has(order.orderNumber);
-
-                return isTableNameMatch || isIdMatch;
+                return order.tableId == currentTableId;
             });
 
             if (relevantOrders.length === 0) return null;
 
-            // Determine status priority
-            // Priority 1: Cooking
-            const cookingOrder = relevantOrders.find(o => o.status === 'cooking');
-            if (cookingOrder) {
+            // Prioritize status display: Cooking > Waiting > Served
+            
+            // 1. Cooking
+            if (relevantOrders.some(o => o.status === 'cooking')) {
                  return { text: t('กำลังปรุง... 🍳'), color: 'bg-orange-100 text-orange-800 border-orange-200' };
             }
 
-            // Priority 2: Waiting
+            // 2. Waiting
             const waitingOrders = relevantOrders.filter(o => o.status === 'waiting');
             if (waitingOrders.length > 0) {
-                // Find the earliest order time among MY waiting orders
+                // Find the earliest order time among THIS TABLE'S waiting orders
                 const myFirstOrderTime = Math.min(...waitingOrders.map(o => o.orderTime));
 
                 // Count how many orders in the WHOLE BRANCH are ahead of me
-                // (Status is waiting or cooking, and time is earlier)
                 const queueCount = allBranchOrders.filter(o => 
                     (o.status === 'waiting' || o.status === 'cooking') && 
                     o.orderTime < myFirstOrderTime
@@ -617,9 +582,10 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                 return { text: `${t('รอคิว...')} (${queueCount} ${t('คิว')}) ⏳`, color: 'bg-blue-100 text-blue-800 border-blue-200' };
             }
 
-            // Priority 3: Served (All items must be served)
+            // 3. Served (Only if we have orders and they are ALL served)
+            // (If we have mixed served/waiting, the above logic prioritizes waiting)
             const servedOrders = relevantOrders.filter(o => o.status === 'served');
-            if (servedOrders.length > 0 && servedOrders.length === relevantOrders.length) {
+            if (servedOrders.length > 0) {
                  return { text: t('เสิร์ฟครบแล้ว 😋'), color: 'bg-green-100 text-green-800 border-green-200' };
             }
 
@@ -629,7 +595,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
             console.error("Status Calc Error", e);
             return null;
         }
-    }, [allBranchOrders, myOrderNumbers, isAuthenticated, customerName, table.id, translations]);
+    }, [allBranchOrders, isAuthenticated, table.id, translations]);
 
 
     const t = (text: string): string => {
