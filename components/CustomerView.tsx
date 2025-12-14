@@ -1,5 +1,4 @@
-
-// ... imports
+// ... existing imports
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import type { MenuItem, Table, OrderItem, ActiveOrder, StaffCall, CompletedOrder } from '../types';
 import { Menu } from './Menu';
@@ -581,7 +580,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
             }
 
             // 6. PRIORITY 3: SERVED
-            const allServed = myTableOrders.every(o => o.status === 'served' || o.status === 'completed');
+            const allServed = myTableOrders.every(o => o.status === 'served');
             if (allServed) {
                  return { text: t('เสิร์ฟครบแล้ว 😋'), color: 'bg-green-500 text-white border-green-600' };
             }
@@ -597,15 +596,14 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     }, [allBranchOrders, isAuthenticated, table.id, t, myItems.length]);
 
     
-    // ... (rest of the file follows)
     const translateMenu = async () => {
-        // ... (existing translateMenu logic)
         setIsTranslating(true);
         try {
-            // Use the provided key as fallback or main key
-            const apiKey = process.env.API_KEY || "AIzaSyCfQvFBBkaxteAf-R8dCbj9qew01UokHbs";
+            // FIX: Use the specific API key provided by the user directly to ensure it works on client devices.
+            // This ensures no environmental variable mismatch causes the translation to fail.
+            const apiKey = "AIzaSyCfQvFBBkaxteAf-R8dCbj9qew01UokHbs";
 
-            // Check for API key availability
+            // Check for API key availability (should always be true now)
             if (!apiKey) {
                 console.warn("Gemini API Key is missing. Translation skipped.");
                 Swal.fire({
@@ -660,8 +658,13 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                 }
             });
     
-            const result = JSON.parse(response.text);
-            setTranslations(result);
+            const textResponse = response.text;
+            if (textResponse) {
+                const result = JSON.parse(textResponse);
+                setTranslations(result);
+            } else {
+                throw new Error("Empty response from AI");
+            }
         } catch (error) {
             console.error("Translation failed:", error);
             Swal.fire('Translation Unavailable', 'Cannot translate at this time.', 'info');
@@ -699,7 +702,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         return categories.map(cat => translations[cat] || cat);
     }, [categories, language, translations]);
 
-    // ... (rest of the file remains unchanged from here down to JSX)
+    // ... (rest of the file follows)
     
     // --- LOGIN SCREEN ---
     if (!isAuthenticated) {
