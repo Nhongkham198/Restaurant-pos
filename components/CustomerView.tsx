@@ -242,7 +242,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                     <h3 class="text-center text-xl font-bold mb-2">${restaurantName}</h3>
                     <p class="text-center text-xs text-gray-500 mb-4">ใบเสร็จรับเงิน (อย่างย่อ)</p>
                     <div class="text-sm space-y-1 mb-4">
-                        <p><strong>โต๊ะ:</strong> ${latestCompletedOrder.tableName}</p>
+                        <p><strong>โต๊ะ:</strong> ${latestCompletedOrder.tableName} (${latestCompletedOrder.floor})</p>
                         <p><strong>ลูกค้า:</strong> ${customerName}</p>
                         <p><strong>วันที่:</strong> ${new Date(latestCompletedOrder.completionTime).toLocaleString('th-TH')}</p>
                     </div>
@@ -673,7 +673,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                     <div className="flex-1">
                         <div className="flex flex-wrap items-center gap-2 mb-1">
                             <span className="text-sm font-medium text-gray-600 bg-gray-100 px-3 py-1 rounded-full border border-gray-200 whitespace-nowrap">
-                                {t('โต๊ะ')} <span className="text-gray-900 font-bold">{table.name}</span>
+                                {t('โต๊ะ')} <span className="text-gray-900 font-bold">{table.name} ({table.floor})</span>
                             </span>
                             
                             {/* STATUS BADGE - NOW INLINE and RELAXED LOGIC */}
@@ -774,6 +774,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                                     <img src={logoUrl} alt="Logo" className="h-16 w-auto object-contain mb-2" crossOrigin="anonymous" />
                                 )}
                                 <h3 className="font-bold text-gray-800 text-lg">{t('รายการของฉัน')} ({t('คุณ')}{customerName}) 🧾</h3>
+                                <p className="text-sm text-gray-600">{t('โต๊ะ')} {table.name} ({table.floor})</p>
                             </div>
                             
                             <div className="p-4 space-y-4">
