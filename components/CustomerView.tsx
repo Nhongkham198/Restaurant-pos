@@ -1,3 +1,4 @@
+
 // ... existing imports
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import type { MenuItem, Table, OrderItem, ActiveOrder, StaffCall, CompletedOrder } from '../types';
@@ -37,8 +38,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
 }) => {
     // ... state ...
     const [isAuthenticated, setIsAuthenticated] = useState(false);
-    const [customerName, setCustomerName] = useState('');
-    const [pinInput, setPinInput] = useState('');
+    const [customerName, setCustomerName] = useState('ลูกค้า'); // Default to generic name
     
     // --- CART PERSISTENCE ---
     const cartKey = `customer_cart_${table.id}`;
@@ -86,29 +86,34 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     const prevMyItemsCountRef = useRef<number>(0);
     const isProcessingPaymentRef = useRef(false);
     
-    // --- Session Persistence Logic ---
+    // --- Auto-Login / Session Logic (No PIN) ---
     useEffect(() => {
         const sessionKey = `customer_session_${table.id}`;
         const savedSession = localStorage.getItem(sessionKey);
         
         if (savedSession) {
             try {
-                const { name, pin } = JSON.parse(savedSession);
-
-                if (table.activePin) {
-                    if (pin === table.activePin) {
-                        setCustomerName(name);
-                        setPinInput(pin);
-                        setIsAuthenticated(true);
-                    } else {
-                        localStorage.removeItem(sessionKey);
-                    }
-                }
+                const { name } = JSON.parse(savedSession);
+                setCustomerName(name || 'ลูกค้า');
+                setIsAuthenticated(true);
             } catch (e) {
-                localStorage.removeItem(sessionKey);
+                // Invalid session, recreate
+                initializeSession(sessionKey);
             }
+        } else {
+            // No session, create one automatically
+            initializeSession(sessionKey);
         }
-    }, [table.id, table.activePin]);
+    }, [table.id]);
+
+    const initializeSession = (sessionKey: string) => {
+        // Generate a simple guest session
+        const randomSuffix = Math.floor(Math.random() * 1000);
+        const name = `Guest-${randomSuffix}`;
+        localStorage.setItem(sessionKey, JSON.stringify({ name }));
+        setCustomerName(name);
+        setIsAuthenticated(true);
+    };
 
     const handleLogout = () => {
         const sessionKey = `customer_session_${table.id}`;
@@ -118,13 +123,8 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         localStorage.removeItem('customerSelectedBranch');
 
         setIsAuthenticated(false);
-        setCustomerName('');
-        setPinInput('');
-        setCartItems([]);
-        setMyOrderNumbers([]);
-        setIsCartOpen(false);
-        setIsActiveOrderListOpen(false);
-        isProcessingPaymentRef.current = false;
+        // Page usually reloads or re-inits here, triggering auto-login again for a fresh session
+        window.location.reload(); 
     };
 
     // --- IDENTIFY MY ITEMS (Even if merged) ---
@@ -141,7 +141,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                 allBranchOrders.forEach(order => {
                     if (order && Array.isArray(order.items)) {
                         
-                        // Strategy 2: Session/Name Match
+                        // Strategy 2: Session/Name Match (Backup)
                         const orderNormName = order.customerName?.trim().toLowerCase();
                         // eslint-disable-next-line eqeqeq
                         const isMyOrderByName = isAuthenticated && currentNormName && 
@@ -178,7 +178,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         }
     }, [myItems]);
 
-    // Auto-add new orders to "My Orders" if I placed them
+    // Auto-add new orders to "My Orders" if I placed them (based on name match from session)
     useEffect(() => {
         if (!isAuthenticated || !customerName) return;
 
@@ -207,31 +207,30 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     
         const currentCount = myItems.length;
         const prevCount = prevMyItemsCountRef.current;
-    
+        
+        // Trigger only if I had items before, and now they are gone (0 active items)
         if (prevCount > 0 && currentCount === 0 && !isProcessingPaymentRef.current) {
             isProcessingPaymentRef.current = true;
     
-            // Find the most recently completed order that belongs to me
+            // Find the most recently completed order that belongs to ME (via myOrderNumbers)
+            // This is the CRITICAL part for "Device specific logout"
             const myJustCompletedOrders = completedOrders.filter(o =>
                 myOrderNumbers.some(myNum =>
                     o.orderNumber === myNum || (o.mergedOrderNumbers && o.mergedOrderNumbers.includes(myNum))
                 )
             );
     
-            const latestCompletedOrder = myJustCompletedOrders.sort((a, b) => b.completionTime - a.completionTime)[0];
-    
-            if (!latestCompletedOrder) {
-                Swal.fire({
-                    title: 'ขอบคุณที่มาอุดหนุนครับ/ค่ะ 🙏',
-                    text: "รายการของคุณชำระเงินเรียบร้อยแล้ว",
-                    icon: 'success',
-                    confirmButtonText: 'ออกจากระบบ',
-                    allowOutsideClick: false,
-                }).then(() => {
-                    handleLogout();
-                });
-                return;
+            // If no completed order matches my numbers, it implies either:
+            // 1. Items were deleted/cancelled (handled elsewhere usually, but safe to stay logged in)
+            // 2. Or another device paid THEIR bill, but MY order numbers weren't in it.
+            if (myJustCompletedOrders.length === 0) {
+                // Reset flag and continue (User stays logged in because THEIR bill wasn't paid)
+                isProcessingPaymentRef.current = false;
+                prevMyItemsCountRef.current = currentCount;
+                return; 
             }
+
+            const latestCompletedOrder = myJustCompletedOrders.sort((a, b) => b.completionTime - a.completionTime)[0];
     
             // Build the bill HTML for display and for html2canvas
             const subtotal = latestCompletedOrder.items.reduce((sum, item) => sum + item.finalPrice * item.quantity, 0);
@@ -332,63 +331,11 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     }, [myItems.length, isAuthenticated, completedOrders, myOrderNumbers, logoUrl, restaurantName, customerName]);
     
 
-    // --- Monitor Session validity (PIN Changes) ---
-    useEffect(() => {
-        if (isAuthenticated && table.activePin !== pinInput) {
-            if (isProcessingPaymentRef.current) return;
-
-            if (myItems.length > 0) {
-                // Table PIN changed but I have active items? Allow stay.
-            } else {
-                 Swal.fire({
-                    title: 'สิ้นสุดการบริการ',
-                    text: 'ขอบคุณที่ใช้บริการ 🙏',
-                    timer: 2000,
-                    showConfirmButton: false,
-                    allowOutsideClick: false
-                }).then(() => {
-                    handleLogout();
-                });
-            }
-        }
-    }, [table.activePin, isAuthenticated, pinInput, myItems.length]);
-
-    const checkSessionValidity = (): boolean => {
-        if (myItems.length > 0) return true;
-        if (table.activePin !== pinInput) {
-            return false;
-        }
-        return true;
-    };
-
-
-    // Login Handler
-    const handleLogin = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!customerName.trim()) {
-            Swal.fire('กรุณาระบุชื่อ', 'โปรดใส่ชื่อของคุณ', 'warning');
-            return;
-        }
-        if (pinInput !== table.activePin) {
-            Swal.fire('รหัสไม่ถูกต้อง', 'กรุณาตรวจสอบรหัส PIN กับพนักงาน', 'error');
-            return;
-        }
-        
-        localStorage.setItem(`customer_session_${table.id}`, JSON.stringify({
-            name: customerName.trim(),
-            pin: pinInput
-        }));
-
-        setIsAuthenticated(true);
-    };
-
     const handleSelectItem = (item: MenuItem) => {
-        if (!checkSessionValidity()) return;
         setItemToCustomize(item);
     };
 
     const handleConfirmCustomization = (itemToAdd: OrderItem) => {
-        if (!checkSessionValidity()) return;
         setCartItems(prev => {
             const existingItem = prev.find(i => i.cartItemId === itemToAdd.cartItemId);
             if (existingItem) {
@@ -408,12 +355,10 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     };
 
     const handleRemoveItem = (cartItemId: string) => {
-        if (!checkSessionValidity()) return;
         setCartItems(prev => prev.filter(i => i.cartItemId !== cartItemId));
     };
 
     const handleSubmitOrder = async () => {
-        if (!checkSessionValidity()) return;
         if (cartItems.length === 0) return;
 
         const result = await Swal.fire({
@@ -427,7 +372,6 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         });
 
         if (result.isConfirmed) {
-            if (!checkSessionValidity()) return;
             
             Swal.fire({
                 title: t('กำลังส่งรายการ...'),
@@ -436,6 +380,8 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
             });
 
             try {
+                // Force customerCount to 1 as strict tracking isn't critical in this flow, 
+                // or we could add a simple prompt if needed.
                 await onPlaceOrder(cartItems, customerName, 1); 
                 setCartItems([]);
                 setIsCartOpen(false);
@@ -460,7 +406,6 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     };
 
     const handleCallStaffClick = () => {
-        if (!checkSessionValidity()) return;
         onStaffCall(table, customerName);
         Swal.fire({
             toast: true,
@@ -599,21 +544,9 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     const translateMenu = async () => {
         setIsTranslating(true);
         try {
-            // FIX: Use the specific API key provided by the user directly to ensure it works on client devices.
-            // This ensures no environmental variable mismatch causes the translation to fail.
             const apiKey = "AIzaSyCfQvFBBkaxteAf-R8dCbj9qew01UokHbs";
 
-            // Check for API key availability (should always be true now)
             if (!apiKey) {
-                console.warn("Gemini API Key is missing. Translation skipped.");
-                Swal.fire({
-                    toast: true,
-                    position: 'top-end',
-                    icon: 'warning',
-                    title: 'ระบบแปลภาษาไม่พร้อมใช้งาน',
-                    showConfirmButton: false,
-                    timer: 2000
-                });
                 setLanguage('th'); 
                 return;
             }
@@ -667,7 +600,6 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
             }
         } catch (error) {
             console.error("Translation failed:", error);
-            Swal.fire('Translation Unavailable', 'Cannot translate at this time.', 'info');
             setLanguage('th'); 
         } finally {
             setIsTranslating(false);
@@ -692,8 +624,8 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                 options: group.options?.map(option => ({
                     ...option,
                     name: translations[option.name] || option.name
-                })) || [] // Added safeguard
-            })) || [] // Added safeguard
+                })) || [] 
+            })) || [] 
         }));
     }, [menuItems, language, translations]);
 
@@ -702,52 +634,14 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         return categories.map(cat => translations[cat] || cat);
     }, [categories, language, translations]);
 
-    // ... (rest of the file follows)
-    
-    // --- LOGIN SCREEN ---
+    // If not authenticated (though effect above should catch this instantly),
+    // show a simple loading state or a fallback.
+    // We removed the PIN form, so basically we just wait for the effect to auto-login.
     if (!isAuthenticated) {
         return (
-            <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center p-4">
-                <div className="bg-white p-8 rounded-2xl shadow-lg max-w-md w-full text-center">
-                    <div className="w-20 h-20 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                        </svg>
-                    </div>
-                    <h1 className="text-2xl font-bold text-gray-800 mb-2">สวัสดีครับ/ค่ะ 🙏</h1>
-                    <p className="text-gray-600 mb-6">โต๊ะ: <span className="font-bold text-blue-600 text-xl">{table.name} ({table.floor})</span></p>
-                    
-                    <form onSubmit={handleLogin} className="space-y-4 text-left">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">ชื่อเล่นของคุณ</label>
-                            <input 
-                                type="text" 
-                                value={customerName}
-                                onChange={e => setCustomerName(e.target.value)}
-                                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                                placeholder="ระบุชื่อเล่น..."
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">รหัส PIN (3 หลัก)</label>
-                            <input 
-                                type="tel" 
-                                maxLength={3}
-                                value={pinInput}
-                                onChange={e => setPinInput(e.target.value)}
-                                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-center text-2xl tracking-widest font-bold"
-                                placeholder="XXX"
-                            />
-                            <p className="text-xs text-gray-400 mt-1 text-center">* ขอรหัสจากพนักงาน หรือดูที่ป้ายโต๊ะ</p>
-                        </div>
-                        <button 
-                            type="submit"
-                            className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl shadow-md hover:bg-blue-700 transition-colors mt-4"
-                        >
-                            เข้าสู่เมนูอาหาร
-                        </button>
-                    </form>
-                </div>
+            <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+                <p className="mt-4 text-gray-600">กำลังเข้าสู่ระบบ...</p>
             </div>
         );
     }
@@ -789,6 +683,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                                 </span>
                             )}
                         </div>
+                        {/* Optionally allow editing name, but kept simple for now */}
                         <p className="text-xs text-gray-400 pl-1">{t('คุณ')}{customerName}</p>
                     </div>
 
@@ -807,7 +702,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                          {/* Right Side: Bill Only (Status moved to left) */}
                         <div 
                             className="flex flex-col items-end gap-1 cursor-pointer hover:opacity-80 transition-opacity group bg-white p-1 rounded"
-                            onClick={() => { if (checkSessionValidity()) setIsActiveOrderListOpen(true); }}
+                            onClick={() => { setIsActiveOrderListOpen(true); }}
                         >
                             <div className="text-right">
                                 <div className="flex items-center justify-end gap-1 text-gray-400 text-[10px]">
@@ -851,7 +746,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
             {totalCartItemsCount > 0 && (
                 <div className="absolute bottom-6 left-4 right-4 z-20">
                     <button 
-                        onClick={() => { if (checkSessionValidity()) setIsCartOpen(true); }}
+                        onClick={() => { setIsCartOpen(true); }}
                         className="w-full bg-blue-600 text-white shadow-xl rounded-xl p-4 flex justify-between items-center animate-bounce-in"
                     >
                         <div className="flex items-center gap-3">

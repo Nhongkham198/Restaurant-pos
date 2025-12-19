@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 
 import { 
@@ -329,6 +328,31 @@ const App: React.FC = () => {
     // 3. EFFECTS
     // ============================================================================
     
+    // --- EFFECT: Auto-Correct Order Floors (Self-Healing) ---
+    // This ensures that if a table moves, the order's floor property is updated to match the new table's floor.
+    // This fixes the issue where export data shows the old floor even after moving tables.
+    useEffect(() => {
+        let hasChanges = false;
+        const correctedOrders = activeOrders.map(order => {
+            const realTable = tables.find(t => t.id === order.tableId);
+            // Check if the order's stored floor or tableName doesn't match the actual table configuration
+            if (realTable && (realTable.floor !== order.floor || realTable.name !== order.tableName)) {
+                hasChanges = true;
+                return { 
+                    ...order, 
+                    floor: realTable.floor, 
+                    tableName: realTable.name 
+                };
+            }
+            return order;
+        });
+
+        if (hasChanges) {
+            console.log("[Auto-Correct] Detected inconsistency in order table data. Fixing...");
+            setActiveOrders(correctedOrders);
+        }
+    }, [activeOrders, tables, setActiveOrders]);
+
     // --- EFFECT: Handle Responsive Layout ---
     useEffect(() => {
         const handleResize = () => {
@@ -1367,8 +1391,22 @@ const App: React.FC = () => {
         if (!newTable) return;
         
         setActiveOrders(prev => prev.map(o => 
-            o.id === orderId ? { ...o, tableId: newTable.id, tableName: newTable.name, floor: newTable.floor } : o
+            o.id === orderId ? { 
+                ...o, 
+                tableId: newTable.id, 
+                tableName: newTable.name, 
+                floor: newTable.floor // Ensure we use the exact floor string from table data
+            } : o
         ));
+
+        // Feedback for successful move
+        Swal.fire({
+            icon: 'success',
+            title: 'ย้ายโต๊ะสำเร็จ',
+            text: `ย้ายไปโต๊ะ ${newTable.name} (${newTable.floor}) เรียบร้อยแล้ว`,
+            timer: 1500,
+            showConfirmButton: false
+        });
         
         handleModalClose();
     };
@@ -1390,44 +1428,42 @@ const App: React.FC = () => {
     };
     
     const handleConfirmMerge = (sourceOrderIds: number[], targetOrderId: number) => {
-        // Find all necessary data before the state update.
-        const sourceOrders = activeOrders.filter(o => sourceOrderIds.includes(o.id));
+        // Find source orders before starting state update
+        const sourceOrdersToMerge = activeOrders.filter(o => sourceOrderIds.includes(o.id));
         
-        // If for some reason there are no source orders, just close the modal.
-        if (sourceOrders.length === 0) {
+        if (sourceOrdersToMerge.length === 0) {
             handleModalClose();
             return;
         }
-    
-        const allItemsToMerge = sourceOrders.flatMap(o => o.items.map(item => ({
+
+        const allItemsToMerge = sourceOrdersToMerge.flatMap(o => o.items.map(item => ({
             ...item,
             originalOrderNumber: item.originalOrderNumber ?? o.orderNumber
         })));
-        const sourceOrderNumbers = sourceOrders.map(o => o.orderNumber);
+        
+        const sourceNumbers = sourceOrdersToMerge.map(o => o.orderNumber);
     
-        // Perform a single, atomic state update.
         setActiveOrders(prevActiveOrders => {
-            // First, create a new array without the source orders that are being merged.
-            const filteredOrders = prevActiveOrders.filter(o => !sourceOrderIds.includes(o.id));
-            
-            // Then, map over this new array to update the target order.
-            const updatedOrders = filteredOrders.map(o => {
-                if (o.id === targetOrderId) {
-                    // This is the target order. Add the merged items and metadata.
-                    const newItems = [...o.items, ...allItemsToMerge];
-        
-                    const newMergedNumbers = Array.from(new Set([
-                        ...(o.mergedOrderNumbers || []),
-                        ...sourceOrderNumbers
-                    ])).sort((a, b) => a - b);
-        
-                    return { ...o, items: newItems, mergedOrderNumbers: newMergedNumbers };
-                }
-                // This is not the target order, return it as is.
-                return o;
-            });
-            
-            return updatedOrders;
+            // Find the target in the most recent state to ensure we don't drop it
+            const targetOrder = prevActiveOrders.find(o => o.id === targetOrderId);
+            if (!targetOrder) return prevActiveOrders;
+
+            const newItems = [...targetOrder.items, ...allItemsToMerge];
+            const newMergedNumbers = Array.from(new Set([
+                ...(targetOrder.mergedOrderNumbers || []),
+                ...sourceNumbers
+            ])).sort((a, b) => a - b);
+
+            const updatedTarget = { 
+                ...targetOrder, 
+                items: newItems, 
+                mergedOrderNumbers: newMergedNumbers 
+            };
+
+            // Return new list: Remove sources, then update target
+            return prevActiveOrders
+                .filter(o => !sourceOrderIds.includes(o.id))
+                .map(o => o.id === targetOrderId ? updatedTarget : o);
         });
         
         handleModalClose();

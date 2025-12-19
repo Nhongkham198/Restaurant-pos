@@ -259,7 +259,9 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({ completedOrders, can
             const subtotal = order.items.reduce((sum, item) => sum + item.price * item.quantity, 0);
             const total = subtotal + order.taxAmount;
             const completionDate = new Date(order.completionTime).toLocaleString('th-TH');
-            const floorText = order.floor === 'lower' ? 'ชั้นล่าง' : 'ชั้นบน';
+            
+            // FIX: Using actual floor string from data instead of buggy hardcoded logic
+            const floorText = order.floor;
             
             const paymentMethodText = order.paymentDetails.method === 'cash' ? 'เงินสด' : 'โอนจ่าย';
             const cashReceived = order.paymentDetails.method === 'cash' ? order.paymentDetails.cashReceived?.toFixed(2) || '' : '';
@@ -321,7 +323,7 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({ completedOrders, can
                 `'${order.orderNumber}`,
                 new Date(order.cancellationTime).toLocaleString('th-TH'),
                 order.tableName,
-                order.floor === 'lower' ? 'ชั้นล่าง' : 'ชั้นบน',
+                order.floor, // FIX: Use real floor string
                 order.cancellationReason,
                 order.cancellationNotes || '',
                 order.cancelledBy,

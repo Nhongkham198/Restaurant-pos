@@ -23,6 +23,42 @@ const TableCard: React.FC<TableCardProps> = ({ table, orders, onTableSelect, onS
 
     const isAdminOrManager = currentUser?.role === 'admin' || currentUser?.role === 'branch-admin';
 
+    // --- Table Timer Logic ---
+    const [durationText, setDurationText] = useState<string>('');
+
+    const startTime = useMemo(() => {
+        if (!isOccupied) return null;
+        // Find the earliest order time among all active orders on this table
+        return Math.min(...orders.map(o => o.orderTime));
+    }, [orders, isOccupied]);
+
+    useEffect(() => {
+        if (!startTime) {
+            setDurationText('');
+            return;
+        }
+
+        const updateTimer = () => {
+            const now = Date.now();
+            const diffMs = now - startTime;
+            const diffMins = Math.floor(diffMs / 60000);
+            const hours = Math.floor(diffMins / 60);
+            const mins = diffMins % 60;
+
+            if (hours > 0) {
+                setDurationText(`${hours} ชม. ${mins} นาที`);
+            } else {
+                setDurationText(`${mins} นาที`);
+            }
+        };
+
+        updateTimer(); // Initial call
+        const intervalId = setInterval(updateTimer, 60000); // Update every minute
+
+        return () => clearInterval(intervalId);
+    }, [startTime]);
+    // -------------------------
+
     const combinedTotal = useMemo(() => {
         return orders.reduce((tableSum, order) => {
             const subtotal = order.items.reduce((sum, item) => sum + item.finalPrice * item.quantity, 0);
@@ -200,6 +236,17 @@ const TableCard: React.FC<TableCardProps> = ({ table, orders, onTableSelect, onS
                         )}
                     </div>
                 </div>
+                
+                {/* Table Timer Display */}
+                {isOccupied && durationText && (
+                    <div className="flex items-center gap-1 mt-1 text-xs font-medium text-gray-600 bg-white/50 px-2 py-0.5 rounded-md w-fit">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span>{durationText}</span>
+                    </div>
+                )}
+
                 {isOccupied && mainOrder?.customerName && (
                     <p className="mt-2 font-semibold text-lg text-blue-700 truncate">{mainOrder.customerName}</p>
                 )}
@@ -221,33 +268,6 @@ const TableCard: React.FC<TableCardProps> = ({ table, orders, onTableSelect, onS
                         {table.reservation.contact && <p className="text-purple-700 text-xs">โทร: {table.reservation.contact}</p>}
                     </div>
                 )}
-                
-                <div className="mt-3">
-                    {table.activePin ? (
-                        <div className="flex items-center justify-between bg-white/60 px-3 py-2 rounded border border-gray-300">
-                            <div>
-                                <span className="text-xs text-gray-600 font-medium block">PIN ลูกค้า</span>
-                                <span className="text-xl font-bold text-blue-700 tracking-widest">{table.activePin}</span>
-                            </div>
-                            <button 
-                                onClick={(e) => { e.stopPropagation(); onGeneratePin(table.id); }}
-                                className="text-gray-500 hover:text-blue-600 p-1 hover:bg-blue-50 rounded"
-                                title="รีเซ็ต PIN ใหม่"
-                            >
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                </svg>
-                            </button>
-                        </div>
-                    ) : (
-                        <button
-                            onClick={(e) => { e.stopPropagation(); onGeneratePin(table.id); }}
-                            className="w-full py-1.5 border-2 border-dashed border-gray-400 text-gray-600 rounded-lg hover:bg-white hover:border-blue-400 hover:text-blue-600 text-sm font-medium flex items-center justify-center gap-1 transition-colors"
-                        >
-                            <span>+ สร้าง PIN ลูกค้า</span>
-                        </button>
-                    )}
-                </div>
             </div>
             
             <div className="mt-4 flex flex-col gap-2">
