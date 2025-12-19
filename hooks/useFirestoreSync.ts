@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { db } from '../firebaseConfig';
 import type { Table, OrderCounter } from '../types';
@@ -10,6 +11,7 @@ export function useFirestoreSync<T>(
     const [value, setValue] = useState<T>(initialValue);
     const initialValueRef = useRef(initialValue);
     
+    // Keep a ref to the current value to avoid stale closures
     const valueRef = useRef(value);
     useEffect(() => {
         valueRef.current = value;
@@ -35,13 +37,25 @@ export function useFirestoreSync<T>(
         
         const docRef = db.doc(pathSegments.join('/'));
 
+        // Include metadata changes so local writes (pending to server) trigger updates immediately.
+        // This ensures the UI feels "instant" even if the data hasn't reached the server yet.
         const unsubscribe = docRef.onSnapshot(
+            { includeMetadataChanges: true }, 
             (docSnapshot) => {
+                // Determine if we should use the data. 
+                // If it exists, use it (whether from cache or server).
+                // With enablePersistence, docSnapshot.exists will be true even if offline, provided data was cached.
                 if (docSnapshot.exists) {
                     const data = docSnapshot.data();
+                    
+                    // Optional: You can check docSnapshot.metadata.fromCache if you need to know source.
+                    // console.log(`Data for ${collectionKey} from cache: ${docSnapshot.metadata.fromCache}`);
+
                     if (data && typeof data.value !== 'undefined') {
                         let valueToSet = data.value;
 
+                        // --- Validation & Cleanup Logic (Read-Only) ---
+                        
                         if (collectionKey === 'tables' && Array.isArray(valueToSet)) {
                             const rawTablesFromDb = valueToSet as Table[];
                             const uniqueTablesMap = new Map<number, Table>();
@@ -53,29 +67,15 @@ export function useFirestoreSync<T>(
                                     }
                                 }
                             });
-                            const cleanedUniqueTables = Array.from(uniqueTablesMap.values());
-
-                            if (rawTablesFromDb.length > cleanedUniqueTables.length) {
-                                console.warn(`[Firestore Sync] Found and removed ${rawTablesFromDb.length - cleanedUniqueTables.length} duplicate tables. Auto-correcting data in Firestore.`);
-                                docRef.set({ value: cleanedUniqueTables }).catch(err => {
-                                    console.error("Failed to write cleaned table data back to Firestore:", err);
-                                });
-                            }
-
-                            valueToSet = cleanedUniqueTables;
-                        }
-
-                        if (collectionKey === 'menuItems' && Array.isArray(valueToSet) && valueToSet.length === 0 && Array.isArray(currentInitialValue) && currentInitialValue.length > 0) {
-                            console.warn(`'menuItems' for branch ${branchId} is empty in Firestore. Re-initializing with default value.`);
-                            docRef.set({ value: currentInitialValue });
-                            setValue(currentInitialValue);
-                        } else if (collectionKey === 'orderCounter') {
+                            // Use cleaned unique tables locally
+                            valueToSet = Array.from(uniqueTablesMap.values());
+                        } 
+                        else if (collectionKey === 'orderCounter') {
                             const counterData = valueToSet as any;
                             
-                            // New robust validation logic
-                            if (!counterData || typeof counterData !== 'object' || typeof counterData.count !== 'number' || !counterData.lastResetDate) {
-                                console.warn(`'orderCounter' has an invalid format. Resetting to initial value.`);
-                                docRef.set({ value: currentInitialValue });
+                            // Robust validation: If invalid, use local initial value but DO NOT overwrite DB
+                            if (!counterData || typeof counterData !== 'object' || typeof counterData.count !== 'number') {
+                                console.warn(`'orderCounter' in DB has invalid format. Using local initial value.`);
                                 setValue(currentInitialValue);
                                 return;
                             }
@@ -88,7 +88,7 @@ export function useFirestoreSync<T>(
                                     correctedDateString = lastResetDate;
                                 }
                             } else if (lastResetDate && typeof lastResetDate.toDate === 'function') {
-                                // It's a Firestore Timestamp, convert it.
+                                // Firestore Timestamp conversion
                                 const dateObj = lastResetDate.toDate();
                                 const year = dateObj.getFullYear();
                                 const month = String(dateObj.getMonth() + 1).padStart(2, '0');
@@ -97,52 +97,47 @@ export function useFirestoreSync<T>(
                             }
                             
                             if (correctedDateString) {
-                                const validCounter: OrderCounter = { count, lastResetDate: correctedDateString };
-                                setValue(validCounter as T);
+                                valueToSet = { count, lastResetDate: correctedDateString };
                             } else {
-                                console.warn(`'orderCounter' has an invalid date format. Resetting to initial value.`);
-                                docRef.set({ value: currentInitialValue });
+                                // Invalid date format, fallback locally
+                                console.warn(`'orderCounter' date invalid. Using local initial value.`);
                                 setValue(currentInitialValue);
+                                return;
                             }
                         }
-                        else {
-                            setValue(valueToSet as T);
-                        }
+
+                        setValue(valueToSet as T);
                     } else {
-                        console.warn(`Document at ${pathSegments.join('/')} is malformed. Overwriting with initial value.`);
-                        docRef.set({ value: currentInitialValue });
+                        console.warn(`Document at ${pathSegments.join('/')} exists but is malformed. Using initial value locally.`);
                         setValue(currentInitialValue);
                     }
                 } else {
-                    console.log(`Document at ${pathSegments.join('/')} not found. Creating...`);
-                    docRef.set({ value: currentInitialValue });
+                    // Document does not exist.
+                    // CRITICAL: We only revert to initialValue if the document TRULY doesn't exist.
+                    // With persistence enabled, if we are just offline, 'exists' might still be true if cached.
+                    // If it's effectively a new install/clean cache, we use initial value but DO NOT automatically write back.
+                    console.log(`Document not found at ${pathSegments.join('/')}. Using initial value locally.`);
                     setValue(currentInitialValue);
                 }
-            }, 
+            },
             (error) => {
-                console.error(`Error listening to document ${pathSegments.join('/')}:`, error);
+                console.error(`Firestore sync error for ${collectionKey}:`, error);
+                // On error (permission denied, etc.), keep existing state or initial value.
+                // Do NOT overwrite DB.
             }
         );
-        
+
         return () => unsubscribe();
     }, [branchId, collectionKey]);
 
-    const setFirestoreValue: React.Dispatch<React.SetStateAction<T>> = useCallback((newValueAction) => {
-        const newValue = newValueAction instanceof Function ? newValueAction(valueRef.current) : newValueAction;
-        
-        // Optimistically update local state right away.
-        setValue(newValue);
-        
-        if (!db) {
-            console.error("Firestore is not initialized.");
-            return;
-        }
+    const setAndSyncValue = useCallback((newValue: React.SetStateAction<T>) => {
+        if (!db) return;
 
         const isBranchSpecific = !['users', 'branches', 'leaveRequests'].includes(collectionKey);
         
         if (isBranchSpecific && !branchId) {
-            console.warn(`Attempted to set value for branch-specific collection '${collectionKey}' without a branchId.`);
-            return;
+             setValue(newValue);
+             return;
         }
 
         const pathSegments = isBranchSpecific && branchId
@@ -150,11 +145,20 @@ export function useFirestoreSync<T>(
             : [collectionKey, 'data'];
         
         const docRef = db.doc(pathSegments.join('/'));
-        
-        docRef.set({ value: newValue }).catch(error => {
-            console.error(`Error writing document ${pathSegments.join('/')}:`, error);
+
+        setValue((prevValue) => {
+            const resolvedValue = newValue instanceof Function ? newValue(prevValue) : newValue;
+            
+            // Write to DB. With persistence enabled, this writes to local cache first (instant),
+            // and then synchronizes to the server when online.
+            docRef.set({ value: resolvedValue })
+                .catch(err => {
+                    console.error(`Failed to write ${collectionKey} to Firestore:`, err);
+                });
+
+            return resolvedValue;
         });
     }, [branchId, collectionKey]);
 
-    return [value, setFirestoreValue];
+    return [value, setAndSyncValue];
 }

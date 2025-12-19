@@ -1,6 +1,4 @@
 
-
-
 // FIX: Updated Firebase imports to use the v9 compatibility layer, which provides the v8 namespaced API and fixes initialization errors.
 import firebase from "firebase/compat/app";
 import "firebase/compat/firestore";
@@ -36,7 +34,21 @@ if (isFirebaseConfigured) {
     } else {
       app = firebase.app();
     }
+    
     db = firebase.firestore();
+    
+    // --- ENABLE OFFLINE PERSISTENCE ---
+    // This allows the app to work offline by caching data locally.
+    // It acts as a local buffer, satisfying the requirement to store data locally before sending to Firebase.
+    db.enablePersistence({ synchronizeTabs: true })
+      .catch((err: any) => {
+          if (err.code == 'failed-precondition') {
+              console.warn('Persistence failed: Multiple tabs open. (Only one tab can work offline at a time)');
+          } else if (err.code == 'unimplemented') {
+              console.warn('Persistence failed: Browser not supported.');
+          }
+      });
+
     functions = firebase.functions();
   } catch (e) {
     console.error("Error initializing Firebase. Please check your config.", e);
