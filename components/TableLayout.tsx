@@ -21,7 +21,8 @@ const TableCard: React.FC<TableCardProps> = ({ table, orders, onTableSelect, onS
     const mainOrder = orders[0];
     const isReserved = !!table.reservation && !isOccupied;
 
-    const isAdminOrManager = currentUser?.role === 'admin' || currentUser?.role === 'branch-admin';
+    // REMOVED: const isAdminOrManager = currentUser?.role === 'admin' || currentUser?.role === 'branch-admin';
+    // We want everyone to see the QR button now.
 
     // --- Table Timer Logic ---
     const [durationText, setDurationText] = useState<string>('');
@@ -208,19 +209,18 @@ const TableCard: React.FC<TableCardProps> = ({ table, orders, onTableSelect, onS
 
     return (
         <div className={`border-2 rounded-lg p-4 flex flex-col justify-between transition-all duration-300 ${cardStyle} relative group`}>
-            {isAdminOrManager && (
-                <div className="absolute top-2 right-2 z-10">
-                    <button 
-                        onClick={handleShowStaticQr}
-                        className="p-1.5 bg-white rounded-full shadow-md hover:bg-blue-50 text-gray-700 border border-gray-200 opacity-0 group-hover:opacity-100 transition-opacity"
-                        title="QR Code สำหรับติดโต๊ะ (Static)"
-                    >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4h2v-4zM6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                        </svg>
-                    </button>
-                </div>
-            )}
+            {/* Show QR Code button for ALL users (Admin, Manager, POS, Kitchen) */}
+            <div className="absolute top-2 right-2 z-10">
+                <button 
+                    onClick={handleShowStaticQr}
+                    className="p-1.5 bg-white rounded-full shadow-md hover:bg-blue-50 text-gray-700 border border-gray-200 opacity-0 group-hover:opacity-100 transition-opacity"
+                    title="QR Code สำหรับติดโต๊ะ (Static)"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4h2v-4zM6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                </button>
+            </div>
             
             <div>
                 <div className="flex justify-between items-start pr-8">
