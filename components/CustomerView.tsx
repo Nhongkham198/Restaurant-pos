@@ -127,56 +127,59 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         window.location.reload(); 
     };
 
-    // --- IDENTIFY MY ITEMS (Even if merged) ---
-    const myItems = useMemo(() => {
-        try {
-            const items: OrderItem[] = [];
-            // Strategy 1: ID Match (Persistent via LocalStorage)
-            const myOrderSet = new Set(myOrderNumbers);
+    // Use useCallback for t to ensure stability
+    const t = useCallback((text: string): string => {
+        if (language === 'th' || !translations) {
+            return text;
+        }
+        return translations[text] || text;
+    }, [language, translations]);
+
+    // --- IDENTIFY ITEMS (Mine vs Others) ---
+    const { myItems, otherItems } = useMemo(() => {
+        const mine: OrderItem[] = [];
+        const others: { item: OrderItem, owner: string }[] = [];
+        const myOrderSet = new Set(myOrderNumbers);
+        const currentNormName = customerName?.trim().toLowerCase();
+
+        // Filter for orders specifically for THIS table from the global list
+        const tableOrders = Array.isArray(allBranchOrders) 
+            ? allBranchOrders.filter(o => String(o.tableId) === String(table.id) && o.status !== 'cancelled' && o.status !== 'completed')
+            : [];
+
+        tableOrders.forEach(order => {
+            const orderName = order.customerName || t('ไม่ระบุชื่อ');
+            const orderNormName = order.customerName?.trim().toLowerCase();
             
-            // Normalize current user name
-            const currentNormName = customerName?.trim().toLowerCase();
+            // Check if this whole order is "Mine" by name match (fallback)
+            // eslint-disable-next-line eqeqeq
+            const isMyOrderByName = isAuthenticated && currentNormName && orderNormName === currentNormName;
 
-            if (Array.isArray(allBranchOrders)) {
-                allBranchOrders.forEach(order => {
-                    if (order && Array.isArray(order.items)) {
-                        
-                        // Strategy 2: Session/Name Match (Backup)
-                        const orderNormName = order.customerName?.trim().toLowerCase();
-                        // eslint-disable-next-line eqeqeq
-                        const isMyOrderByName = isAuthenticated && currentNormName && 
-                                              order.tableId == table.id && 
-                                              orderNormName === currentNormName;
+            order.items.forEach(item => {
+                const originId = item.originalOrderNumber ?? order.orderNumber;
+                const isMyItemById = myOrderSet.has(originId);
 
-                        order.items.forEach(item => {
-                            if (!item) return; 
-                            
-                            const originId = item.originalOrderNumber ?? order.orderNumber;
-                            const isMyItemById = myOrderSet.has(originId);
+                if (isMyItemById || isMyOrderByName) {
+                    mine.push(item);
+                } else {
+                    others.push({ item, owner: orderName });
+                }
+            });
+        });
 
-                            if (isMyItemById || isMyOrderByName) {
-                                items.push(item);
-                            }
-                        });
-                    }
-                });
-            }
-            return items;
-        } catch (e) {
-            console.error("Error calculating myItems:", e);
-            return [];
-        }
-    }, [allBranchOrders, myOrderNumbers, isAuthenticated, customerName, table.id]);
+        return { myItems: mine, otherItems: others };
+    }, [allBranchOrders, myOrderNumbers, isAuthenticated, customerName, table.id, t]);
 
-    // Calculate totals specifically for ME
+    // Calculate totals
     const myTotal = useMemo(() => {
-        try {
-            return myItems.reduce((sum, item) => sum + (item.finalPrice * item.quantity), 0);
-        } catch (e) {
-            console.error("Error calculating myTotal:", e);
-            return 0;
-        }
+        return myItems.reduce((sum, item) => sum + (item.finalPrice * item.quantity), 0);
     }, [myItems]);
+
+    const otherTotal = useMemo(() => {
+        return otherItems.reduce((sum, { item }) => sum + (item.finalPrice * item.quantity), 0);
+    }, [otherItems]);
+
+    const grandTotal = myTotal + otherTotal;
 
     // Auto-add new orders to "My Orders" if I placed them (based on name match from session)
     useEffect(() => {
@@ -185,6 +188,8 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         try {
             const currentNormName = customerName.trim().toLowerCase();
             const newMyOrderIds: number[] = [];
+            // activeOrders passed here are already filtered by tableId in App.tsx typically, 
+            // but we use the one passed via props which is strictly for this table.
             activeOrders.forEach(order => {
                 const orderNormName = order.customerName?.trim().toLowerCase();
                 if (order && orderNormName === currentNormName && !myOrderNumbers.includes(order.orderNumber)) {
@@ -212,19 +217,14 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         if (prevCount > 0 && currentCount === 0 && !isProcessingPaymentRef.current) {
             isProcessingPaymentRef.current = true;
     
-            // Find the most recently completed order that belongs to ME (via myOrderNumbers)
-            // This is the CRITICAL part for "Device specific logout"
+            // Find the most recently completed order that belongs to ME
             const myJustCompletedOrders = completedOrders.filter(o =>
                 myOrderNumbers.some(myNum =>
                     o.orderNumber === myNum || (o.mergedOrderNumbers && o.mergedOrderNumbers.includes(myNum))
                 )
             );
     
-            // If no completed order matches my numbers, it implies either:
-            // 1. Items were deleted/cancelled (handled elsewhere usually, but safe to stay logged in)
-            // 2. Or another device paid THEIR bill, but MY order numbers weren't in it.
             if (myJustCompletedOrders.length === 0) {
-                // Reset flag and continue (User stays logged in because THEIR bill wasn't paid)
                 isProcessingPaymentRef.current = false;
                 prevMyItemsCountRef.current = currentCount;
                 return; 
@@ -328,7 +328,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         }
     
         prevMyItemsCountRef.current = currentCount;
-    }, [myItems.length, isAuthenticated, completedOrders, myOrderNumbers, logoUrl, restaurantName, customerName]);
+    }, [myItems.length, isAuthenticated, completedOrders, myOrderNumbers, logoUrl, restaurantName, customerName, t]);
     
 
     const handleSelectItem = (item: MenuItem) => {
@@ -475,14 +475,6 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         }
     }, [cartItems]);
 
-    // Use useCallback for t to ensure stability, though it depends on language/translations
-    const t = useCallback((text: string): string => {
-        if (language === 'th' || !translations) {
-            return text;
-        }
-        return translations[text] || text;
-    }, [language, translations]);
-
     // --- [REWORKED] Dynamic Order Status Logic (GLOBAL QUEUE) ---
     const orderStatus = useMemo(() => {
         try {
@@ -560,7 +552,8 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                 'ยืนยันการสั่งอาหาร?', 'สั่งอาหาร', 'รายการ', 'สั่งเลย', 'ตรวจสอบก่อน', 'ส่งสัญญาณเรียกพนักงานแล้ว', 'กรุณารอสักครู่...',
                 'กำลังสร้างรูปภาพ...', 'เกิดข้อผิดพลาด', 'ไม่สามารถสร้างรูปภาพได้', 'กำลังปรุง... 🍳', 'รอคิว...', 'คิว', 'เสิร์ฟครบแล้ว 😋',
                 'บันทึกสำเร็จ!', 'บิลของคุณถูกบันทึกเป็นรูปภาพแล้ว', 'สั่งอาหารสำเร็จ!', 'รายการอาหารถูกส่งเข้าครัวแล้ว',
-                'กำลังส่งรายการ...', 'ไม่สามารถสั่งอาหารได้ กรุณาลองใหม่', 'เกิดข้อผิดพลาด', 'คิวที่ 1', 'อีก'
+                'กำลังส่งรายการ...', 'ไม่สามารถสั่งอาหารได้ กรุณาลองใหม่', 'เกิดข้อผิดพลาด', 'คิวที่ 1', 'อีก', 'ไม่ระบุชื่อ',
+                'รายการของคุณ', 'รายการของเพื่อนร่วมโต๊ะ', 'ยอดรวมทั้งโต๊ะ'
             ];
     
             const dynamicText = new Set<string>();
@@ -769,7 +762,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                     <div className="bg-white w-full sm:max-w-md h-[80vh] sm:h-auto sm:max-h-[90vh] rounded-t-2xl sm:rounded-xl shadow-2xl flex flex-col overflow-hidden animate-slide-up" onClick={e => e.stopPropagation()}>
                         
                         <div ref={billContentRef} className="flex-grow overflow-y-auto">
-                            <div className="p-4 border-b bg-gray-50 flex flex-col items-center sticky top-0">
+                            <div className="p-4 border-b bg-gray-50 flex flex-col items-center sticky top-0 z-10">
                                 {logoUrl && (
                                     <img src={logoUrl} alt="Logo" className="h-16 w-auto object-contain mb-2" crossOrigin="anonymous" />
                                 )}
@@ -778,32 +771,74 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                             </div>
                             
                             <div className="p-4 space-y-4">
-                                {myItems.length === 0 ? (
+                                {myItems.length === 0 && otherItems.length === 0 ? (
                                     <div className="text-center text-gray-400 py-10">{t('ยังไม่มีรายการที่สั่ง')}</div>
                                 ) : (
-                                    <ul className="space-y-3">
-                                        {myItems.map((item, idx) => (
-                                            <li key={idx} className="flex justify-between text-sm text-gray-700 border-b pb-2 last:border-0">
-                                                <div>
-                                                    <span className="font-medium">{item.quantity}x {t(item.name)}</span>
-                                                    {item.isTakeaway && <span className="text-purple-600 text-xs ml-1">(กลับบ้าน)</span>}
-                                                    {item.selectedOptions.length > 0 && (
-                                                        <div className="text-xs text-gray-500 ml-1">
-                                                            {item.selectedOptions.map(o=>t(o.name)).join(', ')}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                                <span className="font-mono text-gray-600 font-bold">{(item.finalPrice * item.quantity).toLocaleString()}</span>
-                                            </li>
-                                        ))}
-                                    </ul>
+                                    <>
+                                        {/* SECTION 1: MY ITEMS */}
+                                        {myItems.length > 0 && (
+                                            <div className="bg-blue-50/50 p-2 rounded-lg border border-blue-100">
+                                                <h4 className="font-bold text-blue-800 text-sm mb-2 flex items-center gap-1">
+                                                    {t('รายการของคุณ')} <span className="text-xs font-normal text-blue-600">({customerName})</span> 👤
+                                                </h4>
+                                                <ul className="space-y-3">
+                                                    {myItems.map((item, idx) => (
+                                                        <li key={`mine-${idx}`} className="flex justify-between text-sm text-gray-700 border-b border-blue-100 pb-2 last:border-0">
+                                                            <div>
+                                                                <span className="font-medium">{item.quantity}x {t(item.name)}</span>
+                                                                {item.isTakeaway && <span className="text-purple-600 text-xs ml-1">(กลับบ้าน)</span>}
+                                                                {item.selectedOptions.length > 0 && (
+                                                                    <div className="text-xs text-gray-500 ml-1">
+                                                                        {item.selectedOptions.map(o=>t(o.name)).join(', ')}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                            <span className="font-mono text-gray-600 font-bold">{(item.finalPrice * item.quantity).toLocaleString()}</span>
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                        )}
+
+                                        {/* SECTION 2: OTHERS ITEMS */}
+                                        {otherItems.length > 0 && (
+                                            <div className="bg-gray-50 p-2 rounded-lg border border-gray-200 mt-2">
+                                                <h4 className="font-bold text-gray-600 text-sm mb-2">{t('รายการของเพื่อนร่วมโต๊ะ')} 👥</h4>
+                                                <ul className="space-y-3">
+                                                    {otherItems.map(({ item, owner }, idx) => (
+                                                        <li key={`other-${idx}`} className="flex justify-between text-sm text-gray-700 border-b border-gray-200 pb-2 last:border-0">
+                                                            <div>
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="font-medium">{item.quantity}x {t(item.name)}</span>
+                                                                    <span className="text-[10px] bg-gray-200 px-1.5 rounded text-gray-600">{owner}</span>
+                                                                </div>
+                                                                {item.isTakeaway && <span className="text-purple-600 text-xs ml-1">(กลับบ้าน)</span>}
+                                                                {item.selectedOptions.length > 0 && (
+                                                                    <div className="text-xs text-gray-500 ml-1">
+                                                                        {item.selectedOptions.map(o=>t(o.name)).join(', ')}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                            <span className="font-mono text-gray-500">{(item.finalPrice * item.quantity).toLocaleString()}</span>
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                        )}
+                                    </>
                                 )}
                             </div>
 
                             <div className="p-4 bg-gray-50 border-t sticky bottom-0">
-                                <div className="flex justify-between items-center text-lg font-bold text-gray-800">
-                                    <span>{t('ยอดรวมของฉัน')}</span>
-                                    <span className="text-blue-600">{myTotal.toLocaleString()} ฿</span>
+                                <div className="space-y-2">
+                                    <div className="flex justify-between items-center text-base text-gray-600">
+                                        <span>{t('ยอดของฉัน')}</span>
+                                        <span className="font-bold text-blue-600">{myTotal.toLocaleString()} ฿</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-xl font-bold text-gray-800 pt-2 border-t border-gray-200">
+                                        <span>{t('ยอดรวมทั้งโต๊ะ')}</span>
+                                        <span>{grandTotal.toLocaleString()} ฿</span>
+                                    </div>
                                 </div>
                                 <p className="text-xs text-gray-500 text-center mt-2">
                                     {t('* ราคานี้เป็นเฉพาะรายการที่คุณสั่ง')}
