@@ -1,3 +1,4 @@
+
 import type { ReactNode } from 'react';
 
 export interface Branch {
@@ -92,20 +93,6 @@ interface BaseOrder {
     splitIndex?: number;
 }
 
-export interface ActiveOrder extends BaseOrder {
-    status: 'waiting' | 'cooking' | 'served';
-    orderTime: number; // timestamp
-    cookingStartTime?: number; // timestamp
-    isOverdue?: boolean;
-}
-
-export interface CompletedOrder extends BaseOrder {
-    status: 'completed';
-    orderTime: number;
-    completionTime: number; // timestamp
-    paymentDetails: PaymentDetails;
-}
-
 export const CANCELLATION_REASONS = [
     'ลูกค้าขอยกเลิก',
     'ทำรายการผิดพลาด',
@@ -114,6 +101,27 @@ export const CANCELLATION_REASONS = [
 ] as const;
 
 export type CancellationReason = typeof CANCELLATION_REASONS[number];
+
+export interface ActiveOrder extends BaseOrder {
+    status: 'waiting' | 'cooking' | 'served' | 'completed' | 'cancelled';
+    orderTime: number; // timestamp
+    cookingStartTime?: number; // timestamp
+    isOverdue?: boolean;
+    // Fields allowed during transition to completed/cancelled within active collection
+    completionTime?: number;
+    paymentDetails?: PaymentDetails;
+    cancellationTime?: number;
+    cancelledBy?: string;
+    cancellationReason?: CancellationReason;
+    cancellationNotes?: string;
+}
+
+export interface CompletedOrder extends BaseOrder {
+    status: 'completed';
+    orderTime: number;
+    completionTime: number; // timestamp
+    paymentDetails: PaymentDetails;
+}
 
 export interface CancelledOrder extends BaseOrder {
     status: 'cancelled';

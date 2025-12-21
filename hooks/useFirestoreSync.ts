@@ -1,8 +1,10 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { db } from '../firebaseConfig';
-import type { Table, OrderCounter } from '../types';
+import type { Table } from '../types';
+import firebase from 'firebase/compat/app';
 
+// Hook for Single Document Sync (Legacy/Config/Arrays)
 export function useFirestoreSync<T>(
     branchId: string | null,
     collectionKey: string,
@@ -37,29 +39,18 @@ export function useFirestoreSync<T>(
         
         const docRef = db.doc(pathSegments.join('/'));
 
-        // Include metadata changes so local writes (pending to server) trigger updates immediately.
-        // This ensures the UI feels "instant" even if the data hasn't reached the server yet.
         const unsubscribe = docRef.onSnapshot(
             { includeMetadataChanges: true }, 
             (docSnapshot) => {
-                // Determine if we should use the data. 
-                // If it exists, use it (whether from cache or server).
-                // With enablePersistence, docSnapshot.exists will be true even if offline, provided data was cached.
                 if (docSnapshot.exists) {
                     const data = docSnapshot.data();
-                    
-                    // Optional: You can check docSnapshot.metadata.fromCache if you need to know source.
-                    // console.log(`Data for ${collectionKey} from cache: ${docSnapshot.metadata.fromCache}`);
-
                     if (data && typeof data.value !== 'undefined') {
                         let valueToSet = data.value;
 
-                        // --- Validation & Cleanup Logic (Read-Only) ---
-                        
+                        // --- Validation & Cleanup Logic ---
                         if (collectionKey === 'tables' && Array.isArray(valueToSet)) {
                             const rawTablesFromDb = valueToSet as Table[];
                             const uniqueTablesMap = new Map<number, Table>();
-                            
                             rawTablesFromDb.forEach(table => {
                                 if (table && typeof table.id === 'number') {
                                     if (!uniqueTablesMap.has(table.id)) {
@@ -67,40 +58,29 @@ export function useFirestoreSync<T>(
                                     }
                                 }
                             });
-                            // Use cleaned unique tables locally
                             valueToSet = Array.from(uniqueTablesMap.values());
                         } 
                         else if (collectionKey === 'orderCounter') {
+                            // ... (Keep existing validation logic)
                             const counterData = valueToSet as any;
-                            
-                            // Robust validation: If invalid, use local initial value but DO NOT overwrite DB
                             if (!counterData || typeof counterData !== 'object' || typeof counterData.count !== 'number') {
-                                console.warn(`'orderCounter' in DB has invalid format. Using local initial value.`);
                                 setValue(currentInitialValue);
                                 return;
                             }
-
                             const { count, lastResetDate } = counterData;
                             let correctedDateString = '';
-
                             if (typeof lastResetDate === 'string') {
-                                if (/^\d{4}-\d{2}-\d{2}$/.test(lastResetDate)) {
-                                    correctedDateString = lastResetDate;
-                                }
+                                correctedDateString = lastResetDate;
                             } else if (lastResetDate && typeof lastResetDate.toDate === 'function') {
-                                // Firestore Timestamp conversion
                                 const dateObj = lastResetDate.toDate();
                                 const year = dateObj.getFullYear();
                                 const month = String(dateObj.getMonth() + 1).padStart(2, '0');
                                 const day = String(dateObj.getDate()).padStart(2, '0');
                                 correctedDateString = `${year}-${month}-${day}`;
                             }
-                            
                             if (correctedDateString) {
                                 valueToSet = { count, lastResetDate: correctedDateString };
                             } else {
-                                // Invalid date format, fallback locally
-                                console.warn(`'orderCounter' date invalid. Using local initial value.`);
                                 setValue(currentInitialValue);
                                 return;
                             }
@@ -108,22 +88,14 @@ export function useFirestoreSync<T>(
 
                         setValue(valueToSet as T);
                     } else {
-                        console.warn(`Document at ${pathSegments.join('/')} exists but is malformed. Using initial value locally.`);
                         setValue(currentInitialValue);
                     }
                 } else {
-                    // Document does not exist.
-                    // CRITICAL: We only revert to initialValue if the document TRULY doesn't exist.
-                    // With persistence enabled, if we are just offline, 'exists' might still be true if cached.
-                    // If it's effectively a new install/clean cache, we use initial value but DO NOT automatically write back.
-                    console.log(`Document not found at ${pathSegments.join('/')}. Using initial value locally.`);
                     setValue(currentInitialValue);
                 }
             },
             (error) => {
                 console.error(`Firestore sync error for ${collectionKey}:`, error);
-                // On error (permission denied, etc.), keep existing state or initial value.
-                // Do NOT overwrite DB.
             }
         );
 
@@ -148,17 +120,70 @@ export function useFirestoreSync<T>(
 
         setValue((prevValue) => {
             const resolvedValue = newValue instanceof Function ? newValue(prevValue) : newValue;
-            
-            // Write to DB. With persistence enabled, this writes to local cache first (instant),
-            // and then synchronizes to the server when online.
             docRef.set({ value: resolvedValue })
                 .catch(err => {
                     console.error(`Failed to write ${collectionKey} to Firestore:`, err);
                 });
-
             return resolvedValue;
         });
     }, [branchId, collectionKey]);
 
     return [value, setAndSyncValue];
+}
+
+// Hook for Collection-based Sync (Robust, Granular Updates)
+export function useFirestoreCollection<T extends { id: number | string }>(
+    branchId: string | null,
+    collectionName: string
+): [
+    T[], 
+    { 
+        add: (item: T) => Promise<void>, 
+        update: (id: number | string, data: Partial<T>) => Promise<void>, 
+        remove: (id: number | string) => Promise<void> 
+    }
+] {
+    const [data, setData] = useState<T[]>([]);
+
+    useEffect(() => {
+        if (!db || !branchId) return;
+
+        const collectionRef = db.collection(`branches/${branchId}/${collectionName}`);
+
+        const unsubscribe = collectionRef.onSnapshot(snapshot => {
+            const items: T[] = [];
+            snapshot.forEach(doc => {
+                items.push(doc.data() as T);
+            });
+            setData(items);
+        }, error => {
+            console.error(`Error syncing collection ${collectionName}:`, error);
+        });
+
+        return () => unsubscribe();
+    }, [branchId, collectionName]);
+
+    const actions = {
+        add: async (item: T) => {
+            if (!db || !branchId) return;
+            const docId = item.id.toString();
+            await db.collection(`branches/${branchId}/${collectionName}`).doc(docId).set({
+                ...item,
+                lastUpdated: firebase.firestore.FieldValue.serverTimestamp() // Timestamp Guard
+            });
+        },
+        update: async (id: number | string, updates: Partial<T>) => {
+            if (!db || !branchId) return;
+            await db.collection(`branches/${branchId}/${collectionName}`).doc(id.toString()).update({
+                ...updates,
+                lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
+            });
+        },
+        remove: async (id: number | string) => {
+            if (!db || !branchId) return;
+            await db.collection(`branches/${branchId}/${collectionName}`).doc(id.toString()).delete();
+        }
+    };
+
+    return [data, actions];
 }
