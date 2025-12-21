@@ -238,6 +238,7 @@ const App: React.FC = () => {
     const activeCallRef = useRef<StaffCall | null>(null);
     const overdueTimersRef = useRef<Map<number, number>>(new Map());
     const shownNotificationsRef = useRef<Set<number>>(new Set());
+    const mountTimeRef = useRef(Date.now());
 
     // ============================================================================
     // 2. COMPUTED VALUES (MEMO)
@@ -312,9 +313,14 @@ const App: React.FC = () => {
         return tables.find(t => t.id === selectedTableId) || null;
     }, [tables, selectedTableId]);
     
+    // FIX: Updated to ignore ghost tables (active orders on deleted tables)
     const vacantTablesCount = useMemo(() => {
-        const occupiedTableIds = new Set(activeOrders.map(o => o.tableId));
-        return tables.length - occupiedTableIds.size;
+        const occupiedTableIds = new Set(
+            activeOrders
+                .filter(o => tables.some(t => t.id === o.tableId)) // Filter out ghost tables
+                .map(o => o.tableId)
+        );
+        return Math.max(0, tables.length - occupiedTableIds.size);
     }, [tables, activeOrders]);
 
     const isAdminViewOnDesktop = useMemo(() => 
@@ -460,10 +466,16 @@ const App: React.FC = () => {
             return;
         }
         if (currentUser?.role !== 'kitchen' || !notificationSoundUrl || !isAudioUnlocked) {
+            prevActiveOrdersRef.current = activeOrders; // Ensure ref is updated even if skipped
             return;
         }
         const newOrders = activeOrders.filter(order =>
-            !prevActiveOrdersRef.current!.some(prevOrder => prevOrder.id === order.id)
+            !prevActiveOrdersRef.current!.some(prevOrder => prevOrder.id === order.id) &&
+            // Fix: Filter out historical orders (older than component mount time)
+            order.id > mountTimeRef.current &&
+            // Fix: Safety check for valid data (prevent undefined notifications)
+            order.tableName && 
+            order.orderNumber
         );
         if (newOrders.length > 0) {
             const audio = new Audio(notificationSoundUrl);
