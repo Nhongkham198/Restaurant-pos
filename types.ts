@@ -47,6 +47,7 @@ export interface MenuItem {
     imageUrl: string;
     cookingTime?: number; // in minutes
     optionGroups?: MenuOptionGroup[];
+    isAvailable?: boolean; // New property for stock status
 }
 
 export type TakeawayCutleryOption = 'spoon-fork' | 'chopsticks' | 'other' | 'none';
@@ -121,6 +122,7 @@ export interface CompletedOrder extends BaseOrder {
     orderTime: number;
     completionTime: number; // timestamp
     paymentDetails: PaymentDetails;
+    completedBy?: string; // Name of the staff who received the payment
 }
 
 export interface CancelledOrder extends BaseOrder {

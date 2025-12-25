@@ -837,7 +837,8 @@ const App: React.FC = () => {
                 ...orderToComplete,
                 status: 'completed',
                 completionTime: Date.now(),
-                paymentDetails: paymentDetails
+                paymentDetails: paymentDetails,
+                completedBy: currentUser?.username || 'Unknown' // Record staff who confirmed payment
             };
 
             // 1. Update status in Active Orders (Collection) - effectively "archives" it from active view

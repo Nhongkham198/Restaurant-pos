@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import type { CompletedOrder, CancelledOrder, PrintHistoryEntry, User } from '../types';
 // FIX: Corrected paths to be relative since the components are in the same folder.
@@ -250,7 +251,7 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({ completedOrders, can
         const fileName = `ประวัติการขาย-${filterText}.csv`;
     
         const headers = [
-            'ID ออเดอร์', 'ID ออเดอร์ดั้งเดิม', 'เวลาที่เสิร์ฟ', 'ชั้น', 'โต๊ะ', 'จำนวนลูกค้า', 'รายการอาหาร', 'จำนวน', 'ราคาต่อหน่วย (บาท)', 'ยอดรวมรายการ (บาท)', 'ยอดรวมออเดอร์ (บาท)', 'วิธีชำระเงิน', 'รับเงินสด (บาท)', 'เงินทอน (บาท)', 'อัตราภาษี (%)', 'ภาษี (บาท)', 'สถานะ'
+            'ID ออเดอร์', 'ID ออเดอร์ดั้งเดิม', 'เวลาที่เสิร์ฟ', 'ชั้น', 'โต๊ะ', 'จำนวนลูกค้า', 'รายการอาหาร', 'จำนวน', 'ราคาต่อหน่วย (บาท)', 'ยอดรวมรายการ (บาท)', 'ยอดรวมออเดอร์ (บาท)', 'วิธีชำระเงิน', 'รับเงินสด (บาท)', 'เงินทอน (บาท)', 'อัตราภาษี (%)', 'ภาษี (บาท)', 'ผู้รับเงิน', 'สถานะ'
         ];
         
         const dataForCsv: (string | number)[][] = [headers];
@@ -288,6 +289,7 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({ completedOrders, can
                     isFirstItem ? changeGiven : '',
                     isFirstItem ? order.taxRate.toFixed(2) : '',
                     isFirstItem ? order.taxAmount.toFixed(2) : '',
+                    isFirstItem ? (order.completedBy || '-') : '',
                     statusText
                 ]);
             });

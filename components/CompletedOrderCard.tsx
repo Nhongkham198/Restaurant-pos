@@ -60,7 +60,7 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({ order, o
                         {order.customerName && !order.isDeleted && (
                             <p className="text-base text-blue-700 font-semibold">{order.customerName}</p>
                         )}
-                        <p className="text-sm text-gray-500 mt-1">{completionDate} <span className="text-gray-400">| ผู้ส่ง: {order.placedBy}</span></p>
+                        <p className="text-sm text-gray-500 mt-1">{completionDate} <span className="text-gray-400">| ผู้ส่ง: {order.placedBy}</span> {order.completedBy && <span className="text-gray-400">| ผู้รับเงิน: {order.completedBy}</span>}</p>
                     </div>
                 </div>
                 <div className="flex items-center gap-4 cursor-pointer" onClick={() => setIsExpanded(!isExpanded)}>

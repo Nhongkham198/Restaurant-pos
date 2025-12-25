@@ -237,6 +237,7 @@ export const Menu: React.FC<MenuProps> = ({
                     'category': item.category,
                     'image_url': item.imageUrl,
                     'cooking_time': item.cookingTime || '',
+                    'is_available': item.isAvailable !== false ? 'TRUE' : 'FALSE',
                     'option_group_name': '',
                     'option_group_type': '',
                     'option_group_required': '',
@@ -254,6 +255,7 @@ export const Menu: React.FC<MenuProps> = ({
                             'category': item.category,
                             'image_url': item.imageUrl,
                             'cooking_time': item.cookingTime || '',
+                            'is_available': item.isAvailable !== false ? 'TRUE' : 'FALSE',
                             'option_group_name': group.name,
                             'option_group_type': group.selectionType,
                             'option_group_required': group.required ? 'TRUE' : 'FALSE',
@@ -270,6 +272,7 @@ export const Menu: React.FC<MenuProps> = ({
                                 'category': item.category,
                                 'image_url': item.imageUrl,
                                 'cooking_time': item.cookingTime || '',
+                                'is_available': item.isAvailable !== false ? 'TRUE' : 'FALSE',
                                 'option_group_name': group.name,
                                 'option_group_type': group.selectionType,
                                 'option_group_required': group.required ? 'TRUE' : 'FALSE',
@@ -328,6 +331,7 @@ export const Menu: React.FC<MenuProps> = ({
                             category: String(row.category),
                             imageUrl: String(row.image_url || ''),
                             cookingTime: row.cooking_time ? Number(row.cooking_time) : undefined,
+                            isAvailable: row.is_available === 'FALSE' ? false : true,
                             optionGroups: [],
                         });
                     }
@@ -386,6 +390,10 @@ export const Menu: React.FC<MenuProps> = ({
         reader.readAsBinaryString(file);
     };
 
+    const handleToggleAvailability = (id: number) => {
+        const updated = menuItems.map(i => i.id === id ? { ...i, isAvailable: i.isAvailable === false ? true : false } : i);
+        setMenuItems(updated);
+    };
 
     return (
         <div className="flex flex-col bg-white p-4 rounded-lg shadow-sm h-full">
@@ -527,6 +535,7 @@ export const Menu: React.FC<MenuProps> = ({
                         onDragEnter={() => (dragOverItem.current = item.id)}
                         onDragEnd={handleDragSort}
                         isRecommended={recommendedMenuItemIds.includes(item.id)}
+                        onToggleAvailability={() => handleToggleAvailability(item.id)}
                     />
                 ))}
             </div>
