@@ -973,15 +973,11 @@ const App: React.FC = () => {
         if (!orderForModal || !isOnline) return;
         const originalOrder = orderForModal as ActiveOrder;
         const newSplitCount = (originalOrder.splitCount || 0) + 1;
+        const splitOrderId = Date.now();
     
         try {
-            // 1. Update original order
+            // 1. Calculate updated items for original order
             const updatedOriginalItems: OrderItem[] = [];
-            // We iterate original items and try to match with split items by cartItemId.
-            // Using a tracking mechanism to ensure we only remove the EXACT quantity requested.
-            
-            // Create a map of items to remove for efficient lookup
-            // Key: cartItemId, Value: quantity to remove
             const itemsToRemoveMap = new Map<string, number>();
             itemsToSplit.forEach(item => {
                 itemsToRemoveMap.set(item.cartItemId, (itemsToRemoveMap.get(item.cartItemId) || 0) + item.quantity);
@@ -991,45 +987,46 @@ const App: React.FC = () => {
                 const qtyToRemove = itemsToRemoveMap.get(origItem.cartItemId);
                 if (qtyToRemove && qtyToRemove > 0) {
                     const remainingQty = origItem.quantity - qtyToRemove;
-                    // If we are removing more than available (shouldn't happen with proper UI validation), clamp to 0
-                    // Actually, usually we split specific amounts.
-                    // Case 1: Split entire line. remainingQty <= 0. Item removed.
-                    // Case 2: Split partial line. remainingQty > 0. Item kept with new qty.
-                    
                     if (remainingQty > 0) {
                         updatedOriginalItems.push({ ...origItem, quantity: remainingQty });
-                        // We fully consumed the removal request for this line, so set map to 0?
-                        // Wait, if originalItems has duplicates of same cartItemId (bad state), this logic might fail.
-                        // Assuming unique cartItemIds (fixed in merge logic), this works.
                         itemsToRemoveMap.set(origItem.cartItemId, 0); 
                     } else {
-                        // Item fully moved.
-                        // If we tried to remove 5 but line had 3, we still have 2 to remove from other lines?
-                        // Assuming standard UI where we pick from a list, this exact match is likely.
-                        itemsToRemoveMap.set(origItem.cartItemId, 0); // Mark as processed
+                        itemsToRemoveMap.set(origItem.cartItemId, 0);
                     }
                 } else {
                     updatedOriginalItems.push(origItem);
                 }
             });
             
-            await activeOrdersActions.update(originalOrder.id, { items: updatedOriginalItems, splitCount: newSplitCount });
-
-            // 2. Create new split order
-            const splitOrderId = Date.now();
+            // 2. Prepare new split order
             const newSplitOrder: ActiveOrder = {
                 ...originalOrder,
                 id: splitOrderId,
-                // We'll keep same order number but mark as split child
                 items: itemsToSplit,
                 parentOrderId: originalOrder.orderNumber,
                 isSplitChild: true,
                 splitIndex: newSplitCount,
                 mergedOrderNumbers: [],
-                status: originalOrder.status // Inherit status
+                status: originalOrder.status
             };
+
+            // Use Batch Write to ensure atomicity
+            const batch = db.batch();
+            const originalRef = db.collection(`branches/${branchId}/activeOrders`).doc(originalOrder.id.toString());
+            const newRef = db.collection(`branches/${branchId}/activeOrders`).doc(splitOrderId.toString());
+
+            batch.update(originalRef, { 
+                items: updatedOriginalItems, 
+                splitCount: newSplitCount,
+                lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
+            });
             
-            await activeOrdersActions.add(newSplitOrder);
+            batch.set(newRef, { 
+                ...newSplitOrder, 
+                lastUpdated: firebase.firestore.FieldValue.serverTimestamp() 
+            });
+
+            await batch.commit();
             handleModalClose();
 
         } catch (error) {
@@ -1088,7 +1085,6 @@ const App: React.FC = () => {
         if (!targetOrder || sourceOrders.length === 0) return;
 
         // FIX: Make cartItemId unique to prevent collisions in the target order
-        // This solves the bug where splitting a merged bill causes items to disappear if they had identical cartItemIds.
         const allItemsToMerge = sourceOrders.flatMap(o => o.items.map(item => ({
             ...item,
             originalOrderNumber: item.originalOrderNumber ?? o.orderNumber,
@@ -1099,22 +1095,34 @@ const App: React.FC = () => {
         const newItems = [...targetOrder.items, ...allItemsToMerge];
         const newMergedNumbers = Array.from(new Set([...(targetOrder.mergedOrderNumbers || []), ...sourceNumbers])).sort((a, b) => a - b);
 
-        // 1. Update target order
-        await activeOrdersActions.update(targetOrderId, { 
+        // Use Batch Write to ensure atomicity
+        // This prevents the "disappearing bill" issue where source orders are cancelled before the target is updated if network lags
+        const batch = db.batch();
+        const targetRef = db.collection(`branches/${branchId}/activeOrders`).doc(targetOrderId.toString());
+        
+        batch.update(targetRef, { 
             items: newItems, 
-            mergedOrderNumbers: newMergedNumbers 
+            mergedOrderNumbers: newMergedNumbers,
+            lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
         });
 
-        // 2. "Remove" source orders
         for (const sourceId of sourceOrderIds) {
-            await activeOrdersActions.update(sourceId, { 
+            const sourceRef = db.collection(`branches/${branchId}/activeOrders`).doc(sourceId.toString());
+            batch.update(sourceRef, { 
                 status: 'cancelled', 
                 cancellationReason: 'อื่นๆ',
-                cancellationNotes: `Merged into Order #${targetOrder.orderNumber}`
+                cancellationNotes: `Merged into Order #${targetOrder.orderNumber}`,
+                lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
             });
         }
         
-        handleModalClose();
+        try {
+            await batch.commit();
+            handleModalClose();
+        } catch (error) {
+            console.error("Merge failed", error);
+            Swal.fire('Error', 'Failed to merge bills. Please try again.', 'error');
+        }
     };
     
     // ... (Render Logic) ...
