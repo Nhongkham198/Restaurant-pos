@@ -1,3 +1,4 @@
+
 import React, { useMemo } from 'react';
 import type { OrderItem, Table, TakeawayCutleryOption, Reservation, User, View } from '../types';
 import { OrderListItem } from './OrderListItem';
@@ -35,6 +36,7 @@ interface SidebarProps {
     restaurantName: string;
     onLogout: () => void;
     isMobilePage?: boolean;
+    onToggleAvailability: (id: number) => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -69,6 +71,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     restaurantName,
     onLogout,
     isMobilePage = false,
+    onToggleAvailability,
 }) => {
     const total = useMemo(() => {
         return currentOrderItems.reduce((sum, item) => sum + item.finalPrice * item.quantity, 0);

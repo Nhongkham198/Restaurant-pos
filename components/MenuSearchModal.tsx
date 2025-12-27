@@ -8,14 +8,16 @@ interface MenuSearchModalProps {
     onClose: () => void;
     menuItems: MenuItem[];
     onSelectItem: (item: MenuItem) => void;
+    onToggleAvailability: (id: number) => void;
 }
 
-export const MenuSearchModal: React.FC<MenuSearchModalProps> = ({ isOpen, onClose, menuItems, onSelectItem }) => {
+export const MenuSearchModal: React.FC<MenuSearchModalProps> = ({ isOpen, onClose, menuItems, onSelectItem, onToggleAvailability }) => {
     const [searchTerm, setSearchTerm] = useState('');
+    const [isStockMode, setIsStockMode] = useState(false);
 
     const filteredItems = useMemo(() => {
         if (!searchTerm.trim()) {
-            return [];
+            return menuItems;
         }
         return menuItems.filter(item =>
             item.name.toLowerCase().includes(searchTerm.toLowerCase())
@@ -23,10 +25,14 @@ export const MenuSearchModal: React.FC<MenuSearchModalProps> = ({ isOpen, onClos
     }, [searchTerm, menuItems]);
 
     const handleItemClick = (item: MenuItem) => {
-        onSelectItem(item);
-        // Do not call onClose() here. The onSelectItem handler (handleAddItemToOrder in App.tsx) 
-        // will handle state transitions (opening customization modal and closing this one).
-        // Calling onClose() here would trigger handleModalClose() which resets ALL modal states.
+        if (isStockMode) {
+            onToggleAvailability(item.id);
+        } else {
+            if (item.isAvailable !== false) {
+                onSelectItem(item);
+                // Do not call onClose() here. The onSelectItem handler will handle state transitions.
+            }
+        }
     };
 
     if (!isOpen) return null;
@@ -35,8 +41,20 @@ export const MenuSearchModal: React.FC<MenuSearchModalProps> = ({ isOpen, onClos
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4" onClick={onClose}>
             <div className="bg-white rounded-lg shadow-xl w-full max-w-lg transform transition-all flex flex-col" style={{maxHeight: '90vh'}} onClick={e => e.stopPropagation()}>
                 <div className="p-6 border-b">
-                    <h3 className="text-2xl font-bold text-gray-900">ค้นหาเมนูอาหาร</h3>
-                     <div className="relative mt-4">
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-2xl font-bold text-gray-900">ค้นหาเมนูอาหาร</h3>
+                        <button
+                            onClick={() => setIsStockMode(!isStockMode)}
+                            className={`px-3 py-1.5 rounded-lg text-sm font-bold border transition-colors ${
+                                isStockMode 
+                                    ? 'bg-red-500 text-white border-red-600 shadow-inner' 
+                                    : 'bg-gray-100 text-gray-600 border-gray-300 hover:bg-gray-200'
+                            }`}
+                        >
+                            {isStockMode ? 'เสร็จสิ้น' : 'จัดการของหมด'}
+                        </button>
+                    </div>
+                     <div className="relative">
                          <span className="absolute inset-y-0 left-0 flex items-center pl-3">
                             <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -55,28 +73,45 @@ export const MenuSearchModal: React.FC<MenuSearchModalProps> = ({ isOpen, onClos
 
                 <div className="p-6 space-y-2 overflow-y-auto flex-1">
                     {filteredItems.length > 0 ? (
-                        filteredItems.map(item => (
-                            <div
-                                key={item.id}
-                                onClick={() => handleItemClick(item)}
-                                className="flex items-center gap-4 p-3 rounded-lg hover:bg-gray-100 cursor-pointer"
-                            >
-                                <MenuItemImage src={item.imageUrl} alt={item.name} className="w-16 h-16 rounded-md object-cover flex-shrink-0" />
-                                <div className="flex-1">
-                                    <p className="font-semibold text-gray-800">{item.name}</p>
-                                    <p className="text-sm text-gray-500">{item.category}</p>
+                        filteredItems.map(item => {
+                            const isAvailable = item.isAvailable !== false;
+                            
+                            return (
+                                <div
+                                    key={item.id}
+                                    onClick={() => handleItemClick(item)}
+                                    className={`flex items-center gap-4 p-3 rounded-lg border transition-all cursor-pointer ${
+                                        !isAvailable 
+                                            ? 'bg-red-50 border-red-200 opacity-90' 
+                                            : 'hover:bg-gray-100 border-transparent'
+                                    }`}
+                                >
+                                    <div className="relative">
+                                        <MenuItemImage src={item.imageUrl} alt={item.name} className={`w-16 h-16 rounded-md object-cover flex-shrink-0 ${!isAvailable ? 'grayscale' : ''}`} />
+                                        {!isAvailable && (
+                                            <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-md">
+                                                <span className="text-white text-xs font-bold bg-red-600 px-1 rounded">หมด</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                    
+                                    <div className="flex-1">
+                                        <p className={`font-semibold ${!isAvailable ? 'text-gray-500' : 'text-gray-800'}`}>{item.name}</p>
+                                        <p className="text-sm text-gray-500">{item.category}</p>
+                                    </div>
+                                    
+                                    {isStockMode ? (
+                                        <div className={`w-12 h-6 rounded-full p-1 transition-colors ${isAvailable ? 'bg-green-500' : 'bg-red-500'}`}>
+                                            <div className={`w-4 h-4 bg-white rounded-full shadow-md transform transition-transform ${isAvailable ? 'translate-x-6' : 'translate-x-0'}`} />
+                                        </div>
+                                    ) : (
+                                        <p className={`font-bold text-lg ${!isAvailable ? 'text-gray-400' : 'text-blue-600'}`}>{item.price.toLocaleString()} ฿</p>
+                                    )}
                                 </div>
-                                <p className="font-bold text-lg text-blue-600">{item.price.toLocaleString()} ฿</p>
-                            </div>
-                        ))
+                            );
+                        })
                     ) : (
-                        searchTerm.trim() && <p className="text-center text-gray-500 py-8">ไม่พบเมนูที่ตรงกัน</p>
-                    )}
-                     {!searchTerm.trim() && (
-                        <div className="text-center text-gray-400 py-10">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="mx-auto h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-                            <p className="mt-2">เริ่มพิมพ์เพื่อค้นหา</p>
-                        </div>
+                        <p className="text-center text-gray-500 py-8">ไม่พบเมนูที่ตรงกัน</p>
                     )}
                 </div>
 

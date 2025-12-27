@@ -1124,6 +1124,11 @@ const App: React.FC = () => {
             Swal.fire('Error', 'Failed to merge bills. Please try again.', 'error');
         }
     };
+
+    // --- NEW: Toggle Availability Function ---
+    const handleToggleAvailability = (id: number) => {
+        setMenuItems(prev => prev.map(i => i.id === id ? { ...i, isAvailable: i.isAvailable === false ? true : false } : i));
+    };
     
     // ... (Render Logic) ...
     if (isCustomerMode) {
@@ -1247,6 +1252,7 @@ const App: React.FC = () => {
                                         onUpdateReservation={(tableId, reservation) => setTables(prev => prev.map(t => t.id === tableId ? {...t, reservation} : t))}
                                         onOpenSearch={() => setModalState(prev => ({...prev, isMenuSearch: true}))} currentUser={currentUser} onEditOrderItem={handleUpdateOrderItem}
                                         onViewChange={setCurrentView} restaurantName={restaurantName} onLogout={handleLogout}
+                                        onToggleAvailability={handleToggleAvailability}
                                     />
                                 )}
                             </aside>
@@ -1274,6 +1280,7 @@ const App: React.FC = () => {
                                         onUpdateReservation={(tableId, reservation) => setTables(prev => prev.map(t => t.id === tableId ? {...t, reservation} : t))}
                                         onOpenSearch={() => setModalState(prev => ({...prev, isMenuSearch: true}))} currentUser={currentUser} onEditOrderItem={handleUpdateOrderItem}
                                         onViewChange={setCurrentView} restaurantName={restaurantName} onLogout={handleLogout}
+                                        onToggleAvailability={handleToggleAvailability}
                                     />
                                 </div>
                             ) : (
@@ -1326,7 +1333,7 @@ const App: React.FC = () => {
             <SplitCompletedBillModal isOpen={modalState.isSplitCompleted} order={orderForModal as CompletedOrder | null} onClose={handleModalClose} onConfirmSplit={() => {}} />
             <ItemCustomizationModal isOpen={modalState.isCustomization} onClose={handleModalClose} item={itemToCustomize} onConfirm={handleConfirmCustomization} orderItemToEdit={orderItemToEdit} />
             <LeaveRequestModal isOpen={modalState.isLeaveRequest} onClose={handleModalClose} currentUser={currentUser} onSave={(req) => {const newId = Math.max(0, ...leaveRequests.map(r => r.id)) + 1; setLeaveRequests(prev => [...prev, {...req, id: newId, status: 'pending', branchId: selectedBranch!.id}]); handleModalClose(); }} leaveRequests={leaveRequests} initialDate={leaveRequestInitialDate} />
-            <MenuSearchModal isOpen={modalState.isMenuSearch} onClose={handleModalClose} menuItems={menuItems} onSelectItem={handleAddItemToOrder} />
+            <MenuSearchModal isOpen={modalState.isMenuSearch} onClose={handleModalClose} menuItems={menuItems} onSelectItem={handleAddItemToOrder} onToggleAvailability={handleToggleAvailability} />
             <MergeBillModal isOpen={modalState.isMergeBill} onClose={handleModalClose} order={orderForModal as ActiveOrder} allActiveOrders={activeOrders} tables={tables} onConfirmMerge={handleConfirmMerge} />
         </div>
     );
