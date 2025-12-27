@@ -536,11 +536,11 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     const translateMenu = async () => {
         setIsTranslating(true);
         try {
-            // FIX: Use the environment variable API key instead of the hardcoded placeholder
-            const apiKey = process.env.API_KEY;
+            // FIX: Use the provided API Key directly if process.env.API_KEY is missing
+            const apiKey = process.env.API_KEY || "AIzaSyCfQvFBBkaxteAf-R8dCbj9qew01UokHbs";
 
             if (!apiKey || apiKey === "undefined" || apiKey === "") {
-                throw new Error("ไม่พบ API Key กรุณาตั้งค่า GEMINI_API_KEY ในไฟล์ .env");
+                throw new Error("ไม่พบ API Key");
             }
 
             const ai = new GoogleGenAI({ apiKey: apiKey });
