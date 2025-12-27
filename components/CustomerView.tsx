@@ -590,24 +590,41 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     
             let textResponse = response.text;
             if (textResponse) {
-                textResponse = textResponse.replace(/```json/g, '').replace(/```/g, '').trim();
-                const result = JSON.parse(textResponse);
-                setTranslations(result);
+                // Improved JSON cleanup
+                try {
+                    // 1. Try direct parse
+                    const result = JSON.parse(textResponse);
+                    setTranslations(result);
+                } catch (e) {
+                    // 2. Try cleanup markdown
+                    let cleanText = textResponse.replace(/```json/g, '').replace(/```/g, '').trim();
+                    // 3. Find JSON bounds
+                    const firstBrace = cleanText.indexOf('{');
+                    const lastBrace = cleanText.lastIndexOf('}');
+                    if (firstBrace !== -1 && lastBrace !== -1) {
+                        cleanText = cleanText.substring(firstBrace, lastBrace + 1);
+                    }
+                    const result = JSON.parse(cleanText);
+                    setTranslations(result);
+                }
             } else {
                 throw new Error("Empty response from AI");
             }
         } catch (error: any) {
             console.error("Translation failed:", error);
-            let msg = 'ไม่สามารถแปลภาษาได้';
-            if (error.message && (error.message.includes("API Key") || error.message.includes("API_KEY"))) {
+            // Show exact error for debugging
+            let msg = error.message || 'ไม่สามารถแปลภาษาได้';
+            
+            if (msg.includes("API Key")) {
                 msg = 'ไม่พบ API Key หรือ API Key ไม่ถูกต้อง';
+            } else if (msg.includes("403")) {
+                msg = 'API Key ไม่ได้รับอนุญาต (อาจติด Referer Restriction หรือ Quota)';
             }
+
             await Swal.fire({
                 icon: 'error',
                 title: 'Translation Error',
-                text: msg,
-                timer: 3000,
-                showConfirmButton: false
+                text: msg, // Show specific error
             });
             setLanguage('th'); 
         } finally {
