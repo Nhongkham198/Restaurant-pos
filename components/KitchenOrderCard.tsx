@@ -34,131 +34,105 @@ export const KitchenOrderCard: React.FC<KitchenOrderCardProps> = ({ order, onCom
         return () => clearInterval(timer);
     }, [order.status, order.orderTime, order.cookingStartTime]);
 
-    const maxCookingTimeSeconds = useMemo(() => {
-        const maxMinutes = Math.max(0, ...order.items.map(item => item.cookingTime || 0));
-        return maxMinutes * 60;
-    }, [order.items]);
-    
-    const progressPercentage = useMemo(() => {
-        if (order.status !== 'cooking' || maxCookingTimeSeconds === 0) return 0;
-        return Math.min(Math.floor((elapsedSeconds / maxCookingTimeSeconds) * 100), 100);
-    }, [elapsedSeconds, maxCookingTimeSeconds, order.status]);
-    
     const isCooking = order.status === 'cooking';
     const isOverdue = order.isOverdue ?? false;
+    const isTakeaway = order.orderType === 'takeaway' || order.items.some(i => i.isTakeaway);
 
-    const cardClasses = useMemo(() => {
-        let base = 'p-4 rounded-lg border shadow-lg transition-colors ';
-        if (isOverdue) {
-            base += 'bg-red-900/40 border-red-500/50 ring-2 ring-offset-2 ring-offset-gray-800 ring-red-600';
-        } else if (isCooking) {
-            base += 'bg-gray-900/50 border-gray-700';
-        } else {
-            base += 'bg-gray-700/60 border-gray-600';
-        }
-        return base;
+    // KDS Style Colors
+    const headerColor = useMemo(() => {
+        if (isOverdue) return 'bg-red-600';
+        if (isCooking) return 'bg-green-600';
+        return 'bg-blue-600'; // Waiting
     }, [isCooking, isOverdue]);
+
+    const typeLabel = isTakeaway ? 'TAKE AWAY' : 'EAT IN';
     
     return (
-        <div className={cardClasses}>
-            <div className="flex justify-between items-start mb-3 gap-2">
-                <div>
-                    <h4 className={`font-bold text-2xl ${isOverdue ? 'text-red-300' : 'text-white'}`}>
-                        ออเดอร์ #{String(order.orderNumber).padStart(3, '0')}
-                    </h4>
-                    <div className="flex items-center gap-2 text-base text-gray-300 mt-1 flex-wrap">
-                        <span className="font-semibold text-cyan-300">{order.floor} / โต๊ะ: {order.tableName}</span>
-                        {order.customerName && (
-                            <>
-                                <span className="text-gray-500">|</span>
-                                <span className="font-semibold text-yellow-300">{order.customerName}</span>
-                            </>
-                        )}
-                        <span className="text-gray-500">|</span>
-                        <span>ลูกค้า: {order.customerCount} คน</span>
-                        <span className="text-gray-500">|</span>
-                        <span className="text-sm text-gray-400">ผู้ส่ง: <span className="text-green-300">{order.placedBy}</span></span>
-                    </div>
+        <div className="flex flex-col bg-gray-800 text-white rounded-lg overflow-hidden border-2 border-gray-700 shadow-xl h-full transform transition-all duration-200 hover:scale-[1.02]">
+            
+            {/* KDS Header */}
+            <div className={`${headerColor} px-3 py-2 flex justify-between items-center`}>
+                <div className="flex flex-col">
+                    <span className="text-xs font-bold opacity-80 uppercase tracking-wider">{typeLabel}</span>
+                    <span className="text-3xl font-black leading-none">#{String(order.orderNumber).padStart(3, '0')}</span>
                 </div>
-                <div className="flex flex-col items-end gap-2 flex-shrink-0">
-                    <div className="flex items-center gap-2">
-                        {isOverdue && (
-                            <span className="text-sm font-semibold px-2 py-1 rounded-full bg-red-500/20 text-red-400 flex items-center gap-1">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.21 3.03-1.742 3.03H4.42c-1.532 0-2.492-1.696-1.742-3.03l5.58-9.92zM10 13a1 1 0 110-2 1 1 0 010 2zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                                </svg>
-                                รอนานเกินไป
-                            </span>
-                        )}
-                        <span className={`text-lg font-bold px-3 py-1 rounded-full ${isCooking ? (isOverdue ? 'bg-red-500/20 text-red-300' : 'bg-yellow-500/20 text-yellow-300') : 'bg-blue-500/20 text-blue-200'}`}>
-                            {isCooking ? 'กำลังทำ' : 'รอคิว'}
-                        </span>
-                    </div>
-                     <span className="text-3xl text-white font-mono font-bold bg-black/20 px-3 py-1 rounded-md">
-                        {formatTime(elapsedSeconds)}
-                    </span>
+                <div className="flex flex-col items-end">
+                    <span className="text-3xl font-mono font-bold">{formatTime(elapsedSeconds)}</span>
+                    <span className="text-xs font-bold opacity-90 truncate max-w-[100px]">โต๊ะ {order.tableName}</span>
                 </div>
             </div>
 
-            {isCooking && (
-                <div className="mb-4">
-                     <div className="w-full bg-gray-700 rounded-full h-2.5">
-                        <div 
-                            className={`${isOverdue ? 'bg-red-600' : 'bg-green-500'} h-2.5 rounded-full transition-all duration-1000 ease-linear`} 
-                            style={{ width: `${progressPercentage}%` }}>
-                        </div>
-                    </div>
-                </div>
-            )}
+            {/* Sub Header: Info */}
+            <div className="bg-gray-700 px-3 py-1 flex justify-between items-center text-xs text-gray-300 border-b border-gray-600">
+                <span className="truncate">{order.customerName || 'ลูกค้าทั่วไป'}</span>
+                <span>{order.placedBy}</span>
+            </div>
 
-            <ul className="space-y-3 mb-4 max-h-40 overflow-y-auto pr-2 custom-scrollbar">
-                {order.items.map(item => (
-                    <li key={item.cartItemId} className="text-gray-300 text-base">
-                        <div className="flex justify-between font-semibold">
-                           <span>{item.quantity} x {item.name}</span>
-                           {item.isTakeaway && <span className="text-purple-300 font-semibold">(กลับบ้าน) 🛍️</span>}
-                        </div>
-                        {item.selectedOptions.length > 0 && (
-                            <div className="text-sm text-gray-400 pl-4">
-                                {item.selectedOptions.map(opt => ` - ${opt.name}`).join('\n')}
+            {/* Order Items List - NO SCROLL, FULL HEIGHT */}
+            <div className="p-3 flex-1 flex flex-col gap-2">
+                <ul className="space-y-3">
+                    {order.items.map((item, idx) => (
+                        <li key={item.cartItemId || idx} className="flex flex-col border-b border-gray-700 pb-2 last:border-0 last:pb-0">
+                            <div className="flex items-start justify-between">
+                                <span className="font-bold text-lg text-white leading-tight">
+                                    {item.name}
+                                </span>
+                                <span className="font-black text-xl text-yellow-400 bg-gray-700 px-2 rounded ml-2 min-w-[2rem] text-center">
+                                    {item.quantity}
+                                </span>
                             </div>
-                        )}
-                        {item.notes && (
-                            <div className="text-sm text-yellow-300 font-semibold pl-4 bg-yellow-500/10 rounded py-1 mt-1">
-                               หมายเหตุ: {item.notes}
-                            </div>
-                        )}
-                         {item.isTakeaway && item.takeawayCutlery && item.takeawayCutlery.length > 0 && (
-                            <div className="text-xs text-purple-200 pl-4 bg-purple-500/10 rounded py-1 mt-1">
-                                <span className="font-semibold">รับ: </span>
-                                {item.takeawayCutlery.map(c => {
-                                    if(c === 'spoon-fork') return 'ช้อนส้อม';
-                                    if(c === 'chopsticks') return 'ตะเกียบ';
-                                    if(c === 'other') return `อื่นๆ (${item.takeawayCutleryNotes})`;
-                                    if(c === 'none') return 'ไม่รับ';
-                                    return '';
-                                }).filter(Boolean).join(', ')}
-                            </div>
-                        )}
-                    </li>
-                ))}
-            </ul>
+                            
+                            {item.isTakeaway && (
+                                <span className="text-xs font-bold text-purple-400 uppercase mt-0.5">*** กลับบ้าน ***</span>
+                            )}
 
-            {isCooking ? (
-                <button
-                    onClick={() => onCompleteOrder(order.id)}
-                    className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-green-400 text-base"
-                >
-                    เสิร์ฟแล้ว
-                </button>
-            ) : (
-                <button
-                    onClick={() => onStartCooking(order.id)}
-                    className="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-4 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-blue-400 text-base"
-                >
-                    เริ่มทำอาหาร
-                </button>
-            )}
+                            {(item.selectedOptions && item.selectedOptions.length > 0) && (
+                                <div className="text-sm text-cyan-300 pl-2 mt-1 border-l-2 border-cyan-500/30">
+                                    {item.selectedOptions.map(opt => (
+                                        <div key={opt.id}>+ {opt.name}</div>
+                                    ))}
+                                </div>
+                            )}
+
+                            {item.notes && (
+                                <div className="text-sm font-bold text-red-300 bg-red-900/30 p-1 rounded mt-1 border border-red-800/50">
+                                    Note: {item.notes}
+                                </div>
+                            )}
+
+                            {item.isTakeaway && item.takeawayCutlery && item.takeawayCutlery.length > 0 && (
+                                <div className="text-xs text-purple-300 pl-2 mt-1">
+                                    [รับ: {item.takeawayCutlery.map(c => 
+                                        c === 'spoon-fork' ? 'ช้อนส้อม' : 
+                                        c === 'chopsticks' ? 'ตะเกียบ' : 
+                                        c === 'other' ? item.takeawayCutleryNotes : 
+                                        'ไม่รับ'
+                                    ).join(', ')}]
+                                </div>
+                            )}
+                        </li>
+                    ))}
+                </ul>
+            </div>
+
+            {/* Footer Action */}
+            <div className="p-2 bg-gray-800 border-t border-gray-700">
+                {isCooking ? (
+                    <button
+                        onClick={() => onCompleteOrder(order.id)}
+                        className="w-full bg-gray-700 hover:bg-green-600 text-white font-bold py-3 rounded text-xl uppercase tracking-widest transition-colors border-2 border-gray-600 hover:border-green-500"
+                    >
+                        BUMP (เสิร์ฟ)
+                    </button>
+                ) : (
+                    <button
+                        onClick={() => onStartCooking(order.id)}
+                        className="w-full bg-gray-700 hover:bg-blue-600 text-white font-bold py-3 rounded text-xl uppercase tracking-widest transition-colors border-2 border-gray-600 hover:border-blue-500"
+                    >
+                        START (เริ่ม)
+                    </button>
+                )}
+            </div>
         </div>
     );
 };
