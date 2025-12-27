@@ -539,10 +539,8 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
             // FIX: Use the environment variable API key instead of the hardcoded placeholder
             const apiKey = process.env.API_KEY;
 
-            if (!apiKey) {
-                console.error("API Key is missing in environment variables");
-                setLanguage('th'); 
-                return;
+            if (!apiKey || apiKey === "undefined" || apiKey === "") {
+                throw new Error("ไม่พบ API Key กรุณาตั้งค่า GEMINI_API_KEY ในไฟล์ .env");
             }
 
             const ai = new GoogleGenAI({ apiKey: apiKey });
@@ -555,28 +553,32 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                 'กำลังสร้างรูปภาพ...', 'เกิดข้อผิดพลาด', 'ไม่สามารถสร้างรูปภาพได้', 'กำลังปรุง... 🍳', 'รอคิว...', 'คิว', 'เสิร์ฟครบแล้ว 😋',
                 'บันทึกสำเร็จ!', 'บิลของคุณถูกบันทึกเป็นรูปภาพแล้ว', 'สั่งอาหารสำเร็จ!', 'รายการอาหารถูกส่งเข้าครัวแล้ว',
                 'กำลังส่งรายการ...', 'ไม่สามารถสั่งอาหารได้ กรุณาลองใหม่', 'เกิดข้อผิดพลาด', 'คิวที่ 1', 'อีก', 'ไม่ระบุชื่อ',
-                'รายการของคุณ', 'รายการของเพื่อนร่วมโต๊ะ', 'ยอดรวมทั้งโต๊ะ'
+                'รายการของคุณ', 'รายการของเพื่อนร่วมโต๊ะ', 'ยอดรวมทั้งโต๊ะ', 'จัดการของหมด', 'เสร็จสิ้น', 'ค้นหาเมนูอาหาร', 'พิมพ์ชื่อเมนู...'
             ];
     
             const dynamicText = new Set<string>();
             menuItems.forEach(item => {
-                dynamicText.add(item.name);
+                if (item.name) dynamicText.add(item.name);
                 item.optionGroups?.forEach(group => {
-                    dynamicText.add(group.name);
-                    group.options.forEach(option => dynamicText.add(option.name));
+                    if (group.name) dynamicText.add(group.name);
+                    group.options.forEach(option => {
+                        if (option.name) dynamicText.add(option.name);
+                    });
                 });
             });
-            categories.forEach(cat => dynamicText.add(cat));
+            categories.forEach(cat => {
+                if (cat) dynamicText.add(cat);
+            });
     
             const allText = [...staticText, ...Array.from(dynamicText)];
-            const uniqueText = Array.from(new Set(allText));
+            const uniqueText = Array.from(new Set(allText)).filter(t => t && t.trim() !== '');
             
             const textToTranslate: Record<string, string> = {};
             uniqueText.forEach(text => {
                 textToTranslate[text] = text;
             });
     
-            const prompt = `Translate the values of the following JSON object from Thai to English. Return ONLY the JSON object. Do not include markdown formatting or explanations.\n${JSON.stringify(textToTranslate, null, 2)}`;
+            const prompt = `Translate the values of the following JSON object from Thai to English. Return ONLY the JSON object. \n${JSON.stringify(textToTranslate, null, 2)}`;
             
             const response = await ai.models.generateContent({
                 model: 'gemini-3-flash-preview',
@@ -586,15 +588,27 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                 }
             });
     
-            const textResponse = response.text;
+            let textResponse = response.text;
             if (textResponse) {
+                textResponse = textResponse.replace(/```json/g, '').replace(/```/g, '').trim();
                 const result = JSON.parse(textResponse);
                 setTranslations(result);
             } else {
                 throw new Error("Empty response from AI");
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error("Translation failed:", error);
+            let msg = 'ไม่สามารถแปลภาษาได้';
+            if (error.message && (error.message.includes("API Key") || error.message.includes("API_KEY"))) {
+                msg = 'ไม่พบ API Key หรือ API Key ไม่ถูกต้อง';
+            }
+            await Swal.fire({
+                icon: 'error',
+                title: 'Translation Error',
+                text: msg,
+                timer: 3000,
+                showConfirmButton: false
+            });
             setLanguage('th'); 
         } finally {
             setIsTranslating(false);
