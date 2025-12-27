@@ -1,5 +1,4 @@
 
-
 import React, { useState, useMemo, useRef } from 'react';
 import type { StockItem } from '../types';
 import Swal from 'sweetalert2';
@@ -278,6 +277,11 @@ export const StockManagement: React.FC<StockManagementProps> = ({
         return qty.toLocaleString();
     };
 
+    const formatDate = (timestamp?: number) => {
+        if (!timestamp) return '-';
+        return new Date(timestamp).toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: '2-digit' });
+    };
+
     return (
         <>
             <div className="h-full flex flex-col bg-gray-50 md:bg-white">
@@ -334,11 +338,12 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                      {/* Desktop Header */}
                     <div className="hidden md:grid md:grid-cols-12 gap-4 px-6 py-4 text-sm text-gray-700 uppercase bg-gray-100 border-b font-bold sticky top-0 z-10 shadow-sm">
                         <div className="col-span-3">ชื่อวัตถุดิบ</div>
-                        <div className="col-span-2">หมวดหมู่</div>
+                        <div className="col-span-1">หมวดหมู่</div>
+                        <div className="col-span-2 text-center">วันที่สั่ง/รับ</div>
                         <div className="col-span-2 text-right">จำนวนคงเหลือ</div>
                         <div className="col-span-2 text-right">จุดสั่งซื้อ</div>
                         <div className="col-span-1 text-center">สถานะ</div>
-                        <div className="col-span-2 text-center">จัดการ</div>
+                        <div className="col-span-1 text-center">จัดการ</div>
                     </div>
 
                     {/* Item List */}
@@ -358,6 +363,16 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                             <span className={`px-3 py-1 text-sm font-semibold rounded-full ${status.color}`}>{status.text}</span>
                                         </div>
                                         <p className="text-base text-gray-500">หมวดหมู่: {item.category}</p>
+                                        <div className="flex justify-between text-sm text-gray-600 bg-gray-50 p-2 rounded">
+                                            <div>
+                                                <span className="font-semibold block text-xs text-gray-400">สั่งของ</span>
+                                                {formatDate(item.orderDate)}
+                                            </div>
+                                            <div className="text-right">
+                                                <span className="font-semibold block text-xs text-gray-400">รับของ</span>
+                                                {formatDate(item.receivedDate)}
+                                            </div>
+                                        </div>
                                         <div className="grid grid-cols-2 text-base pt-2 border-t gap-2">
                                             <div>
                                                 <p className="text-gray-500">คงเหลือ</p> 
@@ -377,10 +392,16 @@ export const StockManagement: React.FC<StockManagementProps> = ({
 
                                     {/* Desktop Table Row Layout */}
                                     <div className="hidden md:block md:col-span-3 md:py-4 md:font-medium md:text-lg md:text-gray-900 md:whitespace-nowrap">{item.name}</div>
-                                    <div className="hidden md:block md:col-span-2 md:py-4">
-                                        <span className="px-3 py-1 text-sm font-semibold rounded-full bg-gray-200 text-gray-800">
+                                    <div className="hidden md:block md:col-span-1 md:py-4">
+                                        <span className="px-2 py-1 text-xs font-semibold rounded-full bg-gray-200 text-gray-800 truncate block text-center">
                                             {item.category}
                                         </span>
+                                    </div>
+                                    <div className="hidden md:block md:col-span-2 md:py-4 text-center">
+                                        <div className="text-xs text-gray-500">
+                                            <div className="flex justify-between px-4"><span>สั่ง:</span> <span className="font-medium text-gray-800">{formatDate(item.orderDate)}</span></div>
+                                            <div className="flex justify-between px-4 mt-1"><span>รับ:</span> <span className="font-medium text-gray-800">{formatDate(item.receivedDate)}</span></div>
+                                        </div>
                                     </div>
                                     {/* Quantity Column */}
                                     <div className="hidden md:block md:col-span-2 md:py-4 md:text-right">
@@ -394,12 +415,18 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                     </div>
                                     
                                     <div className="hidden md:flex md:col-span-1 md:py-4 md:justify-center">
-                                        <span className={`px-3 py-1 text-sm font-semibold rounded-full ${status.color}`}>{status.text}</span>
+                                        <span className={`px-2 py-1 text-xs font-semibold rounded-full ${status.color} whitespace-nowrap`}>{status.text}</span>
                                     </div>
-                                    <div className="hidden md:block md:col-span-2 md:py-4 md:text-center md:space-x-3 text-lg">
-                                        <button onClick={() => handleOpenAdjustModal(item)} className="font-medium text-green-600 hover:underline">ปรับ</button>
-                                        <button onClick={() => handleOpenItemModal(item)} className="font-medium text-blue-600 hover:underline">แก้ไข</button>
-                                        <button onClick={() => handleDeleteItem(item.id)} className="font-medium text-red-600 hover:underline">ลบ</button>
+                                    <div className="hidden md:block md:col-span-1 md:py-4 md:text-center md:space-x-2 text-sm">
+                                        <button onClick={() => handleOpenAdjustModal(item)} className="font-medium text-green-600 hover:text-green-800" title="ปรับ">
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
+                                        </button>
+                                        <button onClick={() => handleOpenItemModal(item)} className="font-medium text-blue-600 hover:text-blue-800" title="แก้ไข">
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L15.232 5.232z" /></svg>
+                                        </button>
+                                        <button onClick={() => handleDeleteItem(item.id)} className="font-medium text-red-600 hover:text-red-800" title="ลบ">
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                        </button>
                                     </div>
                                 </div>
                             );

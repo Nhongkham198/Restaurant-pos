@@ -239,6 +239,8 @@ const App: React.FC = () => {
     const overdueTimersRef = useRef<Map<number, number>>(new Map());
     const shownNotificationsRef = useRef<Set<number>>(new Set());
     const mountTimeRef = useRef(Date.now());
+    const notifiedLowStockRef = useRef<Set<number>>(new Set());
+    const notifiedDailyStockRef = useRef<string>(''); // For daily 16:00 alert
 
     // ============================================================================
     // 2. COMPUTED VALUES (MEMO)
@@ -337,7 +339,6 @@ const App: React.FC = () => {
     // 3. EFFECTS
     // ============================================================================
     
-    // ... existing effects ...
     // --- EFFECT: Network Status Listener ---
     useEffect(() => {
         const handleOnline = () => setIsOnline(true);
@@ -441,6 +442,72 @@ const App: React.FC = () => {
             overdueTimersRef.current.forEach(timerId => clearTimeout(timerId));
         };
     }, [activeOrders]); // Depend on activeOrders change
+
+    // --- Low Stock Alert Effect (Global - Realtime) ---
+    useEffect(() => {
+        const lowStockItems = stockItems.filter(item => item.quantity <= item.reorderPoint);
+        const newLowStockItems = lowStockItems.filter(item => !notifiedLowStockRef.current.has(item.id));
+
+        if (newLowStockItems.length > 0) {
+            // Update ref
+            newLowStockItems.forEach(item => notifiedLowStockRef.current.add(item.id));
+            
+            // Clean up ref for items that are no longer low stock
+            const currentLowStockIds = new Set(lowStockItems.map(i => i.id));
+            notifiedLowStockRef.current.forEach(id => {
+                if (!currentLowStockIds.has(id)) {
+                    notifiedLowStockRef.current.delete(id);
+                }
+            });
+
+            // Trigger Alert
+            const itemNames = newLowStockItems.map(i => i.name).join(', ');
+            Swal.fire({
+                title: 'แจ้งเตือนสินค้าใกล้หมด!',
+                html: `รายการต่อไปนี้มีจำนวนคงเหลือต่ำกว่ากำหนด:<br/><b>${itemNames}</b>`,
+                icon: 'warning',
+                confirmButtonText: 'รับทราบ',
+                timer: 10000,
+                timerProgressBar: true
+            });
+        }
+    }, [stockItems]);
+
+    // --- Scheduled Low Stock Alert (Daily at 16:00) ---
+    useEffect(() => {
+        const checkDailyAlert = () => {
+            const now = new Date();
+            // Check for 16:00 (4 PM) - Check every minute or so
+            // We use strict equality for minute to avoid multiple triggers, but handled by ref below
+            if (now.getHours() === 16 && now.getMinutes() === 0) {
+                const todayStr = now.toDateString();
+                
+                // Only alert once per day
+                if (notifiedDailyStockRef.current !== todayStr) {
+                    const lowStockItems = stockItems.filter(item => item.quantity <= item.reorderPoint);
+                    
+                    if (lowStockItems.length > 0) {
+                        notifiedDailyStockRef.current = todayStr;
+                        const itemNames = lowStockItems.map(i => i.name).join(', ');
+                        
+                        Swal.fire({
+                            title: '🔔 แจ้งเตือนสั่งของประจำวัน (16:00 น.)',
+                            html: `ถึงเวลาตรวจสอบสต็อกแล้ว!<br/>รายการที่ต้องสั่งซื้อเพิ่ม:<br/><b style="color:red">${itemNames}</b>`,
+                            icon: 'warning',
+                            confirmButtonText: 'รับทราบ',
+                            timer: 60000, // Show for 1 minute
+                            timerProgressBar: true
+                        });
+                    }
+                }
+            }
+        };
+
+        // Check every 10 seconds to ensure we hit the 16:00 window
+        const intervalId = setInterval(checkDailyAlert, 10000);
+
+        return () => clearInterval(intervalId);
+    }, [stockItems]);
 
     // ... (Customer Mode Init Effect) ...
     useEffect(() => {

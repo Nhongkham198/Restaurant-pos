@@ -24,6 +24,8 @@ const initialFormState: Omit<StockItem, 'id' | 'lastUpdated'> = {
     quantity: 0,
     unit: '',
     reorderPoint: 0,
+    orderDate: undefined,
+    receivedDate: undefined
 };
 
 export const StockItemModal: React.FC<StockItemModalProps> = ({
@@ -61,6 +63,9 @@ export const StockItemModal: React.FC<StockItemModalProps> = ({
         }
         onSave(formState);
     };
+
+    const toInputDate = (ts?: number) => ts ? new Date(ts).toISOString().split('T')[0] : '';
+    const fromInputDate = (val: string) => val ? new Date(val).getTime() : undefined;
 
     if (!isOpen) return null;
 
@@ -121,6 +126,16 @@ export const StockItemModal: React.FC<StockItemModalProps> = ({
                             </div>
                             <p className="mt-1 text-sm font-bold text-gray-700">ระบบจะแจ้งเตือนเมื่อจำนวนคงเหลือต่ำกว่าจุดนี้</p>
                         </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">วันที่สั่งของ</label>
+                                <input type="date" value={toInputDate(formState.orderDate)} onChange={e => setFormState(prev => ({...prev, orderDate: fromInputDate(e.target.value)}))} className={inputClasses} />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">วันที่รับของ</label>
+                                <input type="date" value={toInputDate(formState.receivedDate)} onChange={e => setFormState(prev => ({...prev, receivedDate: fromInputDate(e.target.value)}))} className={inputClasses} />
+                            </div>
+                        </div>
                         <div className="flex justify-end gap-2 pt-4">
                             <button type="button" onClick={onClose} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300">ยกเลิก</button>
                             <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">บันทึก</button>
@@ -149,7 +164,7 @@ export const StockItemModal: React.FC<StockItemModalProps> = ({
                 isOpen={numpadConfig.isOpen}
                 onClose={() => setNumpadConfig({ ...numpadConfig, isOpen: false })}
                 title={numpadConfig.title}
-                initialValue={numpadConfig.field ? formState[numpadConfig.field] : 0}
+                initialValue={numpadConfig.field ? formState[numpadConfig.field]! : 0}
                 onSubmit={(newValue) => {
                     if (numpadConfig.field) {
                         setFormState(prev => ({

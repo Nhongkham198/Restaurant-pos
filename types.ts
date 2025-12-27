@@ -188,6 +188,8 @@ export interface StockItem {
     unit: string;
     reorderPoint: number;
     lastUpdated: number; // timestamp
+    orderDate?: number; // timestamp
+    receivedDate?: number; // timestamp
 }
 
 export interface LeaveRequest {
