@@ -536,9 +536,11 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     const translateMenu = async () => {
         setIsTranslating(true);
         try {
-            const apiKey = "AIzaSyCfQvFBBkaxteAf-R8dCbj9qew01UokHbs";
+            // FIX: Use the environment variable API key instead of the hardcoded placeholder
+            const apiKey = process.env.API_KEY;
 
             if (!apiKey) {
+                console.error("API Key is missing in environment variables");
                 setLanguage('th'); 
                 return;
             }
@@ -577,7 +579,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
             const prompt = `Translate the values of the following JSON object from Thai to English. Return ONLY the JSON object. Do not include markdown formatting or explanations.\n${JSON.stringify(textToTranslate, null, 2)}`;
             
             const response = await ai.models.generateContent({
-                model: 'gemini-2.5-flash',
+                model: 'gemini-3-flash-preview',
                 contents: prompt,
                 config: {
                     responseMimeType: 'application/json'

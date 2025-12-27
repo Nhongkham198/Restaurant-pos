@@ -1,4 +1,3 @@
-
 // ... existing imports
 // (Keeping all imports same as before)
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
@@ -445,6 +444,8 @@ const App: React.FC = () => {
 
     // --- Low Stock Alert Effect (Global - Realtime) ---
     useEffect(() => {
+        if (isCustomerMode) return; // Prevent alerts in customer mode
+
         const lowStockItems = stockItems.filter(item => item.quantity <= item.reorderPoint);
         const newLowStockItems = lowStockItems.filter(item => !notifiedLowStockRef.current.has(item.id));
 
@@ -471,11 +472,13 @@ const App: React.FC = () => {
                 timerProgressBar: true
             });
         }
-    }, [stockItems]);
+    }, [stockItems, isCustomerMode]);
 
     // --- Scheduled Low Stock Alert (Daily at 16:00) ---
     useEffect(() => {
         const checkDailyAlert = () => {
+            if (isCustomerMode) return; // Prevent alerts in customer mode
+
             const now = new Date();
             // Check for 16:00 (4 PM) - Check every minute or so
             // We use strict equality for minute to avoid multiple triggers, but handled by ref below
@@ -507,7 +510,7 @@ const App: React.FC = () => {
         const intervalId = setInterval(checkDailyAlert, 10000);
 
         return () => clearInterval(intervalId);
-    }, [stockItems]);
+    }, [stockItems, isCustomerMode]);
 
     // ... (Customer Mode Init Effect) ...
     useEffect(() => {
