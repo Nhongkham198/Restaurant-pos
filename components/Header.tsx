@@ -1,5 +1,6 @@
 
 
+
 import React, { useState, useEffect, useMemo } from 'react';
 import type { User, View } from '../types';
 
@@ -14,6 +15,7 @@ interface HeaderProps {
     tablesBadgeCount: number;
     vacantTablesBadgeCount: number;
     leaveBadgeCount: number; // Added leave badge count
+    stockBadgeCount: number; // Added stock badge count
     currentUser: User | null;
     onLogout: () => void;
     onOpenUserManager: () => void;
@@ -63,7 +65,7 @@ const NavButton: React.FC<{
 
 export const Header: React.FC<HeaderProps> = ({ 
     currentView, onViewChange, isEditMode, onToggleEditMode, onOpenSettings, 
-    cookingBadgeCount, waitingBadgeCount, tablesBadgeCount, vacantTablesBadgeCount, leaveBadgeCount,
+    cookingBadgeCount, waitingBadgeCount, tablesBadgeCount, vacantTablesBadgeCount, leaveBadgeCount, stockBadgeCount,
     currentUser, onLogout, onOpenUserManager,
     logoUrl, onLogoChangeClick, restaurantName, onRestaurantNameChange,
     branchName, onChangeBranch, onManageBranches
@@ -119,10 +121,10 @@ export const Header: React.FC<HeaderProps> = ({
                 <nav className="flex items-center gap-2 bg-gray-100 p-1.5 rounded-xl">
                     <NavButton label="POS" isActive={currentView === 'pos'} onClick={() => onViewChange('pos')} icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4z" /><path fillRule="evenodd" d="M18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h2a1 1 0 100-2H9z" clipRule="evenodd" /></svg>} activeClassName="bg-blue-600 hover:bg-blue-700 text-white shadow-md" />
                     <NavButton label="ครัว" isActive={currentView === 'kitchen'} onClick={() => onViewChange('kitchen')} disabled={isPosStaff} icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M17.707 9.293a1 1 0 010 1.414l-7 7a1 1 0 01-1.414 0l-7-7A.997.997 0 012 10V5a3 3 0 013-3h10a3 3 0 013 3v5a.997.997 0 01-.293.707zM5 6a1 1 0 100 2 1 1 0 000-2zm3 0a1 1 0 100 2 1 1 0 000-2zm3 0a1 1 0 100 2 1 1 0 000-2z" clipRule="evenodd" /></svg>} badge={cookingBadgeCount} bottomBadge={waitingBadgeCount} activeClassName="bg-orange-500 hover:bg-orange-600 text-white shadow-md" />
-                    <NavButton label="ผังโต๊ะ" isActive={currentView === 'tables'} onClick={() => onViewChange('tables')} icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M2 5a2 2 0 012-2h12a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V5zm2 1v8h8V6H4z" /></svg>} badge={tablesBadgeCount} bottomBadge={vacantTablesBadgeCount} activeClassName="bg-green-500 hover:bg-green-600 text-white shadow-md" />
+                    <NavButton label="ผังโต๊ะ" isActive={currentView === 'tables'} onClick={() => onViewChange('tables')} icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M2 5a2 2 0 012-2h12a2 2 0 012 2v10a2 2 0 01-2-2H4a2 2 0 01-2-2V5zm2 1v8h8V6H4z" /></svg>} badge={tablesBadgeCount} bottomBadge={vacantTablesBadgeCount} activeClassName="bg-green-500 hover:bg-green-600 text-white shadow-md" />
                     <NavButton label="Dashboard" isActive={currentView === 'dashboard'} onClick={() => onViewChange('dashboard')} disabled={isKitchenStaff || isPosStaff} icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1-1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" /></svg>} activeClassName="bg-purple-600 hover:bg-purple-700 text-white shadow-md" />
                     <NavButton label="ประวัติ" isActive={currentView === 'history'} onClick={() => onViewChange('history')} icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" /></svg>} activeClassName="bg-teal-500 hover:bg-teal-600 text-white shadow-md" />
-                    <NavButton label="สต็อก" isActive={currentView === 'stock'} onClick={() => onViewChange('stock')} icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>} activeClassName="bg-cyan-600 hover:bg-cyan-700 text-white shadow-md" />
+                    <NavButton label="สต็อก" isActive={currentView === 'stock'} onClick={() => onViewChange('stock')} icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>} activeClassName="bg-cyan-600 hover:bg-cyan-700 text-white shadow-md" badge={stockBadgeCount} />
                     <NavButton 
                         label="วันลา" 
                         isActive={currentView === 'leave'} 

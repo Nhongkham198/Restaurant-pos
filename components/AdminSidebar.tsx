@@ -1,6 +1,8 @@
 
 
 
+
+
 import React, { useState, ReactNode, useRef, useMemo } from 'react';
 import type { User, View } from '../types';
 import Swal from 'sweetalert2';
@@ -24,6 +26,7 @@ interface AdminSidebarProps {
     kitchenBadgeCount: number;
     tablesBadgeCount: number;
     leaveBadgeCount: number;
+    stockBadgeCount: number; // Added stock badge count
     onUpdateCurrentUser: (updates: Partial<User>) => void;
     onUpdateLogoUrl: (newUrl: string) => void;
     onUpdateRestaurantName: (newName: string) => void;
@@ -101,6 +104,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({
     kitchenBadgeCount,
     tablesBadgeCount,
     leaveBadgeCount,
+    stockBadgeCount,
     onUpdateCurrentUser,
     onUpdateLogoUrl,
     onUpdateRestaurantName,
@@ -299,7 +303,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({
                                     onClick={() => onViewChange('pos')}
                                 />
                                 <NavItem
-                                    icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path d="M2 5a2 2 0 012-2h12a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V5zm2 1v8h8V6H4z" /></svg>}
+                                    icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path d="M2 5a2 2 0 012-2h12a2 2 0 012 2v10a2 2 0 01-2-2H4a2 2 0 01-2-2V5zm2 1v8h8V6H4z" /></svg>}
                                     text="โต๊ะ"
                                     isCollapsed={isCollapsed}
                                     isActive={currentView === 'tables'}
@@ -335,6 +339,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({
                                     isCollapsed={isCollapsed}
                                     isActive={currentView === 'stock'}
                                     onClick={() => onViewChange('stock')}
+                                    badge={stockBadgeCount} // Added stock badge
                                 />
                                 <NavItem
                                     icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>}
