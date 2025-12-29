@@ -403,7 +403,13 @@ export const StockManagement: React.FC<StockManagementProps> = ({
 
                         {/* Desktop Category Buttons - Hidden on mobile */}
                         <div className="hidden sm:flex items-center gap-2 flex-wrap">
-                            {stockCategories.map(category => (
+                            <button
+                                onClick={() => setSelectedCategory('ทั้งหมด')}
+                                className={`px-4 py-2 rounded-full text-sm font-semibold transition-colors ${selectedCategory === 'ทั้งหมด' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+                            >
+                                ทั้งหมด
+                            </button>
+                            {stockCategories.filter(c => c !== 'ทั้งหมด').map(category => (
                                 <button
                                     key={category}
                                     onClick={() => setSelectedCategory(category)}
