@@ -35,10 +35,15 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, 
 
     if (!isOpen) return null;
 
-    const today = new Date().toLocaleDateString('th-TH', { 
+    const now = new Date();
+    const dateStr = now.toLocaleDateString('th-TH', { 
         year: 'numeric', 
         month: 'long', 
         day: 'numeric' 
+    });
+    const timeStr = now.toLocaleTimeString('th-TH', {
+        hour: '2-digit',
+        minute: '2-digit'
     });
 
     return (
@@ -57,12 +62,21 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, 
                             left: 0;
                             top: 0;
                             width: 100%;
-                            height: 100%;
+                            height: auto !important; /* Force full height */
+                            min-height: 100%;
                             padding: 20px;
+                            margin: 0;
                             box-shadow: none !important;
                             border: none !important;
                             border-radius: 0 !important;
+                            overflow: visible !important; /* Disable scrollbar for printing */
+                            display: block !important; /* Override flex */
+                        }
+                        /* Reset inner scroll container */
+                        #purchase-order-scroll-container {
+                            height: auto !important;
                             overflow: visible !important;
+                            flex: none !important;
                         }
                         .no-print {
                             display: none !important;
@@ -86,7 +100,13 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, 
                 {/* Header (On Screen & Print) */}
                 <div className="p-8 border-b border-gray-300 text-center relative">
                     <h2 className="text-2xl font-bold text-gray-900 uppercase tracking-wide">ใบรายการสั่งซื้อสินค้า</h2>
-                    <p className="text-gray-600 mt-2">วันที่: {today}</p>
+                    <div className="mt-2 text-gray-600 flex flex-col items-center gap-1">
+                        <p>วันที่: {dateStr} เวลา: {timeStr}</p>
+                        <p className="font-semibold text-blue-700">
+                            ผู้ออกเอกสาร: {currentUser?.username || '-'}
+                        </p>
+                    </div>
+                    
                     <div className="absolute top-4 right-4 no-print">
                         <button onClick={onClose} className="p-2 text-gray-500 hover:bg-gray-100 rounded-full">
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -97,7 +117,7 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, 
                 </div>
 
                 {/* Content Area */}
-                <div className="flex-1 overflow-y-auto p-8">
+                <div id="purchase-order-scroll-container" className="flex-1 overflow-y-auto p-8">
                     {itemsToOrder.length > 0 ? (
                         <table className="w-full border-collapse border border-gray-300 text-sm">
                             <thead className="bg-gray-100 text-gray-700">
@@ -114,7 +134,7 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, 
                             </thead>
                             <tbody>
                                 {itemsToOrder.map((item, index) => (
-                                    <tr key={item.id}>
+                                    <tr key={item.id} style={{ pageBreakInside: 'avoid' }}>
                                         <td className="border border-gray-300 p-2 text-center text-gray-600">{index + 1}</td>
                                         <td className="border border-gray-300 p-2 font-medium text-gray-800">{item.name}</td>
                                         <td className="border border-gray-300 p-2 text-center text-gray-600">{item.category}</td>
@@ -146,7 +166,7 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, 
                     </div>
                     
                     {/* Signature Section for Print */}
-                    <div className="mt-16 flex justify-around text-center hidden print:flex">
+                    <div className="mt-16 flex justify-around text-center hidden print:flex" style={{ pageBreakInside: 'avoid' }}>
                         <div className="flex flex-col items-center">
                             {/* Display Current User Name */}
                             {currentUser && (
