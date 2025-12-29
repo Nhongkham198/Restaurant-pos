@@ -47,71 +47,82 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, 
     });
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-[80] p-4 print:p-0 print:block print:bg-white print:inset-0">
+        <div 
+            id="purchase-order-modal-wrapper"
+            className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-[80] p-4 print:p-0 print:absolute print:inset-auto print:top-0 print:left-0 print:w-full print:h-auto print:bg-white print:block"
+        >
             <style>
                 {`
                     @media print {
                         @page { margin: 10mm; size: A4; }
                         
-                        /* CRITICAL FIX: Reset root containers to allow scrolling/paging */
-                        html, body, #root {
-                            height: auto !important;
-                            min-height: 100% !important;
-                            overflow: visible !important;
-                            margin: 0 !important;
-                            padding: 0 !important;
+                        /* Hide everything by default */
+                        body > * {
+                            display: none !important;
                         }
 
-                        /* Hide generic body content */
-                        body * {
-                            visibility: hidden;
+                        /* Unhide the modal wrapper and its children */
+                        body > #root {
+                            display: block !important; /* Root needs to be visible for React portal/mounting usually, but if using portal might be diff. Assuming direct child here or Portal. */
+                        }
+                        
+                        /* If using Portal, the modal might be a direct child of body. If inside root: */
+                        #root > * {
+                            display: none !important;
                         }
 
-                        /* Position the modal content at the top of the page */
-                        #purchase-order-modal-content {
-                            visibility: visible;
-                            position: absolute;
-                            left: 0;
-                            top: 0;
+                        /* Target our specific wrapper ID to show it */
+                        #purchase-order-modal-wrapper {
+                            display: block !important;
+                            position: absolute !important;
+                            top: 0 !important;
+                            left: 0 !important;
                             width: 100% !important;
                             height: auto !important;
-                            min-height: 100%;
                             overflow: visible !important;
-                            margin: 0 !important;
-                            padding: 20px !important;
                             background: white !important;
-                            
-                            /* Reset shadows and borders for print */
+                            z-index: 9999 !important;
+                        }
+
+                        /* Ensure content flows */
+                        #purchase-order-modal-content {
                             box-shadow: none !important;
                             border: none !important;
-                            border-radius: 0 !important;
-                            
-                            /* Ensure it behaves like a block */
+                            width: 100% !important;
+                            max-width: 100% !important;
+                            height: auto !important;
+                            overflow: visible !important;
+                            flex: none !important;
                             display: block !important;
-                            
-                            /* Ensure it's on top */
-                            z-index: 9999;
                         }
 
-                        /* Ensure all children of the modal are visible */
-                        #purchase-order-modal-content * {
-                            visibility: visible;
-                        }
-
-                        /* Reset the specific scroll container inside the modal */
+                        /* Reset scroll container */
                         #purchase-order-scroll-container {
                             height: auto !important;
                             overflow: visible !important;
                             display: block !important;
-                            flex: none !important; /* Disable flex behavior that might restrict height */
                         }
 
-                        /* Hide buttons and close icon */
-                        .no-print {
-                            display: none !important;
+                        /* Ensure children are visible */
+                        #purchase-order-modal-wrapper * {
+                            visibility: visible;
+                            display: block; /* Default to block, specific elements override below */
                         }
+                        
+                        /* Restore table display types */
+                        table { display: table !important; width: 100% !important; }
+                        thead { display: table-header-group !important; }
+                        tbody { display: table-row-group !important; }
+                        tr { display: table-row !important; break-inside: avoid; page-break-inside: avoid; }
+                        th, td { display: table-cell !important; }
+                        
+                        /* Restore flex for header layout if needed */
+                        .print-flex { display: flex !important; }
+                        
+                        /* Hide utility buttons */
+                        .no-print { display: none !important; }
 
-                        /* Styling for inputs to look like text */
+                        /* Input styling */
                         input {
                             border: none !important;
                             background: transparent !important;
@@ -119,34 +130,7 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, 
                             padding: 0 !important;
                             color: black !important;
                             font-weight: bold;
-                            /* Remove spinners */
-                            -moz-appearance: textfield;
-                        }
-                        input::-webkit-outer-spin-button,
-                        input::-webkit-inner-spin-button {
-                            -webkit-appearance: none;
-                            margin: 0;
-                        }
-
-                        /* Ensure table header repeats on new pages */
-                        thead {
-                            display: table-header-group;
-                        }
-                        
-                        tbody {
-                            display: table-row-group;
-                        }
-                        
-                        tr {
-                            break-inside: avoid;
-                            page-break-inside: avoid;
-                        }
-                        
-                        /* Add page break handling */
-                        table {
-                            page-break-inside: auto;
-                            width: 100% !important;
-                            border-collapse: collapse;
+                            display: inline-block !important;
                         }
                     }
                 `}
@@ -229,7 +213,7 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, 
                     </div>
                     
                     {/* Signature Section for Print */}
-                    <div className="mt-16 flex justify-around text-center hidden print:flex" style={{ pageBreakInside: 'avoid' }}>
+                    <div className="mt-16 flex justify-around text-center hidden print:flex print-flex" style={{ pageBreakInside: 'avoid' }}>
                         <div className="flex flex-col items-center">
                             {/* Display Current User Name */}
                             {currentUser && (
