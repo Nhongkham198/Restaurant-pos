@@ -221,6 +221,15 @@ export const StockManagement: React.FC<StockManagementProps> = ({
         return { text: 'มีของ', color: 'bg-green-200 text-green-800' };
     };
 
+    const getMobileCardStyle = (item: StockItem) => {
+        const qty = Number(item.quantity) || 0;
+        const reorder = Number(item.reorderPoint) || 0;
+        
+        if (qty <= 0) return 'bg-red-100 border-2 border-red-500';
+        if (qty <= reorder) return 'bg-yellow-100 border-2 border-yellow-500';
+        return 'bg-white border border-gray-200';
+    };
+
     // Safe formatting helper to prevent crash on undefined/null/string
     const formatQty = (qty: any, unit: string | undefined) => {
         const val = Number(qty);
@@ -433,8 +442,8 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                             return (
                                 <div key={item.id} className={`md:grid md:grid-cols-12 md:gap-4 md:px-6 md:items-center ${rowBgClass} md:border-b hover:bg-blue-50 rounded-lg shadow-sm md:shadow-none md:rounded-none transition-colors duration-150`}>
                                     
-                                    {/* Mobile/Tablet Card Layout */}
-                                    <div className="md:hidden p-4 space-y-3 bg-white">
+                                    {/* Mobile/Tablet Card Layout - Highlighting Logic Applied Here */}
+                                    <div className={`md:hidden p-4 space-y-3 rounded-lg ${getMobileCardStyle(item)}`}>
                                         <div className="flex justify-between items-start gap-3">
                                             {/* Image with Index Badge */}
                                             <div className="relative flex-shrink-0">
@@ -450,30 +459,30 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                             </div>
                                             <span className={`px-3 py-1 text-sm font-semibold rounded-full ${status.color}`}>{status.text}</span>
                                         </div>
-                                        <div className="flex justify-between text-sm text-gray-600 bg-gray-50 p-2 rounded">
+                                        <div className="flex justify-between text-sm text-gray-600 bg-white/50 p-2 rounded">
                                             <div>
-                                                <span className="font-semibold block text-xs text-gray-400">สั่งของ</span>
+                                                <span className="font-semibold block text-xs text-gray-500">สั่งของ</span>
                                                 {formatDate(item.orderDate)}
                                             </div>
                                             <div className="text-right">
-                                                <span className="font-semibold block text-xs text-gray-400">รับของ</span>
+                                                <span className="font-semibold block text-xs text-gray-500">รับของ</span>
                                                 {formatDate(item.receivedDate)}
                                             </div>
                                         </div>
-                                        <div className="grid grid-cols-2 text-base pt-2 border-t gap-2">
+                                        <div className="grid grid-cols-2 text-base pt-2 border-t border-gray-200 gap-2">
                                             <div>
-                                                <p className="text-gray-500">คงเหลือ</p> 
-                                                <p className="font-semibold text-gray-800">{formatQty(item.quantity, item.unit)} {item.unit}</p>
+                                                <p className="text-gray-600">คงเหลือ</p> 
+                                                <p className="font-semibold text-gray-900">{formatQty(item.quantity, item.unit)} {item.unit}</p>
                                             </div>
                                             <div>
-                                                <p className="text-gray-500">จุดสั่งซื้อ</p>
-                                                <p className="font-semibold text-gray-800">{formatQty(item.reorderPoint, item.unit)} {item.unit}</p>
+                                                <p className="text-gray-600">จุดสั่งซื้อ</p>
+                                                <p className="font-semibold text-gray-900">{formatQty(item.reorderPoint, item.unit)} {item.unit}</p>
                                             </div>
                                         </div>
-                                        <div className="flex justify-end gap-3 pt-3 border-t">
-                                            <button onClick={() => handleOpenAdjustModal(item)} className="text-base font-medium text-green-600 hover:underline">ปรับสต็อก</button>
-                                            <button onClick={() => handleOpenItemModal(item)} className="text-base font-medium text-blue-600 hover:underline">แก้ไข</button>
-                                            <button onClick={() => handleDeleteItem(item.id)} className="text-base font-medium text-red-600 hover:underline">ลบ</button>
+                                        <div className="flex justify-end gap-3 pt-3 border-t border-gray-200">
+                                            <button onClick={() => handleOpenAdjustModal(item)} className="text-base font-medium text-green-700 hover:underline">ปรับสต็อก</button>
+                                            <button onClick={() => handleOpenItemModal(item)} className="text-base font-medium text-blue-700 hover:underline">แก้ไข</button>
+                                            <button onClick={() => handleDeleteItem(item.id)} className="text-base font-medium text-red-700 hover:underline">ลบ</button>
                                         </div>
                                     </div>
 
