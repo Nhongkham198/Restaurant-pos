@@ -243,7 +243,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
         setIsAdding(false);
         setFormData({ 
             username: user.username, 
-            password: '', // Important: Do not show the existing password for security
+            password: currentUser.role === 'admin' ? user.password : '', // Only Admin sees the actual password
             role: user.role, 
             allowedBranchIds: user.allowedBranchIds || [],
             profilePictureUrl: user.profilePictureUrl || '',

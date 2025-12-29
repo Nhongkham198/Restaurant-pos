@@ -21,6 +21,7 @@ interface StockItemModalProps {
 const initialFormState: Omit<StockItem, 'id' | 'lastUpdated'> = {
     name: '',
     category: '',
+    imageUrl: '',
     quantity: 0,
     unit: '',
     reorderPoint: 0,
@@ -76,12 +77,21 @@ export const StockItemModal: React.FC<StockItemModalProps> = ({
     return (
         <>
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={onClose}>
-                <div className="bg-white rounded-lg shadow-xl p-6 max-w-lg w-full" onClick={e => e.stopPropagation()}>
+                <div className="bg-white rounded-lg shadow-xl p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
                     <h2 className="text-2xl font-bold mb-6 text-gray-800">{itemToEdit ? 'แก้ไขรายการในสต็อก' : 'เพิ่มรายการสต็อกใหม่'}</h2>
                     <form onSubmit={handleSubmit} className="space-y-4">
                         <div>
                             <label className="block text-sm font-medium text-gray-700">ชื่อวัตถุดิบ</label>
                             <input type="text" name="name" value={formState.name} onChange={(e) => setFormState(prev => ({ ...prev, name: e.target.value }))} className={inputClasses} required />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700">รูปภาพ (URL)</label>
+                            <div className="flex gap-4 items-start mt-1">
+                                {formState.imageUrl && (
+                                    <img src={formState.imageUrl} alt="Preview" className="w-16 h-16 object-cover rounded-md border border-gray-300 bg-gray-50" onError={(e) => e.currentTarget.style.display = 'none'} />
+                                )}
+                                <input type="text" name="imageUrl" value={formState.imageUrl || ''} onChange={(e) => setFormState(prev => ({ ...prev, imageUrl: e.target.value }))} className={inputClasses} placeholder="https://..." />
+                            </div>
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-700">จำนวนเริ่มต้น</label>

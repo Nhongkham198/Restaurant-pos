@@ -337,7 +337,8 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                 <div className="flex-1 overflow-y-auto pb-24">
                      {/* Desktop Header */}
                     <div className="hidden md:grid md:grid-cols-12 gap-4 px-6 py-4 text-sm text-gray-700 uppercase bg-gray-100 border-b font-bold sticky top-0 z-10 shadow-sm">
-                        <div className="col-span-3">ชื่อวัตถุดิบ</div>
+                        <div className="col-span-1">รูปภาพ</div>
+                        <div className="col-span-2">ชื่อวัตถุดิบ</div>
                         <div className="col-span-1">หมวดหมู่</div>
                         <div className="col-span-2 text-center">วันที่สั่ง/รับ</div>
                         <div className="col-span-2 text-right">จำนวนคงเหลือ</div>
@@ -358,11 +359,14 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                     
                                     {/* Mobile/Tablet Card Layout */}
                                     <div className="md:hidden p-4 space-y-3 bg-white">
-                                        <div className="flex justify-between items-start">
-                                            <h3 className="font-bold text-xl text-gray-900">{item.name}</h3>
+                                        <div className="flex justify-between items-start gap-3">
+                                            <img src={item.imageUrl || "https://placehold.co/100?text=No+Image"} alt={item.name} className="w-16 h-16 object-cover rounded-md border border-gray-200 flex-shrink-0" onError={(e) => e.currentTarget.src = "https://placehold.co/100?text=Error"} />
+                                            <div className="flex-1">
+                                                <h3 className="font-bold text-xl text-gray-900">{item.name}</h3>
+                                                <p className="text-base text-gray-500">หมวดหมู่: {item.category}</p>
+                                            </div>
                                             <span className={`px-3 py-1 text-sm font-semibold rounded-full ${status.color}`}>{status.text}</span>
                                         </div>
-                                        <p className="text-base text-gray-500">หมวดหมู่: {item.category}</p>
                                         <div className="flex justify-between text-sm text-gray-600 bg-gray-50 p-2 rounded">
                                             <div>
                                                 <span className="font-semibold block text-xs text-gray-400">สั่งของ</span>
@@ -391,7 +395,10 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                     </div>
 
                                     {/* Desktop Table Row Layout */}
-                                    <div className="hidden md:block md:col-span-3 md:py-4 md:font-medium md:text-lg md:text-gray-900 md:whitespace-nowrap">{item.name}</div>
+                                    <div className="hidden md:block md:col-span-1 md:py-4">
+                                        <img src={item.imageUrl || "https://placehold.co/100?text=No+Image"} alt={item.name} className="w-12 h-12 object-cover rounded-md border border-gray-200" onError={(e) => e.currentTarget.src = "https://placehold.co/100?text=Error"} />
+                                    </div>
+                                    <div className="hidden md:block md:col-span-2 md:py-4 md:font-medium md:text-lg md:text-gray-900 md:whitespace-nowrap">{item.name}</div>
                                     <div className="hidden md:block md:col-span-1 md:py-4">
                                         <span className="px-2 py-1 text-xs font-semibold rounded-full bg-gray-200 text-gray-800 truncate block text-center">
                                             {item.category}

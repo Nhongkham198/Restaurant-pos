@@ -184,6 +184,7 @@ export interface StockItem {
     id: number;
     name: string;
     category: string;
+    imageUrl?: string; // Added image URL support
     quantity: number;
     unit: string;
     reorderPoint: number;
