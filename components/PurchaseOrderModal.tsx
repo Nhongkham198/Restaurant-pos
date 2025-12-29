@@ -51,42 +51,66 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, 
             <style>
                 {`
                     @media print {
-                        body * {
+                        @page { margin: 15mm; size: auto; }
+                        
+                        body {
                             visibility: hidden;
+                            background: white;
                         }
-                        #purchase-order-modal-content, #purchase-order-modal-content * {
-                            visibility: visible;
-                        }
+                        
+                        /* Main container override */
                         #purchase-order-modal-content {
+                            visibility: visible;
                             position: absolute;
                             left: 0;
                             top: 0;
-                            width: 100%;
-                            height: auto !important; /* Force full height */
+                            width: 100% !important;
+                            height: auto !important;
                             min-height: 100%;
-                            padding: 20px;
-                            margin: 0;
+                            margin: 0 !important;
+                            padding: 0 !important;
+                            overflow: visible !important;
                             box-shadow: none !important;
                             border: none !important;
                             border-radius: 0 !important;
-                            overflow: visible !important; /* Disable scrollbar for printing */
-                            display: block !important; /* Override flex */
+                            display: block !important;
+                            background: white !important;
                         }
-                        /* Reset inner scroll container */
+
+                        /* Ensure children are visible */
+                        #purchase-order-modal-content * {
+                            visibility: visible;
+                        }
+
+                        /* Scroll container override */
                         #purchase-order-scroll-container {
                             height: auto !important;
                             overflow: visible !important;
+                            display: block !important;
                             flex: none !important;
                         }
+
                         .no-print {
                             display: none !important;
                         }
-                        /* Remove borders/bg from inputs when printing to look like text */
-                        input.print-clean {
+
+                        /* Input styling for print */
+                        input {
                             border: none !important;
                             background: transparent !important;
-                            padding: 0 !important;
                             text-align: center !important;
+                            padding: 0 !important;
+                            -webkit-appearance: none;
+                            font-weight: bold;
+                            color: black !important;
+                        }
+
+                        /* Table improvements */
+                        thead {
+                            display: table-header-group;
+                        }
+                        tr {
+                            page-break-inside: avoid;
                         }
                     }
                 `}
@@ -98,12 +122,15 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, 
                 onClick={e => e.stopPropagation()}
             >
                 {/* Header (On Screen & Print) */}
-                <div className="p-8 border-b border-gray-300 text-center relative">
+                <div className="p-8 border-b border-gray-300 text-center relative flex-shrink-0">
                     <h2 className="text-2xl font-bold text-gray-900 uppercase tracking-wide">ใบรายการสั่งซื้อสินค้า</h2>
-                    <div className="mt-2 text-gray-600 flex flex-col items-center gap-1">
-                        <p>วันที่: {dateStr} เวลา: {timeStr}</p>
-                        <p className="font-semibold text-blue-700">
-                            ผู้ออกเอกสาร: {currentUser?.username || '-'}
+                    <div className="mt-3 space-y-1 text-gray-700">
+                        <p className="text-base">
+                            วันที่: <span className="font-medium">{dateStr}</span> &nbsp; 
+                            เวลา: <span className="font-medium">{timeStr}</span>
+                        </p>
+                        <p className="text-blue-700 font-semibold text-lg">
+                            ผู้ออกเอกสาร: {currentUser?.username || 'ไม่ระบุ'}
                         </p>
                     </div>
                     
@@ -134,7 +161,7 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, 
                             </thead>
                             <tbody>
                                 {itemsToOrder.map((item, index) => (
-                                    <tr key={item.id} style={{ pageBreakInside: 'avoid' }}>
+                                    <tr key={item.id}>
                                         <td className="border border-gray-300 p-2 text-center text-gray-600">{index + 1}</td>
                                         <td className="border border-gray-300 p-2 font-medium text-gray-800">{item.name}</td>
                                         <td className="border border-gray-300 p-2 text-center text-gray-600">{item.category}</td>
@@ -146,7 +173,7 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, 
                                                 type="number" 
                                                 value={quantities[item.id] || ''} 
                                                 onChange={(e) => handleQuantityChange(item.id, e.target.value)}
-                                                className="w-full h-full text-center p-1 bg-white focus:bg-blue-50 focus:outline-none print-clean text-blue-800 font-bold"
+                                                className="w-full h-full text-center p-1 bg-white focus:bg-blue-50 focus:outline-none text-blue-800 font-bold"
                                                 placeholder=""
                                             />
                                         </td>
@@ -182,7 +209,7 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, 
                 </div>
 
                 {/* Footer Actions (No Print) */}
-                <div className="p-4 border-t bg-gray-50 flex justify-end gap-3 no-print">
+                <div className="p-4 border-t bg-gray-50 flex justify-end gap-3 no-print flex-shrink-0">
                     <button onClick={onClose} className="px-6 py-2 bg-gray-200 text-gray-800 font-semibold rounded-lg hover:bg-gray-300 transition-colors">
                         ปิด
                     </button>
