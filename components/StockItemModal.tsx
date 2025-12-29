@@ -45,16 +45,23 @@ export const StockItemModal: React.FC<StockItemModalProps> = ({
     const [isCategoryManagerOpen, setIsCategoryManagerOpen] = useState(false);
     const [numpadConfig, setNumpadConfig] = useState<{ isOpen: boolean; field: 'quantity' | 'reorderPoint' | null; title: string }>({ isOpen: false, field: null, title: '' });
 
-
+    // Effect to reset/init form ONLY when modal opens
     useEffect(() => {
         if (isOpen) {
             if (itemToEdit) {
-                setFormState(itemToEdit);
+                setFormState({
+                    ...itemToEdit,
+                    imageUrl: itemToEdit.imageUrl || '' // Ensure imageUrl is at least empty string
+                });
             } else {
-                setFormState({ ...initialFormState, category: categories[0] || '', unit: units[0] || '' });
+                setFormState({ 
+                    ...initialFormState, 
+                    category: categories.length > 0 ? categories[0] : '', 
+                    unit: units.length > 0 ? units[0] : '' 
+                });
             }
         }
-    }, [isOpen, itemToEdit, categories, units]);
+    }, [isOpen, itemToEdit]); // Removed categories/units dependencies to prevent reset during editing
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -70,6 +77,9 @@ export const StockItemModal: React.FC<StockItemModalProps> = ({
 
     if (!isOpen) return null;
 
+    // Helper to safely format numbers (prevent crash if undefined)
+    const safeNumber = (num: number | undefined | null) => (num ?? 0);
+
     // Ensure text color is explicitly set to black
     const inputClasses = "mt-1 block w-full border border-gray-300 p-2 rounded-md shadow-sm bg-white text-black focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500";
     const manageButtonClasses = "p-2 h-[42px] mt-1 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 flex items-center justify-center";
@@ -82,7 +92,7 @@ export const StockItemModal: React.FC<StockItemModalProps> = ({
                     <form onSubmit={handleSubmit} className="space-y-4">
                         <div>
                             <label className="block text-sm font-medium text-gray-700">ชื่อวัตถุดิบ</label>
-                            <input type="text" name="name" value={formState.name} onChange={(e) => setFormState(prev => ({ ...prev, name: e.target.value }))} className={inputClasses} required />
+                            <input type="text" name="name" value={formState.name || ''} onChange={(e) => setFormState(prev => ({ ...prev, name: e.target.value }))} className={inputClasses} required />
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-700">รูปภาพ (URL)</label>
@@ -99,13 +109,13 @@ export const StockItemModal: React.FC<StockItemModalProps> = ({
                                 onClick={() => setNumpadConfig({ isOpen: true, field: 'quantity', title: 'จำนวนเริ่มต้น' })}
                                 className={`${inputClasses} cursor-pointer h-[42px] flex items-center`}
                             >
-                                {formState.quantity.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                                {safeNumber(formState.quantity).toLocaleString(undefined, { maximumFractionDigits: 2 })}
                             </div>
                         </div>
                         <div className="flex gap-2 items-end">
                             <div className="flex-grow">
                                 <label className="block text-sm font-medium text-gray-700">หมวดหมู่</label>
-                                <select name="category" value={formState.category} onChange={(e) => setFormState(prev => ({ ...prev, category: e.target.value }))} className={inputClasses} required>
+                                <select name="category" value={formState.category || ''} onChange={(e) => setFormState(prev => ({ ...prev, category: e.target.value }))} className={inputClasses} required>
                                     <option value="" disabled>เลือกหมวดหมู่</option>
                                     {categories.map(c => <option key={c} value={c}>{c}</option>)}
                                 </select>
@@ -117,7 +127,7 @@ export const StockItemModal: React.FC<StockItemModalProps> = ({
                         <div className="flex gap-2 items-end">
                              <div className="flex-grow">
                                 <label className="block text-sm font-medium text-gray-700">หน่วยนับ</label>
-                                <select name="unit" value={formState.unit} onChange={(e) => setFormState(prev => ({ ...prev, unit: e.target.value }))} className={inputClasses} required>
+                                <select name="unit" value={formState.unit || ''} onChange={(e) => setFormState(prev => ({ ...prev, unit: e.target.value }))} className={inputClasses} required>
                                     <option value="" disabled>เลือกหน่วยนับ</option>
                                     {units.map(u => <option key={u} value={u}>{u}</option>)}
                                 </select>
@@ -132,7 +142,7 @@ export const StockItemModal: React.FC<StockItemModalProps> = ({
                                 onClick={() => setNumpadConfig({ isOpen: true, field: 'reorderPoint', title: 'จุดสั่งซื้อขั้นต่ำ' })}
                                 className={`${inputClasses} cursor-pointer h-[42px] flex items-center text-black`}
                             >
-                                {formState.reorderPoint.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                                {safeNumber(formState.reorderPoint).toLocaleString(undefined, { maximumFractionDigits: 2 })}
                             </div>
                             <p className="mt-1 text-sm font-bold text-gray-700">ระบบจะแจ้งเตือนเมื่อจำนวนคงเหลือต่ำกว่าจุดนี้</p>
                         </div>
@@ -174,7 +184,7 @@ export const StockItemModal: React.FC<StockItemModalProps> = ({
                 isOpen={numpadConfig.isOpen}
                 onClose={() => setNumpadConfig({ ...numpadConfig, isOpen: false })}
                 title={numpadConfig.title}
-                initialValue={numpadConfig.field ? formState[numpadConfig.field]! : 0}
+                initialValue={numpadConfig.field ? (formState[numpadConfig.field] || 0) : 0}
                 onSubmit={(newValue) => {
                     if (numpadConfig.field) {
                         setFormState(prev => ({

@@ -34,9 +34,10 @@ export const StockManagement: React.FC<StockManagementProps> = ({
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const filteredItems = useMemo(() => {
+        const items = Array.isArray(stockItems) ? stockItems : [];
         const categoryFiltered = selectedCategory === 'ทั้งหมด'
-            ? stockItems
-            : stockItems.filter(item => item.category === selectedCategory);
+            ? items
+            : items.filter(item => item.category === selectedCategory);
         
         if (!searchTerm.trim()) {
             return categoryFiltered;
@@ -90,8 +91,24 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                     return prev.map(i => i.id === itemToSave.id ? { ...i, ...itemWithTimestamp } as StockItem : i);
                 }
                 // Add new item
-                const newId = Math.max(0, ...prev.map(i => i.id)) + 1;
-                return [...prev, { ...itemWithTimestamp, id: newId }];
+                // Robust ID generation: handle empty array and ensure valid number
+                const maxId = prev.reduce((max, item) => Math.max(max, (item.id || 0)), 0);
+                const newId = maxId + 1;
+                
+                const newItem: StockItem = {
+                    id: newId,
+                    name: itemToSave.name,
+                    category: itemToSave.category,
+                    imageUrl: itemToSave.imageUrl || '',
+                    quantity: itemToSave.quantity,
+                    unit: itemToSave.unit,
+                    reorderPoint: itemToSave.reorderPoint,
+                    lastUpdated: Date.now(),
+                    orderDate: itemToSave.orderDate,
+                    receivedDate: itemToSave.receivedDate
+                };
+                
+                return [...prev, newItem];
             });
             success = true; // Mark as successful because fallback worked.
         }
