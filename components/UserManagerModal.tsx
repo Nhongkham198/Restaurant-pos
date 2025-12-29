@@ -129,8 +129,15 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
 
     const handleSave = () => {
         // --- Validations ---
-        if (!formData.username.trim() || !formData.password) {
-            Swal.fire('ผิดพลาด', 'กรุณากรอกชื่อผู้ใช้และรหัสผ่าน', 'error');
+        if (!formData.username.trim()) {
+            Swal.fire('ผิดพลาด', 'กรุณากรอกชื่อผู้ใช้', 'error');
+            return;
+        }
+
+        // Require password only when creating a new user. 
+        // When editing, empty password means "keep existing".
+        if (!editingUser && !formData.password) {
+            Swal.fire('ผิดพลาด', 'กรุณากรอกรหัสผ่าน', 'error');
             return;
         }
     
@@ -155,10 +162,14 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
                 const updatedUser: Partial<User> = {
                     ...u,
                     username: formData.username.trim(),
-                    password: formData.password,
                     role: formData.role,
                     leaveQuotas: formData.leaveQuotas
                 };
+
+                // Update password only if a new one is provided AND user is Admin
+                if (formData.password && currentUser.role === 'admin') {
+                    updatedUser.password = formData.password;
+                }
     
                 // Handle profile picture logic
                 if (formData.profilePictureUrl && formData.profilePictureUrl.trim()) {
@@ -189,7 +200,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
             const newUser: Omit<User, 'id'> & { id: number } = {
                 id: newId,
                 username: formData.username.trim(),
-                password: formData.password,
+                password: formData.password, // Password is mandatory for new users
                 role: formData.role,
                 leaveQuotas: formData.leaveQuotas
             };
@@ -232,7 +243,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
         setIsAdding(false);
         setFormData({ 
             username: user.username, 
-            password: user.password, 
+            password: '', // Important: Do not show the existing password for security
             role: user.role, 
             allowedBranchIds: user.allowedBranchIds || [],
             profilePictureUrl: user.profilePictureUrl || '',
@@ -265,6 +276,9 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
             .filter(Boolean)
             .join(', ');
     };
+
+    // Helper to determine if password editing is allowed
+    const canEditPassword = !editingUser || currentUser.role === 'admin';
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4" onClick={onClose}>
@@ -370,7 +384,15 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
                             <div className="flex-grow space-y-3">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                     <input type="text" name="username" value={formData.username} onChange={handleInputChange} placeholder="ชื่อผู้ใช้" className="px-3 py-2 border rounded-md bg-white border-gray-300 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                                    <input type="text" name="password" value={formData.password} onChange={handleInputChange} placeholder="รหัสผ่าน" className="px-3 py-2 border rounded-md bg-white border-gray-300 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                                    <input 
+                                        type="text" 
+                                        name="password" 
+                                        value={formData.password} 
+                                        onChange={handleInputChange} 
+                                        placeholder={!canEditPassword ? "ติดต่อ Admin เพื่อเปลี่ยนรหัส" : (editingUser ? "เปลี่ยนรหัสผ่าน (เว้นว่างหากไม่เปลี่ยน)" : "รหัสผ่าน")}
+                                        disabled={!canEditPassword}
+                                        className={`px-3 py-2 border rounded-md border-gray-300 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 ${!canEditPassword ? 'bg-gray-100 cursor-not-allowed text-gray-500' : 'bg-white'}`} 
+                                    />
                                 </div>
                                 <div>
                                     <select name="role" value={formData.role} onChange={handleInputChange} className="w-full px-3 py-2 border rounded-md bg-white border-gray-300 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500">
