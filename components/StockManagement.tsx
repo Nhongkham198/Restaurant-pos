@@ -379,7 +379,8 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                     onChange={(e) => setSelectedCategory(e.target.value)}
                                     className="h-full pl-4 pr-10 py-2 border border-gray-300 rounded-lg bg-white text-gray-700 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm appearance-none"
                                 >
-                                    {stockCategories.map(category => (
+                                    <option value="ทั้งหมด">ทั้งหมด</option>
+                                    {stockCategories.filter(c => c !== 'ทั้งหมด').map(category => (
                                         <option key={category} value={category}>{category}</option>
                                     ))}
                                 </select>
