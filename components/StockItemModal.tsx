@@ -51,7 +51,10 @@ export const StockItemModal: React.FC<StockItemModalProps> = ({
             if (itemToEdit) {
                 setFormState({
                     ...itemToEdit,
-                    imageUrl: itemToEdit.imageUrl || '' // Ensure imageUrl is at least empty string
+                    // Ensure numbers are numbers, fallback to 0 if null/undefined/NaN
+                    quantity: Number(itemToEdit.quantity) || 0,
+                    reorderPoint: Number(itemToEdit.reorderPoint) || 0,
+                    imageUrl: itemToEdit.imageUrl || '' 
                 });
             } else {
                 setFormState({ 
@@ -61,7 +64,7 @@ export const StockItemModal: React.FC<StockItemModalProps> = ({
                 });
             }
         }
-    }, [isOpen, itemToEdit]); // Removed categories/units dependencies to prevent reset during editing
+    }, [isOpen, itemToEdit]); 
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -69,7 +72,16 @@ export const StockItemModal: React.FC<StockItemModalProps> = ({
             Swal.fire('ข้อมูลไม่ครบถ้วน', 'กรุณากรอกข้อมูลให้ครบถ้วน', 'warning');
             return;
         }
-        onSave(formState);
+
+        // CRITICAL FIX: Ensure quantity and reorderPoint are strictly numbers before saving.
+        // This prevents the "white screen" crash caused by .toLocaleString() on strings.
+        const safeItem = {
+            ...formState,
+            quantity: Number(formState.quantity) || 0,
+            reorderPoint: Number(formState.reorderPoint) || 0
+        };
+
+        onSave(safeItem);
     };
 
     const toInputDate = (ts?: number) => ts ? new Date(ts).toISOString().split('T')[0] : '';
@@ -78,7 +90,10 @@ export const StockItemModal: React.FC<StockItemModalProps> = ({
     if (!isOpen) return null;
 
     // Helper to safely format numbers (prevent crash if undefined)
-    const safeNumber = (num: number | undefined | null) => (num ?? 0);
+    const safeNumber = (num: number | undefined | null) => {
+        const val = Number(num);
+        return isNaN(val) ? 0 : val;
+    };
 
     // Ensure text color is explicitly set to black
     const inputClasses = "mt-1 block w-full border border-gray-300 p-2 rounded-md shadow-sm bg-white text-black focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500";

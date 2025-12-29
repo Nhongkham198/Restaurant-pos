@@ -105,8 +105,8 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                 // Robust ID generation: handle empty array and ensure valid number
                 // Use safePrev and optional chaining for item.id to prevent crashes on malformed data
                 const maxId = safePrev.reduce((max, item) => {
-                    const id = item?.id;
-                    return typeof id === 'number' && !isNaN(id) ? Math.max(max, id) : max;
+                    const id = Number(item?.id);
+                    return !isNaN(id) ? Math.max(max, id) : max;
                 }, 0);
                 
                 const newId = maxId + 1;
@@ -116,9 +116,10 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                     name: itemToSave.name || 'สินค้าใหม่',
                     category: itemToSave.category || 'ทั่วไป',
                     imageUrl: itemToSave.imageUrl || '',
-                    quantity: typeof itemToSave.quantity === 'number' ? itemToSave.quantity : 0,
+                    // CRITICAL: Ensure these are numbers to prevent crash
+                    quantity: Number(itemToSave.quantity) || 0,
                     unit: itemToSave.unit || 'ชิ้น',
-                    reorderPoint: typeof itemToSave.reorderPoint === 'number' ? itemToSave.reorderPoint : 0,
+                    reorderPoint: Number(itemToSave.reorderPoint) || 0,
                     lastUpdated: Date.now(),
                     orderDate: itemToSave.orderDate,
                     receivedDate: itemToSave.receivedDate
@@ -158,7 +159,7 @@ export const StockManagement: React.FC<StockManagementProps> = ({
              // --- Client-side fallback logic ---
              setStockItems(prev => prev.map(i => 
                 i.id === itemToAdjust.id 
-                ? { ...i, quantity: (i.quantity || 0) + adjustment, lastUpdated: Date.now() } 
+                ? { ...i, quantity: (Number(i.quantity) || 0) + adjustment, lastUpdated: Date.now() } 
                 : i
             ));
             success = true;
@@ -212,21 +213,23 @@ export const StockManagement: React.FC<StockManagementProps> = ({
     };
 
     const getStatus = (item: StockItem) => {
-        const qty = item.quantity || 0;
-        const reorder = item.reorderPoint || 0;
+        const qty = Number(item.quantity) || 0;
+        const reorder = Number(item.reorderPoint) || 0;
         
         if (qty <= 0) return { text: 'หมด', color: 'bg-red-200 text-red-800' };
         if (qty <= reorder) return { text: 'ใกล้หมด', color: 'bg-yellow-200 text-yellow-800' };
         return { text: 'มีของ', color: 'bg-green-200 text-green-800' };
     };
 
-    // Safe formatting helper to prevent crash on undefined/null
-    const formatQty = (qty: number | undefined | null, unit: string | undefined) => {
-        const val = typeof qty === 'number' && !isNaN(qty) ? qty : 0;
+    // Safe formatting helper to prevent crash on undefined/null/string
+    const formatQty = (qty: any, unit: string | undefined) => {
+        const val = Number(qty);
+        const safeVal = isNaN(val) ? 0 : val;
+        
         if (unit === 'กิโลกรัม') {
-            return val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            return safeVal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         }
-        return val.toLocaleString();
+        return safeVal.toLocaleString();
     };
 
     const formatDate = (timestamp?: number) => {
@@ -241,7 +244,8 @@ export const StockManagement: React.FC<StockManagementProps> = ({
             'หมวดหมู่': item.category,
             'จำนวนคงเหลือ': item.quantity,
             'หน่วยนับ': item.unit,
-            'จุดสั่งซื้อขั้นต่ำ': item.reorderPoint
+            'จุดสั่งซื้อขั้นต่ำ': item.reorderPoint,
+            'รูปภาพ (URL)': item.imageUrl || '' // Add image URL to export
         }));
 
         const ws = XLSX.utils.json_to_sheet(dataToExport);
@@ -263,15 +267,20 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                 const worksheet = workbook.Sheets[sheetName];
                 const json: any[] = XLSX.utils.sheet_to_json(worksheet);
 
+                // Validation header check
                 const expectedHeaders = ['id', 'ชื่อวัตถุดิบ', 'หมวดหมู่', 'จำนวนคงเหลือ', 'หน่วยนับ', 'จุดสั่งซื้อขั้นต่ำ'];
-                if (json.length === 0 || !expectedHeaders.every(header => Object.keys(json[0]).includes(header))) {
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'รูปแบบไฟล์ไม่ถูกต้อง',
-                        text: 'กรุณาใช้ไฟล์ Excel ที่มีรูปแบบเดียวกับไฟล์ที่ export จากระบบนี้เท่านั้น',
-                    });
-                    if (fileInputRef.current) fileInputRef.current.value = '';
-                    return;
+                if (json.length > 0) {
+                    const keys = Object.keys(json[0]);
+                    const missing = expectedHeaders.filter(h => !keys.includes(h));
+                    if (missing.length > 0) {
+                         Swal.fire({
+                            icon: 'error',
+                            title: 'รูปแบบไฟล์ไม่ถูกต้อง',
+                            text: `ไม่พบคอลัมน์: ${missing.join(', ')} กรุณาใช้ไฟล์ที่ Export จากระบบ`,
+                        });
+                        if (fileInputRef.current) fileInputRef.current.value = '';
+                        return;
+                    }
                 }
 
                 const newStockItemsMap = new Map<number, StockItem>();
@@ -281,17 +290,20 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                     const quantity = Number(row['จำนวนคงเหลือ']);
                     const reorderPoint = Number(row['จุดสั่งซื้อขั้นต่ำ']);
 
-                    if (isNaN(id) || isNaN(quantity) || isNaN(reorderPoint) || !row['ชื่อวัตถุดิบ'] || !row['หน่วยนับ']) {
-                        throw new Error(`ข้อมูลในไฟล์ไม่ถูกต้อง แถวที่มี ID: ${row.id || 'N/A'} มีข้อมูลผิดพลาด`);
+                    if (isNaN(id) || !row['ชื่อวัตถุดิบ'] || !row['หน่วยนับ']) {
+                        // Skip invalid rows but try to continue
+                        console.warn('Skipping invalid row:', row);
+                        continue;
                     }
 
                     newStockItemsMap.set(id, {
                         id: id,
                         name: String(row['ชื่อวัตถุดิบ']),
                         category: String(row['หมวดหมู่']),
-                        quantity: quantity,
+                        quantity: isNaN(quantity) ? 0 : quantity,
                         unit: String(row['หน่วยนับ']),
-                        reorderPoint: reorderPoint,
+                        reorderPoint: isNaN(reorderPoint) ? 0 : reorderPoint,
+                        imageUrl: row['รูปภาพ (URL)'] ? String(row['รูปภาพ (URL)']) : '', // Import Image URL
                         lastUpdated: Date.now(),
                     });
                 }
