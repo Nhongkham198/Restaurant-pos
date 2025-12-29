@@ -51,14 +51,23 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, 
             <style>
                 {`
                     @media print {
-                        @page { margin: 15mm; size: auto; }
+                        @page { margin: 10mm; size: A4; }
                         
-                        body {
-                            visibility: hidden;
-                            background: white;
+                        /* CRITICAL FIX: Reset root containers to allow scrolling/paging */
+                        html, body, #root {
+                            height: auto !important;
+                            min-height: 100% !important;
+                            overflow: visible !important;
+                            margin: 0 !important;
+                            padding: 0 !important;
                         }
-                        
-                        /* Main container override */
+
+                        /* Hide generic body content */
+                        body * {
+                            visibility: hidden;
+                        }
+
+                        /* Position the modal content at the top of the page */
                         #purchase-order-modal-content {
                             visibility: visible;
                             position: absolute;
@@ -67,50 +76,77 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, 
                             width: 100% !important;
                             height: auto !important;
                             min-height: 100%;
-                            margin: 0 !important;
-                            padding: 0 !important;
                             overflow: visible !important;
+                            margin: 0 !important;
+                            padding: 20px !important;
+                            background: white !important;
+                            
+                            /* Reset shadows and borders for print */
                             box-shadow: none !important;
                             border: none !important;
                             border-radius: 0 !important;
+                            
+                            /* Ensure it behaves like a block */
                             display: block !important;
-                            background: white !important;
+                            
+                            /* Ensure it's on top */
+                            z-index: 9999;
                         }
 
-                        /* Ensure children are visible */
+                        /* Ensure all children of the modal are visible */
                         #purchase-order-modal-content * {
                             visibility: visible;
                         }
 
-                        /* Scroll container override */
+                        /* Reset the specific scroll container inside the modal */
                         #purchase-order-scroll-container {
                             height: auto !important;
                             overflow: visible !important;
                             display: block !important;
-                            flex: none !important;
+                            flex: none !important; /* Disable flex behavior that might restrict height */
                         }
 
+                        /* Hide buttons and close icon */
                         .no-print {
                             display: none !important;
                         }
 
-                        /* Input styling for print */
+                        /* Styling for inputs to look like text */
                         input {
                             border: none !important;
                             background: transparent !important;
                             text-align: center !important;
                             padding: 0 !important;
-                            -webkit-appearance: none;
-                            font-weight: bold;
                             color: black !important;
+                            font-weight: bold;
+                            /* Remove spinners */
+                            -moz-appearance: textfield;
+                        }
+                        input::-webkit-outer-spin-button,
+                        input::-webkit-inner-spin-button {
+                            -webkit-appearance: none;
+                            margin: 0;
                         }
 
-                        /* Table improvements */
+                        /* Ensure table header repeats on new pages */
                         thead {
                             display: table-header-group;
                         }
+                        
+                        tbody {
+                            display: table-row-group;
+                        }
+                        
                         tr {
+                            break-inside: avoid;
                             page-break-inside: avoid;
+                        }
+                        
+                        /* Add page break handling */
+                        table {
+                            page-break-inside: auto;
+                            width: 100% !important;
+                            border-collapse: collapse;
                         }
                     }
                 `}
