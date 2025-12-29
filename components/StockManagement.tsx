@@ -357,19 +357,41 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                         </div>
                     </div>
                      <div className="mt-4 flex flex-col sm:flex-row justify-between sm:items-center gap-4">
-                        <div className="relative w-full sm:max-w-xs">
-                            <span className="absolute inset-y-0 left-0 flex items-center pl-3">
-                                <svg className="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" /></svg>
-                            </span>
-                            <input
-                                type="text"
-                                placeholder="ค้นหาวัตถุดิบ..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-900"
-                            />
+                        {/* Container for Search + Category Dropdown (Mobile) */}
+                        <div className="flex w-full sm:w-auto gap-3">
+                            <div className="relative flex-grow sm:w-80">
+                                <span className="absolute inset-y-0 left-0 flex items-center pl-3">
+                                    <svg className="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" /></svg>
+                                </span>
+                                <input
+                                    type="text"
+                                    placeholder="ค้นหาวัตถุดิบ..."
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-900"
+                                />
+                            </div>
+                            
+                            {/* Mobile Category Dropdown - Visible only on small screens */}
+                            <div className="sm:hidden flex-shrink-0 relative">
+                                <select
+                                    value={selectedCategory}
+                                    onChange={(e) => setSelectedCategory(e.target.value)}
+                                    className="h-full pl-4 pr-10 py-2 border border-gray-300 rounded-lg bg-white text-gray-700 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm appearance-none"
+                                >
+                                    {stockCategories.map(category => (
+                                        <option key={category} value={category}>{category}</option>
+                                    ))}
+                                </select>
+                                {/* Custom arrow for select */}
+                                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-500">
+                                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                                </div>
+                            </div>
                         </div>
-                        <div className="flex items-center gap-2 flex-wrap">
+
+                        {/* Desktop Category Buttons - Hidden on mobile */}
+                        <div className="hidden sm:flex items-center gap-2 flex-wrap">
                             {stockCategories.map(category => (
                                 <button
                                     key={category}
