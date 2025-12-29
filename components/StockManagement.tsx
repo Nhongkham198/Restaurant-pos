@@ -244,18 +244,18 @@ export const StockManagement: React.FC<StockManagementProps> = ({
         const qty = Number(item.quantity) || 0;
         const reorder = Number(item.reorderPoint) || 0;
         
-        if (qty <= 0) return { text: 'หมด', color: 'bg-red-200 text-red-800' };
-        if (qty <= reorder) return { text: 'ใกล้หมด', color: 'bg-yellow-200 text-yellow-800' };
-        return { text: 'มีของ', color: 'bg-green-200 text-green-800' };
+        if (qty <= 0) return { text: 'หมด', color: 'bg-red-600 text-white' };
+        if (qty <= reorder) return { text: 'ใกล้หมด', color: 'bg-yellow-400 text-yellow-900' };
+        return { text: 'มีของ', color: 'bg-green-100 text-green-800' };
     };
 
     const getMobileCardStyle = (item: StockItem) => {
         const qty = Number(item.quantity) || 0;
         const reorder = Number(item.reorderPoint) || 0;
         
-        if (qty <= 0) return 'bg-red-100 border-2 border-red-500';
-        if (qty <= reorder) return 'bg-yellow-100 border-2 border-yellow-500';
-        return 'bg-white border border-gray-200';
+        if (qty <= 0) return 'bg-red-50 border-l-4 border-red-500 shadow-sm';
+        if (qty <= reorder) return 'bg-yellow-50 border-l-4 border-yellow-500 shadow-sm';
+        return 'bg-white border-l-4 border-green-500 shadow-sm';
     };
 
     // Safe formatting helper to prevent crash on undefined/null/string
@@ -460,15 +460,16 @@ export const StockManagement: React.FC<StockManagementProps> = ({
 
                 <div className="flex-1 overflow-y-auto pb-24">
                      {/* Desktop Header */}
-                    <div className="hidden md:grid md:grid-cols-12 gap-4 px-6 py-4 text-sm text-gray-700 uppercase bg-gray-100 border-b font-bold sticky top-0 z-10 shadow-sm">
+                    <div className="hidden md:grid md:grid-cols-12 gap-2 px-6 py-4 text-sm text-gray-700 uppercase bg-gray-100 border-b font-bold sticky top-0 z-10 shadow-sm">
                         <div className="col-span-1">รูปภาพ</div>
                         <div className="col-span-2">ชื่อวัตถุดิบ</div>
-                        <div className="col-span-1">หมวดหมู่</div>
+                        <div className="col-span-1 text-center">หมวดหมู่</div>
                         <div className="col-span-2 text-center">วันที่สั่ง/รับ</div>
                         {/* Modified Column: Last Updated Info */}
                         <div className="col-span-2 text-center text-blue-600">แก้ไขล่าสุด</div>
                         <div className="col-span-1 text-right">คงเหลือ</div>
                         <div className="col-span-1 text-right">จุดสั่งซื้อ</div>
+                        {/* New Status Column */}
                         <div className="col-span-1 text-center">สถานะ</div>
                         <div className="col-span-1 text-center">จัดการ</div>
                     </div>
@@ -480,11 +481,24 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                             if (!item) return null;
 
                             const status = getStatus(item);
-                            // Determine background color for zebra striping (alternating rows)
-                            const rowBgClass = index % 2 === 0 ? 'bg-white' : 'bg-gray-50';
+                            
+                            // Highlighting Logic for Desktop/Tablet Row
+                            const qty = Number(item.quantity) || 0;
+                            const reorder = Number(item.reorderPoint) || 0;
+                            
+                            let rowBgClass = index % 2 === 0 ? 'bg-white' : 'bg-gray-50';
+                            let borderClass = 'md:border-b';
+                            
+                            if (qty <= 0) {
+                                rowBgClass = 'bg-red-100 hover:bg-red-200';
+                                borderClass = 'md:border-b md:border-red-200';
+                            } else if (qty <= reorder) {
+                                rowBgClass = 'bg-yellow-50 hover:bg-yellow-100';
+                                borderClass = 'md:border-b md:border-yellow-200';
+                            }
                             
                             return (
-                                <div key={item.id} className={`md:grid md:grid-cols-12 md:gap-4 md:px-6 md:items-center ${rowBgClass} md:border-b hover:bg-blue-50 rounded-lg shadow-sm md:shadow-none md:rounded-none transition-colors duration-150`}>
+                                <div key={item.id} className={`md:grid md:grid-cols-12 md:gap-2 md:px-6 md:items-center ${rowBgClass} ${borderClass} rounded-lg shadow-sm md:shadow-none md:rounded-none transition-colors duration-150`}>
                                     
                                     {/* Mobile/Tablet Card Layout - Highlighting Logic Applied Here */}
                                     <div className={`md:hidden p-4 space-y-3 rounded-lg ${getMobileCardStyle(item)}`}>
@@ -524,12 +538,18 @@ export const StockManagement: React.FC<StockManagementProps> = ({
 
                                         <div className="grid grid-cols-2 text-base pt-2 border-t border-gray-200 gap-2">
                                             <div>
-                                                <p className="text-gray-600">คงเหลือ</p> 
-                                                <p className="font-semibold text-gray-900">{formatQty(item.quantity, item.unit)} {item.unit}</p>
+                                                <p className="text-gray-600 text-xs">คงเหลือ</p> 
+                                                <div className="flex items-baseline gap-1">
+                                                    <p className="font-semibold text-gray-900 text-lg">{formatQty(item.quantity, item.unit)}</p>
+                                                    <p className="text-xs text-gray-500">{item.unit}</p>
+                                                </div>
                                             </div>
                                             <div>
-                                                <p className="text-gray-600">จุดสั่งซื้อ</p>
-                                                <p className="font-semibold text-gray-900">{formatQty(item.reorderPoint, item.unit)} {item.unit}</p>
+                                                <p className="text-gray-600 text-xs">จุดสั่งซื้อ</p>
+                                                <div className="flex items-baseline gap-1">
+                                                    <p className="font-semibold text-gray-900 text-lg">{formatQty(item.reorderPoint, item.unit)}</p>
+                                                    <p className="text-xs text-gray-500">{item.unit}</p>
+                                                </div>
                                             </div>
                                         </div>
                                         <div className="flex justify-end gap-3 pt-3 border-t border-gray-200">
@@ -548,55 +568,60 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                             <img src={item.imageUrl || "https://placehold.co/100?text=No+Image"} alt={item.name} className="w-12 h-12 object-cover rounded-md border border-gray-200" onError={(e) => e.currentTarget.src = "https://placehold.co/100?text=Error"} />
                                         </div>
                                     </div>
-                                    <div className="hidden md:block md:col-span-2 md:py-4 md:font-medium md:text-lg md:text-gray-900 md:whitespace-nowrap">{item.name}</div>
+                                    <div className="hidden md:block md:col-span-2 md:py-4 md:font-medium md:text-lg md:text-gray-900 md:whitespace-nowrap truncate pr-2" title={item.name}>{item.name}</div>
                                     <div className="hidden md:block md:col-span-1 md:py-4">
-                                        <span className="px-2 py-1 text-xs font-semibold rounded-full bg-gray-200 text-gray-800 truncate block text-center">
+                                        <span className="px-2 py-1 text-xs font-semibold rounded-full bg-white/50 border border-gray-300 text-gray-800 truncate block text-center">
                                             {item.category}
                                         </span>
                                     </div>
                                     <div className="hidden md:block md:col-span-2 md:py-4 text-center">
-                                        <div className="text-xs text-gray-500">
-                                            <div className="flex justify-between px-4"><span>สั่ง:</span> <span className="font-medium text-gray-800">{formatDate(item.orderDate)}</span></div>
-                                            <div className="flex justify-between px-4 mt-1"><span>รับ:</span> <span className="font-medium text-gray-800">{formatDate(item.receivedDate)}</span></div>
+                                        <div className="text-xs text-gray-600">
+                                            <div className="flex justify-between px-2 xl:px-4"><span>สั่ง:</span> <span className="font-medium text-gray-800">{formatDate(item.orderDate)}</span></div>
+                                            <div className="flex justify-between px-2 xl:px-4 mt-1"><span>รับ:</span> <span className="font-medium text-gray-800">{formatDate(item.receivedDate)}</span></div>
                                         </div>
                                     </div>
                                     
                                     {/* New Column: Last Updated Info */}
                                     <div className="hidden md:block md:col-span-2 md:py-4 text-center">
-                                        <div className="inline-block text-left bg-blue-50 px-3 py-1 rounded border border-blue-100 shadow-sm">
+                                        <div className="inline-block text-left bg-white/70 px-2 py-1 rounded border border-blue-200 shadow-sm min-w-[80px]">
                                             <div className="font-bold text-sm text-gray-800 flex items-center justify-center gap-1">
                                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-blue-500" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" /></svg>
-                                                {item.lastUpdatedBy || '-'}
+                                                <span className="truncate max-w-[80px]">{item.lastUpdatedBy || '-'}</span>
                                             </div>
-                                            <div className="text-xs text-gray-500 mt-0.5 text-center">
+                                            <div className="text-[10px] text-gray-500 mt-0.5 text-center">
                                                 {new Date(item.lastUpdated).toLocaleString('th-TH', { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' })}
                                             </div>
                                         </div>
                                     </div>
 
-                                    {/* Quantity Column */}
-                                    <div className="hidden md:block md:col-span-1 md:py-4 md:text-right">
-                                        <span className="text-xl font-bold text-gray-900">{formatQty(item.quantity, item.unit)}</span>
-                                        <span className="text-base text-gray-600 ml-1">{item.unit}</span>
-                                    </div>
-                                    {/* Reorder Point Column */}
-                                    <div className="hidden md:block md:col-span-1 md:py-4 md:text-right">
-                                        <span className="text-xl font-bold text-gray-900">{formatQty(item.reorderPoint, item.unit)}</span>
-                                        <span className="text-base text-gray-600 ml-1">{item.unit}</span>
+                                    {/* Quantity Column - Stacked for Tablet Readability */}
+                                    <div className="hidden md:flex md:col-span-1 md:py-4 md:flex-col md:items-end md:justify-center">
+                                        <span className={`text-lg lg:text-xl font-bold leading-tight ${qty <= 0 ? 'text-red-600' : 'text-gray-900'}`}>{formatQty(item.quantity, item.unit)}</span>
+                                        <span className="text-xs text-gray-500">{item.unit}</span>
                                     </div>
                                     
-                                    <div className="hidden md:flex md:col-span-1 md:py-4 md:justify-center">
-                                        <span className={`px-2 py-1 text-xs font-semibold rounded-full ${status.color} whitespace-nowrap`}>{status.text}</span>
+                                    {/* Reorder Point Column - Stacked for Tablet Readability */}
+                                    <div className="hidden md:flex md:col-span-1 md:py-4 md:flex-col md:items-end md:justify-center">
+                                        <span className="text-lg lg:text-xl font-bold text-gray-900 leading-tight">{formatQty(item.reorderPoint, item.unit)}</span>
+                                        <span className="text-xs text-gray-500">{item.unit}</span>
                                     </div>
-                                    <div className="hidden md:block md:col-span-1 md:py-4 md:text-center md:space-x-2 text-sm">
-                                        <button onClick={() => handleOpenAdjustModal(item)} className="font-medium text-green-600 hover:text-green-800" title="ปรับ">
+
+                                    {/* Status Column (Desktop/Tablet Only) */}
+                                    <div className="hidden md:block md:col-span-1 md:py-4 text-center">
+                                        <span className={`px-2 py-1 text-xs font-bold rounded-full ${status.color} shadow-sm border border-black/10`}>
+                                            {status.text}
+                                        </span>
+                                    </div>
+                                    
+                                    <div className="hidden md:flex md:col-span-1 md:py-4 md:text-center md:space-x-1 md:justify-center text-sm items-center">
+                                        <button onClick={() => handleOpenAdjustModal(item)} className="p-1 text-green-600 hover:bg-green-100 rounded bg-white border border-green-200" title="ปรับสต็อก">
                                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
                                         </button>
-                                        <button onClick={() => handleOpenItemModal(item)} className="font-medium text-blue-600 hover:text-blue-800" title="แก้ไข">
+                                        <button onClick={() => handleOpenItemModal(item)} className="p-1 text-blue-600 hover:bg-blue-100 rounded bg-white border border-blue-200" title="แก้ไข">
                                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L15.232 5.232z" /></svg>
                                         </button>
                                         {canDelete && (
-                                            <button onClick={() => handleDeleteItem(item.id)} className="font-medium text-red-600 hover:text-red-800" title="ลบ">
+                                            <button onClick={() => handleDeleteItem(item.id)} className="p-1 text-red-600 hover:bg-red-100 rounded bg-white border border-red-200" title="ลบ">
                                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                                             </button>
                                         )}
