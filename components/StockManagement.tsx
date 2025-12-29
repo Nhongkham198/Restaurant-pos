@@ -1,9 +1,10 @@
 
 import React, { useState, useMemo, useRef } from 'react';
-import type { StockItem } from '../types';
+import type { StockItem, User } from '../types';
 import Swal from 'sweetalert2';
 import { StockItemModal } from './StockItemModal';
 import { AdjustStockModal } from './AdjustStockModal';
+import { PurchaseOrderModal } from './PurchaseOrderModal';
 import { functionsService } from '../services/firebaseFunctionsService';
 
 // Declare XLSX to inform TypeScript that it's available globally from the script tag
@@ -16,6 +17,7 @@ interface StockManagementProps {
     setStockCategories: React.Dispatch<React.SetStateAction<string[]>>;
     stockUnits: string[];
     setStockUnits: React.Dispatch<React.SetStateAction<string[]>>;
+    currentUser: User | null;
 }
 
 export const StockManagement: React.FC<StockManagementProps> = ({
@@ -25,11 +27,13 @@ export const StockManagement: React.FC<StockManagementProps> = ({
     setStockCategories,
     stockUnits,
     setStockUnits,
+    currentUser,
 }) => {
     const [selectedCategory, setSelectedCategory] = useState('ทั้งหมด');
     const [searchTerm, setSearchTerm] = useState('');
     const [isItemModalOpen, setIsItemModalOpen] = useState(false);
     const [isAdjustModalOpen, setIsAdjustModalOpen] = useState(false);
+    const [isPurchaseOrderModalOpen, setIsPurchaseOrderModalOpen] = useState(false);
     const [selectedItem, setSelectedItem] = useState<StockItem | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -54,6 +58,11 @@ export const StockManagement: React.FC<StockManagementProps> = ({
         );
     }, [stockItems, selectedCategory, searchTerm]);
 
+    const canDelete = useMemo(() => {
+        if (!currentUser) return false;
+        return !['pos', 'kitchen'].includes(currentUser.role);
+    }, [currentUser]);
+
     const handleOpenItemModal = (item: StockItem | null) => {
         setSelectedItem(item);
         setIsItemModalOpen(true);
@@ -66,6 +75,8 @@ export const StockManagement: React.FC<StockManagementProps> = ({
 
     const handleSaveItem = async (itemToSave: Omit<StockItem, 'id'> & { id?: number }) => {
         let success = false;
+        const updatedBy = currentUser?.username || 'System';
+
         try {
             if (itemToSave.id) {
                 // This will fail because the cloud function doesn't exist, triggering the catch block.
@@ -95,7 +106,11 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                 // Safety: Ensure prev is an array
                 const safePrev = Array.isArray(prev) ? prev : [];
                 
-                const itemWithTimestamp = { ...itemToSave, lastUpdated: Date.now() };
+                const itemWithTimestamp = { 
+                    ...itemToSave, 
+                    lastUpdated: Date.now(),
+                    lastUpdatedBy: updatedBy
+                };
                 
                 if (itemToSave.id) { // Update existing item
                     return safePrev.map(i => i.id === itemToSave.id ? { ...i, ...itemWithTimestamp } as StockItem : i);
@@ -121,6 +136,7 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                     unit: itemToSave.unit || 'ชิ้น',
                     reorderPoint: Number(itemToSave.reorderPoint) || 0,
                     lastUpdated: Date.now(),
+                    lastUpdatedBy: updatedBy,
                     orderDate: itemToSave.orderDate,
                     receivedDate: itemToSave.receivedDate
                 };
@@ -147,6 +163,8 @@ export const StockManagement: React.FC<StockManagementProps> = ({
 
     const handleAdjustStock = async (itemToAdjust: StockItem, adjustment: number) => {
         let success = false;
+        const updatedBy = currentUser?.username || 'System';
+
         try {
             // This will fail, triggering the catch block.
             await functionsService.adjustStockQuantity({
@@ -159,7 +177,12 @@ export const StockManagement: React.FC<StockManagementProps> = ({
              // --- Client-side fallback logic ---
              setStockItems(prev => prev.map(i => 
                 i.id === itemToAdjust.id 
-                ? { ...i, quantity: (Number(i.quantity) || 0) + adjustment, lastUpdated: Date.now() } 
+                ? { 
+                    ...i, 
+                    quantity: (Number(i.quantity) || 0) + adjustment, 
+                    lastUpdated: Date.now(),
+                    lastUpdatedBy: updatedBy
+                  } 
                 : i
             ));
             success = true;
@@ -181,6 +204,11 @@ export const StockManagement: React.FC<StockManagementProps> = ({
     };
 
     const handleDeleteItem = async (itemId: number) => {
+        if (!canDelete) {
+            Swal.fire('ไม่มีสิทธิ์', 'คุณไม่มีสิทธิ์ลบรายการสินค้า', 'error');
+            return;
+        }
+
         Swal.fire({
             title: 'คุณแน่ใจหรือไม่?',
             text: "คุณกำลังจะลบรายการนี้ออกจากสต็อก",
@@ -254,6 +282,8 @@ export const StockManagement: React.FC<StockManagementProps> = ({
             'จำนวนคงเหลือ': item.quantity,
             'หน่วยนับ': item.unit,
             'จุดสั่งซื้อขั้นต่ำ': item.reorderPoint,
+            'แก้ไขล่าสุดโดย': item.lastUpdatedBy || '-',
+            'เวลาแก้ไขล่าสุด': new Date(item.lastUpdated).toLocaleString('th-TH'),
             'รูปภาพ (URL)': item.imageUrl || '' // Add image URL to export
         }));
 
@@ -293,6 +323,7 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                 }
 
                 const newStockItemsMap = new Map<number, StockItem>();
+                const importUser = currentUser?.username || 'Import';
                 
                 for (const row of json) {
                     const id = Number(row.id);
@@ -312,8 +343,9 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                         quantity: isNaN(quantity) ? 0 : quantity,
                         unit: String(row['หน่วยนับ']),
                         reorderPoint: isNaN(reorderPoint) ? 0 : reorderPoint,
-                        imageUrl: row['รูปภาพ (URL)'] ? String(row['รูปภาพ (URL)']) : '', // Import Image URL
+                        imageUrl: row['รูปภาพ (URL)'] ? String(row['รูปภาพ (URL)']) : '',
                         lastUpdated: Date.now(),
+                        lastUpdatedBy: importUser
                     });
                 }
                 
@@ -355,6 +387,10 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                 className="hidden"
                                 accept=".xlsx, .xls"
                             />
+                            <button onClick={() => setIsPurchaseOrderModalOpen(true)} className="px-4 py-2 bg-orange-500 text-white font-semibold rounded-full hover:bg-orange-600 whitespace-nowrap text-sm flex items-center gap-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>
+                                ออกรายการสั่งของ
+                            </button>
                             <button onClick={handleExport} className="px-4 py-2 bg-green-600 text-white font-semibold rounded-full hover:bg-green-700 whitespace-nowrap text-sm">
                                 Export Excel
                             </button>
@@ -429,8 +465,10 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                         <div className="col-span-2">ชื่อวัตถุดิบ</div>
                         <div className="col-span-1">หมวดหมู่</div>
                         <div className="col-span-2 text-center">วันที่สั่ง/รับ</div>
-                        <div className="col-span-2 text-right">จำนวนคงเหลือ</div>
-                        <div className="col-span-2 text-right">จุดสั่งซื้อ</div>
+                        {/* Modified Column: Last Updated Info */}
+                        <div className="col-span-2 text-center text-blue-600">แก้ไขล่าสุด</div>
+                        <div className="col-span-1 text-right">คงเหลือ</div>
+                        <div className="col-span-1 text-right">จุดสั่งซื้อ</div>
                         <div className="col-span-1 text-center">สถานะ</div>
                         <div className="col-span-1 text-center">จัดการ</div>
                     </div>
@@ -475,6 +513,15 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                                 {formatDate(item.receivedDate)}
                                             </div>
                                         </div>
+                                        {/* Mobile view of Last Update */}
+                                        <div className="flex justify-between items-center text-sm text-gray-600 bg-blue-50 p-2 rounded border border-blue-100">
+                                            <span className="font-semibold text-xs text-blue-600">แก้ไขล่าสุด:</span>
+                                            <div className="text-right">
+                                                <div className="font-bold text-gray-800">{item.lastUpdatedBy || '-'}</div>
+                                                <div className="text-xs text-gray-500">{new Date(item.lastUpdated).toLocaleString('th-TH', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</div>
+                                            </div>
+                                        </div>
+
                                         <div className="grid grid-cols-2 text-base pt-2 border-t border-gray-200 gap-2">
                                             <div>
                                                 <p className="text-gray-600">คงเหลือ</p> 
@@ -488,7 +535,9 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                         <div className="flex justify-end gap-3 pt-3 border-t border-gray-200">
                                             <button onClick={() => handleOpenAdjustModal(item)} className="text-base font-medium text-green-700 hover:underline">ปรับสต็อก</button>
                                             <button onClick={() => handleOpenItemModal(item)} className="text-base font-medium text-blue-700 hover:underline">แก้ไข</button>
-                                            <button onClick={() => handleDeleteItem(item.id)} className="text-base font-medium text-red-700 hover:underline">ลบ</button>
+                                            {canDelete && (
+                                                <button onClick={() => handleDeleteItem(item.id)} className="text-base font-medium text-red-700 hover:underline">ลบ</button>
+                                            )}
                                         </div>
                                     </div>
 
@@ -511,13 +560,27 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                             <div className="flex justify-between px-4 mt-1"><span>รับ:</span> <span className="font-medium text-gray-800">{formatDate(item.receivedDate)}</span></div>
                                         </div>
                                     </div>
+                                    
+                                    {/* New Column: Last Updated Info */}
+                                    <div className="hidden md:block md:col-span-2 md:py-4 text-center">
+                                        <div className="inline-block text-left bg-blue-50 px-3 py-1 rounded border border-blue-100 shadow-sm">
+                                            <div className="font-bold text-sm text-gray-800 flex items-center justify-center gap-1">
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-blue-500" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" /></svg>
+                                                {item.lastUpdatedBy || '-'}
+                                            </div>
+                                            <div className="text-xs text-gray-500 mt-0.5 text-center">
+                                                {new Date(item.lastUpdated).toLocaleString('th-TH', { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' })}
+                                            </div>
+                                        </div>
+                                    </div>
+
                                     {/* Quantity Column */}
-                                    <div className="hidden md:block md:col-span-2 md:py-4 md:text-right">
+                                    <div className="hidden md:block md:col-span-1 md:py-4 md:text-right">
                                         <span className="text-xl font-bold text-gray-900">{formatQty(item.quantity, item.unit)}</span>
                                         <span className="text-base text-gray-600 ml-1">{item.unit}</span>
                                     </div>
-                                    {/* Reorder Point Column - Updated to match Quantity style */}
-                                    <div className="hidden md:block md:col-span-2 md:py-4 md:text-right">
+                                    {/* Reorder Point Column */}
+                                    <div className="hidden md:block md:col-span-1 md:py-4 md:text-right">
                                         <span className="text-xl font-bold text-gray-900">{formatQty(item.reorderPoint, item.unit)}</span>
                                         <span className="text-base text-gray-600 ml-1">{item.unit}</span>
                                     </div>
@@ -532,9 +595,11 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                         <button onClick={() => handleOpenItemModal(item)} className="font-medium text-blue-600 hover:text-blue-800" title="แก้ไข">
                                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L15.232 5.232z" /></svg>
                                         </button>
-                                        <button onClick={() => handleDeleteItem(item.id)} className="font-medium text-red-600 hover:text-red-800" title="ลบ">
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                                        </button>
+                                        {canDelete && (
+                                            <button onClick={() => handleDeleteItem(item.id)} className="font-medium text-red-600 hover:text-red-800" title="ลบ">
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
                             );
@@ -564,6 +629,13 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                 onClose={() => setIsAdjustModalOpen(false)}
                 onSave={handleAdjustStock}
                 item={selectedItem}
+            />
+
+            <PurchaseOrderModal 
+                isOpen={isPurchaseOrderModalOpen}
+                onClose={() => setIsPurchaseOrderModalOpen(false)}
+                stockItems={stockItems}
+                currentUser={currentUser}
             />
         </>
     );

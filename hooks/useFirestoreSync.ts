@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { db } from '../firebaseConfig';
 import type { Table } from '../types';
 import firebase from 'firebase/compat/app';
+import 'firebase/compat/firestore';
 
 // Hook for Single Document Sync (Legacy/Config/Arrays)
 export function useFirestoreSync<T>(
@@ -61,7 +62,6 @@ export function useFirestoreSync<T>(
                             valueToSet = Array.from(uniqueTablesMap.values());
                         } 
                         else if (collectionKey === 'orderCounter') {
-                            // ... (Keep existing validation logic)
                             const counterData = valueToSet as any;
                             if (!counterData || typeof counterData !== 'object' || typeof counterData.count !== 'number') {
                                 setValue(currentInitialValue);

@@ -189,6 +189,7 @@ export interface StockItem {
     unit: string;
     reorderPoint: number;
     lastUpdated: number; // timestamp
+    lastUpdatedBy?: string; // Username of the person who last updated the item
     orderDate?: number; // timestamp
     receivedDate?: number; // timestamp
 }

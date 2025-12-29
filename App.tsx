@@ -1,3 +1,4 @@
+
 // ... existing imports
 // (Keeping all imports same as before)
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
@@ -35,7 +36,8 @@ import type {
     CancellationReason, 
     OrderCounter 
 } from './types';
-import { useFirestoreSync, useFirestoreCollection } from './hooks/useFirestoreSync';
+// FIX: Use alias import to match configuration and resolve export errors
+import { useFirestoreSync, useFirestoreCollection } from '@/hooks/useFirestoreSync';
 import { functionsService } from './services/firebaseFunctionsService';
 import { printerService } from './services/printerService';
 import firebase from 'firebase/compat/app';
@@ -338,6 +340,8 @@ const App: React.FC = () => {
     // 3. EFFECTS
     // ============================================================================
     
+    // ... existing effects ... (Network, Self-Healing, Resize, Sound Caching, Overdue, Low Stock)
+    
     // --- EFFECT: Network Status Listener ---
     useEffect(() => {
         const handleOnline = () => setIsOnline(true);
@@ -378,7 +382,6 @@ const App: React.FC = () => {
         });
     }, [activeOrders, tables, isOnline]);
 
-    // ... (Keep existing effects for Responsive, Sounds, Overdue, Customer Mode init, Notifications) ...
     useEffect(() => {
         const handleResize = () => setIsDesktop(window.innerWidth >= 1024);
         window.addEventListener('resize', handleResize);
@@ -440,7 +443,7 @@ const App: React.FC = () => {
         return () => {
             overdueTimersRef.current.forEach(timerId => clearTimeout(timerId));
         };
-    }, [activeOrders]); // Depend on activeOrders change
+    }, [activeOrders]); 
 
     // --- Low Stock Alert Effect (Global - Realtime) ---
     useEffect(() => {
@@ -450,10 +453,8 @@ const App: React.FC = () => {
         const newLowStockItems = lowStockItems.filter(item => !notifiedLowStockRef.current.has(item.id));
 
         if (newLowStockItems.length > 0) {
-            // Update ref
             newLowStockItems.forEach(item => notifiedLowStockRef.current.add(item.id));
             
-            // Clean up ref for items that are no longer low stock
             const currentLowStockIds = new Set(lowStockItems.map(i => i.id));
             notifiedLowStockRef.current.forEach(id => {
                 if (!currentLowStockIds.has(id)) {
@@ -461,7 +462,6 @@ const App: React.FC = () => {
                 }
             });
 
-            // Trigger Alert
             const itemNames = newLowStockItems.map(i => i.name).join(', ');
             Swal.fire({
                 title: 'แจ้งเตือนสินค้าใกล้หมด!',
@@ -480,12 +480,9 @@ const App: React.FC = () => {
             if (isCustomerMode) return; // Prevent alerts in customer mode
 
             const now = new Date();
-            // Check for 16:00 (4 PM) - Check every minute or so
-            // We use strict equality for minute to avoid multiple triggers, but handled by ref below
             if (now.getHours() === 16 && now.getMinutes() === 0) {
                 const todayStr = now.toDateString();
                 
-                // Only alert once per day
                 if (notifiedDailyStockRef.current !== todayStr) {
                     const lowStockItems = stockItems.filter(item => item.quantity <= item.reorderPoint);
                     
@@ -498,7 +495,7 @@ const App: React.FC = () => {
                             html: `ถึงเวลาตรวจสอบสต็อกแล้ว!<br/>รายการที่ต้องสั่งซื้อเพิ่ม:<br/><b style="color:red">${itemNames}</b>`,
                             icon: 'warning',
                             confirmButtonText: 'รับทราบ',
-                            timer: 60000, // Show for 1 minute
+                            timer: 60000, 
                             timerProgressBar: true
                         });
                     }
@@ -506,9 +503,7 @@ const App: React.FC = () => {
             }
         };
 
-        // Check every 10 seconds to ensure we hit the 16:00 window
         const intervalId = setInterval(checkDailyAlert, 10000);
-
         return () => clearInterval(intervalId);
     }, [stockItems, isCustomerMode]);
 
@@ -537,14 +532,12 @@ const App: React.FC = () => {
             return;
         }
         if (currentUser?.role !== 'kitchen' || !notificationSoundUrl || !isAudioUnlocked) {
-            prevActiveOrdersRef.current = activeOrders; // Ensure ref is updated even if skipped
+            prevActiveOrdersRef.current = activeOrders; 
             return;
         }
         const newOrders = activeOrders.filter(order =>
             !prevActiveOrdersRef.current!.some(prevOrder => prevOrder.id === order.id) &&
-            // Fix: Filter out historical orders (older than component mount time)
             order.id > mountTimeRef.current &&
-            // Fix: Safety check for valid data (prevent undefined notifications)
             order.tableName && 
             order.orderNumber
         );
@@ -1361,7 +1354,7 @@ const App: React.FC = () => {
                                         {currentView === 'tables' && <TableLayout tables={tables} activeOrders={activeOrders} onTableSelect={(id) => { setSelectedTableId(id); setCurrentView('pos'); }} onShowBill={handleShowBill} onGeneratePin={handleGeneratePin} currentUser={currentUser} printerConfig={printerConfig} floors={floors} selectedBranch={selectedBranch} />}
                                         {currentView === 'dashboard' && <Dashboard completedOrders={completedOrders} cancelledOrders={cancelledOrders} openingTime={openingTime || '10:00'} closingTime={closingTime || '22:00'} currentUser={currentUser} />}
                                         {currentView === 'history' && <SalesHistory completedOrders={completedOrders} cancelledOrders={cancelledOrders} printHistory={printHistory} onReprint={() => {}} onSplitOrder={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isSplitCompleted: true}))}} isEditMode={isEditMode} onEditOrder={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isEditCompleted: true}))}} onInitiateCashBill={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isCashBill: true}))}} onDeleteHistory={handleDeleteHistory} currentUser={currentUser} />}
-                                        {currentView === 'stock' && <StockManagement stockItems={stockItems} setStockItems={setStockItems} stockCategories={stockCategories} setStockCategories={setStockCategories} stockUnits={stockUnits} setStockUnits={setStockUnits} />}
+                                        {currentView === 'stock' && <StockManagement stockItems={stockItems} setStockItems={setStockItems} stockCategories={stockCategories} setStockCategories={setStockCategories} stockUnits={stockUnits} setStockUnits={setStockUnits} currentUser={currentUser} />}
                                         {currentView === 'leave' && <LeaveCalendarView leaveRequests={leaveRequests} currentUser={currentUser} onOpenRequestModal={(date) => { setLeaveRequestInitialDate(date); setModalState(prev => ({...prev, isLeaveRequest: true})); }} branches={branches} onUpdateStatus={(id, status) => setLeaveRequests(prev => prev.map(r => r.id === id ? {...r, status} : r))} onDeleteRequest={async (id) => {setLeaveRequests(prev => prev.filter(r => r.id !== id)); return true;}} selectedBranch={selectedBranch} />}
                                     </div>
                                 </div>
@@ -1376,7 +1369,7 @@ const App: React.FC = () => {
                             {currentView === 'tables' && <TableLayout tables={tables} activeOrders={activeOrders} onTableSelect={(id) => { setSelectedTableId(id); setCurrentView('pos'); }} onShowBill={handleShowBill} onGeneratePin={handleGeneratePin} currentUser={currentUser} printerConfig={printerConfig} floors={floors} selectedBranch={selectedBranch} />}
                             {currentView === 'dashboard' && <Dashboard completedOrders={completedOrders} cancelledOrders={cancelledOrders} openingTime={openingTime || '10:00'} closingTime={closingTime || '22:00'} currentUser={currentUser} />}
                             {currentView === 'history' && <SalesHistory completedOrders={completedOrders} cancelledOrders={cancelledOrders} printHistory={printHistory} onReprint={() => {}} onSplitOrder={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isSplitCompleted: true}))}} isEditMode={isEditMode} onEditOrder={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isEditCompleted: true}))}} onInitiateCashBill={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isCashBill: true}))}} onDeleteHistory={handleDeleteHistory} currentUser={currentUser} />}
-                            {currentView === 'stock' && <StockManagement stockItems={stockItems} setStockItems={setStockItems} stockCategories={stockCategories} setStockCategories={setStockCategories} stockUnits={stockUnits} setStockUnits={setStockUnits} />}
+                            {currentView === 'stock' && <StockManagement stockItems={stockItems} setStockItems={setStockItems} stockCategories={stockCategories} setStockCategories={setStockCategories} stockUnits={stockUnits} setStockUnits={setStockUnits} currentUser={currentUser} />}
                             {currentView === 'leave' && <LeaveCalendarView leaveRequests={leaveRequests} currentUser={currentUser} onOpenRequestModal={(date) => { setLeaveRequestInitialDate(date); setModalState(prev => ({...prev, isLeaveRequest: true})); }} branches={branches} onUpdateStatus={(id, status) => setLeaveRequests(prev => prev.map(r => r.id === id ? {...r, status} : r))} onDeleteRequest={async (id) => {setLeaveRequests(prev => prev.filter(r => r.id !== id)); return true;}} selectedBranch={selectedBranch} />}
                         </>
                     )}
