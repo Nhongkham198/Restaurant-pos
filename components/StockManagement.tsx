@@ -34,17 +34,23 @@ export const StockManagement: React.FC<StockManagementProps> = ({
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const filteredItems = useMemo(() => {
+        // Safety check: Ensure stockItems is an array
         const items = Array.isArray(stockItems) ? stockItems : [];
+        
+        // Filter out null/undefined items first
+        const validItems = items.filter(item => item && typeof item === 'object');
+
         const categoryFiltered = selectedCategory === 'ทั้งหมด'
-            ? items
-            : items.filter(item => item.category === selectedCategory);
+            ? validItems
+            : validItems.filter(item => item.category === selectedCategory);
         
         if (!searchTerm.trim()) {
             return categoryFiltered;
         }
 
         return categoryFiltered.filter(item => 
-            item.name.toLowerCase().includes(searchTerm.toLowerCase())
+            // Safety check: Ensure name exists before calling toLowerCase
+            (item.name || '').toLowerCase().includes(searchTerm.toLowerCase())
         );
     }, [stockItems, selectedCategory, searchTerm]);
 
@@ -86,29 +92,39 @@ export const StockManagement: React.FC<StockManagementProps> = ({
             console.warn("Backend function for stock management failed or not implemented. Falling back to direct client-side DB write.", e);
             // --- Client-side fallback logic ---
             setStockItems(prev => {
+                // Safety: Ensure prev is an array
+                const safePrev = Array.isArray(prev) ? prev : [];
+                
                 const itemWithTimestamp = { ...itemToSave, lastUpdated: Date.now() };
+                
                 if (itemToSave.id) { // Update existing item
-                    return prev.map(i => i.id === itemToSave.id ? { ...i, ...itemWithTimestamp } as StockItem : i);
+                    return safePrev.map(i => i.id === itemToSave.id ? { ...i, ...itemWithTimestamp } as StockItem : i);
                 }
+                
                 // Add new item
                 // Robust ID generation: handle empty array and ensure valid number
-                const maxId = prev.reduce((max, item) => Math.max(max, (item.id || 0)), 0);
+                // Use safePrev and optional chaining for item.id to prevent crashes on malformed data
+                const maxId = safePrev.reduce((max, item) => {
+                    const id = item?.id;
+                    return typeof id === 'number' && !isNaN(id) ? Math.max(max, id) : max;
+                }, 0);
+                
                 const newId = maxId + 1;
                 
                 const newItem: StockItem = {
                     id: newId,
-                    name: itemToSave.name,
-                    category: itemToSave.category,
+                    name: itemToSave.name || 'สินค้าใหม่',
+                    category: itemToSave.category || 'ทั่วไป',
                     imageUrl: itemToSave.imageUrl || '',
-                    quantity: itemToSave.quantity,
-                    unit: itemToSave.unit,
-                    reorderPoint: itemToSave.reorderPoint,
+                    quantity: typeof itemToSave.quantity === 'number' ? itemToSave.quantity : 0,
+                    unit: itemToSave.unit || 'ชิ้น',
+                    reorderPoint: typeof itemToSave.reorderPoint === 'number' ? itemToSave.reorderPoint : 0,
                     lastUpdated: Date.now(),
                     orderDate: itemToSave.orderDate,
                     receivedDate: itemToSave.receivedDate
                 };
                 
-                return [...prev, newItem];
+                return [...safePrev, newItem];
             });
             success = true; // Mark as successful because fallback worked.
         }
@@ -142,7 +158,7 @@ export const StockManagement: React.FC<StockManagementProps> = ({
              // --- Client-side fallback logic ---
              setStockItems(prev => prev.map(i => 
                 i.id === itemToAdjust.id 
-                ? { ...i, quantity: i.quantity + adjustment, lastUpdated: Date.now() } 
+                ? { ...i, quantity: (i.quantity || 0) + adjustment, lastUpdated: Date.now() } 
                 : i
             ));
             success = true;
@@ -196,9 +212,26 @@ export const StockManagement: React.FC<StockManagementProps> = ({
     };
 
     const getStatus = (item: StockItem) => {
-        if (item.quantity <= 0) return { text: 'หมด', color: 'bg-red-200 text-red-800' };
-        if (item.quantity <= item.reorderPoint) return { text: 'ใกล้หมด', color: 'bg-yellow-200 text-yellow-800' };
+        const qty = item.quantity || 0;
+        const reorder = item.reorderPoint || 0;
+        
+        if (qty <= 0) return { text: 'หมด', color: 'bg-red-200 text-red-800' };
+        if (qty <= reorder) return { text: 'ใกล้หมด', color: 'bg-yellow-200 text-yellow-800' };
         return { text: 'มีของ', color: 'bg-green-200 text-green-800' };
+    };
+
+    // Safe formatting helper to prevent crash on undefined/null
+    const formatQty = (qty: number | undefined | null, unit: string | undefined) => {
+        const val = typeof qty === 'number' && !isNaN(qty) ? qty : 0;
+        if (unit === 'กิโลกรัม') {
+            return val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+        return val.toLocaleString();
+    };
+
+    const formatDate = (timestamp?: number) => {
+        if (!timestamp) return '-';
+        return new Date(timestamp).toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: '2-digit' });
     };
 
     const handleExport = () => {
@@ -286,19 +319,6 @@ export const StockManagement: React.FC<StockManagementProps> = ({
         reader.readAsBinaryString(file);
     };
 
-    // Format helper
-    const formatQty = (qty: number, unit: string) => {
-        if (unit === 'กิโลกรัม') {
-            return qty.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-        }
-        return qty.toLocaleString();
-    };
-
-    const formatDate = (timestamp?: number) => {
-        if (!timestamp) return '-';
-        return new Date(timestamp).toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: '2-digit' });
-    };
-
     return (
         <>
             <div className="h-full flex flex-col bg-gray-50 md:bg-white">
@@ -367,6 +387,9 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                     {/* Item List */}
                     <div className="space-y-3 md:space-y-0 p-3 md:p-0">
                         {filteredItems.length > 0 ? filteredItems.map((item, index) => {
+                            // Defensive check: If item is somehow null/undefined, skip rendering to prevent crash
+                            if (!item) return null;
+
                             const status = getStatus(item);
                             // Determine background color for zebra striping (alternating rows)
                             const rowBgClass = index % 2 === 0 ? 'bg-white' : 'bg-gray-50';
