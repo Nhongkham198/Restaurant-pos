@@ -49,80 +49,95 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, 
     return (
         <div 
             id="purchase-order-modal-wrapper"
-            className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-[80] p-4 print:p-0 print:absolute print:inset-auto print:top-0 print:left-0 print:w-full print:h-auto print:bg-white print:block"
+            className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-[80] p-4 print:p-0 print:block print:bg-white print:static"
         >
             <style>
                 {`
                     @media print {
-                        @page { margin: 10mm; size: A4; }
-                        
-                        /* Hide everything by default */
-                        body > * {
-                            display: none !important;
-                        }
-
-                        /* Unhide the modal wrapper and its children */
-                        body > #root {
-                            display: block !important; /* Root needs to be visible for React portal/mounting usually, but if using portal might be diff. Assuming direct child here or Portal. */
+                        @page { 
+                            margin: 10mm; 
+                            size: A4; 
                         }
                         
-                        /* If using Portal, the modal might be a direct child of body. If inside root: */
-                        #root > * {
-                            display: none !important;
+                        /* Hide everything in body */
+                        body * {
+                            visibility: hidden;
                         }
 
-                        /* Target our specific wrapper ID to show it */
-                        #purchase-order-modal-wrapper {
-                            display: block !important;
-                            position: absolute !important;
-                            top: 0 !important;
-                            left: 0 !important;
-                            width: 100% !important;
+                        /* Reset constraints on html/body/root for scrolling/paging */
+                        html, body, #root {
                             height: auto !important;
                             overflow: visible !important;
-                            background: white !important;
-                            z-index: 9999 !important;
+                            min-height: auto !important;
                         }
 
-                        /* Ensure content flows */
+                        /* Make our modal wrapper visible and positioned correctly */
+                        #purchase-order-modal-wrapper {
+                            visibility: visible !important;
+                            position: absolute !important;
+                            left: 0 !important;
+                            top: 0 !important;
+                            width: 100% !important;
+                            height: auto !important;
+                            margin: 0 !important;
+                            padding: 0 !important;
+                            background: white !important;
+                            display: block !important;
+                            z-index: 9999 !important;
+                            overflow: visible !important;
+                        }
+
+                        /* Make all children of the modal visible */
+                        #purchase-order-modal-wrapper * {
+                            visibility: visible !important;
+                        }
+
+                        /* Override fixed heights and overflows on the modal containers */
                         #purchase-order-modal-content {
+                            height: auto !important;
+                            width: 100% !important;
+                            max-width: none !important;
                             box-shadow: none !important;
                             border: none !important;
-                            width: 100% !important;
-                            max-width: 100% !important;
-                            height: auto !important;
+                            border-radius: 0 !important;
                             overflow: visible !important;
-                            flex: none !important;
-                            display: block !important;
+                            display: block !important; /* Remove flex behavior which can constrain height */
                         }
 
-                        /* Reset scroll container */
                         #purchase-order-scroll-container {
                             height: auto !important;
                             overflow: visible !important;
                             display: block !important;
+                            padding: 0 !important;
+                            margin: 0 !important;
                         }
 
-                        /* Ensure children are visible */
-                        #purchase-order-modal-wrapper * {
-                            visibility: visible;
-                            display: block; /* Default to block, specific elements override below */
+                        /* Hide UI elements not for print */
+                        .no-print {
+                            display: none !important;
+                        }
+
+                        /* Table styling for print */
+                        table {
+                            width: 100% !important;
+                            border-collapse: collapse !important;
+                            page-break-inside: auto;
                         }
                         
-                        /* Restore table display types */
-                        table { display: table !important; width: 100% !important; }
-                        thead { display: table-header-group !important; }
-                        tbody { display: table-row-group !important; }
-                        tr { display: table-row !important; break-inside: avoid; page-break-inside: avoid; }
-                        th, td { display: table-cell !important; }
+                        thead {
+                            display: table-header-group;
+                        }
                         
-                        /* Restore flex for header layout if needed */
-                        .print-flex { display: flex !important; }
+                        tbody {
+                            display: table-row-group;
+                        }
                         
-                        /* Hide utility buttons */
-                        .no-print { display: none !important; }
+                        tr {
+                            page-break-inside: avoid;
+                            break-inside: avoid;
+                        }
 
-                        /* Input styling */
+                        /* Input styling to look like text */
                         input {
                             border: none !important;
                             background: transparent !important;
@@ -131,6 +146,7 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, 
                             color: black !important;
                             font-weight: bold;
                             display: inline-block !important;
+                            width: auto !important;
                         }
                     }
                 `}
