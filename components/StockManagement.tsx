@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import type { StockItem, User } from '../types';
 import Swal from 'sweetalert2';
 import { StockItemModal } from './StockItemModal';
@@ -37,6 +37,22 @@ export const StockManagement: React.FC<StockManagementProps> = ({
     const [selectedItem, setSelectedItem] = useState<StockItem | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
+    // Sorting State
+    const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' }>({ key: 'default', direction: 'desc' });
+    const [isSortMenuOpen, setIsSortMenuOpen] = useState(false);
+    const sortMenuRef = useRef<HTMLDivElement>(null);
+
+    // Close sort menu when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (sortMenuRef.current && !sortMenuRef.current.contains(event.target as Node)) {
+                setIsSortMenuOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
     const filteredItems = useMemo(() => {
         // Safety check: Ensure stockItems is an array
         const items = Array.isArray(stockItems) ? stockItems : [];
@@ -44,19 +60,59 @@ export const StockManagement: React.FC<StockManagementProps> = ({
         // Filter out null/undefined items first
         const validItems = items.filter(item => item && typeof item === 'object');
 
-        const categoryFiltered = selectedCategory === 'ทั้งหมด'
+        let result = selectedCategory === 'ทั้งหมด'
             ? validItems
             : validItems.filter(item => item.category === selectedCategory);
         
-        if (!searchTerm.trim()) {
-            return categoryFiltered;
+        if (searchTerm.trim()) {
+            result = result.filter(item => 
+                // Safety check: Ensure name exists before calling toLowerCase
+                (item.name || '').toLowerCase().includes(searchTerm.toLowerCase())
+            );
         }
 
-        return categoryFiltered.filter(item => 
-            // Safety check: Ensure name exists before calling toLowerCase
-            (item.name || '').toLowerCase().includes(searchTerm.toLowerCase())
-        );
-    }, [stockItems, selectedCategory, searchTerm]);
+        // Sorting Logic
+        if (sortConfig.key !== 'default') {
+            result.sort((a, b) => {
+                let valA = 0;
+                let valB = 0;
+
+                if (sortConfig.key === 'lastUpdated') {
+                    valA = a.lastUpdated || 0;
+                    valB = b.lastUpdated || 0;
+                } else if (sortConfig.key === 'orderDate') {
+                    valA = a.orderDate || 0;
+                    valB = b.orderDate || 0;
+                } else if (sortConfig.key === 'receivedDate') {
+                    valA = a.receivedDate || 0;
+                    valB = b.receivedDate || 0;
+                }
+
+                return sortConfig.direction === 'asc' ? valA - valB : valB - valA;
+            });
+        } else {
+             // Default sort by ID (usually creation order)
+             result.sort((a, b) => a.id - b.id);
+        }
+
+        return result;
+    }, [stockItems, selectedCategory, searchTerm, sortConfig]);
+
+    const handleSort = (key: string) => {
+        setSortConfig(prev => ({
+            key,
+            // Toggle direction if clicking the same key, otherwise default to desc (newest first)
+            direction: prev.key === key && prev.direction === 'desc' ? 'asc' : 'desc'
+        }));
+        setIsSortMenuOpen(false);
+    };
+
+    const getSortLabel = () => {
+        if (sortConfig.key === 'lastUpdated') return 'เรียงตามแก้ไขล่าสุด';
+        if (sortConfig.key === 'orderDate') return 'เรียงตามวันที่สั่ง';
+        if (sortConfig.key === 'receivedDate') return 'เรียงตามวันที่รับ';
+        return 'วันที่สั่ง/รับ';
+    };
 
     const canDelete = useMemo(() => {
         if (!currentUser) return false;
@@ -475,7 +531,38 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                             <div className="col-span-1">รูปภาพ</div>
                             <div className="col-span-3">ชื่อวัตถุดิบ</div>
                             <div className="col-span-1 text-center">หมวดหมู่</div>
-                            <div className="col-span-2 text-center">วันที่สั่ง/รับ</div>
+                            
+                            {/* Interactive Sort Header for Date Ordered/Received */}
+                            <div className="col-span-2 text-center relative" ref={sortMenuRef}>
+                                <button 
+                                    onClick={() => setIsSortMenuOpen(!isSortMenuOpen)}
+                                    className={`flex items-center justify-center gap-1 transition-colors w-full focus:outline-none ${sortConfig.key !== 'default' && sortConfig.key !== 'lastUpdated' ? 'text-blue-600 font-bold' : 'hover:text-blue-600'}`}
+                                >
+                                    {getSortLabel()}
+                                    <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 transition-transform ${isSortMenuOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                </button>
+                                {isSortMenuOpen && (
+                                    <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-1 w-48 bg-white rounded-lg shadow-xl border border-gray-200 z-50 overflow-hidden text-left">
+                                        <div className="py-1">
+                                            <button onClick={() => handleSort('lastUpdated')} className={`block w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 ${sortConfig.key === 'lastUpdated' ? 'bg-blue-50 text-blue-600 font-semibold' : ''}`}>
+                                                เรียงตามแก้ไขล่าสุด
+                                            </button>
+                                            <button onClick={() => handleSort('orderDate')} className={`block w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 ${sortConfig.key === 'orderDate' ? 'bg-blue-50 text-blue-600 font-semibold' : ''}`}>
+                                                เรียงตามวันที่สั่ง
+                                            </button>
+                                            <button onClick={() => handleSort('receivedDate')} className={`block w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 ${sortConfig.key === 'receivedDate' ? 'bg-blue-50 text-blue-600 font-semibold' : ''}`}>
+                                                เรียงตามวันที่รับ
+                                            </button>
+                                             <button onClick={() => handleSort('default')} className={`block w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 border-t`}>
+                                                รีเซ็ตการเรียง
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
                             <div className="col-span-2 text-center">แก้ไขล่าสุด</div>
                             <div className="col-span-1 text-right">คงเหลือ/จุดสั่ง</div>
                             <div className="col-span-1 text-center">สถานะ</div>
