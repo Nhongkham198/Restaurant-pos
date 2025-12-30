@@ -129,6 +129,19 @@ export const StockManagement: React.FC<StockManagementProps> = ({
         setIsAdjustModalOpen(true);
     };
 
+    const handleViewImage = (item: StockItem) => {
+        Swal.fire({
+            title: item.name,
+            text: item.category,
+            imageUrl: item.imageUrl || "https://placehold.co/400?text=No+Image",
+            imageWidth: 400,
+            imageHeight: 'auto',
+            imageAlt: item.name,
+            showConfirmButton: false,
+            showCloseButton: true,
+        });
+    };
+
     const handleSaveItem = async (itemToSave: Omit<StockItem, 'id'> & { id?: number }) => {
         let success = false;
         const updatedBy = currentUser?.username || 'System';
@@ -581,7 +594,8 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                                 <img 
                                                     src={item.imageUrl || "https://placehold.co/100?text=No+Image"} 
                                                     alt={item.name} 
-                                                    className="w-full h-full object-cover rounded-lg border border-gray-200 shadow-sm" 
+                                                    className="w-full h-full object-cover rounded-lg border border-gray-200 shadow-sm cursor-pointer hover:opacity-80 transition-opacity" 
+                                                    onClick={() => handleViewImage(item)}
                                                     onError={(e) => e.currentTarget.src = "https://placehold.co/100?text=Error"} 
                                                 />
                                                 <div className="absolute -top-1.5 -left-1.5 w-5 h-5 bg-gray-800 text-white text-[10px] flex items-center justify-center rounded-full font-bold shadow-sm">
@@ -680,7 +694,13 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                             <div className="absolute -top-2 -left-2 w-6 h-6 bg-gray-900 text-white rounded-full flex items-center justify-center text-xs font-bold shadow-md border-2 border-white z-10">
                                                 {index + 1}
                                             </div>
-                                            <img src={item.imageUrl || "https://placehold.co/100?text=No+Image"} alt={item.name} className="w-16 h-16 object-cover rounded-md border border-gray-200" onError={(e) => e.currentTarget.src = "https://placehold.co/100?text=Error"} />
+                                            <img 
+                                                src={item.imageUrl || "https://placehold.co/100?text=No+Image"} 
+                                                alt={item.name} 
+                                                className="w-16 h-16 object-cover rounded-md border border-gray-200 cursor-pointer hover:opacity-80 transition-opacity" 
+                                                onClick={() => handleViewImage(item)}
+                                                onError={(e) => e.currentTarget.src = "https://placehold.co/100?text=Error"} 
+                                            />
                                         </div>
                                         
                                         <div className="flex-1">
