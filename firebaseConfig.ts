@@ -3,6 +3,7 @@
 import firebase from "firebase/compat/app";
 import "firebase/compat/firestore";
 import "firebase/compat/functions";
+import "firebase/compat/storage"; // Import Storage
 
 // TODO: Replace the following with your app's Firebase project configuration
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional
@@ -25,6 +26,7 @@ export const isFirebaseConfigured =
 let app;
 let db: any = null; // Initialize db as null
 let functions: any = null; // Initialize functions as null
+let storage: any = null; // Initialize storage as null
 
 if (isFirebaseConfigured) {
   try {
@@ -36,6 +38,7 @@ if (isFirebaseConfigured) {
     }
     
     db = firebase.firestore();
+    storage = firebase.storage(); // Initialize Storage
     
     // --- ENABLE OFFLINE PERSISTENCE ---
     // This allows the app to work offline by caching data locally.
@@ -56,4 +59,4 @@ if (isFirebaseConfigured) {
   }
 }
 
-export { db, functions };
+export { db, functions, storage };

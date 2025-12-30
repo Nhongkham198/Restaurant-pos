@@ -2,6 +2,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import type { ActiveOrder, PaymentDetails } from '../types';
 import Swal from 'sweetalert2';
+import { storage } from '../firebaseConfig'; // Import storage
 
 interface PaymentModalProps {
     isOpen: boolean;
@@ -23,7 +24,9 @@ const NumpadButton: React.FC<{ value: string; onClick: (value: string) => void; 
 export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, order, onClose, onConfirmPayment, qrCodeUrl, onOpenSettings, isConfirmingPayment }) => {
     const [paymentMethod, setPaymentMethod] = useState<'cash' | 'transfer'>('cash');
     const [cashReceived, setCashReceived] = useState('');
-    const [slipImage, setSlipImage] = useState<string | null>(null);
+    const [slipPreview, setSlipPreview] = useState<string | null>(null); // For display only
+    const [slipFile, setSlipFile] = useState<File | null>(null); // The actual file to upload
+    const [isUploading, setIsUploading] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const total = useMemo(() => {
@@ -58,14 +61,17 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, order, onClo
         if (isOpen) {
             setCashReceived(''); // Start with empty string
             setPaymentMethod('cash');
-            setSlipImage(null);
+            setSlipPreview(null);
+            setSlipFile(null);
+            setIsUploading(false);
         }
     }, [isOpen, order]);
 
     if (!isOpen || !order) return null;
 
-    const handleConfirm = () => {
+    const handleConfirm = async () => {
         let details: PaymentDetails;
+        
         if (paymentMethod === 'cash') {
             const received = parseFloat(cashReceived);
             if (isNaN(received) || received < total) {
@@ -77,14 +83,46 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, order, onClo
                 cashReceived: received,
                 changeGiven: changeGiven
             };
+            onConfirmPayment(order.id, details);
         } else {
-            // Include slip image for transfer method
+            // Transfer method logic
+            let slipUrl = undefined;
+
+            if (slipFile) {
+                if (!storage) {
+                    Swal.fire('Error', 'Storage not initialized. Check firebaseConfig.', 'error');
+                    return;
+                }
+
+                setIsUploading(true);
+                try {
+                    // Create a unique path: slips/{orderId}_{timestamp}.jpg
+                    const timestamp = Date.now();
+                    const fileExtension = slipFile.name.split('.').pop() || 'jpg';
+                    const fileName = `slips/${order.id}_${timestamp}.${fileExtension}`;
+                    const storageRef = storage.ref().child(fileName);
+
+                    // Upload
+                    await storageRef.put(slipFile);
+                    
+                    // Get URL
+                    slipUrl = await storageRef.getDownloadURL();
+                    
+                } catch (error: any) {
+                    console.error("Upload failed:", error);
+                    Swal.fire('อัปโหลดล้มเหลว', 'ไม่สามารถอัปโหลดสลิปได้: ' + error.message, 'error');
+                    setIsUploading(false);
+                    return; // Stop if upload fails
+                }
+                setIsUploading(false);
+            }
+
             details = { 
                 method: 'transfer',
-                slipImage: slipImage || undefined
+                slipImage: slipUrl
             };
+            onConfirmPayment(order.id, details);
         }
-        onConfirmPayment(order.id, details);
     };
 
     const handleNumpadInput = (value: string) => {
@@ -103,10 +141,13 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, order, onClo
     const handleSlipFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
+            setSlipFile(file); // Store the file for upload
+            
+            // Create a preview
             const reader = new FileReader();
             reader.onload = (event) => {
                 if (event.target?.result) {
-                    setSlipImage(event.target.result as string);
+                    setSlipPreview(event.target.result as string);
                 }
             };
             reader.readAsDataURL(file);
@@ -114,7 +155,8 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, order, onClo
     };
 
     const handleRemoveSlip = () => {
-        setSlipImage(null);
+        setSlipPreview(null);
+        setSlipFile(null);
         if (fileInputRef.current) {
             fileInputRef.current.value = '';
         }
@@ -219,9 +261,9 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, order, onClo
                                         className="hidden"
                                     />
 
-                                    {slipImage ? (
+                                    {slipPreview ? (
                                         <div className="relative inline-block">
-                                            <img src={slipImage} alt="Slip Preview" className="h-40 w-auto object-contain rounded-md border shadow-sm mx-auto" />
+                                            <img src={slipPreview} alt="Slip Preview" className="h-40 w-auto object-contain rounded-md border shadow-sm mx-auto" />
                                             <button 
                                                 onClick={handleRemoveSlip}
                                                 className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-md hover:bg-red-600"
@@ -251,14 +293,14 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, order, onClo
 
                 <footer className="p-4 bg-gray-50 rounded-b-lg grid grid-cols-2 gap-4">
                      <button onClick={onClose} className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-3 px-4 rounded-lg transition-colors text-base">ยกเลิก</button>
-                     <button onClick={handleConfirm} disabled={isConfirmDisabled || isConfirmingPayment} className="bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed text-base flex justify-center items-center">
-                        {isConfirmingPayment ? (
+                     <button onClick={handleConfirm} disabled={isConfirmDisabled || isConfirmingPayment || isUploading} className="bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed text-base flex justify-center items-center">
+                        {(isConfirmingPayment || isUploading) ? (
                             <>
                                 <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                 </svg>
-                                กำลังดำเนินการ...
+                                {isUploading ? 'กำลังอัปโหลด...' : 'กำลังดำเนินการ...'}
                             </>
                         ) : (
                             'ยืนยันการชำระเงิน'
