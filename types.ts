@@ -68,6 +68,7 @@ export interface PaymentDetails {
     method: 'cash' | 'transfer';
     cashReceived?: number;
     changeGiven?: number;
+    slipImage?: string; // Base64 string or URL of the payment slip
 }
 
 interface BaseOrder {

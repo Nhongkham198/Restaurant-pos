@@ -1,4 +1,5 @@
-import React, { useState, useMemo, useEffect } from 'react';
+
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import type { ActiveOrder, PaymentDetails } from '../types';
 import Swal from 'sweetalert2';
 
@@ -22,6 +23,8 @@ const NumpadButton: React.FC<{ value: string; onClick: (value: string) => void; 
 export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, order, onClose, onConfirmPayment, qrCodeUrl, onOpenSettings, isConfirmingPayment }) => {
     const [paymentMethod, setPaymentMethod] = useState<'cash' | 'transfer'>('cash');
     const [cashReceived, setCashReceived] = useState('');
+    const [slipImage, setSlipImage] = useState<string | null>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     const total = useMemo(() => {
         if (!order) return 0;
@@ -55,6 +58,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, order, onClo
         if (isOpen) {
             setCashReceived(''); // Start with empty string
             setPaymentMethod('cash');
+            setSlipImage(null);
         }
     }, [isOpen, order]);
 
@@ -74,7 +78,11 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, order, onClo
                 changeGiven: changeGiven
             };
         } else {
-            details = { method: 'transfer' };
+            // Include slip image for transfer method
+            details = { 
+                method: 'transfer',
+                slipImage: slipImage || undefined
+            };
         }
         onConfirmPayment(order.id, details);
     };
@@ -89,6 +97,26 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, order, onClo
         }
         else {
             setCashReceived(prev => prev + value);
+        }
+    };
+
+    const handleSlipFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                if (event.target?.result) {
+                    setSlipImage(event.target.result as string);
+                }
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+
+    const handleRemoveSlip = () => {
+        setSlipImage(null);
+        if (fileInputRef.current) {
+            fileInputRef.current.value = '';
         }
     };
 
@@ -165,11 +193,11 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, order, onClo
                                 </div>
                             </div>
                         ) : (
-                            <div className="text-center">
+                            <div className="text-center space-y-4">
                                 {qrCodeUrl ? (
                                     <>
                                         <p className="text-gray-600 mb-2">สแกน QR Code เพื่อชำระเงิน</p>
-                                        <img src={qrCodeUrl} alt="QR Code" className="mx-auto w-48 h-48 rounded-lg border p-1" />
+                                        <img src={qrCodeUrl} alt="QR Code" className="mx-auto w-40 h-40 rounded-lg border p-1" />
                                     </>
                                 ) : (
                                     <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-yellow-800">
@@ -177,6 +205,45 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, order, onClo
                                         <button onClick={onOpenSettings} className="mt-2 text-sm font-semibold underline">ไปที่ตั้งค่า</button>
                                     </div>
                                 )}
+
+                                {/* Slip Upload Section */}
+                                <div className="pt-4 border-t border-gray-200">
+                                    <p className="text-sm font-semibold text-gray-700 mb-2">แนบหลักฐานการโอน (สลิป)</p>
+                                    
+                                    <input 
+                                        type="file" 
+                                        ref={fileInputRef}
+                                        accept="image/*"
+                                        capture="environment" // Hint to use camera on mobile
+                                        onChange={handleSlipFileChange}
+                                        className="hidden"
+                                    />
+
+                                    {slipImage ? (
+                                        <div className="relative inline-block">
+                                            <img src={slipImage} alt="Slip Preview" className="h-40 w-auto object-contain rounded-md border shadow-sm mx-auto" />
+                                            <button 
+                                                onClick={handleRemoveSlip}
+                                                className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-md hover:bg-red-600"
+                                            >
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                                                </svg>
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <button 
+                                            onClick={() => fileInputRef.current?.click()}
+                                            className="w-full py-4 bg-gray-100 hover:bg-gray-200 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 flex flex-col items-center justify-center gap-2 transition-colors"
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                                            </svg>
+                                            <span className="text-sm font-medium">ถ่ายรูป / อัปโหลดสลิป</span>
+                                        </button>
+                                    )}
+                                </div>
                             </div>
                         )}
                     </div>

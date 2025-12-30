@@ -1,6 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import type { CompletedOrder } from '../types';
+import Swal from 'sweetalert2';
 
 interface CompletedOrderCardProps {
     order: CompletedOrder;
@@ -34,6 +35,23 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({ order, o
         }
         return base;
     }, [isEditMode, isSelected, order.isDeleted]);
+
+    const handleViewSlip = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (order.paymentDetails.slipImage) {
+            Swal.fire({
+                title: 'หลักฐานการโอนเงิน',
+                imageUrl: order.paymentDetails.slipImage,
+                imageAlt: 'Payment Slip',
+                showCloseButton: true,
+                showConfirmButton: false,
+                width: 'auto',
+                customClass: {
+                    image: 'max-h-[80vh] object-contain'
+                }
+            });
+        }
+    };
 
     return (
         <div className={cardClasses}>
@@ -80,7 +98,20 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({ order, o
                             {order.parentOrderId && <p><strong>แยกจากบิล:</strong> #{String(order.parentOrderId).padStart(4, '0')}</p>}
                         </div>
                          <div className={order.isDeleted ? 'text-gray-500' : 'text-gray-600'}>
-                            <p><strong>ชำระโดย:</strong> {order.paymentDetails.method === 'cash' ? 'เงินสด' : order.paymentDetails.method === 'transfer' ? 'โอนจ่าย' : 'ไม่ระบุ'}</p>
+                            <div className="flex items-center gap-2">
+                                <p><strong>ชำระโดย:</strong> {order.paymentDetails.method === 'cash' ? 'เงินสด' : order.paymentDetails.method === 'transfer' ? 'โอนจ่าย' : 'ไม่ระบุ'}</p>
+                                {order.paymentDetails.method === 'transfer' && order.paymentDetails.slipImage && (
+                                    <button 
+                                        onClick={handleViewSlip}
+                                        className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded hover:bg-blue-200 border border-blue-300 flex items-center gap-1"
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+                                            <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
+                                        </svg>
+                                        ดูสลิป
+                                    </button>
+                                )}
+                            </div>
                             {order.paymentDetails.method === 'cash' && (
                                 <>
                                     <p><strong>รับเงินมา:</strong> {order.paymentDetails.cashReceived?.toLocaleString(undefined, { minimumFractionDigits: 2 })} ฿</p>
