@@ -50,7 +50,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, order, onClo
 
     const isConfirmDisabled = useMemo(() => {
         if (paymentMethod === 'transfer') {
-            return false;
+            return false; // We handle validation on click for better UX alert
         }
         const received = parseFloat(cashReceived);
         return isNaN(received) || received < total;
@@ -86,6 +86,17 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, order, onClo
             onConfirmPayment(order.id, details);
         } else {
             // Transfer method logic
+            
+            // --- VALIDATION: Enforce slip upload ---
+            if (!slipFile) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'กรุณาแนบสลิป', 
+                    text: 'จำเป็นต้องถ่ายรูปหรืออัปโหลดสลิปการโอนเงินทุกครั้งก่อนยืนยัน'
+                });
+                return;
+            }
+
             let slipUrl = undefined;
 
             if (slipFile) {
@@ -250,7 +261,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, order, onClo
 
                                 {/* Slip Upload Section */}
                                 <div className="pt-4 border-t border-gray-200">
-                                    <p className="text-sm font-semibold text-gray-700 mb-2">แนบหลักฐานการโอน (สลิป)</p>
+                                    <p className="text-sm font-semibold text-gray-700 mb-2">แนบหลักฐานการโอน (สลิป) <span className="text-red-500">*จำเป็น</span></p>
                                     
                                     <input 
                                         type="file" 
@@ -262,27 +273,39 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, order, onClo
                                     />
 
                                     {slipPreview ? (
-                                        <div className="relative inline-block">
-                                            <img src={slipPreview} alt="Slip Preview" className="h-40 w-auto object-contain rounded-md border shadow-sm mx-auto" />
+                                        <div className="flex flex-col items-center gap-3">
+                                            <div className="relative inline-block">
+                                                <img src={slipPreview} alt="Slip Preview" className="h-48 w-auto object-contain rounded-md border shadow-sm mx-auto" />
+                                                <button 
+                                                    onClick={handleRemoveSlip}
+                                                    className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-md hover:bg-red-600"
+                                                >
+                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                                        <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                                                    </svg>
+                                                </button>
+                                            </div>
+                                            
                                             <button 
-                                                onClick={handleRemoveSlip}
-                                                className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-md hover:bg-red-600"
+                                                onClick={() => fileInputRef.current?.click()}
+                                                className="px-4 py-2 bg-yellow-100 text-yellow-800 rounded-lg hover:bg-yellow-200 border border-yellow-300 font-semibold flex items-center gap-2 transition-colors"
                                             >
-                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                                                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                                    <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
                                                 </svg>
+                                                ถ่ายใหม่ / เลือกใหม่
                                             </button>
                                         </div>
                                     ) : (
                                         <button 
                                             onClick={() => fileInputRef.current?.click()}
-                                            className="w-full py-4 bg-gray-100 hover:bg-gray-200 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 flex flex-col items-center justify-center gap-2 transition-colors"
+                                            className="w-full py-4 bg-gray-100 hover:bg-gray-200 border-2 border-dashed border-red-300 rounded-lg text-gray-600 flex flex-col items-center justify-center gap-2 transition-colors animate-pulse"
                                         >
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
                                             </svg>
-                                            <span className="text-sm font-medium">ถ่ายรูป / อัปโหลดสลิป</span>
+                                            <span className="text-sm font-bold text-red-600">กดเพื่อถ่ายรูป / อัปโหลดสลิป</span>
                                         </button>
                                     )}
                                 </div>
