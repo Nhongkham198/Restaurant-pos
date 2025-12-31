@@ -237,7 +237,12 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, order, onClo
             <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl transform transition-all flex flex-col" style={{maxHeight: '95vh'}} onClick={e => e.stopPropagation()}>
                 <header className="p-6 border-b bg-gray-50 rounded-t-lg">
                     <h3 className="text-2xl font-bold text-gray-800 text-center">ชำระเงิน</h3>
-                    <p className="text-base text-gray-500 text-center mt-1">ออเดอร์ #{order.orderNumber}</p>
+                    <div className="flex flex-wrap justify-center items-center gap-3 mt-3">
+                        <span className="text-lg text-gray-600 font-medium">ออเดอร์ #{order.orderNumber}</span>
+                        <span className="bg-white border-2 border-red-500 text-red-600 px-3 py-1 rounded-lg text-lg font-bold shadow-sm">
+                            ยอด {total.toLocaleString(undefined, { minimumFractionDigits: 2 })} ฿
+                        </span>
+                    </div>
                 </header>
 
                 <main className="flex-1 overflow-y-auto p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
