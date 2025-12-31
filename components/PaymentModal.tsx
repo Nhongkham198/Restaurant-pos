@@ -21,7 +21,7 @@ const NumpadButton: React.FC<{ value: string; onClick: (value: string) => void; 
     </button>
 );
 
-// --- Image Compression Helper ---
+// --- Image Compression Helper (Optimized for WebP 800px) ---
 const compressImage = (file: File): Promise<File> => {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -31,7 +31,8 @@ const compressImage = (file: File): Promise<File> => {
             img.src = event.target?.result as string;
             img.onload = () => {
                 const canvas = document.createElement('canvas');
-                const maxWidth = 1024; // Limit width to 1024px (enough for slips)
+                // UPDATE: Changed max width to 800px as requested
+                const maxWidth = 800; 
                 const scaleSize = maxWidth / img.width;
                 const width = (img.width > maxWidth) ? maxWidth : img.width;
                 const height = (img.width > maxWidth) ? img.height * scaleSize : img.height;
@@ -41,18 +42,23 @@ const compressImage = (file: File): Promise<File> => {
                 const ctx = canvas.getContext('2d');
                 if (ctx) {
                     ctx.drawImage(img, 0, 0, width, height);
-                    // Compress to JPEG with 0.7 quality
+                    
+                    // UPDATE: Compress to WebP format
+                    // WebP is efficient for text/slips and widely supported now.
+                    // Quality 0.8 is sufficient for reading numbers clearly.
                     canvas.toBlob((blob) => {
                         if (blob) {
-                            const compressedFile = new File([blob], file.name, {
-                                type: 'image/jpeg',
+                            // Create file with .webp extension
+                            const newFileName = file.name.replace(/\.[^/.]+$/, "") + ".webp";
+                            const compressedFile = new File([blob], newFileName, {
+                                type: 'image/webp',
                                 lastModified: Date.now(),
                             });
                             resolve(compressedFile);
                         } else {
                             reject(new Error('Canvas is empty'));
                         }
-                    }, 'image/jpeg', 0.7); 
+                    }, 'image/webp', 0.8); 
                 } else {
                     reject(new Error('Canvas context not found'));
                 }
@@ -151,9 +157,10 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, order, onClo
 
                 setIsUploading(true);
                 try {
-                    // Create a unique path: slips/{orderId}_{timestamp}.jpg
+                    // Create a unique path: slips/{orderId}_{timestamp}.webp
                     const timestamp = Date.now();
-                    const fileName = `slips/${order.id}_${timestamp}.jpg`; // Force jpg extension since we compress to jpg
+                    // Force .webp extension since we compress to webp
+                    const fileName = `slips/${order.id}_${timestamp}.webp`; 
                     const storageRef = storage.ref().child(fileName);
 
                     // Upload
@@ -227,6 +234,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, order, onClo
         }
     };
 
+    // Guard clause: Don't render if not open or order is null
     if (!isOpen || !order) return null;
 
     return (
@@ -334,7 +342,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, order, onClo
                                                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                             </svg>
-                                            <span className="text-sm font-medium">กำลังประมวลผลรูปภาพ...</span>
+                                            <span className="text-sm font-medium">กำลังประมวลผลรูปภาพ (WebP)...</span>
                                         </div>
                                     )}
 
@@ -391,7 +399,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, order, onClo
                                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                 </svg>
-                                {isCompressing ? 'กำลังย่อรูป...' : isUploading ? 'กำลังอัปโหลด...' : 'กำลังดำเนินการ...'}
+                                {isCompressing ? 'กำลังย่อรูป (WebP)...' : isUploading ? 'กำลังอัปโหลด...' : 'กำลังดำเนินการ...'}
                             </>
                         ) : (
                             'ยืนยันการชำระเงิน'
