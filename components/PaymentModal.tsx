@@ -2,7 +2,8 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import type { ActiveOrder, PaymentDetails } from '../types';
 import Swal from 'sweetalert2';
-import { storage } from '../firebaseConfig'; // Import storage
+// storage is no longer needed
+// import { storage } from '../firebaseConfig'; 
 
 interface PaymentModalProps {
     isOpen: boolean;
@@ -21,7 +22,7 @@ const NumpadButton: React.FC<{ value: string; onClick: (value: string) => void; 
     </button>
 );
 
-// --- Image Compression Helper (Optimized for WebP 800px) ---
+// --- Image Compression Helper (Optimized for WebP 500px for Base64 embedding) ---
 const compressImage = (file: File): Promise<File> => {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -31,8 +32,8 @@ const compressImage = (file: File): Promise<File> => {
             img.src = event.target?.result as string;
             img.onload = () => {
                 const canvas = document.createElement('canvas');
-                // UPDATE: Changed max width to 800px as requested
-                const maxWidth = 800; 
+                // UPDATE: Reduced max width to 500px for Base64 safety and speed
+                const maxWidth = 500; 
                 const scaleSize = maxWidth / img.width;
                 const width = (img.width > maxWidth) ? maxWidth : img.width;
                 const height = (img.width > maxWidth) ? img.height * scaleSize : img.height;
@@ -43,12 +44,9 @@ const compressImage = (file: File): Promise<File> => {
                 if (ctx) {
                     ctx.drawImage(img, 0, 0, width, height);
                     
-                    // UPDATE: Compress to WebP format
-                    // WebP is efficient for text/slips and widely supported now.
-                    // Quality 0.8 is sufficient for reading numbers clearly.
+                    // Compress to WebP, quality 0.8
                     canvas.toBlob((blob) => {
                         if (blob) {
-                            // Create file with .webp extension
                             const newFileName = file.name.replace(/\.[^/.]+$/, "") + ".webp";
                             const compressedFile = new File([blob], newFileName, {
                                 type: 'image/webp',
@@ -69,13 +67,23 @@ const compressImage = (file: File): Promise<File> => {
     });
 };
 
+// --- Helper to convert File to Base64 String ---
+const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = error => reject(error);
+    });
+};
+
 export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, order, onClose, onConfirmPayment, qrCodeUrl, onOpenSettings, isConfirmingPayment }) => {
     const [paymentMethod, setPaymentMethod] = useState<'cash' | 'transfer'>('cash');
     const [cashReceived, setCashReceived] = useState('');
     const [slipPreview, setSlipPreview] = useState<string | null>(null); // For display only
-    const [slipFile, setSlipFile] = useState<File | null>(null); // The actual file to upload
-    const [isUploading, setIsUploading] = useState(false);
-    const [isCompressing, setIsCompressing] = useState(false); // New state for compression feedback
+    const [slipFile, setSlipFile] = useState<File | null>(null); // The actual file to process
+    const [isProcessing, setIsProcessing] = useState(false); // Used for compression/conversion state
+    const [isCompressing, setIsCompressing] = useState(false); 
     
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -113,7 +121,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, order, onClo
             setPaymentMethod('cash');
             setSlipPreview(null);
             setSlipFile(null);
-            setIsUploading(false);
+            setIsProcessing(false);
             setIsCompressing(false);
         }
     }, [isOpen, order]);
@@ -147,40 +155,27 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, order, onClo
                 return;
             }
 
-            let slipUrl = undefined;
+            let slipBase64 = undefined;
 
             if (slipFile) {
-                if (!storage) {
-                    Swal.fire('Error', 'Storage not initialized. Check firebaseConfig.', 'error');
-                    return;
-                }
-
-                setIsUploading(true);
+                setIsProcessing(true);
                 try {
-                    // Create a unique path: slips/{orderId}_{timestamp}.webp
-                    const timestamp = Date.now();
-                    // Force .webp extension since we compress to webp
-                    const fileName = `slips/${order.id}_${timestamp}.webp`; 
-                    const storageRef = storage.ref().child(fileName);
-
-                    // Upload
-                    await storageRef.put(slipFile);
-                    
-                    // Get URL
-                    slipUrl = await storageRef.getDownloadURL();
+                    // UPDATE: Convert to Base64 directly instead of uploading to Storage
+                    // This avoids network errors for file uploads and works offline (synced later)
+                    slipBase64 = await fileToBase64(slipFile);
                     
                 } catch (error: any) {
-                    console.error("Upload failed:", error);
-                    Swal.fire('อัปโหลดล้มเหลว', 'ไม่สามารถอัปโหลดสลิปได้: ' + error.message, 'error');
-                    setIsUploading(false);
-                    return; // Stop if upload fails
+                    console.error("Image processing failed:", error);
+                    Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถประมวลผลรูปภาพได้: ' + error.message, 'error');
+                    setIsProcessing(false);
+                    return; 
                 }
-                setIsUploading(false);
+                setIsProcessing(false);
             }
 
             details = { 
                 method: 'transfer',
-                slipImage: slipUrl
+                slipImage: slipBase64 // Store the Base64 string directly
             };
             onConfirmPayment(order.id, details);
         }
@@ -392,14 +387,14 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, order, onClo
 
                 <footer className="p-4 bg-gray-50 rounded-b-lg grid grid-cols-2 gap-4">
                      <button onClick={onClose} className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-3 px-4 rounded-lg transition-colors text-base">ยกเลิก</button>
-                     <button onClick={handleConfirm} disabled={isConfirmDisabled || isConfirmingPayment || isUploading || isCompressing} className="bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed text-base flex justify-center items-center">
-                        {(isConfirmingPayment || isUploading || isCompressing) ? (
+                     <button onClick={handleConfirm} disabled={isConfirmDisabled || isConfirmingPayment || isProcessing || isCompressing} className="bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed text-base flex justify-center items-center">
+                        {(isConfirmingPayment || isProcessing || isCompressing) ? (
                             <>
                                 <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                 </svg>
-                                {isCompressing ? 'กำลังย่อรูป (WebP)...' : isUploading ? 'กำลังอัปโหลด...' : 'กำลังดำเนินการ...'}
+                                {isCompressing ? 'กำลังย่อรูป (WebP)...' : isProcessing ? 'กำลังประมวลผล...' : 'กำลังดำเนินการ...'}
                             </>
                         ) : (
                             'ยืนยันการชำระเงิน'
