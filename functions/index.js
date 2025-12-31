@@ -187,38 +187,77 @@ exports.sendStaffCallNotification = functions.region('asia-southeast1').firestor
  * Scheduled function to delete old slip images (older than 2 days).
  * NOTE: This function requires the Firebase "Blaze" (Pay-as-you-go) plan because it uses Cloud Scheduler.
  * It runs every day at 3:00 AM.
+ * 
+ * UPDATE: Also cleans up Base64 strings in Firestore 'completedOrders' documents.
  */
-exports.cleanupOldSlips = functions.region('asia-southeast1').pubsub.schedule('0 3 * * *')
+exports.cleanupOldData = functions.region('asia-southeast1').pubsub.schedule('0 4 * * *')
   .timeZone('Asia/Bangkok')
   .onRun(async (context) => {
-    const bucket = admin.storage().bucket();
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - 2); // 2 days ago
+    const cutoffTimestamp = cutoffDate.getTime();
 
+    console.log(`Starting cleanup for data older than ${cutoffDate.toISOString()}`);
+
+    // 1. Cleanup Storage Files (Legacy)
+    const bucket = admin.storage().bucket();
     try {
       const [files] = await bucket.getFiles({ prefix: 'slips/' });
-      let deletedCount = 0;
-
-      console.log(`Found ${files.length} files in slips/ folder.`);
-
+      let deletedFiles = 0;
       for (const file of files) {
-        // file.metadata.timeCreated is an ISO string
         const fileDate = new Date(file.metadata.timeCreated);
-        
         if (fileDate < cutoffDate) {
-          try {
-            await file.delete();
-            deletedCount++;
-          } catch (err) {
-            console.error(`Failed to delete file ${file.name}:`, err);
-          }
+          await file.delete().catch(e => console.error(`Failed to delete file ${file.name}`, e));
+          deletedFiles++;
         }
       }
-
-      console.log(`Successfully deleted ${deletedCount} old slip images.`);
-      return null;
+      console.log(`Deleted ${deletedFiles} old storage files.`);
     } catch (error) {
-      console.error('Error during slip cleanup:', error);
-      return null;
+      console.error('Error cleaning storage:', error);
     }
+
+    // 2. Cleanup Base64 strings in Firestore Documents
+    // We iterate through all branches to find 'completedOrders' docs
+    try {
+        const branchesSnapshot = await admin.firestore().collection('branches').get();
+        
+        for (const branchDoc of branchesSnapshot.docs) {
+            const branchId = branchDoc.id;
+            const completedOrdersRef = admin.firestore().doc(`branches/${branchId}/completedOrders/data`);
+            
+            // Transaction to ensure atomic read/write of the large array
+            await admin.firestore().runTransaction(async (transaction) => {
+                const doc = await transaction.get(completedOrdersRef);
+                if (!doc.exists) return;
+
+                const orders = doc.data().value || [];
+                let modified = false;
+                
+                // Map through orders, strip slipImage if old
+                const cleanedOrders = orders.map(order => {
+                    // Check if order is older than 2 days AND has a slip image
+                    if (order.completionTime < cutoffTimestamp && order.paymentDetails && order.paymentDetails.slipImage) {
+                        modified = true;
+                        return {
+                            ...order,
+                            paymentDetails: {
+                                ...order.paymentDetails,
+                                slipImage: null // Clear the heavy string
+                            }
+                        };
+                    }
+                    return order;
+                });
+
+                if (modified) {
+                    transaction.update(completedOrdersRef, { value: cleanedOrders });
+                    console.log(`Cleaned up Base64 slips in branch ${branchId}`);
+                }
+            });
+        }
+    } catch (error) {
+        console.error('Error cleaning Firestore documents:', error);
+    }
+
+    return null;
 });
