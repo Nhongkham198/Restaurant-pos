@@ -5,7 +5,6 @@ import type { MenuItem, Table, OrderItem, ActiveOrder, StaffCall, CompletedOrder
 import { Menu } from './Menu';
 import { ItemCustomizationModal } from './ItemCustomizationModal';
 import Swal from 'sweetalert2';
-import { GoogleGenAI } from "@google/genai";
 
 declare var html2canvas: any;
 
@@ -63,10 +62,6 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
             return [];
         }
     });
-
-    const [language, setLanguage] = useState<'th' | 'en'>('th');
-    const [translations, setTranslations] = useState<Record<string, string> | null>(null);
-    const [isTranslating, setIsTranslating] = useState(false);
 
     useEffect(() => {
         localStorage.setItem(cartKey, JSON.stringify(cartItems));
@@ -127,13 +122,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         window.location.reload(); 
     };
 
-    // Use useCallback for t to ensure stability
-    const t = useCallback((text: string): string => {
-        if (language === 'th' || !translations) {
-            return text;
-        }
-        return translations[text] || text;
-    }, [language, translations]);
+    const t = (text: string) => text;
 
     // --- IDENTIFY ITEMS (Mine vs Others) ---
     const { myItems, otherItems } = useMemo(() => {
@@ -168,7 +157,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         });
 
         return { myItems: mine, otherItems: others };
-    }, [allBranchOrders, myOrderNumbers, isAuthenticated, customerName, table.id, t]);
+    }, [allBranchOrders, myOrderNumbers, isAuthenticated, customerName, table.id]);
 
     // Calculate totals
     const myTotal = useMemo(() => {
@@ -328,7 +317,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         }
     
         prevMyItemsCountRef.current = currentCount;
-    }, [myItems.length, isAuthenticated, completedOrders, myOrderNumbers, logoUrl, restaurantName, customerName, t]);
+    }, [myItems.length, isAuthenticated, completedOrders, myOrderNumbers, logoUrl, restaurantName, customerName]);
     
 
     const handleSelectItem = (item: MenuItem) => {
@@ -530,136 +519,9 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
             // Fallback on error if we know we have items
             return myItems.length > 0 ? { text: t('รอคิว'), color: 'bg-blue-600 text-white border-blue-700' } : null;
         }
-    }, [allBranchOrders, isAuthenticated, table.id, t, myItems.length]);
+    }, [allBranchOrders, isAuthenticated, table.id, myItems.length]);
 
     
-    const translateMenu = async () => {
-        setIsTranslating(true);
-        try {
-            // FIX: Use the provided API Key directly if process.env.API_KEY is missing
-            const apiKey = process.env.API_KEY || "AIzaSyCfQvFBBkaxteAf-R8dCbj9qew01UokHbs";
-
-            if (!apiKey || apiKey === "undefined" || apiKey === "") {
-                throw new Error("ไม่พบ API Key");
-            }
-
-            const ai = new GoogleGenAI({ apiKey: apiKey });
-    
-            const staticText = [
-                'เมนูอาหาร 🍽️', 'โต๊ะ', 'คุณ', 'เรียกพนักงาน', 'ยอดของฉัน', 'ดูตะกร้า', 'ยังไม่รวมกับยอดบิล', 'รายการของฉัน',
-                'ยังไม่มีรายการที่สั่ง', 'ยอดรวมของฉัน', '* ราคานี้เป็นเฉพาะรายการที่คุณสั่ง', 'บันทึกรายการของฉัน', 'ปิด',
-                'รายการในตะกร้า (ยังไม่สั่ง)', 'ไม่มีสินค้าในตะกร้า', 'ยอดในตะกร้า', 'ยืนยันสั่งอาหาร 🚀', 'เพิ่มลงตะกร้าแล้ว',
-                'ยืนยันการสั่งอาหาร?', 'สั่งอาหาร', 'รายการ', 'สั่งเลย', 'ตรวจสอบก่อน', 'ส่งสัญญาณเรียกพนักงานแล้ว', 'กรุณารอสักครู่...',
-                'กำลังสร้างรูปภาพ...', 'เกิดข้อผิดพลาด', 'ไม่สามารถสร้างรูปภาพได้', 'กำลังปรุง... 🍳', 'รอคิว...', 'คิว', 'เสิร์ฟครบแล้ว 😋',
-                'บันทึกสำเร็จ!', 'บิลของคุณถูกบันทึกเป็นรูปภาพแล้ว', 'สั่งอาหารสำเร็จ!', 'รายการอาหารถูกส่งเข้าครัวแล้ว',
-                'กำลังส่งรายการ...', 'ไม่สามารถสั่งอาหารได้ กรุณาลองใหม่', 'เกิดข้อผิดพลาด', 'คิวที่ 1', 'อีก', 'ไม่ระบุชื่อ',
-                'รายการของคุณ', 'รายการของเพื่อนร่วมโต๊ะ', 'ยอดรวมทั้งโต๊ะ', 'จัดการของหมด', 'เสร็จสิ้น', 'ค้นหาเมนูอาหาร', 'พิมพ์ชื่อเมนู...'
-            ];
-    
-            const dynamicText = new Set<string>();
-            menuItems.forEach(item => {
-                if (item.name) dynamicText.add(item.name);
-                item.optionGroups?.forEach(group => {
-                    if (group.name) dynamicText.add(group.name);
-                    group.options.forEach(option => {
-                        if (option.name) dynamicText.add(option.name);
-                    });
-                });
-            });
-            categories.forEach(cat => {
-                if (cat) dynamicText.add(cat);
-            });
-    
-            const allText = [...staticText, ...Array.from(dynamicText)];
-            const uniqueText = Array.from(new Set(allText)).filter(t => t && t.trim() !== '');
-            
-            const textToTranslate: Record<string, string> = {};
-            uniqueText.forEach(text => {
-                textToTranslate[text] = text;
-            });
-    
-            const prompt = `Translate the values of the following JSON object from Thai to English. Return ONLY the JSON object. \n${JSON.stringify(textToTranslate, null, 2)}`;
-            
-            const response = await ai.models.generateContent({
-                model: 'gemini-3-flash-preview',
-                contents: prompt,
-                config: {
-                    responseMimeType: 'application/json'
-                }
-            });
-    
-            let textResponse = response.text;
-            if (textResponse) {
-                // Improved JSON cleanup
-                try {
-                    // 1. Try direct parse
-                    const result = JSON.parse(textResponse);
-                    setTranslations(result);
-                } catch (e) {
-                    // 2. Try cleanup markdown
-                    let cleanText = textResponse.replace(/```json/g, '').replace(/```/g, '').trim();
-                    // 3. Find JSON bounds
-                    const firstBrace = cleanText.indexOf('{');
-                    const lastBrace = cleanText.lastIndexOf('}');
-                    if (firstBrace !== -1 && lastBrace !== -1) {
-                        cleanText = cleanText.substring(firstBrace, lastBrace + 1);
-                    }
-                    const result = JSON.parse(cleanText);
-                    setTranslations(result);
-                }
-            } else {
-                throw new Error("Empty response from AI");
-            }
-        } catch (error: any) {
-            console.error("Translation failed:", error);
-            // Show exact error for debugging
-            let msg = error.message || 'ไม่สามารถแปลภาษาได้';
-            
-            if (msg.includes("API Key")) {
-                msg = 'ไม่พบ API Key หรือ API Key ไม่ถูกต้อง';
-            } else if (msg.includes("403")) {
-                msg = 'API Key ไม่ได้รับอนุญาต (อาจติด Referer Restriction หรือ Quota)';
-            }
-
-            await Swal.fire({
-                icon: 'error',
-                title: 'Translation Error',
-                text: msg, // Show specific error
-            });
-            setLanguage('th'); 
-        } finally {
-            setIsTranslating(false);
-        }
-    };
-    
-    const handleLanguageSwitch = (lang: 'th' | 'en') => {
-        setLanguage(lang);
-        if (lang === 'en' && !translations) {
-            translateMenu();
-        }
-    };
-
-    const translatedMenuItems = useMemo(() => {
-        if (language === 'th' || !translations) return menuItems;
-        return menuItems.map(item => ({
-            ...item,
-            name: translations[item.name] || item.name,
-            optionGroups: item.optionGroups?.map(group => ({
-                ...group,
-                name: translations[group.name] || group.name,
-                options: group.options?.map(option => ({
-                    ...option,
-                    name: translations[option.name] || option.name
-                })) || [] 
-            })) || [] 
-        }));
-    }, [menuItems, language, translations]);
-
-    const translatedCategories = useMemo(() => {
-        if (language === 'th' || !translations) return categories;
-        return categories.map(cat => translations[cat] || cat);
-    }, [categories, language, translations]);
-
     // If not authenticated (though effect above should catch this instantly),
     // show a simple loading state or a fallback.
     // We removed the PIN form, so basically we just wait for the effect to auto-login.
@@ -675,12 +537,6 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     // --- MENU SCREEN ---
     return (
         <div className="h-screen flex flex-col bg-gray-50 overflow-hidden">
-            {isTranslating && (
-                <div className="absolute inset-0 bg-white/80 z-50 flex flex-col items-center justify-center">
-                    <svg className="animate-spin h-8 w-8 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                    <p className="mt-2 text-gray-600">Translating...</p>
-                </div>
-            )}
             {/* Header */}
             <header className="bg-white shadow-md z-30 relative">
                 {/* Top Row: Language & Title (Mobile Friendly) */}
@@ -688,10 +544,6 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                     <h1 className="font-bold text-gray-800 text-lg flex items-center gap-2">
                         {t('เมนูอาหาร 🍽️')}
                     </h1>
-                    <div className="flex bg-white rounded-full shadow-sm p-1 text-xs border border-gray-200">
-                        <button onClick={() => handleLanguageSwitch('th')} className={`px-3 py-1 rounded-full font-semibold transition-colors ${language === 'th' ? 'bg-blue-600 text-white' : 'text-gray-500 hover:bg-gray-100'}`}>TH</button>
-                        <button onClick={() => handleLanguageSwitch('en')} className={`px-3 py-1 rounded-full font-semibold transition-colors ${language === 'en' ? 'bg-blue-600 text-white' : 'text-gray-500 hover:bg-gray-100'}`}>EN</button>
-                    </div>
                 </div>
 
                 {/* Main Header Content */}
@@ -752,9 +604,9 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
             {/* Menu Content */}
             <div className="flex-1 overflow-hidden relative">
                 <Menu 
-                    menuItems={translatedMenuItems}
+                    menuItems={menuItems}
                     setMenuItems={() => {}} // Read-only
-                    categories={translatedCategories}
+                    categories={categories}
                     onSelectItem={handleSelectItem}
                     isEditMode={false}
                     onEditItem={() => {}}

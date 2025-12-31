@@ -21,12 +21,56 @@ const NumpadButton: React.FC<{ value: string; onClick: (value: string) => void; 
     </button>
 );
 
+// --- Image Compression Helper ---
+const compressImage = (file: File): Promise<File> => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = (event) => {
+            const img = new Image();
+            img.src = event.target?.result as string;
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                const maxWidth = 1024; // Limit width to 1024px (enough for slips)
+                const scaleSize = maxWidth / img.width;
+                const width = (img.width > maxWidth) ? maxWidth : img.width;
+                const height = (img.width > maxWidth) ? img.height * scaleSize : img.height;
+
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                if (ctx) {
+                    ctx.drawImage(img, 0, 0, width, height);
+                    // Compress to JPEG with 0.7 quality
+                    canvas.toBlob((blob) => {
+                        if (blob) {
+                            const compressedFile = new File([blob], file.name, {
+                                type: 'image/jpeg',
+                                lastModified: Date.now(),
+                            });
+                            resolve(compressedFile);
+                        } else {
+                            reject(new Error('Canvas is empty'));
+                        }
+                    }, 'image/jpeg', 0.7); 
+                } else {
+                    reject(new Error('Canvas context not found'));
+                }
+            };
+            img.onerror = (error) => reject(error);
+        };
+        reader.onerror = (error) => reject(error);
+    });
+};
+
 export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, order, onClose, onConfirmPayment, qrCodeUrl, onOpenSettings, isConfirmingPayment }) => {
     const [paymentMethod, setPaymentMethod] = useState<'cash' | 'transfer'>('cash');
     const [cashReceived, setCashReceived] = useState('');
     const [slipPreview, setSlipPreview] = useState<string | null>(null); // For display only
     const [slipFile, setSlipFile] = useState<File | null>(null); // The actual file to upload
     const [isUploading, setIsUploading] = useState(false);
+    const [isCompressing, setIsCompressing] = useState(false); // New state for compression feedback
+    
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const total = useMemo(() => {
@@ -50,7 +94,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, order, onClo
 
     const isConfirmDisabled = useMemo(() => {
         if (paymentMethod === 'transfer') {
-            return false; // We handle validation on click for better UX alert
+            return false; 
         }
         const received = parseFloat(cashReceived);
         return isNaN(received) || received < total;
@@ -64,10 +108,9 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, order, onClo
             setSlipPreview(null);
             setSlipFile(null);
             setIsUploading(false);
+            setIsCompressing(false);
         }
     }, [isOpen, order]);
-
-    if (!isOpen || !order) return null;
 
     const handleConfirm = async () => {
         let details: PaymentDetails;
@@ -109,8 +152,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, order, onClo
                 try {
                     // Create a unique path: slips/{orderId}_{timestamp}.jpg
                     const timestamp = Date.now();
-                    const fileExtension = slipFile.name.split('.').pop() || 'jpg';
-                    const fileName = `slips/${order.id}_${timestamp}.${fileExtension}`;
+                    const fileName = `slips/${order.id}_${timestamp}.jpg`; // Force jpg extension since we compress to jpg
                     const storageRef = storage.ref().child(fileName);
 
                     // Upload
@@ -149,19 +191,30 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, order, onClo
         }
     };
 
-    const handleSlipFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleSlipFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
-            setSlipFile(file); // Store the file for upload
-            
-            // Create a preview
-            const reader = new FileReader();
-            reader.onload = (event) => {
-                if (event.target?.result) {
-                    setSlipPreview(event.target.result as string);
-                }
-            };
-            reader.readAsDataURL(file);
+            setIsCompressing(true);
+            try {
+                // Show preview immediately with original file
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    if (event.target?.result) {
+                        setSlipPreview(event.target.result as string);
+                    }
+                };
+                reader.readAsDataURL(file);
+
+                // Compress image before setting to state
+                const compressedFile = await compressImage(file);
+                setSlipFile(compressedFile); 
+
+            } catch (error) {
+                console.error("Compression/Preview failed", error);
+                setSlipFile(file);
+            } finally {
+                setIsCompressing(false);
+            }
         }
     };
 
@@ -272,6 +325,16 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, order, onClo
                                         className="hidden"
                                     />
 
+                                    {isCompressing && (
+                                        <div className="p-4 flex items-center justify-center gap-2 text-blue-600 bg-blue-50 rounded-lg mb-2">
+                                            <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                            </svg>
+                                            <span className="text-sm font-medium">กำลังประมวลผลรูปภาพ...</span>
+                                        </div>
+                                    )}
+
                                     {slipPreview ? (
                                         <div className="flex flex-col items-center gap-3">
                                             <div className="relative inline-block">
@@ -288,7 +351,8 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, order, onClo
                                             
                                             <button 
                                                 onClick={() => fileInputRef.current?.click()}
-                                                className="px-4 py-2 bg-yellow-100 text-yellow-800 rounded-lg hover:bg-yellow-200 border border-yellow-300 font-semibold flex items-center gap-2 transition-colors"
+                                                disabled={isCompressing}
+                                                className="px-4 py-2 bg-yellow-100 text-yellow-800 rounded-lg hover:bg-yellow-200 border border-yellow-300 font-semibold flex items-center gap-2 transition-colors disabled:opacity-50"
                                             >
                                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                                                     <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
@@ -299,7 +363,8 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, order, onClo
                                     ) : (
                                         <button 
                                             onClick={() => fileInputRef.current?.click()}
-                                            className="w-full py-4 bg-gray-100 hover:bg-gray-200 border-2 border-dashed border-red-300 rounded-lg text-gray-600 flex flex-col items-center justify-center gap-2 transition-colors animate-pulse"
+                                            disabled={isCompressing}
+                                            className="w-full py-4 bg-gray-100 hover:bg-gray-200 border-2 border-dashed border-red-300 rounded-lg text-gray-600 flex flex-col items-center justify-center gap-2 transition-colors animate-pulse disabled:opacity-50 disabled:cursor-not-allowed"
                                         >
                                             <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
@@ -316,14 +381,14 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, order, onClo
 
                 <footer className="p-4 bg-gray-50 rounded-b-lg grid grid-cols-2 gap-4">
                      <button onClick={onClose} className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-3 px-4 rounded-lg transition-colors text-base">ยกเลิก</button>
-                     <button onClick={handleConfirm} disabled={isConfirmDisabled || isConfirmingPayment || isUploading} className="bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed text-base flex justify-center items-center">
-                        {(isConfirmingPayment || isUploading) ? (
+                     <button onClick={handleConfirm} disabled={isConfirmDisabled || isConfirmingPayment || isUploading || isCompressing} className="bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed text-base flex justify-center items-center">
+                        {(isConfirmingPayment || isUploading || isCompressing) ? (
                             <>
                                 <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                 </svg>
-                                {isUploading ? 'กำลังอัปโหลด...' : 'กำลังดำเนินการ...'}
+                                {isCompressing ? 'กำลังย่อรูป...' : isUploading ? 'กำลังอัปโหลด...' : 'กำลังดำเนินการ...'}
                             </>
                         ) : (
                             'ยืนยันการชำระเงิน'

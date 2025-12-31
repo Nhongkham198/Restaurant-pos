@@ -1,3 +1,4 @@
+
 // functions/index.js (To be deployed to Firebase Cloud Functions)
 
 const functions = require('firebase-functions');
@@ -181,3 +182,43 @@ exports.sendStaffCallNotification = functions.region('asia-southeast1').firestor
         }
         return null;
     });
+
+/**
+ * Scheduled function to delete old slip images (older than 2 days).
+ * NOTE: This function requires the Firebase "Blaze" (Pay-as-you-go) plan because it uses Cloud Scheduler.
+ * It runs every day at 3:00 AM.
+ */
+exports.cleanupOldSlips = functions.region('asia-southeast1').pubsub.schedule('0 3 * * *')
+  .timeZone('Asia/Bangkok')
+  .onRun(async (context) => {
+    const bucket = admin.storage().bucket();
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - 2); // 2 days ago
+
+    try {
+      const [files] = await bucket.getFiles({ prefix: 'slips/' });
+      let deletedCount = 0;
+
+      console.log(`Found ${files.length} files in slips/ folder.`);
+
+      for (const file of files) {
+        // file.metadata.timeCreated is an ISO string
+        const fileDate = new Date(file.metadata.timeCreated);
+        
+        if (fileDate < cutoffDate) {
+          try {
+            await file.delete();
+            deletedCount++;
+          } catch (err) {
+            console.error(`Failed to delete file ${file.name}:`, err);
+          }
+        }
+      }
+
+      console.log(`Successfully deleted ${deletedCount} old slip images.`);
+      return null;
+    } catch (error) {
+      console.error('Error during slip cleanup:', error);
+      return null;
+    }
+});
