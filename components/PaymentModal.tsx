@@ -113,6 +113,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, order, onClo
     }, [isOpen, order]);
 
     const handleConfirm = async () => {
+        if (!order) return;
         let details: PaymentDetails;
         
         if (paymentMethod === 'cash') {
@@ -225,6 +226,8 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, order, onClo
             fileInputRef.current.value = '';
         }
     };
+
+    if (!isOpen || !order) return null;
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4" onClick={onClose}>
