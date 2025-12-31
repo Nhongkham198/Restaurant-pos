@@ -10,35 +10,23 @@ if (admin.apps.length === 0) {
 }
 
 /**
- * This Cloud Function triggers when the 'activeOrders' document for any branch is updated.
- * It detects when a new order is added and sends a high-priority push notification
- * to all kitchen staff of that branch who have a registered Android device.
+ * This Cloud Function triggers when a NEW document is created in the 'activeOrders' collection.
+ * UPDATED: Listens to the specific document path for the new collection-based architecture.
  */
 exports.sendHighPriorityOrderNotification = functions.region('asia-southeast1').firestore
-    .document('branches/{branchId}/activeOrders/data')
-    .onUpdate(async (change, context) => {
-        // Get the array of orders before and after the change.
-        const ordersBefore = change.before.data().value || [];
-        const ordersAfter = change.after.data().value || [];
-
-        // Find the newly added order. We assume only one order is added at a time from the POS.
-        if (ordersAfter.length <= ordersBefore.length) {
-            console.log('No new order detected. Exiting function.');
-            return null;
-        }
-        
-        // A simple way to find the new order is to find one that doesn't exist in the 'before' list.
-        const ordersBeforeIds = new Set(ordersBefore.map(o => o.id));
-        const newOrder = ordersAfter.find(o => !ordersBeforeIds.has(o.id));
+    .document('branches/{branchId}/activeOrders/{orderId}')
+    .onCreate(async (snap, context) => {
+        // Get the newly created order data directly
+        const newOrder = snap.data();
 
         if (!newOrder) {
-            console.log('Could not determine the new order. Exiting function.');
+            console.log('No order data found.');
             return null;
         }
 
         console.log(`New order detected: #${newOrder.orderNumber} for Table ${newOrder.tableName} in branch ${context.params.branchId}`);
 
-        // Get all users from the 'users/data' document.
+        // Get all users from the 'users/data' document to find tokens.
         const usersDoc = await admin.firestore().collection('users').doc('data').get();
         if (!usersDoc.exists) {
             console.error('Users document not found!');
@@ -48,17 +36,17 @@ exports.sendHighPriorityOrderNotification = functions.region('asia-southeast1').
 
         // Filter for kitchen staff, collect all their tokens from the `fcmTokens` array.
         const branchIdNumber = parseInt(context.params.branchId, 10);
-        const targetRoles = ['kitchen']; // MODIFIED: Only target kitchen staff
+        const targetRoles = ['kitchen']; // Send only to Kitchen
         const allStaffTokens = allUsers
             .filter(user => 
-                targetRoles.includes(user.role) && // Send only to Kitchen
+                targetRoles.includes(user.role) && 
                 user.fcmTokens && Array.isArray(user.fcmTokens) && user.fcmTokens.length > 0 &&
                 user.allowedBranchIds &&
                 user.allowedBranchIds.includes(branchIdNumber)
             )
-            .flatMap(user => user.fcmTokens); // Use flatMap to get all tokens into a single array.
+            .flatMap(user => user.fcmTokens); 
 
-        // Remove duplicate tokens to avoid sending multiple notifications to the same device.
+        // Remove duplicate tokens
         const staffTokens = [...new Set(allStaffTokens)];
 
         if (staffTokens.length === 0) {
@@ -69,28 +57,29 @@ exports.sendHighPriorityOrderNotification = functions.region('asia-southeast1').
         console.log(`Found ${staffTokens.length} Kitchen staff tokens to notify.`);
 
         // Construct the high-priority message payload.
-        // We include a 'data' payload for the service worker to have more control.
         const notificationTitle = '🔔 มีออเดอร์ใหม่!';
         const notificationBody = `โต๊ะ ${newOrder.tableName} (ออเดอร์ #${String(newOrder.orderNumber).padStart(3, '0')})`;
 
         const message = {
-            // Basic notification for simple display (iOS, etc.)
             notification: {
                 title: notificationTitle,
                 body: notificationBody,
             },
-            // Custom data payload for our Service Worker to build a rich notification
             data: {
                 title: notificationTitle,
                 body: notificationBody,
                 icon: '/icon.svg',
-                // The crucial part for sound and vibration
-                // This URL must be publicly accessible. Using a default sound stored in Firebase Storage.
+                // Ensure this sound URL is valid and accessible
                 sound: 'https://firebasestorage.googleapis.com/v0/b/restaurant-pos-f8bd4.appspot.com/o/sounds%2Fdefault-notification.mp3?alt=media',
-                vibrate: '[200, 100, 200]' // A standard vibration pattern: vibrate 200ms, pause 100ms, vibrate 200ms
+                vibrate: '[200, 100, 200]',
+                url: '/?view=kitchen' // Open kitchen view on click
             },
             android: {
-                priority: 'high' // This is the crucial part for high-priority delivery.
+                priority: 'high',
+                notification: {
+                    channelId: 'high_importance_channel',
+                    sound: 'default'
+                }
             },
             tokens: staffTokens
         };
@@ -188,7 +177,7 @@ exports.sendStaffCallNotification = functions.region('asia-southeast1').firestor
  * NOTE: This function requires the Firebase "Blaze" (Pay-as-you-go) plan because it uses Cloud Scheduler.
  * It runs every day at 3:00 AM.
  * 
- * UPDATE: Also cleans up Base64 strings in Firestore 'completedOrders' documents.
+ * UPDATE: Also cleans up Base64 strings in Firestore 'completedOrders_v2' documents (New Collection).
  */
 exports.cleanupOldData = functions.region('asia-southeast1').pubsub.schedule('0 4 * * *')
   .timeZone('Asia/Bangkok')
@@ -216,44 +205,43 @@ exports.cleanupOldData = functions.region('asia-southeast1').pubsub.schedule('0 
       console.error('Error cleaning storage:', error);
     }
 
-    // 2. Cleanup Base64 strings in Firestore Documents
-    // We iterate through all branches to find 'completedOrders' docs
+    // 2. Cleanup Base64 strings in Firestore Documents (New Collection)
     try {
         const branchesSnapshot = await admin.firestore().collection('branches').get();
         
         for (const branchDoc of branchesSnapshot.docs) {
             const branchId = branchDoc.id;
-            const completedOrdersRef = admin.firestore().doc(`branches/${branchId}/completedOrders/data`);
-            
-            // Transaction to ensure atomic read/write of the large array
-            await admin.firestore().runTransaction(async (transaction) => {
-                const doc = await transaction.get(completedOrdersRef);
-                if (!doc.exists) return;
+            // Target the NEW collection 'completedOrders_v2'
+            const ordersSnapshot = await admin.firestore().collection(`branches/${branchId}/completedOrders_v2`)
+                .where('completionTime', '<', cutoffTimestamp)
+                .get();
 
-                const orders = doc.data().value || [];
-                let modified = false;
-                
-                // Map through orders, strip slipImage if old
-                const cleanedOrders = orders.map(order => {
-                    // Check if order is older than 2 days AND has a slip image
-                    if (order.completionTime < cutoffTimestamp && order.paymentDetails && order.paymentDetails.slipImage) {
-                        modified = true;
-                        return {
-                            ...order,
-                            paymentDetails: {
-                                ...order.paymentDetails,
-                                slipImage: null // Clear the heavy string
-                            }
-                        };
+            let batch = admin.firestore().batch();
+            let count = 0;
+
+            for (const doc of ordersSnapshot.docs) {
+                const order = doc.data();
+                if (order.paymentDetails && order.paymentDetails.slipImage) {
+                    // Update document to remove slipImage
+                    const docRef = admin.firestore().doc(`branches/${branchId}/completedOrders_v2/${doc.id}`);
+                    batch.update(docRef, {
+                        'paymentDetails.slipImage': null
+                    });
+                    count++;
+
+                    // Batches limit is 500
+                    if (count >= 400) {
+                        await batch.commit();
+                        batch = admin.firestore().batch();
+                        count = 0;
                     }
-                    return order;
-                });
-
-                if (modified) {
-                    transaction.update(completedOrdersRef, { value: cleanedOrders });
-                    console.log(`Cleaned up Base64 slips in branch ${branchId}`);
                 }
-            });
+            }
+            
+            if (count > 0) {
+                await batch.commit();
+            }
+            console.log(`Cleaned up slips in ${count} orders for branch ${branchId}`);
         }
     } catch (error) {
         console.error('Error cleaning Firestore documents:', error);

@@ -177,8 +177,32 @@ const App: React.FC = () => {
         return rawActiveOrders.filter(o => o.status !== 'completed' && o.status !== 'cancelled');
     }, [rawActiveOrders]);
 
-    const [completedOrders, setCompletedOrders] = useFirestoreSync<CompletedOrder[]>(branchId, 'completedOrders', []);
-    const [cancelledOrders, setCancelledOrders] = useFirestoreSync<CancelledOrder[]>(branchId, 'cancelledOrders', []);
+    // --- HISTORY STATE REFACTOR (HYBRID: LEGACY + NEW COLLECTION) ---
+    // 1. Legacy Data (Single Document Array - Read Only / Soft Delete via Array Update)
+    const [legacyCompletedOrders, setLegacyCompletedOrders] = useFirestoreSync<CompletedOrder[]>(branchId, 'completedOrders', []);
+    const [legacyCancelledOrders, setLegacyCancelledOrders] = useFirestoreSync<CancelledOrder[]>(branchId, 'cancelledOrders', []);
+
+    // 2. New Data (Scalable Collections - v2)
+    const [newCompletedOrders, newCompletedOrdersActions] = useFirestoreCollection<CompletedOrder>(branchId, 'completedOrders_v2');
+    const [newCancelledOrders, newCancelledOrdersActions] = useFirestoreCollection<CancelledOrder>(branchId, 'cancelledOrders_v2');
+
+    // 3. Merged Views
+    const completedOrders = useMemo(() => {
+        const combined = [...newCompletedOrders, ...legacyCompletedOrders];
+        // Deduplicate just in case (prefer new version if conflict)
+        const unique = new Map<number, CompletedOrder>();
+        combined.forEach(o => unique.set(o.id, o));
+        return Array.from(unique.values()).sort((a, b) => b.completionTime - a.completionTime);
+    }, [legacyCompletedOrders, newCompletedOrders]);
+
+    const cancelledOrders = useMemo(() => {
+        const combined = [...newCancelledOrders, ...legacyCancelledOrders];
+        const unique = new Map<number, CancelledOrder>();
+        combined.forEach(o => unique.set(o.id, o));
+        return Array.from(unique.values()).sort((a, b) => b.cancellationTime - a.cancellationTime);
+    }, [legacyCancelledOrders, newCancelledOrders]);
+
+
     const [stockItems, setStockItems] = useFirestoreSync<StockItem[]>(branchId, 'stockItems', DEFAULT_STOCK_ITEMS);
     const [stockCategories, setStockCategories] = useFirestoreSync<string[]>(branchId, 'stockCategories', DEFAULT_STOCK_CATEGORIES);
     const [stockUnits, setStockUnits] = useFirestoreSync<string[]>(branchId, 'stockUnits', DEFAULT_STOCK_UNITS);
@@ -920,19 +944,13 @@ const App: React.FC = () => {
                 paymentDetails: paymentDetails
             });
 
-            // 2. Add to Completed Orders Array (Legacy support for History)
-            // Using arrayUnion on the single document
-            await db.doc(`branches/${branchId}/completedOrders/data`).update({
-                value: firebase.firestore.FieldValue.arrayUnion(completed)
-            });
+            // 2. Add to New Scalable Collection (FIX: Use separate collection instead of single document array)
+            // Using set() on a specific doc ID prevents duplication if network retries happen
+            await db.collection(`branches/${branchId}/completedOrders_v2`).doc(orderId.toString()).set(completed);
             
             // Clear PIN if exists
             if (tables.find(t => t.id === orderToComplete.tableId)?.activePin) {
-                // Need a way to update tables... useFirestoreSync returns setValue which overwrites whole array.
-                // We'll trust the current mechanism or better, we should have useFirestoreCollection for tables too eventually.
-                // For now, let's skip clearing PIN to avoid overwriting table data race condition, or implement specific table update.
-                // Actually, let's accept the risk for PIN clearing or implement a transaction.
-                // Skipping for minimal impact as requested.
+               // ... logic to clear PIN if needed
             }
 
         } catch (error) {
@@ -1019,18 +1037,61 @@ const App: React.FC = () => {
         });
     };
 
-    const handleDeleteHistory = (completedIds: number[], cancelledIds: number[], printIds: number[]) => {
+    const handleDeleteHistory = async (completedIds: number[], cancelledIds: number[], printIds: number[]) => {
         if (!currentUser) return;
+        const username = currentUser.username;
         const isAdmin = currentUser.role === 'admin';
-        if (isAdmin) {
-            setCompletedOrders(prev => prev.filter(o => !completedIds.includes(o.id)));
-            setCancelledOrders(prev => prev.filter(o => !cancelledIds.includes(o.id)));
-            setPrintHistory(prev => prev.filter(p => !printIds.includes(p.id)));
-        } else {
-            const username = currentUser.username;
-            setCompletedOrders(prev => prev.map(o => completedIds.includes(o.id) ? { ...o, isDeleted: true, deletedBy: username } : o));
-            setCancelledOrders(prev => prev.map(o => cancelledIds.includes(o.id) ? { ...o, isDeleted: true, deletedBy: username } : o));
-            setPrintHistory(prev => prev.map(p => printIds.includes(p.id) ? { ...p, isDeleted: true, deletedBy: username } : p));
+
+        // 1. Handle Completed Orders
+        if (completedIds.length > 0) {
+            const newIds = completedIds.filter(id => newCompletedOrders.some(o => o.id === id));
+            const legacyIds = completedIds.filter(id => !newIds.includes(id));
+
+            // Process New (Collection)
+            for (const id of newIds) {
+                if (isAdmin) {
+                    await newCompletedOrdersActions.remove(id);
+                } else {
+                    await newCompletedOrdersActions.update(id, { isDeleted: true, deletedBy: username });
+                }
+            }
+
+            // Process Legacy (Array)
+            if (legacyIds.length > 0) {
+                setLegacyCompletedOrders(prev => {
+                    if (isAdmin) return prev.filter(o => !legacyIds.includes(o.id));
+                    return prev.map(o => legacyIds.includes(o.id) ? { ...o, isDeleted: true, deletedBy: username } : o);
+                });
+            }
+        }
+
+        // 2. Handle Cancelled Orders
+        if (cancelledIds.length > 0) {
+            const newIds = cancelledIds.filter(id => newCancelledOrders.some(o => o.id === id));
+            const legacyIds = cancelledIds.filter(id => !newIds.includes(id));
+
+            for (const id of newIds) {
+                if (isAdmin) {
+                    await newCancelledOrdersActions.remove(id);
+                } else {
+                    await newCancelledOrdersActions.update(id, { isDeleted: true, deletedBy: username });
+                }
+            }
+
+            if (legacyIds.length > 0) {
+                setLegacyCancelledOrders(prev => {
+                    if (isAdmin) return prev.filter(o => !legacyIds.includes(o.id));
+                    return prev.map(o => legacyIds.includes(o.id) ? { ...o, isDeleted: true, deletedBy: username } : o);
+                });
+            }
+        }
+
+        // 3. Print History (Legacy array only)
+        if (printIds.length > 0) {
+             setPrintHistory(prev => {
+                if (isAdmin) return prev.filter(p => !printIds.includes(p.id));
+                return prev.map(p => printIds.includes(p.id) ? { ...p, isDeleted: true, deletedBy: username } : p);
+            });
         }
     };
 
@@ -1141,10 +1202,8 @@ const App: React.FC = () => {
             cancellationNotes: notes
         });
 
-        // 2. Add to CancelledOrders (Legacy Array)
-        await db.doc(`branches/${branchId}/cancelledOrders/data`).update({
-            value: firebase.firestore.FieldValue.arrayUnion(cancelledOrder)
-        });
+        // 2. Add to CancelledOrders (New Collection v2)
+        await db.collection(`branches/${branchId}/cancelledOrders_v2`).doc(cancelledOrder.id.toString()).set(cancelledOrder);
         
         handleModalClose();
     };
@@ -1396,7 +1455,7 @@ const App: React.FC = () => {
             <PaymentModal isOpen={modalState.isPayment} order={orderForModal as ActiveOrder | null} onClose={handleModalClose} onConfirmPayment={handleConfirmPayment} qrCodeUrl={qrCodeUrl} isEditMode={isEditMode} onOpenSettings={() => setModalState(prev => ({...prev, isSettings: true}))} isConfirmingPayment={isConfirmingPayment} />
             <PaymentSuccessModal isOpen={modalState.isPaymentSuccess} onClose={handlePaymentSuccessClose} orderNumber={(orderForModal as CompletedOrder)?.orderNumber || 0} />
             <SettingsModal isOpen={modalState.isSettings} onClose={handleModalClose} onSave={(qr, sound, staffSound, printer, open, close) => { setQrCodeUrl(qr); setNotificationSoundUrl(sound); setStaffCallSoundUrl(staffSound); setPrinterConfig(printer); setOpeningTime(open); setClosingTime(close); handleModalClose(); }} currentQrCodeUrl={qrCodeUrl} currentNotificationSoundUrl={notificationSoundUrl} currentStaffCallSoundUrl={staffCallSoundUrl} currentPrinterConfig={printerConfig} currentOpeningTime={openingTime} currentClosingTime={closingTime} onSavePrinterConfig={setPrinterConfig} menuItems={menuItems} currentRecommendedMenuItemIds={recommendedMenuItemIds} onSaveRecommendedItems={setRecommendedMenuItemIds} />
-            <EditCompletedOrderModal isOpen={modalState.isEditCompleted} order={orderForModal as CompletedOrder | null} onClose={handleModalClose} onSave={({id, items}) => setCompletedOrders(prev => prev.map(o => o.id === id ? {...o, items} : o))} menuItems={menuItems} />
+            <EditCompletedOrderModal isOpen={modalState.isEditCompleted} order={orderForModal as CompletedOrder | null} onClose={handleModalClose} onSave={async ({id, items}) => { if(newCompletedOrders.some(o => o.id === id)) { await newCompletedOrdersActions.update(id, { items }); } else { setLegacyCompletedOrders(prev => prev.map(o => o.id === id ? {...o, items} : o)); } }} menuItems={menuItems} />
             <UserManagerModal isOpen={modalState.isUserManager} onClose={handleModalClose} users={users} setUsers={setUsers} currentUser={currentUser!} branches={branches} isEditMode={isEditMode} />
             <BranchManagerModal isOpen={modalState.isBranchManager} onClose={handleModalClose} branches={branches} setBranches={setBranches} />
             <MoveTableModal isOpen={modalState.isMoveTable} onClose={handleModalClose} order={orderForModal as ActiveOrder | null} tables={tables} activeOrders={activeOrders} onConfirmMove={handleConfirmMoveTable} floors={floors} />
