@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import type { CompletedOrder } from '../types';
 import Swal from 'sweetalert2';
 
@@ -19,6 +19,7 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({ order, o
     // --- Image Viewer State ---
     const [isViewingSlip, setIsViewingSlip] = useState(false);
     const [zoomLevel, setZoomLevel] = useState(1);
+    const scrollContainerRef = useRef<HTMLDivElement>(null);
 
     const total = useMemo(() => {
         const subtotal = order.items.reduce((sum, item) => sum + item.finalPrice * item.quantity, 0);
@@ -46,7 +47,6 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({ order, o
             setZoomLevel(1); // Reset zoom when opening
             setIsViewingSlip(true);
         } else {
-            // Alert if image is missing (likely deleted by cleanup script)
             Swal.fire({
                 icon: 'info',
                 title: 'ไม่พบรูปภาพ',
@@ -62,13 +62,21 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({ order, o
 
     const handleZoomIn = (e: React.MouseEvent) => {
         e.stopPropagation();
-        setZoomLevel(prev => Math.min(prev + 0.5, 3.5)); // Max zoom 3.5x
+        setZoomLevel(prev => Math.min(prev + 0.5, 3.0)); // Max zoom 3.0x
     };
 
     const handleZoomOut = (e: React.MouseEvent) => {
         e.stopPropagation();
         setZoomLevel(prev => Math.max(prev - 0.5, 1)); // Min zoom 1x
     };
+
+    // Reset scroll position when zoom level changes to 1 (fit screen)
+    useEffect(() => {
+        if (zoomLevel === 1 && scrollContainerRef.current) {
+            scrollContainerRef.current.scrollTop = 0;
+            scrollContainerRef.current.scrollLeft = 0;
+        }
+    }, [zoomLevel]);
 
     return (
         <>
@@ -183,7 +191,7 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({ order, o
                 )}
             </div>
 
-            {/* FULL SCREEN IMAGE VIEWER MODAL */}
+            {/* FULL SCREEN IMAGE VIEWER MODAL - IMPROVED SCROLLING */}
             {isViewingSlip && order.paymentDetails.slipImage && (
                 <div 
                     className="fixed inset-0 z-[100] bg-black/95 flex flex-col animate-fade-in"
@@ -206,28 +214,35 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({ order, o
                     </div>
 
                     {/* Image Area - Scrollable Container */}
+                    {/* Using overflow-auto on this container allows NATIVE scrolling momentum when image is larger than screen */}
                     <div 
-                        className="flex-1 overflow-auto flex items-center justify-center p-0 relative"
+                        ref={scrollContainerRef}
+                        className="flex-1 overflow-auto w-full h-full relative"
                         style={{ 
-                            touchAction: zoomLevel > 1 ? 'pan-x pan-y' : 'none', // Allow native panning when zoomed
-                            cursor: zoomLevel > 1 ? 'grab' : 'default'
+                            WebkitOverflowScrolling: 'touch', // Enable smooth scrolling on iOS
+                            touchAction: 'pan-x pan-y'
                         }}
                         onClick={(e) => e.stopPropagation()} 
                     >
-                        <img 
-                            src={order.paymentDetails.slipImage} 
-                            alt="Slip" 
-                            className="transition-transform duration-200 ease-out origin-center max-w-none shadow-2xl"
-                            style={{ 
-                                // Logic: Use scale to zoom. 
-                                transform: `scale(${zoomLevel})`,
-                                // If zoomed out (1), constrain to screen. If zoomed in, allow natural size to trigger overflow.
-                                width: zoomLevel === 1 ? 'auto' : 'auto',
-                                height: zoomLevel === 1 ? 'auto' : 'auto',
-                                maxHeight: zoomLevel === 1 ? '90vh' : 'none',
-                                maxWidth: zoomLevel === 1 ? '100vw' : 'none',
-                            }}
-                        />
+                        <div 
+                            className={`min-h-full min-w-full flex items-center justify-center p-4 ${zoomLevel > 1 ? 'items-start justify-start' : ''}`}
+                        >
+                            <img 
+                                src={order.paymentDetails.slipImage} 
+                                alt="Slip" 
+                                className="transition-all duration-200 ease-out shadow-2xl"
+                                style={{ 
+                                    // Use CSS width/height for layout sizing instead of transform
+                                    // This forces the scroll container to recognize the size and scroll properly
+                                    width: zoomLevel === 1 ? 'auto' : `${zoomLevel * 100}%`, 
+                                    maxWidth: zoomLevel === 1 ? '100%' : 'none',
+                                    maxHeight: zoomLevel === 1 ? '100%' : 'none',
+                                    objectFit: 'contain',
+                                    // Ensure image doesn't get distorted
+                                    height: 'auto'
+                                }}
+                            />
+                        </div>
                     </div>
 
                     {/* Footer Controls - Fixed at bottom */}
@@ -249,7 +264,7 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({ order, o
 
                         <button 
                             onClick={handleZoomIn}
-                            disabled={zoomLevel >= 3.5}
+                            disabled={zoomLevel >= 3.0}
                             className="w-14 h-14 rounded-full bg-blue-600 text-white flex items-center justify-center text-3xl font-bold hover:bg-blue-500 disabled:opacity-30 disabled:cursor-not-allowed border border-blue-400 active:scale-95 transition-transform shadow-lg shadow-blue-900/50"
                         >
                             +
