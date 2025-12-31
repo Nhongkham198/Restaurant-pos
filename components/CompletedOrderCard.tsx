@@ -43,13 +43,14 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({ order, o
     const handleViewSlip = (e: React.MouseEvent) => {
         e.stopPropagation();
         if (order.paymentDetails.slipImage) {
-            setZoomLevel(1); // Reset zoom
+            setZoomLevel(1); // Reset zoom when opening
             setIsViewingSlip(true);
         } else {
+            // Alert if image is missing (likely deleted by cleanup script)
             Swal.fire({
                 icon: 'info',
                 title: 'ไม่พบรูปภาพ',
-                text: 'รูปสลิปอาจถูกลบออกจากระบบแล้ว (ระบบลบอัตโนมัติทุก 2 วันเพื่อประหยัดพื้นที่)',
+                text: 'รูปสลิปอาจถูกลบออกจากระบบแล้ว (ระบบลบอัตโนมัติเมื่อเกิน 2 วันเพื่อประหยัดพื้นที่)',
                 confirmButtonText: 'เข้าใจแล้ว'
             });
         }
@@ -61,7 +62,7 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({ order, o
 
     const handleZoomIn = (e: React.MouseEvent) => {
         e.stopPropagation();
-        setZoomLevel(prev => Math.min(prev + 0.5, 3)); // Max zoom 3x
+        setZoomLevel(prev => Math.min(prev + 0.5, 3.5)); // Max zoom 3.5x
     };
 
     const handleZoomOut = (e: React.MouseEvent) => {
@@ -120,9 +121,9 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({ order, o
                                     {order.paymentDetails.method === 'transfer' && (
                                         <button 
                                             onClick={handleViewSlip}
-                                            className={`text-xs px-2 py-1 rounded border flex items-center gap-1 transition-colors ${order.paymentDetails.slipImage ? 'bg-blue-100 text-blue-700 border-blue-300 hover:bg-blue-200' : 'bg-gray-100 text-gray-500 border-gray-300 cursor-not-allowed'}`}
+                                            className={`text-xs px-3 py-1.5 rounded-full border flex items-center gap-1 transition-colors ${order.paymentDetails.slipImage ? 'bg-blue-600 text-white border-blue-600 hover:bg-blue-700 shadow-sm' : 'bg-gray-100 text-gray-500 border-gray-300 cursor-not-allowed'}`}
                                         >
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
                                                 <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
                                             </svg>
                                             {order.paymentDetails.slipImage ? 'ดูสลิป' : 'ไม่มีรูป'}
@@ -188,15 +189,15 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({ order, o
                     className="fixed inset-0 z-[100] bg-black/95 flex flex-col animate-fade-in"
                     onClick={handleCloseSlip}
                 >
-                    {/* Header */}
-                    <div className="flex justify-between items-center p-4 text-white bg-black/50 backdrop-blur-sm z-10">
+                    {/* Header with info and close button */}
+                    <div className="flex justify-between items-center p-4 text-white bg-black/60 backdrop-blur-md z-10 border-b border-gray-800">
                         <div>
                             <h3 className="text-lg font-bold">หลักฐานการโอนเงิน</h3>
-                            <p className="text-xs text-gray-400">ออเดอร์ #{order.orderNumber} (ลบอัตโนมัติใน 2 วัน)</p>
+                            <p className="text-xs text-gray-400">ออเดอร์ #{order.orderNumber} (ระบบจะลบรูปใน 2 วัน)</p>
                         </div>
                         <button 
                             onClick={handleCloseSlip}
-                            className="p-2 bg-gray-800 rounded-full hover:bg-gray-700 transition-colors"
+                            className="p-2 bg-gray-800 rounded-full hover:bg-gray-700 transition-colors border border-gray-700"
                         >
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -204,40 +205,52 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({ order, o
                         </button>
                     </div>
 
-                    {/* Image Area */}
-                    <div className="flex-1 overflow-auto flex items-center justify-center p-4 relative" style={{ touchAction: 'none' }}>
+                    {/* Image Area - Scrollable Container */}
+                    <div 
+                        className="flex-1 overflow-auto flex items-center justify-center p-0 relative"
+                        style={{ 
+                            touchAction: zoomLevel > 1 ? 'pan-x pan-y' : 'none', // Allow native panning when zoomed
+                            cursor: zoomLevel > 1 ? 'grab' : 'default'
+                        }}
+                        onClick={(e) => e.stopPropagation()} 
+                    >
                         <img 
                             src={order.paymentDetails.slipImage} 
                             alt="Slip" 
-                            className="transition-transform duration-200 ease-out origin-center max-w-none"
+                            className="transition-transform duration-200 ease-out origin-center max-w-none shadow-2xl"
                             style={{ 
+                                // Logic: Use scale to zoom. 
                                 transform: `scale(${zoomLevel})`,
-                                // Logic: If zoomed in, let it overflow naturally. If zoomed out (1), fit to screen.
+                                // If zoomed out (1), constrain to screen. If zoomed in, allow natural size to trigger overflow.
                                 width: zoomLevel === 1 ? 'auto' : 'auto',
+                                height: zoomLevel === 1 ? 'auto' : 'auto',
                                 maxHeight: zoomLevel === 1 ? '90vh' : 'none',
-                                maxWidth: zoomLevel === 1 ? '100%' : 'none',
-                                cursor: zoomLevel > 1 ? 'grab' : 'default'
+                                maxWidth: zoomLevel === 1 ? '100vw' : 'none',
                             }}
-                            onClick={(e) => e.stopPropagation()} 
                         />
                     </div>
 
-                    {/* Footer Controls */}
-                    <div className="p-6 flex justify-center gap-6 items-center bg-black/50 backdrop-blur-sm z-10" onClick={e => e.stopPropagation()}>
+                    {/* Footer Controls - Fixed at bottom */}
+                    <div className="p-6 pb-8 flex justify-center gap-8 items-center bg-black/60 backdrop-blur-md z-10 border-t border-gray-800" onClick={e => e.stopPropagation()}>
                         <button 
                             onClick={handleZoomOut}
                             disabled={zoomLevel <= 1}
-                            className="w-12 h-12 rounded-full bg-gray-800 text-white flex items-center justify-center text-2xl font-bold hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="w-14 h-14 rounded-full bg-gray-800 text-white flex items-center justify-center text-3xl font-bold hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed border border-gray-600 active:scale-95 transition-transform"
                         >
                             -
                         </button>
-                        <span className="text-white font-mono text-lg font-bold w-16 text-center">
-                            {Math.round(zoomLevel * 100)}%
-                        </span>
+                        
+                        <div className="flex flex-col items-center w-20">
+                            <span className="text-white font-mono text-xl font-bold">
+                                {Math.round(zoomLevel * 100)}%
+                            </span>
+                            <span className="text-gray-400 text-xs">Zoom</span>
+                        </div>
+
                         <button 
                             onClick={handleZoomIn}
-                            disabled={zoomLevel >= 3}
-                            className="w-12 h-12 rounded-full bg-gray-800 text-white flex items-center justify-center text-2xl font-bold hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                            disabled={zoomLevel >= 3.5}
+                            className="w-14 h-14 rounded-full bg-blue-600 text-white flex items-center justify-center text-3xl font-bold hover:bg-blue-500 disabled:opacity-30 disabled:cursor-not-allowed border border-blue-400 active:scale-95 transition-transform shadow-lg shadow-blue-900/50"
                         >
                             +
                         </button>
