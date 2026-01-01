@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import type { CompletedOrder, CancelledOrder, PrintHistoryEntry, User } from '../types';
 import { CompletedOrderCard } from './CompletedOrderCard';
 import { CancelledOrderCard } from './CancelledOrderCard';
@@ -36,6 +36,8 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({
     const [activeTab, setActiveTab] = useState<'completed' | 'cancelled' | 'print'>('completed');
     const [filterType, setFilterType] = useState<'daily' | 'monthly' | 'year' | 'all'>('daily');
     const [selectedDate, setSelectedDate] = useState(new Date());
+    // Local state for smooth typing of year input
+    const [yearInput, setYearInput] = useState(new Date().getFullYear().toString());
     const [searchTerm, setSearchTerm] = useState('');
     
     // Selection state for deletion
@@ -43,23 +45,37 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({
     const [selectedCancelledIds, setSelectedCancelledIds] = useState<Set<number>>(new Set());
     const [selectedPrintIds, setSelectedPrintIds] = useState<Set<number>>(new Set());
 
+    // Sync year input when selectedDate or filterType changes
+    useEffect(() => {
+        setYearInput(selectedDate.getFullYear().toString());
+    }, [selectedDate, filterType]);
+
     // ... helper functions for date handling ...
     const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.value) {
-            if (filterType === 'year') {
-                 const year = parseInt(e.target.value);
-                 // Only update if it looks like a valid number (even whilst typing)
-                 if (!isNaN(year)) {
-                    // Use setFullYear to avoid 0-99 mapping to 1900-1999 behavior of new Date() constructor if user wants year 20
+        const val = e.target.value;
+
+        if (filterType === 'year') {
+             // Allow only numeric input
+             if (!/^\d*$/.test(val)) return;
+             
+             // Update the UI immediately for smooth typing
+             setYearInput(val);
+
+             // Only update the actual date state if it's a valid 4-digit year
+             if (val.length === 4) {
+                const year = parseInt(val);
+                if (!isNaN(year) && year > 1900 && year < 2100) {
                     const newDate = new Date(selectedDate);
                     newDate.setFullYear(year);
                     setSelectedDate(newDate);
-                 }
-            } else if (filterType === 'monthly') {
-                const [year, month] = e.target.value.split('-').map(Number);
+                }
+             }
+        } else if (val) {
+            if (filterType === 'monthly') {
+                const [year, month] = val.split('-').map(Number);
                 setSelectedDate(new Date(year, month - 1, 1));
             } else {
-                setSelectedDate(new Date(e.target.value));
+                setSelectedDate(new Date(val));
             }
         }
     };
@@ -78,6 +94,12 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({
     const isSameYear = (d1: Date, d2: Date) => {
         return d1.getFullYear() === d2.getFullYear();
     };
+
+    // Determine mobile filter value (Today vs Daily)
+    const mobileFilterValue = useMemo(() => {
+        if (filterType === 'daily' && isSameDay(selectedDate, new Date())) return 'today';
+        return filterType;
+    }, [filterType, selectedDate]);
 
     // ... Filtering logic ...
     const filteredCompleted = useMemo(() => {
@@ -265,14 +287,55 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({
         </button>
     );
 
+    // Use a render function instead of a Component to prevent remounting/focus loss on input change
+    const renderDateInput = () => (
+        <div className="relative w-full md:w-auto">
+            {filterType === 'year' ? (
+                <input
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={4}
+                    value={yearInput} // Use local state
+                    onChange={handleDateChange}
+                    placeholder="YYYY"
+                    className="w-full md:w-36 border border-gray-200 bg-white rounded-xl px-3 py-2.5 text-sm font-medium text-gray-600 focus:ring-2 focus:ring-blue-500 shadow-sm"
+                />
+            ) : (
+                <input 
+                    type={filterType === 'monthly' ? 'month' : 'date'}
+                    value={dateInputValue}
+                    onChange={handleDateChange}
+                    className="w-full md:w-36 border border-gray-200 bg-white rounded-xl px-3 py-2.5 text-sm font-medium text-gray-600 focus:ring-2 focus:ring-blue-500 shadow-sm"
+                />
+            )}
+        </div>
+    );
+
     return (
         <div className="h-full flex flex-col bg-gray-50 p-4 md:p-8 overflow-hidden">
             
             {/* Header Section */}
-            <div className="flex flex-col gap-6 mb-6 flex-shrink-0">
+            <div className="flex flex-col gap-4 mb-6 flex-shrink-0">
                 
                 {/* 1. Tabs */}
-                <div className="flex flex-wrap gap-3">
+                {/* Mobile Dropdown */}
+                <div className="md:hidden relative w-full">
+                    <select
+                        value={activeTab}
+                        onChange={(e) => setActiveTab(e.target.value as any)}
+                        className="w-full appearance-none bg-white border border-gray-200 text-gray-700 py-3 px-4 pr-8 rounded-xl leading-tight focus:outline-none focus:bg-white focus:border-blue-500 font-bold shadow-sm"
+                    >
+                        <option value="completed">ประวัติการขาย ({filteredCompleted.length})</option>
+                        <option value="cancelled">ประวัติการยกเลิก ({filteredCancelled.length})</option>
+                        <option value="print">ประวัติการพิมพ์ ({filteredPrint.length})</option>
+                    </select>
+                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500">
+                        <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+                    </div>
+                </div>
+
+                {/* Desktop Tabs */}
+                <div className="hidden md:flex flex-wrap gap-3">
                     <TabPill id="completed" label="ประวัติการขาย" count={filteredCompleted.length} active={activeTab === 'completed'} onClick={() => setActiveTab('completed')} />
                     <TabPill id="cancelled" label="ประวัติการยกเลิก" count={filteredCancelled.length} active={activeTab === 'cancelled'} onClick={() => setActiveTab('cancelled')} />
                     <TabPill id="print" label="ประวัติการพิมพ์" count={filteredPrint.length} active={activeTab === 'print'} onClick={() => setActiveTab('print')} />
@@ -280,37 +343,46 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({
 
                 {/* 2. Filters & Actions Row */}
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                    <div className="flex items-center gap-4 w-full md:w-auto">
-                        <div className="flex bg-gray-200/50 p-1 rounded-full">
-                            <FilterPill label="วันนี้" value="daily" active={filterType === 'daily' && isSameDay(selectedDate, new Date())} onClick={() => {setFilterType('daily'); setSelectedDate(new Date());}} />
-                            <FilterPill label="รายวัน" value="daily" active={filterType === 'daily' && !isSameDay(selectedDate, new Date())} onClick={() => setFilterType('daily')} />
-                            <FilterPill label="รายเดือน" value="monthly" active={filterType === 'monthly'} onClick={() => setFilterType('monthly')} />
-                            <FilterPill label="รายปี" value="year" active={filterType === 'year'} onClick={() => setFilterType('year')} />
+                    <div className="w-full md:w-auto">
+                        {/* Mobile Filter Row */}
+                        <div className="md:hidden grid grid-cols-2 gap-2 w-full">
+                            <div className="relative">
+                                <select
+                                    value={mobileFilterValue}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        if (val === 'today') {
+                                            setFilterType('daily');
+                                            setSelectedDate(new Date());
+                                        } else {
+                                            setFilterType(val as any);
+                                        }
+                                    }}
+                                    className="w-full appearance-none bg-white border border-gray-200 text-gray-700 py-2.5 px-3 pr-8 rounded-xl leading-tight focus:outline-none focus:bg-white focus:border-blue-500 font-medium shadow-sm text-sm"
+                                >
+                                    <option value="today">วันนี้</option>
+                                    <option value="daily">รายวัน</option>
+                                    <option value="monthly">รายเดือน</option>
+                                    <option value="year">รายปี</option>
+                                </select>
+                                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-500">
+                                    <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+                                </div>
+                            </div>
+                            
+                            {renderDateInput()}
                         </div>
 
-                        {/* Date Picker Input (Conditionally rendered) */}
-                        {filterType !== 'all' && (
-                            <div className="relative">
-                                {filterType === 'year' ? (
-                                    <input
-                                        type="text"
-                                        inputMode="numeric"
-                                        maxLength={4}
-                                        value={selectedDate.getFullYear().toString()}
-                                        onChange={handleDateChange}
-                                        placeholder="YYYY"
-                                        className="border-none bg-white rounded-lg px-3 py-1.5 text-sm font-medium text-gray-600 focus:ring-2 focus:ring-blue-500 shadow-sm w-36 md:w-auto"
-                                    />
-                                ) : (
-                                    <input 
-                                        type={filterType === 'monthly' ? 'month' : 'date'}
-                                        value={dateInputValue}
-                                        onChange={handleDateChange}
-                                        className="border-none bg-white rounded-lg px-3 py-1.5 text-sm font-medium text-gray-600 focus:ring-2 focus:ring-blue-500 shadow-sm w-36 md:w-auto"
-                                    />
-                                )}
+                        {/* Desktop Filter Row */}
+                        <div className="hidden md:flex items-center gap-4">
+                            <div className="flex bg-gray-200/50 p-1 rounded-full">
+                                <FilterPill label="วันนี้" value="daily" active={filterType === 'daily' && isSameDay(selectedDate, new Date())} onClick={() => {setFilterType('daily'); setSelectedDate(new Date());}} />
+                                <FilterPill label="รายวัน" value="daily" active={filterType === 'daily' && !isSameDay(selectedDate, new Date())} onClick={() => setFilterType('daily')} />
+                                <FilterPill label="รายเดือน" value="monthly" active={filterType === 'monthly'} onClick={() => setFilterType('monthly')} />
+                                <FilterPill label="รายปี" value="year" active={filterType === 'year'} onClick={() => setFilterType('year')} />
                             </div>
-                        )}
+                            {renderDateInput()}
+                        </div>
                     </div>
 
                     {/* Export Button - Hidden on Mobile (< md) */}
