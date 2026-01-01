@@ -265,14 +265,16 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     
             Swal.fire({
                 title: 'ชำระเงินเรียบร้อย!',
-                html: `<div class="max-h-60 overflow-y-auto border rounded-lg">${billHtml}</div><p class="mt-4">ท่านต้องการบันทึกบิลนี้หรือไม่?</p>`,
+                html: `<div class="max-h-60 overflow-y-auto border rounded-lg">${billHtml}</div><p class="mt-4 text-sm text-red-500 font-bold">ระบบจะปิดอัตโนมัติใน 15 วินาที...</p>`,
                 icon: 'success',
                 showDenyButton: true,
-                confirmButtonText: 'ใช่, บันทึกบิล & ออก',
-                denyButtonText: 'ไม่ใช่, ออกเลย',
+                confirmButtonText: 'บันทึกบิล & ออก',
+                denyButtonText: 'ไม่บันทึก & ออก',
                 confirmButtonColor: '#3085d6',
                 denyButtonColor: '#aaa',
                 allowOutsideClick: false,
+                timer: 15000, // 15 Seconds Auto-close
+                timerProgressBar: true,
                 preConfirm: async () => {
                     const billElement = document.getElementById('customer-final-bill');
                     if (billElement) {
@@ -299,9 +301,10 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
 
                         Swal.fire({
                             title: t('บันทึกสำเร็จ!'),
-                            text: t('บิลของคุณถูกบันทึกเป็นรูปภาพแล้ว'),
+                            text: t('ออกจากระบบอัตโนมัติ...'),
                             icon: 'success',
                             timer: 2000,
+                            timerProgressBar: true,
                             showConfirmButton: false
                         }).then(() => {
                             handleLogout();
@@ -310,7 +313,8 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                         Swal.fire(t('เกิดข้อผิดพลาด'), t('ไม่สามารถบันทึกบิลได้'), 'error')
                         .then(() => handleLogout());
                     }
-                } else { 
+                } else {
+                    // This handles clicking "Deny" OR when the timer runs out
                     handleLogout();
                 }
             });

@@ -453,7 +453,7 @@ export const StockManagement: React.FC<StockManagementProps> = ({
 
     return (
         <>
-            <div className="h-full flex flex-col bg-gray-50">
+            <div className="h-full w-full flex flex-col bg-gray-50">
                 <header className="p-4 sm:p-6 border-b border-gray-200 bg-white flex-shrink-0 shadow-sm z-10">
                     <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
                         <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">จัดการสต็อกสินค้า</h1>
