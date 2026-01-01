@@ -3,14 +3,18 @@ import React, { useMemo, useState, useEffect } from 'react';
 import type { StockItem, User } from '../types';
 import Swal from 'sweetalert2';
 
+// Use declare var to avoid import issues for global script libraries
+declare var html2canvas: any;
+
 interface PurchaseOrderModalProps {
     isOpen: boolean;
     onClose: () => void;
     stockItems: StockItem[];
     currentUser: User | null;
+    isMobileMode?: boolean;
 }
 
-export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, onClose, stockItems, currentUser }) => {
+export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, onClose, stockItems, currentUser, isMobileMode }) => {
     // Local state to track typed quantities: Record<itemId, quantityString>
     const [quantities, setQuantities] = useState<Record<number, string>>({});
     // Local state to track notes: Record<itemId, noteString>
@@ -94,6 +98,115 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, 
         window.print();
     };
 
+    const handleSaveAsImage = async () => {
+        const element = document.getElementById('purchase-order-capture-area');
+        if (!element) return;
+
+        Swal.fire({
+            title: 'กำลังสร้างรูปภาพ...',
+            text: 'กรุณารอสักครู่',
+            allowOutsideClick: false,
+            didOpen: () => { Swal.showLoading(); }
+        });
+
+        try {
+            // Clone the element to render it fully expanded (no scroll) for capture
+            const clone = element.cloneNode(true) as HTMLElement;
+            
+            // Setup style for the clone to ensure full content is visible and formatted for image
+            clone.style.width = '800px'; 
+            clone.style.height = 'auto';
+            clone.style.maxHeight = 'none';
+            clone.style.overflow = 'visible';
+            clone.style.position = 'absolute';
+            clone.style.top = '-9999px';
+            clone.style.left = '-9999px';
+            clone.style.background = 'white';
+            clone.style.zIndex = '9999';
+            clone.className = element.className.replace('overflow-y-auto', '').replace('h-full', 'h-auto');
+            clone.style.padding = '40px'; // Add consistent padding
+
+            // Manually copy input values because cloneNode doesn't copy current input values
+            const originalInputs = element.querySelectorAll('input');
+            const cloneInputs = clone.querySelectorAll('input');
+            originalInputs.forEach((input, index) => {
+                if (cloneInputs[index]) {
+                    cloneInputs[index].value = input.value;
+                    cloneInputs[index].setAttribute('value', input.value);
+                }
+            });
+
+            // --- INSERT HEADER INFO FOR IMAGE ---
+            const now = new Date();
+            const dateStr = now.toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
+            const timeStr = now.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+            const issuer = currentUser?.username || 'ไม่ระบุ';
+
+            const headerDiv = document.createElement('div');
+            headerDiv.style.marginBottom = '25px';
+            headerDiv.style.textAlign = 'center';
+            headerDiv.innerHTML = `
+                <h2 style="font-size: 28px; font-weight: bold; color: #111827; margin-bottom: 10px;">ใบรายการสั่งซื้อสินค้า</h2>
+                <div style="font-size: 16px; color: #4b5563; display: flex; justify-content: center; gap: 20px; margin-bottom: 5px;">
+                    <span>วันที่บันทึก: <strong>${dateStr}</strong></span>
+                    <span>เวลา: <strong>${timeStr}</strong></span>
+                </div>
+                <div style="font-size: 18px; color: #1d4ed8; font-weight: bold;">
+                    ผู้ออกเอกสาร: ${issuer}
+                </div>
+                <hr style="margin-top: 15px; border: 0; border-top: 2px solid #e5e7eb;" />
+            `;
+            
+            // Insert header at the beginning of the clone
+            clone.insertBefore(headerDiv, clone.firstChild);
+
+            // Also ensure the signature section (if it exists hidden) is shown
+            const footer = clone.querySelector('.print\\:flex');
+            if (footer) {
+                (footer as HTMLElement).style.display = 'flex';
+                (footer as HTMLElement).classList.remove('hidden');
+                (footer as HTMLElement).style.marginTop = '40px';
+            }
+            // ------------------------------------
+
+            document.body.appendChild(clone);
+
+            // Use html2canvas to capture the clone
+            const canvas = await html2canvas(clone, { 
+                scale: 2, 
+                useCORS: true, 
+                windowWidth: 800,
+                // height: clone.scrollHeight + 50 // Removed to let it calculate naturally
+            });
+            const image = canvas.toDataURL('image/png');
+            
+            // Clean up the clone
+            document.body.removeChild(clone);
+
+            // Trigger download
+            const link = document.createElement('a');
+            link.href = image;
+            const filenameDate = now.toISOString().slice(0, 10);
+            const filenameTime = now.toTimeString().slice(0, 5).replace(':', '-');
+            link.download = `PO-${filenameDate}-${filenameTime}.png`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            Swal.close();
+            Swal.fire({
+                icon: 'success',
+                title: 'บันทึกรูปภาพสำเร็จ',
+                timer: 1500,
+                showConfirmButton: false
+            });
+
+        } catch (error) {
+            console.error(error);
+            Swal.fire('Error', 'ไม่สามารถสร้างรูปภาพได้', 'error');
+        }
+    };
+
     if (!isOpen) return null;
 
     const now = new Date();
@@ -165,7 +278,7 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, 
                             display: block !important; /* Remove flex behavior which can constrain height */
                         }
 
-                        #purchase-order-scroll-container {
+                        #purchase-order-scroll-container, #purchase-order-capture-area {
                             height: auto !important;
                             overflow: visible !important;
                             display: block !important;
@@ -243,8 +356,8 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, 
                     </div>
                 </div>
 
-                {/* Content Area */}
-                <div id="purchase-order-scroll-container" className="flex-1 overflow-y-auto p-8">
+                {/* Content Area - ID added for capture */}
+                <div id="purchase-order-capture-area" className="flex-1 overflow-y-auto p-8 bg-white">
                     {itemsToOrder.length > 0 ? (
                         <table className="w-full border-collapse border border-gray-300 text-sm">
                             <thead className="bg-gray-100 text-gray-700">
@@ -342,16 +455,32 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, 
                             </svg>
                             Save Draft
                         </button>
-                        <button 
-                            onClick={handlePrint} 
-                            disabled={itemsToOrder.length === 0}
-                            className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors shadow flex items-center gap-2 disabled:bg-gray-400 disabled:cursor-not-allowed"
-                        >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                <path fillRule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v3a2 2 0 002 2h1v2a2 2 0 002 2h6a2 2 0 002-2v-2h1a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a2 2 0 00-2-2H7a2 2 0 00-2 2zm8 0H7v3h6V4zm0 8H7v4h6v-4z" clipRule="evenodd" />
-                            </svg>
-                            พิมพ์รายการ
-                        </button>
+                        
+                        {/* Condition to show Print vs Save Image based on mode */}
+                        {isMobileMode ? (
+                            <button 
+                                onClick={handleSaveAsImage} 
+                                disabled={itemsToOrder.length === 0}
+                                className="px-6 py-2 bg-purple-600 text-white font-semibold rounded-lg hover:bg-purple-700 transition-colors shadow flex items-center gap-2 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                </svg>
+                                บันทึกเป็นรูปภาพ
+                            </button>
+                        ) : (
+                            <button 
+                                onClick={handlePrint} 
+                                disabled={itemsToOrder.length === 0}
+                                className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors shadow flex items-center gap-2 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v3a2 2 0 002 2h1v2a2 2 0 002 2h6a2 2 0 002-2v-2h1a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a2 2 0 00-2-2H7a2 2 0 00-2 2zm8 0H7v3h6V4zm0 8H7v4h6v-4z" clipRule="evenodd" />
+                                </svg>
+                                พิมพ์รายการ
+                            </button>
+                        )}
+
                         <button onClick={onClose} className="px-6 py-2 bg-gray-200 text-gray-800 font-semibold rounded-lg hover:bg-gray-300 transition-colors">
                             ปิด
                         </button>

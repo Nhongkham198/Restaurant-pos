@@ -9,6 +9,8 @@ import { functionsService } from '../services/firebaseFunctionsService';
 
 // Declare XLSX to inform TypeScript that it's available globally from the script tag
 declare var XLSX: any;
+// Declare html2canvas for potential direct usage if needed, though mainly used in modal
+declare var html2canvas: any;
 
 interface StockManagementProps {
     stockItems: StockItem[];
@@ -34,6 +36,8 @@ export const StockManagement: React.FC<StockManagementProps> = ({
     const [isItemModalOpen, setIsItemModalOpen] = useState(false);
     const [isAdjustModalOpen, setIsAdjustModalOpen] = useState(false);
     const [isPurchaseOrderModalOpen, setIsPurchaseOrderModalOpen] = useState(false);
+    // New state to track if the PO modal is opened in "Mobile Image Mode"
+    const [isMobilePOMode, setIsMobilePOMode] = useState(false);
     const [selectedItem, setSelectedItem] = useState<StockItem | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -129,6 +133,12 @@ export const StockManagement: React.FC<StockManagementProps> = ({
         setIsAdjustModalOpen(true);
     };
 
+    // Handler for Mobile PO Button
+    const handleMobilePO = () => {
+        setIsMobilePOMode(true);
+        setIsPurchaseOrderModalOpen(true);
+    };
+
     const handleViewImage = (item: StockItem) => {
         Swal.fire({
             title: item.name,
@@ -148,7 +158,6 @@ export const StockManagement: React.FC<StockManagementProps> = ({
 
         try {
             if (itemToSave.id) {
-                // This will fail because the cloud function doesn't exist, triggering the catch block.
                 await functionsService.updateStockItem({
                     itemId: itemToSave.id,
                     name: itemToSave.name,
@@ -157,7 +166,6 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                     reorderPoint: itemToSave.reorderPoint
                 });
             } else {
-                // This will also fail, triggering the catch block.
                 await functionsService.addStockItem({
                     name: itemToSave.name,
                     category: itemToSave.category,
@@ -170,9 +178,7 @@ export const StockManagement: React.FC<StockManagementProps> = ({
             success = true;
         } catch (e: any) {
             console.warn("Backend function for stock management failed or not implemented. Falling back to direct client-side DB write.", e);
-            // --- Client-side fallback logic ---
             setStockItems(prev => {
-                // Safety: Ensure prev is an array
                 const safePrev = Array.isArray(prev) ? prev : [];
                 
                 const itemWithTimestamp = { 
@@ -181,13 +187,10 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                     lastUpdatedBy: updatedBy
                 };
                 
-                if (itemToSave.id) { // Update existing item
+                if (itemToSave.id) {
                     return safePrev.map(i => i.id === itemToSave.id ? { ...i, ...itemWithTimestamp } as StockItem : i);
                 }
                 
-                // Add new item
-                // Robust ID generation: handle empty array and ensure valid number
-                // Use safePrev and optional chaining for item.id to prevent crashes on malformed data
                 const maxId = safePrev.reduce((max, item) => {
                     const id = Number(item?.id);
                     return !isNaN(id) ? Math.max(max, id) : max;
@@ -200,7 +203,6 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                     name: itemToSave.name || 'สินค้าใหม่',
                     category: itemToSave.category || 'ทั่วไป',
                     imageUrl: itemToSave.imageUrl || '',
-                    // CRITICAL: Ensure these are numbers to prevent crash
                     quantity: Number(itemToSave.quantity) || 0,
                     unit: itemToSave.unit || 'ชิ้น',
                     reorderPoint: Number(itemToSave.reorderPoint) || 0,
@@ -212,7 +214,7 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                 
                 return [...safePrev, newItem];
             });
-            success = true; // Mark as successful because fallback worked.
+            success = true;
         }
         
         if (success) {
@@ -235,7 +237,6 @@ export const StockManagement: React.FC<StockManagementProps> = ({
         const updatedBy = currentUser?.username || 'System';
 
         try {
-            // This will fail, triggering the catch block.
             await functionsService.adjustStockQuantity({
                 itemId: itemToAdjust.id,
                 adjustment: adjustment
@@ -243,7 +244,6 @@ export const StockManagement: React.FC<StockManagementProps> = ({
             success = true;
         } catch (e: any) {
              console.warn("Backend function for stock adjustment failed or not implemented. Falling back to direct client-side DB write.", e);
-             // --- Client-side fallback logic ---
              setStockItems(prev => prev.map(i => 
                 i.id === itemToAdjust.id 
                 ? { 
@@ -290,12 +290,10 @@ export const StockManagement: React.FC<StockManagementProps> = ({
             if (result.isConfirmed) {
                 let success = false;
                 try {
-                    // This will fail, triggering the catch block.
                     await functionsService.deleteStockItem({ itemId });
                     success = true;
                 } catch (e: any) {
                     console.warn("Backend function for stock deletion failed or not implemented. Falling back to direct client-side DB write.", e);
-                    // --- Client-side fallback logic ---
                     setStockItems(prev => prev.filter(item => item.id !== itemId));
                     success = true;
                 }
@@ -327,17 +325,15 @@ export const StockManagement: React.FC<StockManagementProps> = ({
         return 'bg-white border-l-4 border-green-500 shadow-sm';
     };
 
-    // Helper for table row highlight on desktop
     const getRowStyle = (item: StockItem) => {
         const qty = Number(item.quantity) || 0;
         const reorder = Number(item.reorderPoint) || 0;
         
-        if (qty <= 0) return 'bg-red-50 border-red-200 hover:bg-red-100'; // High priority warning
-        if (qty <= reorder) return 'bg-yellow-50 border-yellow-200 hover:bg-yellow-100'; // Warning
-        return 'border-gray-100 hover:bg-blue-50/30'; // Normal
+        if (qty <= 0) return 'bg-red-50 border-red-200 hover:bg-red-100';
+        if (qty <= reorder) return 'bg-yellow-50 border-yellow-200 hover:bg-yellow-100';
+        return 'border-gray-100 hover:bg-blue-50/30';
     };
 
-    // Safe formatting helper to prevent crash on undefined/null/string
     const formatQty = (qty: any, unit: string | undefined) => {
         const val = Number(qty);
         const safeVal = isNaN(val) ? 0 : val;
@@ -363,7 +359,7 @@ export const StockManagement: React.FC<StockManagementProps> = ({
             'จุดสั่งซื้อขั้นต่ำ': item.reorderPoint,
             'แก้ไขล่าสุดโดย': item.lastUpdatedBy || '-',
             'เวลาแก้ไขล่าสุด': new Date(item.lastUpdated).toLocaleString('th-TH'),
-            'รูปภาพ (URL)': item.imageUrl || '' // Add image URL to export
+            'รูปภาพ (URL)': item.imageUrl || ''
         }));
 
         const ws = XLSX.utils.json_to_sheet(dataToExport);
@@ -385,7 +381,6 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                 const worksheet = workbook.Sheets[sheetName];
                 const json: any[] = XLSX.utils.sheet_to_json(worksheet);
 
-                // Validation header check
                 const expectedHeaders = ['id', 'ชื่อวัตถุดิบ', 'หมวดหมู่', 'จำนวนคงเหลือ', 'หน่วยนับ', 'จุดสั่งซื้อขั้นต่ำ'];
                 if (json.length > 0) {
                     const keys = Object.keys(json[0]);
@@ -410,7 +405,6 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                     const reorderPoint = Number(row['จุดสั่งซื้อขั้นต่ำ']);
 
                     if (isNaN(id) || !row['ชื่อวัตถุดิบ'] || !row['หน่วยนับ']) {
-                        // Skip invalid rows but try to continue
                         console.warn('Skipping invalid row:', row);
                         continue;
                     }
@@ -456,7 +450,14 @@ export const StockManagement: React.FC<StockManagementProps> = ({
             <div className="h-full w-full flex flex-col bg-gray-50">
                 <header className="p-4 sm:p-6 border-b border-gray-200 bg-white flex-shrink-0 shadow-sm z-10">
                     <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
-                        <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">จัดการสต็อกสินค้า</h1>
+                        <div className="flex justify-between items-center w-full md:w-auto">
+                            <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">จัดการสต็อกสินค้า</h1>
+                            {/* Mobile Action Button - Moved here */}
+                            <button onClick={handleMobilePO} className="lg:hidden px-3 py-2 bg-orange-500 text-white font-semibold rounded-lg hover:bg-orange-600 text-sm flex items-center gap-2 shadow-sm transition-all active:scale-95 ml-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                                <span>ออกใบสั่ง (รูปภาพ)</span>
+                            </button>
+                        </div>
                         {/* Hidden on mobile and tablet vertical (< 1024px), shown on desktop */}
                         <div className="hidden lg:flex items-center gap-2">
                             <input
@@ -466,7 +467,7 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                 className="hidden"
                                 accept=".xlsx, .xls"
                             />
-                            <button onClick={() => setIsPurchaseOrderModalOpen(true)} className="px-4 py-2 bg-orange-500 text-white font-semibold rounded-lg hover:bg-orange-600 whitespace-nowrap text-sm flex items-center gap-2 shadow transition-all hover:shadow-md">
+                            <button onClick={() => { setIsMobilePOMode(false); setIsPurchaseOrderModalOpen(true); }} className="px-4 py-2 bg-orange-500 text-white font-semibold rounded-lg hover:bg-orange-600 whitespace-nowrap text-sm flex items-center gap-2 shadow transition-all hover:shadow-md">
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>
                                 ออกรายการสั่งของ
                             </button>
@@ -537,15 +538,15 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                     </div>
                 </header>
 
+                {/* ... (Existing table and card code remains unchanged) ... */}
                 <div className="flex-1 overflow-hidden p-4 md:p-6">
-                    {/* Desktop Table Layout - Wrapped in a card for aesthetics */}
+                    {/* Desktop Table Layout */}
                     <div className="hidden md:flex flex-col h-full bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                         <div className="grid grid-cols-12 gap-4 px-6 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider bg-gray-50 border-b border-gray-200 sticky top-0 z-10 items-center">
                             <div className="col-span-1">รูปภาพ</div>
                             <div className="col-span-3">ชื่อวัตถุดิบ</div>
                             <div className="col-span-1 text-center">หมวดหมู่</div>
                             
-                            {/* Interactive Sort Header for Date Ordered/Received */}
                             <div className="col-span-2 text-center relative" ref={sortMenuRef}>
                                 <button 
                                     onClick={() => setIsSortMenuOpen(!isSortMenuOpen)}
@@ -681,7 +682,7 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                         </div>
                     </div>
 
-                    {/* Mobile/Tablet Card Layout (Visible only on smaller screens) */}
+                    {/* Mobile/Tablet Card Layout */}
                     <div className="md:hidden space-y-3 pb-24 overflow-y-auto h-full">
                         {filteredItems.length > 0 ? filteredItems.map((item, index) => {
                             if (!item) return null;
@@ -782,9 +783,10 @@ export const StockManagement: React.FC<StockManagementProps> = ({
 
             <PurchaseOrderModal 
                 isOpen={isPurchaseOrderModalOpen}
-                onClose={() => setIsPurchaseOrderModalOpen(false)}
+                onClose={() => { setIsPurchaseOrderModalOpen(false); setIsMobilePOMode(false); }}
                 stockItems={stockItems}
                 currentUser={currentUser}
+                isMobileMode={isMobilePOMode}
             />
         </>
     );
