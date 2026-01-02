@@ -236,6 +236,9 @@ export const StockManagement: React.FC<StockManagementProps> = ({
     const handleAdjustStock = async (itemToAdjust: StockItem, adjustment: number) => {
         let success = false;
         const updatedBy = currentUser?.username || 'System';
+        
+        // Key for current month's stats (e.g., "2023-10")
+        const currentMonthKey = new Date().toISOString().slice(0, 7);
 
         try {
             await functionsService.adjustStockQuantity({
@@ -245,28 +248,43 @@ export const StockManagement: React.FC<StockManagementProps> = ({
             success = true;
         } catch (e: any) {
              console.warn("Backend function for stock adjustment failed or not implemented. Falling back to direct client-side DB write.", e);
-             setStockItems(prev => prev.map(i => 
-                i.id === itemToAdjust.id 
-                ? { 
+             
+             setStockItems(prev => prev.map(i => {
+                if (i.id !== itemToAdjust.id) return i;
+
+                let newWithdrawalCount = i.withdrawalCount || 0;
+                let newMonthlyWithdrawals = { ...(i.monthlyWithdrawals || {}) };
+
+                if (adjustment < 0) {
+                    // WITHDRAWAL: Increment count AND history
+                    newWithdrawalCount = newWithdrawalCount + 1;
+                    const currentMonthCount = newMonthlyWithdrawals[currentMonthKey] || 0;
+                    newMonthlyWithdrawals[currentMonthKey] = currentMonthCount + 1;
+                } else if (adjustment > 0) {
+                    // RESTOCK (ADD): Reset cycle count to 0 (Keep history intact)
+                    newWithdrawalCount = 0;
+                }
+
+                return { 
                     ...i, 
                     quantity: (Number(i.quantity) || 0) + adjustment, 
-                    // Increment withdrawal count if adjustment is negative (withdrawal)
-                    withdrawalCount: adjustment < 0 ? (i.withdrawalCount || 0) + 1 : (i.withdrawalCount || 0),
+                    withdrawalCount: newWithdrawalCount,
+                    monthlyWithdrawals: newMonthlyWithdrawals,
                     lastUpdated: Date.now(),
                     lastUpdatedBy: updatedBy
-                  } 
-                : i
-            ));
+                };
+            }));
             success = true;
         }
 
         if (success) {
             setIsAdjustModalOpen(false);
+            const actionText = adjustment > 0 ? 'รับเข้า' : 'นำออก';
             Swal.fire({
                 toast: true,
                 position: 'top-end',
                 icon: 'success',
-                title: 'ปรับปรุงสต็อกแล้ว',
+                title: `ปรับสต็อก (${actionText}) เรียบร้อย`,
                 showConfirmButton: false,
                 timer: 1500
             });

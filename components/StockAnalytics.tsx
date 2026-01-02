@@ -67,19 +67,24 @@ export const StockAnalytics: React.FC<StockAnalyticsProps> = ({ stockItems }) =>
         colors: ['#10b981', '#f59e0b', '#ef4444'] // Green, Amber, Red
     };
 
-    // Bar Chart: High Withdrawal Items (Based on withdrawalCount)
-    // Updated to show actual withdrawal frequency
+    // Bar Chart: High Withdrawal Items (Based on Monthly History)
+    const currentMonthKey = new Date().toISOString().slice(0, 7); // e.g. "2023-10"
+    
     const topRotationItems = useMemo(() => {
         return [...stockItems]
-            .sort((a, b) => (Number(b.withdrawalCount) || 0) - (Number(a.withdrawalCount) || 0))
+            .sort((a, b) => {
+                const countA = a.monthlyWithdrawals?.[currentMonthKey] || 0;
+                const countB = b.monthlyWithdrawals?.[currentMonthKey] || 0;
+                return countB - countA;
+            })
             .slice(0, 7); // Top 7
-    }, [stockItems]);
+    }, [stockItems, currentMonthKey]);
 
     const rotationData = {
         labels: topRotationItems.map(i => i.name),
-        data: topRotationItems.map(i => Number(i.withdrawalCount) || 0),
+        data: topRotationItems.map(i => i.monthlyWithdrawals?.[currentMonthKey] || 0),
         images: topRotationItems.map(i => i.imageUrl || ''), // Extract images
-        maxValue: Math.max(...topRotationItems.map(i => Number(i.withdrawalCount) || 0), 10)
+        maxValue: Math.max(...topRotationItems.map(i => i.monthlyWithdrawals?.[currentMonthKey] || 0), 10)
     };
 
     // --- Helper to get data for modal ---
@@ -168,8 +173,8 @@ export const StockAnalytics: React.FC<StockAnalyticsProps> = ({ stockItems }) =>
                 </div>
                 <div className="bg-white p-6 rounded-xl shadow-sm lg:col-span-3">
                     <div className="mb-4">
-                        <h3 className="text-lg font-bold text-gray-800">สินค้าที่มีการเบิกออกสูงสุด</h3>
-                        <p className="text-xs text-gray-500">*นับจากจำนวนครั้งที่มีการเบิกสินค้าออก (Withdrawal Count)</p>
+                        <h3 className="text-lg font-bold text-gray-800">สินค้าที่มีการเบิกออกสูงสุด (เดือนปัจจุบัน)</h3>
+                        <p className="text-xs text-gray-500">*นับจากประวัติการเบิกสินค้าในเดือนนี้เท่านั้น</p>
                     </div>
                     <SalesChart
                         title=""

@@ -93,9 +93,52 @@ export const DEFAULT_CATEGORIES: string[] = ['ทั้งหมด', 'อาห
 export const DEFAULT_STOCK_CATEGORIES: string[] = ['ทั้งหมด', 'ของสด', 'ของแห้ง', 'เครื่องปรุง', 'เครื่องดื่ม'];
 export const DEFAULT_STOCK_UNITS: string[] = ['กิโลกรัม', 'ลิตร', 'ขวด', 'แพ็ค', 'ชิ้น', 'ฟอง', 'ถุง'];
 
+// Get current month key for dummy data
+const currentMonth = new Date().toISOString().slice(0, 7);
+
 export const DEFAULT_STOCK_ITEMS: StockItem[] = [
-    { id: 1, name: 'เนื้อไก่', category: 'ของสด', quantity: 10, unit: 'กิโลกรัม', reorderPoint: 2, withdrawalCount: 45, lastUpdated: Date.now() },
-    { id: 2, name: 'เนื้อหมู', category: 'ของสด', quantity: 15, unit: 'กิโลกรัม', reorderPoint: 3, withdrawalCount: 62, lastUpdated: Date.now() },
-    { id: 3, name: 'น้ำมันพืช', category: 'เครื่องปรุง', quantity: 5, unit: 'ขวด', reorderPoint: 1, withdrawalCount: 12, lastUpdated: Date.now() },
-    { id: 4, name: 'ไข่ไก่', category: 'ของสด', quantity: 60, unit: 'ฟอง', reorderPoint: 30, withdrawalCount: 120, lastUpdated: Date.now() },
+    { 
+        id: 1, 
+        name: 'เนื้อไก่', 
+        category: 'ของสด', 
+        quantity: 10, 
+        unit: 'กิโลกรัม', 
+        reorderPoint: 2, 
+        withdrawalCount: 3, // Current cycle
+        monthlyWithdrawals: { [currentMonth]: 45 }, // Historical
+        lastUpdated: Date.now() 
+    },
+    { 
+        id: 2, 
+        name: 'เนื้อหมู', 
+        category: 'ของสด', 
+        quantity: 15, 
+        unit: 'กิโลกรัม', 
+        reorderPoint: 3, 
+        withdrawalCount: 5, 
+        monthlyWithdrawals: { [currentMonth]: 62 }, 
+        lastUpdated: Date.now() 
+    },
+    { 
+        id: 3, 
+        name: 'น้ำมันพืช', 
+        category: 'เครื่องปรุง', 
+        quantity: 5, 
+        unit: 'ขวด', 
+        reorderPoint: 1, 
+        withdrawalCount: 2, 
+        monthlyWithdrawals: { [currentMonth]: 12 }, 
+        lastUpdated: Date.now() 
+    },
+    { 
+        id: 4, 
+        name: 'ไข่ไก่', 
+        category: 'ของสด', 
+        quantity: 60, 
+        unit: 'ฟอง', 
+        reorderPoint: 30, 
+        withdrawalCount: 10, 
+        monthlyWithdrawals: { [currentMonth]: 120 }, 
+        lastUpdated: Date.now() 
+    },
 ];

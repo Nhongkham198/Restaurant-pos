@@ -189,7 +189,8 @@ export interface StockItem {
     quantity: number;
     unit: string;
     reorderPoint: number;
-    withdrawalCount?: number; // Added: Count of withdrawals (frequency)
+    withdrawalCount?: number; // Count since last restock
+    monthlyWithdrawals?: Record<string, number>; // History of withdrawals per month (Key: "YYYY-MM", Value: Count)
     lastUpdated: number; // timestamp
     lastUpdatedBy?: string; // Username of the person who last updated the item
     orderDate?: number; // timestamp
