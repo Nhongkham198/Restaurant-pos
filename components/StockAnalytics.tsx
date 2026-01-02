@@ -67,19 +67,19 @@ export const StockAnalytics: React.FC<StockAnalyticsProps> = ({ stockItems }) =>
         colors: ['#10b981', '#f59e0b', '#ef4444'] // Green, Amber, Red
     };
 
-    // Bar Chart: High Rotation Items (Estimated by Reorder Point)
-    // Assumption: High reorder point implies high usage/turnover.
+    // Bar Chart: High Withdrawal Items (Based on withdrawalCount)
+    // Updated to show actual withdrawal frequency
     const topRotationItems = useMemo(() => {
         return [...stockItems]
-            .sort((a, b) => (Number(b.reorderPoint) || 0) - (Number(a.reorderPoint) || 0))
+            .sort((a, b) => (Number(b.withdrawalCount) || 0) - (Number(a.withdrawalCount) || 0))
             .slice(0, 7); // Top 7
     }, [stockItems]);
 
     const rotationData = {
         labels: topRotationItems.map(i => i.name),
-        data: topRotationItems.map(i => Number(i.reorderPoint) || 0),
+        data: topRotationItems.map(i => Number(i.withdrawalCount) || 0),
         images: topRotationItems.map(i => i.imageUrl || ''), // Extract images
-        maxValue: Math.max(...topRotationItems.map(i => Number(i.reorderPoint) || 0), 10)
+        maxValue: Math.max(...topRotationItems.map(i => Number(i.withdrawalCount) || 0), 10)
     };
 
     // --- Helper to get data for modal ---
@@ -168,8 +168,8 @@ export const StockAnalytics: React.FC<StockAnalyticsProps> = ({ stockItems }) =>
                 </div>
                 <div className="bg-white p-6 rounded-xl shadow-sm lg:col-span-3">
                     <div className="mb-4">
-                        <h3 className="text-lg font-bold text-gray-800">สินค้าที่มีการเบิก/หมุนเวียนสูงสุด (ประมาณการ)</h3>
-                        <p className="text-xs text-gray-500">*คำนวณจากเกณฑ์จุดสั่งซื้อซ้ำ (Reorder Point)</p>
+                        <h3 className="text-lg font-bold text-gray-800">สินค้าที่มีการเบิกออกสูงสุด</h3>
+                        <p className="text-xs text-gray-500">*นับจากจำนวนครั้งที่มีการเบิกสินค้าออก (Withdrawal Count)</p>
                     </div>
                     <SalesChart
                         title=""
@@ -177,7 +177,7 @@ export const StockAnalytics: React.FC<StockAnalyticsProps> = ({ stockItems }) =>
                         labels={rotationData.labels}
                         images={rotationData.images} // Pass images to chart
                         maxValue={rotationData.maxValue}
-                        formatValue={(val) => val.toLocaleString()} // Show only number
+                        formatValue={(val) => val.toLocaleString() + ' ครั้ง'} // Show number with unit
                     />
                 </div>
             </div>

@@ -189,6 +189,7 @@ export interface StockItem {
     quantity: number;
     unit: string;
     reorderPoint: number;
+    withdrawalCount?: number; // Added: Count of withdrawals (frequency)
     lastUpdated: number; // timestamp
     lastUpdatedBy?: string; // Username of the person who last updated the item
     orderDate?: number; // timestamp

@@ -206,6 +206,7 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                     quantity: Number(itemToSave.quantity) || 0,
                     unit: itemToSave.unit || 'ชิ้น',
                     reorderPoint: Number(itemToSave.reorderPoint) || 0,
+                    withdrawalCount: 0, // Initialize withdrawal count
                     lastUpdated: Date.now(),
                     lastUpdatedBy: updatedBy,
                     orderDate: itemToSave.orderDate,
@@ -249,6 +250,8 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                 ? { 
                     ...i, 
                     quantity: (Number(i.quantity) || 0) + adjustment, 
+                    // Increment withdrawal count if adjustment is negative (withdrawal)
+                    withdrawalCount: adjustment < 0 ? (i.withdrawalCount || 0) + 1 : (i.withdrawalCount || 0),
                     lastUpdated: Date.now(),
                     lastUpdatedBy: updatedBy
                   } 
@@ -416,6 +419,7 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                         quantity: isNaN(quantity) ? 0 : quantity,
                         unit: String(row['หน่วยนับ']),
                         reorderPoint: isNaN(reorderPoint) ? 0 : reorderPoint,
+                        withdrawalCount: 0, // Default 0 for imported items
                         imageUrl: row['รูปภาพ (URL)'] ? String(row['รูปภาพ (URL)']) : '',
                         lastUpdated: Date.now(),
                         lastUpdatedBy: importUser

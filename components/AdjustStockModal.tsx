@@ -51,8 +51,33 @@ export const AdjustStockModal: React.FC<AdjustStockModalProps> = ({ isOpen, onCl
         <>
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={onClose}>
                 <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full" onClick={e => e.stopPropagation()}>
-                    <h2 className="text-2xl font-bold mb-2 text-gray-900">ปรับสต็อก</h2>
-                    <p className="text-lg text-gray-700 mb-4">{item.name}</p>
+                    
+                    {/* Header Section with Item Info and Stats */}
+                    <div className="flex justify-between items-start mb-6">
+                        <div>
+                            <h2 className="text-2xl font-bold text-gray-900">ปรับสต็อก</h2>
+                            <p className="text-lg text-gray-700 font-medium">{item.name}</p>
+                        </div>
+                        
+                        {/* Stats Box (Requested Feature) */}
+                        <div className="bg-gray-50 border border-gray-200 rounded-lg p-2 text-right">
+                            <div className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">แก้ไขล่าสุด</div>
+                            <div className="flex flex-col">
+                                <span className="text-sm font-bold text-gray-800">
+                                    {item.lastUpdatedBy || 'System'}
+                                </span>
+                                <span className="text-xs text-gray-500 mb-1">
+                                    {new Date(item.lastUpdated).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' })}
+                                </span>
+                                <div className="mt-1 inline-flex items-center justify-end gap-1">
+                                    <span className="text-[10px] text-gray-500">นำออกสะสม:</span>
+                                    <span className="bg-orange-100 text-orange-800 text-xs px-1.5 py-0.5 rounded-full font-bold">
+                                        {item.withdrawalCount || 0} ครั้ง
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                     
                     <form onSubmit={handleSubmit} className="space-y-4">
                         <div className="p-4 bg-gray-100 rounded-lg text-center">
