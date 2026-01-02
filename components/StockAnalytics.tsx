@@ -190,15 +190,15 @@ export const StockAnalytics: React.FC<StockAnalyticsProps> = ({ stockItems }) =>
                         รายการที่ต้องจัดการเร่งด่วน
                     </h3>
                 </div>
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
                     <table className="w-full text-sm text-left">
-                        <thead className="text-gray-500 bg-gray-50 uppercase text-xs">
+                        <thead className="text-gray-500 bg-gray-50 uppercase text-xs sticky top-0 z-10 shadow-sm">
                             <tr>
-                                <th className="px-6 py-3">สินค้า</th>
-                                <th className="px-6 py-3">หมวดหมู่</th>
-                                <th className="px-6 py-3 text-right">คงเหลือ</th>
-                                <th className="px-6 py-3 text-right">จุดสั่งซื้อ</th>
-                                <th className="px-6 py-3 text-center">สถานะ</th>
+                                <th className="px-6 py-3 bg-gray-50">สินค้า</th>
+                                <th className="px-6 py-3 bg-gray-50">หมวดหมู่</th>
+                                <th className="px-6 py-3 bg-gray-50 text-right">คงเหลือ</th>
+                                <th className="px-6 py-3 bg-gray-50 text-right">จุดสั่งซื้อ</th>
+                                <th className="px-6 py-3 bg-gray-50 text-center">สถานะ</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -215,7 +215,7 @@ export const StockAnalytics: React.FC<StockAnalyticsProps> = ({ stockItems }) =>
                                 [...stats.outOfStockItems, ...stats.lowStockItems].map((item) => (
                                     <tr key={item.id} className="border-b hover:bg-gray-50 transition-colors">
                                         <td className="px-6 py-4 font-medium text-gray-900 flex items-center gap-3">
-                                            <div className="w-10 h-10 rounded-md bg-gray-100 overflow-hidden border border-gray-200">
+                                            <div className="w-10 h-10 rounded-md bg-gray-100 overflow-hidden border border-gray-200 flex-shrink-0">
                                                 <img src={item.imageUrl || "https://placehold.co/100?text=No+Image"} alt={item.name} className="w-full h-full object-cover" onError={(e) => e.currentTarget.src = "https://placehold.co/100?text=Error"} />
                                             </div>
                                             {item.name}

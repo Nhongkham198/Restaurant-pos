@@ -1,5 +1,5 @@
 
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import type { StockItem, User } from '../types';
 import Swal from 'sweetalert2';
 
@@ -21,6 +21,16 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, 
     const [notes, setNotes] = useState<Record<number, string>>({});
     // State for draft log
     const [draftLog, setDraftLog] = useState<{ user: string; timestamp: string } | null>(null);
+    
+    // NEW: State for manually added items & Search
+    const [addedItemIds, setAddedItemIds] = useState<number[]>([]);
+    const [isAdding, setIsAdding] = useState(false);
+    
+    // Search states
+    const [searchTerm, setSearchTerm] = useState('');
+    const [showDropdown, setShowDropdown] = useState(false);
+    const searchInputRef = useRef<HTMLInputElement>(null);
+    const dropdownRef = useRef<HTMLDivElement>(null);
 
     // Load draft from localStorage when modal opens
     useEffect(() => {
@@ -32,26 +42,84 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, 
                     if (parsed.quantities) setQuantities(parsed.quantities);
                     if (parsed.notes) setNotes(parsed.notes);
                     if (parsed.log) setDraftLog(parsed.log);
+                    if (parsed.addedItemIds) setAddedItemIds(parsed.addedItemIds);
                 } else {
                     // Reset if no draft
                     setQuantities({});
                     setNotes({});
                     setDraftLog(null);
+                    setAddedItemIds([]);
                 }
             } catch (e) {
                 console.error("Failed to load draft", e);
             }
+            setIsAdding(false);
+            setSearchTerm('');
+            setShowDropdown(false);
         }
     }, [isOpen]);
 
-    // Filter items that are low in stock (quantity <= reorderPoint)
+    // Handle click outside to close dropdown
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (
+                dropdownRef.current && 
+                !dropdownRef.current.contains(event.target as Node) &&
+                searchInputRef.current &&
+                !searchInputRef.current.contains(event.target as Node)
+            ) {
+                setShowDropdown(false);
+            }
+        };
+
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    // Filter items that are low in stock OR manually added
+    // UPDATE: Logic updated to include items within 30% range of reorder point
     const itemsToOrder = useMemo(() => {
-        return stockItems.filter(item => {
+        const autoLowStock = stockItems.filter(item => {
             const qty = Number(item.quantity) || 0;
             const reorder = Number(item.reorderPoint) || 0;
-            return qty <= reorder;
-        }).sort((a, b) => a.category.localeCompare(b.category));
-    }, [stockItems]);
+            
+            // Logic: If quantity is less than or equal to ReorderPoint + 30% Buffer
+            // Example: Reorder = 10. Alert if Qty <= 13.
+            const threshold = reorder + (reorder * 0.30);
+            
+            return qty <= threshold;
+        });
+
+        const manualItems = stockItems.filter(item => addedItemIds.includes(item.id));
+
+        // Combine and remove duplicates
+        const combined = [...autoLowStock];
+        manualItems.forEach(item => {
+            if (!combined.find(i => i.id === item.id)) {
+                combined.push(item);
+            }
+        });
+
+        return combined.sort((a, b) => a.category.localeCompare(b.category));
+    }, [stockItems, addedItemIds]);
+
+    // Items available to add (not currently in the order list)
+    const availableToAdd = useMemo(() => {
+        const currentIds = new Set(itemsToOrder.map(i => i.id));
+        return stockItems
+            .filter(i => !currentIds.has(i.id))
+            .sort((a, b) => a.name.localeCompare(b.name));
+    }, [stockItems, itemsToOrder]);
+
+    // Filtered list based on search term
+    const filteredSearchItems = useMemo(() => {
+        if (!searchTerm) return availableToAdd;
+        const lowerTerm = searchTerm.toLowerCase();
+        return availableToAdd.filter(item => 
+            item.name.toLowerCase().includes(lowerTerm) || 
+            item.category.toLowerCase().includes(lowerTerm)
+        );
+    }, [availableToAdd, searchTerm]);
 
     const handleQuantityChange = (itemId: number, value: string) => {
         setQuantities(prev => ({
@@ -67,6 +135,26 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, 
         }));
     };
 
+    const handleSelectSearchItem = (item: StockItem) => {
+        setAddedItemIds(prev => [...prev, item.id]);
+        setSearchTerm('');
+        setShowDropdown(false);
+        // setIsAdding(false); // Keep adding mode open for multiple adds if desired, or close it.
+        
+        Swal.fire({
+            icon: 'success',
+            title: `เพิ่ม ${item.name} แล้ว`,
+            toast: true,
+            position: 'top-end',
+            showConfirmButton: false,
+            timer: 1000
+        });
+    };
+
+    const handleRemoveItem = (itemId: number) => {
+        setAddedItemIds(prev => prev.filter(id => id !== itemId));
+    };
+
     const handleSaveDraft = () => {
         const now = new Date();
         const logData = {
@@ -77,7 +165,8 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, 
         const draftData = {
             quantities,
             notes,
-            log: logData
+            log: logData,
+            addedItemIds // Save manual items
         };
 
         localStorage.setItem('purchaseOrderDraft', JSON.stringify(draftData));
@@ -135,6 +224,10 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, 
                     cloneInputs[index].setAttribute('value', input.value);
                 }
             });
+
+            // Remove control elements (like remove buttons) from the clone
+            const controlsToRemove = clone.querySelectorAll('.remove-btn');
+            controlsToRemove.forEach(el => el.remove());
 
             // --- INSERT HEADER INFO FOR IMAGE ---
             const now = new Date();
@@ -287,7 +380,7 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, 
                         }
 
                         /* Hide UI elements not for print */
-                        .no-print {
+                        .no-print, .remove-btn {
                             display: none !important;
                         }
 
@@ -370,47 +463,139 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, 
                                     <th className="border border-gray-300 p-2 w-24 text-center">หน่วย</th>
                                     <th className="border border-gray-300 p-2 w-32 text-center">จำนวนที่สั่ง</th>
                                     <th className="border border-gray-300 p-2 w-48 text-center">หมายเหตุ</th>
+                                    <th className="border border-gray-300 p-1 w-8 text-center no-print"></th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {itemsToOrder.map((item, index) => (
-                                    <tr key={item.id}>
-                                        <td className="border border-gray-300 p-2 text-center text-gray-600">{index + 1}</td>
-                                        <td className="border border-gray-300 p-2 font-medium text-gray-800">{item.name}</td>
-                                        <td className="border border-gray-300 p-2 text-center text-gray-600">{item.category}</td>
-                                        <td className="border border-gray-300 p-2 text-right text-red-600 font-bold">{Number(item.quantity).toLocaleString()}</td>
-                                        <td className="border border-gray-300 p-2 text-right text-gray-600">{Number(item.reorderPoint).toLocaleString()}</td>
-                                        <td className="border border-gray-300 p-2 text-center text-gray-600">{item.unit}</td>
-                                        <td className="border border-gray-300 p-1">
-                                            <input 
-                                                type="number" 
-                                                value={quantities[item.id] || ''} 
-                                                onChange={(e) => handleQuantityChange(item.id, e.target.value)}
-                                                className="qty-input w-full h-full text-center p-1 bg-white focus:bg-blue-50 focus:outline-none text-blue-800 font-bold text-lg"
-                                                placeholder=""
-                                            />
-                                        </td>
-                                        <td className="border border-gray-300 p-1">
-                                            <input 
-                                                type="text" 
-                                                value={notes[item.id] || ''} 
-                                                onChange={(e) => handleNoteChange(item.id, e.target.value)}
-                                                className="note-input w-full h-full text-left p-1 bg-white focus:bg-blue-50 focus:outline-none text-gray-800 text-base"
-                                                placeholder=""
-                                            />
-                                        </td>
-                                    </tr>
-                                ))}
+                                {itemsToOrder.map((item, index) => {
+                                    const isManual = addedItemIds.includes(item.id);
+                                    return (
+                                        <tr key={item.id} className={isManual ? 'bg-blue-50/30' : ''}>
+                                            <td className="border border-gray-300 p-2 text-center text-gray-600">{index + 1}</td>
+                                            <td className="border border-gray-300 p-2 font-medium text-gray-800">
+                                                {item.name}
+                                                {isManual && <span className="ml-2 text-xs text-blue-500 font-normal no-print">(เพิ่มเอง)</span>}
+                                            </td>
+                                            <td className="border border-gray-300 p-2 text-center text-gray-600">{item.category}</td>
+                                            <td className={`border border-gray-300 p-2 text-right font-bold ${Number(item.quantity) <= Number(item.reorderPoint) ? 'text-red-600' : 'text-green-600'}`}>
+                                                {Number(item.quantity).toLocaleString()}
+                                            </td>
+                                            <td className="border border-gray-300 p-2 text-right text-gray-600">{Number(item.reorderPoint).toLocaleString()}</td>
+                                            <td className="border border-gray-300 p-2 text-center text-gray-600">{item.unit}</td>
+                                            <td className="border border-gray-300 p-1">
+                                                <input 
+                                                    type="number" 
+                                                    value={quantities[item.id] || ''} 
+                                                    onChange={(e) => handleQuantityChange(item.id, e.target.value)}
+                                                    className="qty-input w-full h-full text-center p-1 bg-transparent focus:bg-blue-50 focus:outline-none text-blue-800 font-bold text-lg"
+                                                    placeholder=""
+                                                />
+                                            </td>
+                                            <td className="border border-gray-300 p-1">
+                                                <input 
+                                                    type="text" 
+                                                    value={notes[item.id] || ''} 
+                                                    onChange={(e) => handleNoteChange(item.id, e.target.value)}
+                                                    className="note-input w-full h-full text-left p-1 bg-transparent focus:bg-blue-50 focus:outline-none text-gray-800 text-base"
+                                                    placeholder=""
+                                                />
+                                            </td>
+                                            <td className="border border-gray-300 p-1 text-center no-print">
+                                                {/* Allow removing manual items */}
+                                                {isManual && (
+                                                    <button onClick={() => handleRemoveItem(item.id)} className="text-red-400 hover:text-red-600 p-1 remove-btn" title="ลบรายการ">
+                                                        &times;
+                                                    </button>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
                             </tbody>
                         </table>
                     ) : (
                         <div className="text-center py-10 border-2 border-dashed border-gray-200 rounded-lg">
-                            <p className="text-gray-500 text-lg">ไม่มีสินค้าที่ต้องสั่งซื้อในขณะนี้ (สต็อกยังเพียงพอ)</p>
+                            <p className="text-gray-500 text-lg">ไม่มีสินค้าที่ต้องสั่งซื้อในขณะนี้</p>
                         </div>
                     )}
                     
+                    {/* Add Item Section (Hidden in print/capture) */}
+                    <div className="mt-4 no-print" data-html2canvas-ignore="true">
+                        {isAdding ? (
+                            <div className="relative bg-gray-50 p-3 rounded-lg border border-gray-200 shadow-sm animate-fade-in-up max-w-xl">
+                                <div className="flex gap-2 items-center">
+                                    <div className="relative flex-1">
+                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+                                                <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
+                                            </svg>
+                                        </div>
+                                        <input
+                                            ref={searchInputRef}
+                                            type="text"
+                                            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                            placeholder="พิมพ์ชื่อสินค้าเพื่อค้นหา..."
+                                            value={searchTerm}
+                                            onChange={(e) => {
+                                                setSearchTerm(e.target.value);
+                                                setShowDropdown(true);
+                                            }}
+                                            onFocus={() => setShowDropdown(true)}
+                                        />
+                                    </div>
+                                    <button 
+                                        onClick={() => {
+                                            setIsAdding(false);
+                                            setSearchTerm('');
+                                            setShowDropdown(false);
+                                        }}
+                                        className="px-3 py-2 text-gray-500 hover:bg-gray-200 rounded text-sm"
+                                    >
+                                        ยกเลิก
+                                    </button>
+                                </div>
+
+                                {/* Autocomplete Dropdown */}
+                                {showDropdown && filteredSearchItems.length > 0 && (
+                                    <div 
+                                        ref={dropdownRef}
+                                        className="absolute left-0 right-0 mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto z-50"
+                                    >
+                                        {filteredSearchItems.map(item => (
+                                            <div 
+                                                key={item.id}
+                                                className="px-4 py-2 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-0 flex justify-between items-center"
+                                                onClick={() => handleSelectSearchItem(item)}
+                                            >
+                                                <span className="font-medium text-gray-800">{item.name}</span>
+                                                <span className="text-xs text-gray-500">
+                                                    คงเหลือ {item.quantity} {item.unit}
+                                                </span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                                {showDropdown && searchTerm && filteredSearchItems.length === 0 && (
+                                    <div className="absolute left-0 right-0 mt-1 bg-white border border-gray-300 rounded-md shadow-lg p-4 text-center text-gray-500 z-50">
+                                        ไม่พบสินค้า "{searchTerm}"
+                                    </div>
+                                )}
+                            </div>
+                        ) : (
+                            <button 
+                                onClick={() => setIsAdding(true)}
+                                className="text-blue-600 font-semibold hover:bg-blue-50 px-3 py-2 rounded flex items-center gap-2 transition-colors"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+                                </svg>
+                                เพิ่มรายการสินค้าอื่นๆ
+                            </button>
+                        )}
+                    </div>
+                    
                     <div className="mt-8 flex justify-between text-sm text-gray-600 pt-8 no-print">
-                       <p>* รายการนี้แสดงเฉพาะสินค้าที่มีจำนวนคงเหลือต่ำกว่าหรือเท่ากับจุดสั่งซื้อ</p>
+                       <p>* แสดงสินค้าใกล้หมด (ต่ำกว่าจุดสั่งซื้อ + 30%) และสินค้าที่คุณเพิ่มเอง</p>
                     </div>
                     
                     {/* Signature Section for Print */}
