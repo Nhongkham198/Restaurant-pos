@@ -44,7 +44,7 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({ items, currentView, 
     };
     
     return (
-        <nav className="fixed bottom-0 left-0 right-0 z-50 bg-gray-900 border-t border-gray-800 p-2 flex overflow-x-auto gap-2 hide-scrollbar">
+        <nav className="fixed bottom-0 left-0 right-0 z-50 bg-gray-900 border-t border-gray-800 p-2 flex overflow-x-auto gap-2 hide-scrollbar md:justify-center">
             {/* Inline style to hide scrollbar for a cleaner look */}
             <style>{`
                 .hide-scrollbar::-webkit-scrollbar {
