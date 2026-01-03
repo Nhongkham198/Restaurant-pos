@@ -3,6 +3,8 @@
 
 
 
+
+
 // ... existing imports
 // (Keeping all imports same as before)
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
@@ -16,7 +18,8 @@ import {
     DEFAULT_STOCK_CATEGORIES, 
     DEFAULT_STOCK_UNITS, 
     DEFAULT_STOCK_ITEMS, 
-    DEFAULT_FLOORS
+    DEFAULT_FLOORS,
+    DEFAULT_MAINTENANCE_ITEMS
 } from './constants';
 import type { 
     MenuItem, 
@@ -38,7 +41,9 @@ import type {
     StaffCall, 
     PaymentDetails, 
     CancellationReason, 
-    OrderCounter 
+    OrderCounter,
+    MaintenanceItem,
+    MaintenanceLog
 } from './types';
 // FIX: Use alias import to match configuration and resolve export errors
 import { useFirestoreSync, useFirestoreCollection } from '@/hooks/useFirestoreSync';
@@ -62,6 +67,7 @@ import { LeaveCalendarView } from './components/LeaveCalendarView';
 import { LeaveAnalytics } from './components/LeaveAnalytics'; // Import the new component
 import AdminSidebar from './components/AdminSidebar';
 import { BottomNavBar } from './components/BottomNavBar';
+import { MaintenanceView } from './components/MaintenanceView';
 
 import { LoginScreen } from './components/LoginScreen';
 import { BranchSelectionScreen } from './components/BranchSelectionScreen';
@@ -155,7 +161,7 @@ const App: React.FC = () => {
     // --- VIEW & EDIT MODE STATE ---
     const [currentView, setCurrentView] = useState<View>(() => {
         const storedView = localStorage.getItem('currentView');
-        if (storedView && ['pos', 'kitchen', 'tables', 'dashboard', 'history', 'stock', 'leave', 'stock-analytics', 'leave-analytics'].includes(storedView)) {
+        if (storedView && ['pos', 'kitchen', 'tables', 'dashboard', 'history', 'stock', 'leave', 'stock-analytics', 'leave-analytics', 'maintenance'].includes(storedView)) {
             return storedView as View;
         }
         return 'pos';
@@ -217,6 +223,9 @@ const App: React.FC = () => {
     const [leaveRequests, setLeaveRequests] = useFirestoreSync<LeaveRequest[]>(null, 'leaveRequests', []);
     const [orderCounter, setOrderCounter] = useFirestoreSync<OrderCounter>(branchId, 'orderCounter', { count: 0, lastResetDate: new Date().toISOString().split('T')[0] });
 
+    // --- MAINTENANCE STATE ---
+    const [maintenanceItems, setMaintenanceItems] = useFirestoreSync<MaintenanceItem[]>(branchId, 'maintenanceItems', DEFAULT_MAINTENANCE_ITEMS);
+    const [maintenanceLogs, setMaintenanceLogs] = useFirestoreSync<MaintenanceLog[]>(branchId, 'maintenanceLogs', []);
 
     // --- POS-SPECIFIC LOCAL STATE ---
     const [currentOrderItems, setCurrentOrderItems] = useState<OrderItem[]>([]);
@@ -310,7 +319,6 @@ const App: React.FC = () => {
         return leaveRequests.filter(filterPredicate).length;
     }, [leaveRequests, currentUser]);
 
-    // NEW: Calculate stock items that are low or out of stock
     const stockBadgeCount = useMemo(() => {
         return stockItems.filter(item => {
             const qty = Number(item.quantity) || 0;
@@ -318,6 +326,20 @@ const App: React.FC = () => {
             return qty <= reorder; // Covers both "low" and "out" of stock
         }).length;
     }, [stockItems]);
+
+    const maintenanceBadgeCount = useMemo(() => {
+        const now = Date.now();
+        const oneDay = 24 * 60 * 60 * 1000;
+        return maintenanceItems.filter(item => {
+            const lastDate = item.lastMaintenanceDate || 0;
+            const dueDate = new Date(lastDate);
+            dueDate.setMonth(dueDate.getMonth() + item.cycleMonths);
+            const dueTimestamp = dueDate.getTime();
+            const daysDiff = Math.ceil((dueTimestamp - now) / oneDay);
+            // Count if overdue or due within 7 days
+            return daysDiff <= 7;
+        }).length;
+    }, [maintenanceItems]);
 
     // ... Mobile Nav Items ...
     const mobileNavItems = useMemo(() => {
@@ -347,9 +369,18 @@ const App: React.FC = () => {
             view: 'leave',
             badge: leaveBadgeCount
         });
+
+        // Add Maintenance item for mobile
+        items.push({
+            id: 'maintenance',
+            label: 'บำรุงรักษา',
+            icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>,
+            view: 'maintenance',
+            badge: maintenanceBadgeCount
+        });
         
         return items;
-    }, [currentUser, tablesBadgeCount, totalKitchenBadgeCount, leaveBadgeCount, stockBadgeCount]);
+    }, [currentUser, tablesBadgeCount, totalKitchenBadgeCount, leaveBadgeCount, stockBadgeCount, maintenanceBadgeCount]);
 
     const selectedTable = useMemo(() => {
         return tables.find(t => t.id === selectedTableId) || null;
@@ -1346,6 +1377,7 @@ const App: React.FC = () => {
                    onOpenSettings={() => setModalState(prev => ({...prev, isSettings: true}))} onOpenUserManager={() => setModalState(prev => ({...prev, isUserManager: true}))}
                    onManageBranches={() => setModalState(prev => ({...prev, isBranchManager: true}))} onChangeBranch={() => setSelectedBranch(null)} onLogout={handleLogout}
                    kitchenBadgeCount={totalKitchenBadgeCount} tablesBadgeCount={tablesBadgeCount} leaveBadgeCount={leaveBadgeCount} stockBadgeCount={stockBadgeCount}
+                   maintenanceBadgeCount={maintenanceBadgeCount}
                    onUpdateCurrentUser={handleUpdateCurrentUser} onUpdateLogoUrl={setLogoUrl} onUpdateRestaurantName={setRestaurantName}
                 />
             )}
@@ -1356,7 +1388,8 @@ const App: React.FC = () => {
                     <Header
                         currentView={currentView} onViewChange={setCurrentView} isEditMode={isEditMode} onToggleEditMode={() => setIsEditMode(!isEditMode)}
                         onOpenSettings={() => setModalState(prev => ({ ...prev, isSettings: true }))} cookingBadgeCount={cookingBadgeCount} waitingBadgeCount={waitingBadgeCount}
-                        tablesBadgeCount={tablesBadgeCount} vacantTablesBadgeCount={vacantTablesCount} leaveBadgeCount={leaveBadgeCount} stockBadgeCount={stockBadgeCount} currentUser={currentUser} onLogout={handleLogout}
+                        tablesBadgeCount={tablesBadgeCount} vacantTablesBadgeCount={vacantTablesCount} leaveBadgeCount={leaveBadgeCount} stockBadgeCount={stockBadgeCount} 
+                        maintenanceBadgeCount={maintenanceBadgeCount} currentUser={currentUser} onLogout={handleLogout}
                         onOpenUserManager={() => setModalState(prev => ({ ...prev, isUserManager: true }))} logoUrl={logoUrl} onLogoChangeClick={() => {}}
                         restaurantName={restaurantName} onRestaurantNameChange={setRestaurantName} branchName={selectedBranch.name}
                         onChangeBranch={() => setSelectedBranch(null)} onManageBranches={() => setModalState(prev => ({ ...prev, isBranchManager: true }))}
@@ -1432,6 +1465,15 @@ const App: React.FC = () => {
                                         {currentView === 'stock-analytics' && <StockAnalytics stockItems={stockItems} />}
                                         {currentView === 'leave' && <LeaveCalendarView leaveRequests={leaveRequests} currentUser={currentUser} onOpenRequestModal={(date) => { setLeaveRequestInitialDate(date); setModalState(prev => ({...prev, isLeaveRequest: true})); }} branches={branches} onUpdateStatus={(id, status) => setLeaveRequests(prev => prev.map(r => r.id === id ? {...r, status} : r))} onDeleteRequest={async (id) => {setLeaveRequests(prev => prev.filter(r => r.id !== id)); return true;}} selectedBranch={selectedBranch} />}
                                         {currentView === 'leave-analytics' && <LeaveAnalytics leaveRequests={leaveRequests} users={users} />}
+                                        {currentView === 'maintenance' && (
+                                            <MaintenanceView 
+                                                maintenanceItems={maintenanceItems}
+                                                setMaintenanceItems={setMaintenanceItems}
+                                                maintenanceLogs={maintenanceLogs}
+                                                setMaintenanceLogs={setMaintenanceLogs}
+                                                currentUser={currentUser}
+                                            />
+                                        )}
                                     </div>
                                 </div>
                             )}
@@ -1449,6 +1491,15 @@ const App: React.FC = () => {
                             {currentView === 'stock-analytics' && <StockAnalytics stockItems={stockItems} />}
                             {currentView === 'leave' && <LeaveCalendarView leaveRequests={leaveRequests} currentUser={currentUser} onOpenRequestModal={(date) => { setLeaveRequestInitialDate(date); setModalState(prev => ({...prev, isLeaveRequest: true})); }} branches={branches} onUpdateStatus={(id, status) => setLeaveRequests(prev => prev.map(r => r.id === id ? {...r, status} : r))} onDeleteRequest={async (id) => {setLeaveRequests(prev => prev.filter(r => r.id !== id)); return true;}} selectedBranch={selectedBranch} />}
                             {currentView === 'leave-analytics' && <LeaveAnalytics leaveRequests={leaveRequests} users={users} />}
+                            {currentView === 'maintenance' && (
+                                <MaintenanceView 
+                                    maintenanceItems={maintenanceItems}
+                                    setMaintenanceItems={setMaintenanceItems}
+                                    maintenanceLogs={maintenanceLogs}
+                                    setMaintenanceLogs={setMaintenanceLogs}
+                                    currentUser={currentUser}
+                                />
+                            )}
                         </>
                     )}
                 </main>

@@ -220,7 +220,27 @@ export interface StaffCall {
     timestamp: number;
 }
 
-export type View = 'pos' | 'kitchen' | 'tables' | 'dashboard' | 'history' | 'stock' | 'stock-analytics' | 'leave' | 'leave-analytics';
+// --- NEW MAINTENANCE TYPES ---
+export interface MaintenanceItem {
+    id: number;
+    name: string;
+    imageUrl: string;
+    description?: string;
+    cycleMonths: number; // 1 or 3
+    lastMaintenanceDate: number | null; // timestamp
+}
+
+export interface MaintenanceLog {
+    id: number;
+    itemId: number;
+    maintenanceDate: number; // timestamp
+    performedBy: string;
+    notes?: string;
+    beforeImage?: string; // Base64
+    afterImage?: string; // Base64
+}
+
+export type View = 'pos' | 'kitchen' | 'tables' | 'dashboard' | 'history' | 'stock' | 'stock-analytics' | 'leave' | 'leave-analytics' | 'maintenance';
 
 export interface NavItem {
     id: string;

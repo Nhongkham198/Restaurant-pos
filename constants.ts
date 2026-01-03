@@ -1,5 +1,5 @@
 
-import type { MenuItem, Table, Branch, User, StockItem } from './types';
+import type { MenuItem, Table, Branch, User, StockItem, MaintenanceItem } from './types';
 
 export const DEFAULT_BRANCHES: Branch[] = [
     { id: 1, name: 'สาขากาฬสินธุ์', location: 'กาฬสินธุ์' },
@@ -141,4 +141,31 @@ export const DEFAULT_STOCK_ITEMS: StockItem[] = [
         monthlyWithdrawals: { [currentMonth]: 120 }, 
         lastUpdated: Date.now() 
     },
+];
+
+export const DEFAULT_MAINTENANCE_ITEMS: MaintenanceItem[] = [
+    {
+        id: 1,
+        name: 'เครื่องทำน้ำแข็ง (Ice Machine)',
+        description: 'ทำความสะอาดแผ่นกรองและถังเก็บน้ำแข็ง',
+        imageUrl: 'https://images.unsplash.com/photo-1595427339879-19c99c372c3d?q=80&w=300&auto=format&fit=crop',
+        cycleMonths: 1,
+        lastMaintenanceDate: Date.now() - (40 * 24 * 60 * 60 * 1000) // Overdue (40 days ago)
+    },
+    {
+        id: 2,
+        name: 'เครื่องปรับอากาศ (Air Conditioner)',
+        description: 'ล้างแอร์ใหญ่',
+        imageUrl: 'https://images.unsplash.com/photo-1599317537367-1729c3620719?q=80&w=300&auto=format&fit=crop',
+        cycleMonths: 3,
+        lastMaintenanceDate: Date.now() - (80 * 24 * 60 * 60 * 1000) // OK (80 days ago, due in 10 days)
+    },
+    {
+        id: 3,
+        name: 'เตาอบ (Oven)',
+        description: 'ทำความสะอาดคราบไขมันด้านใน',
+        imageUrl: 'https://images.unsplash.com/photo-1584269600464-37b1b58a9fe7?q=80&w=300&auto=format&fit=crop',
+        cycleMonths: 1,
+        lastMaintenanceDate: Date.now() - (15 * 24 * 60 * 60 * 1000) // OK (15 days ago)
+    }
 ];

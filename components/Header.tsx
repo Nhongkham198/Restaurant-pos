@@ -1,6 +1,8 @@
 
 
 
+
+
 import React, { useState, useEffect, useMemo } from 'react';
 import type { User, View } from '../types';
 
@@ -14,8 +16,9 @@ interface HeaderProps {
     waitingBadgeCount: number;
     tablesBadgeCount: number;
     vacantTablesBadgeCount: number;
-    leaveBadgeCount: number; // Added leave badge count
-    stockBadgeCount: number; // Added stock badge count
+    leaveBadgeCount: number; 
+    stockBadgeCount: number; 
+    maintenanceBadgeCount: number; // Added maintenance badge
     currentUser: User | null;
     onLogout: () => void;
     onOpenUserManager: () => void;
@@ -65,7 +68,7 @@ const NavButton: React.FC<{
 
 export const Header: React.FC<HeaderProps> = ({ 
     currentView, onViewChange, isEditMode, onToggleEditMode, onOpenSettings, 
-    cookingBadgeCount, waitingBadgeCount, tablesBadgeCount, vacantTablesBadgeCount, leaveBadgeCount, stockBadgeCount,
+    cookingBadgeCount, waitingBadgeCount, tablesBadgeCount, vacantTablesBadgeCount, leaveBadgeCount, stockBadgeCount, maintenanceBadgeCount,
     currentUser, onLogout, onOpenUserManager,
     logoUrl, onLogoChangeClick, restaurantName, onRestaurantNameChange,
     branchName, onChangeBranch, onManageBranches
@@ -126,6 +129,14 @@ export const Header: React.FC<HeaderProps> = ({
                     <NavButton label="ประวัติ" isActive={currentView === 'history'} onClick={() => onViewChange('history')} icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" /></svg>} activeClassName="bg-teal-500 hover:bg-teal-600 text-white shadow-md" />
                     <NavButton label="สต็อก" isActive={currentView === 'stock'} onClick={() => onViewChange('stock')} icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>} activeClassName="bg-cyan-600 hover:bg-cyan-700 text-white shadow-md" badge={stockBadgeCount} />
                     <NavButton 
+                        label="บำรุงรักษา" 
+                        isActive={currentView === 'maintenance'} 
+                        onClick={() => onViewChange('maintenance')}
+                        icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>}
+                        badge={maintenanceBadgeCount}
+                        activeClassName="bg-pink-600 hover:bg-pink-700 text-white shadow-md"
+                    />
+                    <NavButton 
                         label="วันลา" 
                         isActive={currentView === 'leave'} 
                         onClick={() => onViewChange('leave')}
@@ -158,7 +169,7 @@ export const Header: React.FC<HeaderProps> = ({
                             }`}>{roleText}</p>
                         </div>
                         <button onClick={onLogout} className="p-2 text-gray-500 rounded-full hover:bg-gray-200" title="ออกจากระบบ">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
                         </button>
                     </div>
                 </div>
