@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React from 'react';
 import type { View, NavItem } from '../types';
 
 interface BottomNavBarProps {
@@ -13,7 +13,7 @@ const BottomNavItem: React.FC<{ item: NavItem; isActive: boolean; onClick: () =>
         <button
             onClick={onClick}
             disabled={item.disabled}
-            className={`flex flex-col items-center justify-center p-2 rounded-lg transition-colors duration-200 h-full ${
+            className={`flex flex-col items-center justify-center p-2 rounded-lg transition-colors duration-200 h-full w-full ${
                 isActive 
                     ? 'bg-gray-700 text-white shadow-inner' 
                     : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white'
@@ -27,7 +27,7 @@ const BottomNavItem: React.FC<{ item: NavItem; isActive: boolean; onClick: () =>
                     </span>
                 )}
             </div>
-            <span className="text-[10px] font-medium leading-none">{item.label}</span>
+            <span className="text-[10px] font-medium leading-none whitespace-nowrap">{item.label}</span>
         </button>
     );
 };
@@ -44,14 +44,25 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({ items, currentView, 
     };
     
     return (
-        <nav className="fixed bottom-0 left-0 right-0 z-50 bg-gray-900 border-t border-gray-800 p-2 grid grid-cols-6 gap-1">
+        <nav className="fixed bottom-0 left-0 right-0 z-50 bg-gray-900 border-t border-gray-800 p-2 flex overflow-x-auto gap-2 hide-scrollbar">
+            {/* Inline style to hide scrollbar for a cleaner look */}
+            <style>{`
+                .hide-scrollbar::-webkit-scrollbar {
+                    display: none;
+                }
+                .hide-scrollbar {
+                    -ms-overflow-style: none;
+                    scrollbar-width: none;
+                }
+            `}</style>
             {items.map(item => (
-                <BottomNavItem
-                    key={item.id}
-                    item={item}
-                    isActive={currentView === item.view}
-                    onClick={() => handleItemClick(item)}
-                />
+                <div key={item.id} className="flex-shrink-0 w-[72px]">
+                    <BottomNavItem
+                        item={item}
+                        isActive={currentView === item.view}
+                        onClick={() => handleItemClick(item)}
+                    />
+                </div>
             ))}
         </nav>
     );
