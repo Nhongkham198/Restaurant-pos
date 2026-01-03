@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import type { PrinterConfig, ReceiptPrintSettings, KitchenPrinterSettings, CashierPrinterSettings, MenuItem } from '../types';
 import { printerService } from '../services/printerService';
@@ -395,6 +396,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             settingsForm.openingTime,
             settingsForm.closingTime
         );
+        Swal.fire({
+            icon: 'success',
+            title: 'บันทึกการตั้งค่าเรียบร้อย',
+            showConfirmButton: false,
+            timer: 1500
+        });
     };
 
     if (!isOpen) return null;
