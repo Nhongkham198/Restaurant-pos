@@ -1,3 +1,4 @@
+
 import React from 'react';
 
 interface PieChartProps {
@@ -5,9 +6,11 @@ interface PieChartProps {
     labels: string[];
     colors: string[];
     title: string;
+    onSliceClick?: (label: string) => void; // Added click handler prop
+    selectedLabel?: string | null; // Added to highlight selected slice
 }
 
-const PieChart: React.FC<PieChartProps> = ({ data, labels, colors, title }) => {
+const PieChart: React.FC<PieChartProps> = ({ data, labels, colors, title, onSliceClick, selectedLabel }) => {
     const total = data.reduce((sum, value) => sum + value, 0);
 
     if (total === 0) {
@@ -41,9 +44,15 @@ const PieChart: React.FC<PieChartProps> = ({ data, labels, colors, title }) => {
         const pathData = `M 50 50 L ${x1} ${y1} A 40 40 0 ${largeArcFlag} 1 ${x2} ${y2} Z`;
 
         let transform = '';
-        // Explode the "takeaway" slice. The label is "กลับบ้าน"
-        if (labels[index] === 'กลับบ้าน') {
-            const explosionFactor = 5; // How much to pull the slice out
+        let opacity = 1;
+
+        // Visual feedback for selection
+        const isSelected = selectedLabel === labels[index];
+        const isInteractable = !!onSliceClick;
+
+        // Explode the "takeaway" slice OR if it is the selected slice
+        if (labels[index] === 'กลับบ้าน' || isSelected) {
+            const explosionFactor = isSelected ? 3 : (labels[index] === 'กลับบ้าน' ? 2 : 0); 
             const middleAngle = cumulativeAngle + (angle / 2);
             const middleAngleRad = (middleAngle * Math.PI) / 180;
             
@@ -53,9 +62,27 @@ const PieChart: React.FC<PieChartProps> = ({ data, labels, colors, title }) => {
             transform = `translate(${offsetX}, ${offsetY})`;
         }
 
+        // If a label is selected, dim others
+        if (selectedLabel && !isSelected) {
+            opacity = 0.3;
+        }
+
         cumulativeAngle += sliceAngle;
 
-        return <path key={index} d={pathData} fill={colors[index % colors.length]} transform={transform} />;
+        return (
+            <path 
+                key={index} 
+                d={pathData} 
+                fill={colors[index % colors.length]} 
+                transform={transform}
+                style={{ 
+                    opacity, 
+                    cursor: isInteractable ? 'pointer' : 'default',
+                    transition: 'all 0.3s ease'
+                }}
+                onClick={() => isInteractable && onSliceClick && onSliceClick(labels[index])}
+            />
+        );
     });
 
     return (
@@ -70,13 +97,19 @@ const PieChart: React.FC<PieChartProps> = ({ data, labels, colors, title }) => {
                 <div className="space-y-2 text-base w-full">
                     {labels.map((label, index) => {
                          const percentage = total > 0 ? ((data[index] / total) * 100).toFixed(1) : 0;
+                         const isSelected = selectedLabel === label;
+                         
                         return (
-                            <div key={index} className="flex items-center">
+                            <div 
+                                key={index} 
+                                className={`flex items-center transition-opacity duration-300 ${selectedLabel && !isSelected ? 'opacity-30' : 'opacity-100'} ${onSliceClick ? 'cursor-pointer hover:bg-gray-50 rounded px-1' : ''}`}
+                                onClick={() => onSliceClick && onSliceClick(label)}
+                            >
                                 <span
                                     className="w-4 h-4 rounded-sm mr-3 flex-shrink-0"
                                     style={{ backgroundColor: colors[index % colors.length] }}
                                 ></span>
-                                <span className="text-gray-700 font-medium truncate">{label}:</span>
+                                <span className={`text-gray-700 font-medium truncate ${isSelected ? 'font-bold underline' : ''}`}>{label}:</span>
                                 <span className="ml-auto text-gray-800 font-semibold whitespace-nowrap pl-2">{data[index].toLocaleString()} ({percentage}%)</span>
                             </div>
                         );

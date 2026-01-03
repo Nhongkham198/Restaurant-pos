@@ -1,5 +1,5 @@
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useRef } from 'react';
 import type { CompletedOrder, CancelledOrder, User } from '../types';
 import { SalesChart } from './SalesChart';
 import PieChart from './PieChart';
@@ -26,6 +26,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
     // Initialize with today's date
     const [selectedDate, setSelectedDate] = useState(new Date());
     const [viewMode, setViewMode] = useState<'daily' | 'monthly'>('daily');
+    const dateInputRef = useRef<HTMLInputElement>(null);
+    
+    // NEW: State for Category Filtering
+    const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string | null>(null);
 
     // Check permissions for monthly view
     const canViewMonthly = useMemo(() => {
@@ -61,6 +65,19 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
 
     const handleViewModeChange = (mode: 'daily' | 'monthly') => {
         setViewMode(mode);
+    };
+
+    const handleCategoryClick = (category: string) => {
+        // Toggle: Click again to clear
+        if (selectedCategoryFilter === category) {
+            setSelectedCategoryFilter(null);
+        } else {
+            setSelectedCategoryFilter(category);
+        }
+    };
+
+    const handleClearFilter = () => {
+        setSelectedCategoryFilter(null);
     };
 
     // Filter orders based on the selected local date/month AND role visibility
@@ -126,6 +143,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
         };
     }, [filteredCompletedOrders, filteredCancelledOrders]);
 
+    // UPDATED: Chart Data Logic to support Category Filter
     const chartData = useMemo(() => {
         if (viewMode === 'monthly') {
             // --- Monthly View: Sales per Day ---
@@ -136,13 +154,29 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
             filteredCompletedOrders.forEach(order => {
                 const day = new Date(order.completionTime).getDate();
                 if (day >= 1 && day <= daysInMonth) {
-                    const orderTotal = order.items.reduce((sum, item) => sum + item.finalPrice * item.quantity, 0) + order.taxAmount;
+                    let orderTotal = 0;
+                    
+                    if (selectedCategoryFilter) {
+                        // If filtered, sum only matching items
+                        orderTotal = order.items.reduce((sum, item) => {
+                            const itemCategory = item.category || 'ไม่มีหมวดหมู่';
+                            if (itemCategory === selectedCategoryFilter) {
+                                return sum + (item.finalPrice * item.quantity);
+                            }
+                            return sum;
+                        }, 0);
+                        // NOTE: Tax is excluded when filtering by category because tax applies to the whole bill
+                    } else {
+                        // Normal total
+                        orderTotal = order.items.reduce((sum, item) => sum + item.finalPrice * item.quantity, 0) + order.taxAmount;
+                    }
+
                     salesByDay[day - 1] += orderTotal;
                 }
             });
 
             return {
-                title: 'ยอดขายรายวัน (ตลอดเดือน)',
+                title: selectedCategoryFilter ? `ยอดขายรายวัน: ${selectedCategoryFilter}` : 'ยอดขายรายวัน (ตลอดเดือน)',
                 labels: days.map(d => `${d}`),
                 data: salesByDay,
                 maxValue: Math.max(...salesByDay, 1000)
@@ -152,7 +186,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
             // --- Daily View: Sales per Hour ---
             const openHour = parseInt(String(openingTime).split(':')[0], 10);
             const closeHour = parseInt(String(closingTime).split(':')[0], 10);
-            // Handle cross-midnight or invalid times gracefully
             const startH = isNaN(openHour) ? 0 : openHour;
             const endH = isNaN(closeHour) ? 23 : closeHour;
             
@@ -165,25 +198,48 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
                 const orderHour = new Date(order.completionTime).getHours();
                 const hourIndex = hours.indexOf(orderHour);
                 if (hourIndex > -1) {
-                    const orderTotal = order.items.reduce((sum, item) => sum + item.finalPrice * item.quantity, 0) + order.taxAmount;
+                    let orderTotal = 0;
+
+                    if (selectedCategoryFilter) {
+                        // Filter logic
+                        orderTotal = order.items.reduce((sum, item) => {
+                            const itemCategory = item.category || 'ไม่มีหมวดหมู่';
+                            if (itemCategory === selectedCategoryFilter) {
+                                return sum + (item.finalPrice * item.quantity);
+                            }
+                            return sum;
+                        }, 0);
+                    } else {
+                        // Normal logic
+                        orderTotal = order.items.reduce((sum, item) => sum + item.finalPrice * item.quantity, 0) + order.taxAmount;
+                    }
+
                     salesByHour[hourIndex] += orderTotal;
                 }
             });
 
             return {
-                title: 'ยอดขายรายชั่วโมง',
+                title: selectedCategoryFilter ? `ยอดขายรายชั่วโมง: ${selectedCategoryFilter}` : 'ยอดขายรายชั่วโมง',
                 labels: hours.map(h => `${h}:00`),
                 data: salesByHour,
                 maxValue: Math.max(...salesByHour, 1000)
             };
         }
-    }, [filteredCompletedOrders, openingTime, closingTime, viewMode, selectedDate]);
+    }, [filteredCompletedOrders, openingTime, closingTime, viewMode, selectedDate, selectedCategoryFilter]);
 
+    // UPDATED: Order Item Type Data with Filter Logic
     const orderItemTypeData = useMemo(() => {
         let dineInItems = 0;
         let takeawayItems = 0;
+        
         filteredCompletedOrders.forEach(order => {
             order.items.forEach(item => {
+                // Apply filter if selected
+                if (selectedCategoryFilter) {
+                    const itemCategory = item.category || 'ไม่มีหมวดหมู่';
+                    if (itemCategory !== selectedCategoryFilter) return;
+                }
+
                 if (item.isTakeaway) {
                     takeawayItems += item.quantity;
                 } else {
@@ -193,12 +249,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
         });
 
         return {
+            title: selectedCategoryFilter ? `ประเภทรายการ: ${selectedCategoryFilter}` : 'ประเภทรายการ (ทานที่ร้าน / กลับบ้าน)',
             labels: ['ทานที่ร้าน', 'กลับบ้าน'],
             data: [dineInItems, takeawayItems],
             colors: ['#3b82f6', '#8b5cf6']
         };
-    }, [filteredCompletedOrders]);
+    }, [filteredCompletedOrders, selectedCategoryFilter]);
 
+    // Category sales data remains independent of the filter (it acts AS the filter control)
     const categorySalesData = useMemo(() => {
         const salesByCategory: Record<string, number> = {};
         filteredCompletedOrders.forEach(order => {
@@ -263,12 +321,24 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
                         <label className="text-gray-600 font-medium text-sm hidden sm:inline">
                             {viewMode === 'monthly' ? 'เลือกเดือน:' : 'เลือกวันที่:'}
                         </label>
-                        <input 
-                            type={viewMode === 'monthly' ? 'month' : 'date'}
-                            value={dateInputValue}
-                            onChange={handleDateChange}
-                            className="border border-gray-300 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50 text-gray-800 font-medium text-sm"
-                        />
+                        <div className="relative">
+                            <input 
+                                ref={dateInputRef}
+                                type={viewMode === 'monthly' ? 'month' : 'date'}
+                                value={dateInputValue}
+                                onChange={handleDateChange}
+                                onClick={() => { try { dateInputRef.current?.showPicker(); } catch(e) {} }}
+                                className="border border-gray-300 rounded-lg pl-3 pr-10 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50 text-gray-800 font-medium text-sm cursor-pointer"
+                            />
+                            <div 
+                                className="absolute inset-y-0 right-0 flex items-center pr-2 cursor-pointer text-gray-500 hover:text-blue-600"
+                                onClick={() => { try { dateInputRef.current?.showPicker(); } catch(e) { dateInputRef.current?.focus(); } }}
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
+                                </svg>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -279,6 +349,24 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
                 <StatCard title="ลูกค้าทั้งหมด" value={dailyStats.totalCustomers.toLocaleString()} icon={<span>👥</span>} color="border-purple-500" />
                 <StatCard title="ยกเลิกออเดอร์" value={dailyStats.cancelledCount.toLocaleString()} icon={<span>❌</span>} color="border-red-500" />
             </div>
+
+            {/* Filter Indicator */}
+            {selectedCategoryFilter && (
+                <div className="bg-blue-50 border border-blue-200 text-blue-800 px-4 py-3 rounded-lg flex items-center justify-between animate-fade-in-up">
+                    <div className="flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v3a1 1 0 01-.293.707L12 11.414V15a1 1 0 01-.293.707l-2 2A1 1 0 018 17v-5.586L3.293 6.707A1 1 0 013 6V3z" clipRule="evenodd" />
+                        </svg>
+                        <span>กำลังแสดงข้อมูลเฉพาะหมวดหมู่: <strong>{selectedCategoryFilter}</strong></span>
+                    </div>
+                    <button 
+                        onClick={handleClearFilter}
+                        className="text-sm font-semibold hover:underline text-blue-600"
+                    >
+                        ล้างตัวกรอง
+                    </button>
+                </div>
+            )}
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-md">
@@ -295,9 +383,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
                         data={categorySalesData.data}
                         labels={categorySalesData.labels}
                         colors={categorySalesData.colors}
+                        onSliceClick={handleCategoryClick}
+                        selectedLabel={selectedCategoryFilter}
                     />
                      <PieChart
-                        title="ประเภทรายการ (ทานที่ร้าน / กลับบ้าน)"
+                        title={orderItemTypeData.title}
                         data={orderItemTypeData.data}
                         labels={orderItemTypeData.labels}
                         colors={orderItemTypeData.colors}
