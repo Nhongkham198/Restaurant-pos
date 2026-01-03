@@ -1,6 +1,8 @@
 
 
 
+
+
 // ... existing imports
 // (Keeping all imports same as before)
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
@@ -57,6 +59,7 @@ import { SalesHistory } from './components/SalesHistory';
 import { StockManagement } from './components/StockManagement';
 import { StockAnalytics } from './components/StockAnalytics';
 import { LeaveCalendarView } from './components/LeaveCalendarView';
+import { LeaveAnalytics } from './components/LeaveAnalytics'; // Import the new component
 import AdminSidebar from './components/AdminSidebar';
 import { BottomNavBar } from './components/BottomNavBar';
 
@@ -152,7 +155,7 @@ const App: React.FC = () => {
     // --- VIEW & EDIT MODE STATE ---
     const [currentView, setCurrentView] = useState<View>(() => {
         const storedView = localStorage.getItem('currentView');
-        if (storedView && ['pos', 'kitchen', 'tables', 'dashboard', 'history', 'stock', 'leave', 'stock-analytics'].includes(storedView)) {
+        if (storedView && ['pos', 'kitchen', 'tables', 'dashboard', 'history', 'stock', 'leave', 'stock-analytics', 'leave-analytics'].includes(storedView)) {
             return storedView as View;
         }
         return 'pos';
@@ -1428,6 +1431,7 @@ const App: React.FC = () => {
                                         {currentView === 'stock' && <StockManagement stockItems={stockItems} setStockItems={setStockItems} stockCategories={stockCategories} setStockCategories={setStockCategories} stockUnits={stockUnits} setStockUnits={setStockUnits} currentUser={currentUser} />}
                                         {currentView === 'stock-analytics' && <StockAnalytics stockItems={stockItems} />}
                                         {currentView === 'leave' && <LeaveCalendarView leaveRequests={leaveRequests} currentUser={currentUser} onOpenRequestModal={(date) => { setLeaveRequestInitialDate(date); setModalState(prev => ({...prev, isLeaveRequest: true})); }} branches={branches} onUpdateStatus={(id, status) => setLeaveRequests(prev => prev.map(r => r.id === id ? {...r, status} : r))} onDeleteRequest={async (id) => {setLeaveRequests(prev => prev.filter(r => r.id !== id)); return true;}} selectedBranch={selectedBranch} />}
+                                        {currentView === 'leave-analytics' && <LeaveAnalytics leaveRequests={leaveRequests} users={users} />}
                                     </div>
                                 </div>
                             )}
@@ -1444,6 +1448,7 @@ const App: React.FC = () => {
                             {currentView === 'stock' && <StockManagement stockItems={stockItems} setStockItems={setStockItems} stockCategories={stockCategories} setStockCategories={setStockCategories} stockUnits={stockUnits} setStockUnits={setStockUnits} currentUser={currentUser} />}
                             {currentView === 'stock-analytics' && <StockAnalytics stockItems={stockItems} />}
                             {currentView === 'leave' && <LeaveCalendarView leaveRequests={leaveRequests} currentUser={currentUser} onOpenRequestModal={(date) => { setLeaveRequestInitialDate(date); setModalState(prev => ({...prev, isLeaveRequest: true})); }} branches={branches} onUpdateStatus={(id, status) => setLeaveRequests(prev => prev.map(r => r.id === id ? {...r, status} : r))} onDeleteRequest={async (id) => {setLeaveRequests(prev => prev.filter(r => r.id !== id)); return true;}} selectedBranch={selectedBranch} />}
+                            {currentView === 'leave-analytics' && <LeaveAnalytics leaveRequests={leaveRequests} users={users} />}
                         </>
                     )}
                 </main>
