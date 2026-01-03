@@ -21,6 +21,12 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({ order, o
     const [zoomLevel, setZoomLevel] = useState(1);
     const scrollContainerRef = useRef<HTMLDivElement>(null);
 
+    // --- Expiration Logic (48 Hours) ---
+    const isSlipExpired = useMemo(() => {
+        const TWO_DAYS_MS = 48 * 60 * 60 * 1000;
+        return (Date.now() - order.completionTime) > TWO_DAYS_MS;
+    }, [order.completionTime]);
+
     const total = useMemo(() => {
         const subtotal = order.items.reduce((sum, item) => sum + item.finalPrice * item.quantity, 0);
         return subtotal + order.taxAmount;
@@ -43,6 +49,17 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({ order, o
 
     const handleViewSlip = (e: React.MouseEvent) => {
         e.stopPropagation();
+        
+        if (isSlipExpired) {
+             Swal.fire({
+                icon: 'info',
+                title: 'รูปภาพถูกลบแล้ว',
+                text: 'ระบบได้ลบรูปสลิปนี้อัตโนมัติเนื่องจากเกินระยะเวลา 2 วัน',
+                confirmButtonText: 'ตกลง'
+            });
+            return;
+        }
+
         if (order.paymentDetails.slipImage) {
             setZoomLevel(1); // Reset zoom when opening
             setIsViewingSlip(true);
@@ -50,7 +67,7 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({ order, o
             Swal.fire({
                 icon: 'info',
                 title: 'ไม่พบรูปภาพ',
-                text: 'รูปสลิปอาจถูกลบออกจากระบบแล้ว (ระบบลบอัตโนมัติเมื่อเกิน 2 วันเพื่อประหยัดพื้นที่)',
+                text: 'ไม่พบข้อมูลรูปสลิปในออเดอร์นี้',
                 confirmButtonText: 'เข้าใจแล้ว'
             });
         }
@@ -129,12 +146,19 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({ order, o
                                     {order.paymentDetails.method === 'transfer' && (
                                         <button 
                                             onClick={handleViewSlip}
-                                            className={`text-xs px-3 py-1.5 rounded-full border flex items-center gap-1 transition-colors ${order.paymentDetails.slipImage ? 'bg-blue-600 text-white border-blue-600 hover:bg-blue-700 shadow-sm' : 'bg-gray-100 text-gray-500 border-gray-300 cursor-not-allowed'}`}
+                                            disabled={isSlipExpired && !order.paymentDetails.slipImage}
+                                            className={`text-xs px-3 py-1.5 rounded-full border flex items-center gap-1 transition-colors ${
+                                                isSlipExpired 
+                                                    ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                                                    : order.paymentDetails.slipImage 
+                                                        ? 'bg-blue-600 text-white border-blue-600 hover:bg-blue-700 shadow-sm' 
+                                                        : 'bg-gray-100 text-gray-500 border-gray-300 cursor-not-allowed'
+                                            }`}
                                         >
                                             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
                                                 <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
                                             </svg>
-                                            {order.paymentDetails.slipImage ? 'ดูสลิป' : 'ไม่มีรูป'}
+                                            {isSlipExpired ? 'ลบอัตโนมัติ' : (order.paymentDetails.slipImage ? 'ดูสลิป' : 'ไม่มีรูป')}
                                         </button>
                                     )}
                                 </div>
@@ -192,7 +216,7 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({ order, o
             </div>
 
             {/* FULL SCREEN IMAGE VIEWER MODAL - IMPROVED SCROLLING */}
-            {isViewingSlip && order.paymentDetails.slipImage && (
+            {isViewingSlip && order.paymentDetails.slipImage && !isSlipExpired && (
                 <div 
                     className="fixed inset-0 z-[100] bg-black/95 flex flex-col animate-fade-in"
                     onClick={handleCloseSlip}

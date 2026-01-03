@@ -205,13 +205,13 @@ exports.cleanupOldData = functions.region('asia-southeast1').pubsub.schedule('0 
       console.error('Error cleaning storage:', error);
     }
 
-    // 2. Cleanup Base64 strings in Firestore Documents (New Collection)
     try {
         const branchesSnapshot = await admin.firestore().collection('branches').get();
         
         for (const branchDoc of branchesSnapshot.docs) {
             const branchId = branchDoc.id;
-            // Target the NEW collection 'completedOrders_v2'
+            
+            // 2. Cleanup New Collection 'completedOrders_v2'
             const ordersSnapshot = await admin.firestore().collection(`branches/${branchId}/completedOrders_v2`)
                 .where('completionTime', '<', cutoffTimestamp)
                 .get();
@@ -222,26 +222,43 @@ exports.cleanupOldData = functions.region('asia-southeast1').pubsub.schedule('0 
             for (const doc of ordersSnapshot.docs) {
                 const order = doc.data();
                 if (order.paymentDetails && order.paymentDetails.slipImage) {
-                    // Update document to remove slipImage
                     const docRef = admin.firestore().doc(`branches/${branchId}/completedOrders_v2/${doc.id}`);
-                    batch.update(docRef, {
-                        'paymentDetails.slipImage': null
-                    });
+                    batch.update(docRef, { 'paymentDetails.slipImage': null });
                     count++;
+                    if (count >= 400) { await batch.commit(); batch = admin.firestore().batch(); count = 0; }
+                }
+            }
+            if (count > 0) { await batch.commit(); }
+            console.log(`Cleaned up v2 slips in ${count} orders for branch ${branchId}`);
 
-                    // Batches limit is 500
-                    if (count >= 400) {
-                        await batch.commit();
-                        batch = admin.firestore().batch();
-                        count = 0;
+            // 3. Cleanup Legacy Array 'completedOrders/data'
+            const legacyDocRef = admin.firestore().doc(`branches/${branchId}/completedOrders/data`);
+            const legacyDoc = await legacyDocRef.get();
+            if (legacyDoc.exists) {
+                const data = legacyDoc.data();
+                if (data && Array.isArray(data.value)) {
+                    let hasChanges = false;
+                    const updatedOrders = data.value.map(order => {
+                        if (order.completionTime < cutoffTimestamp && order.paymentDetails && order.paymentDetails.slipImage) {
+                            hasChanges = true;
+                            // Return new object with null image
+                            return {
+                                ...order,
+                                paymentDetails: {
+                                    ...order.paymentDetails,
+                                    slipImage: null
+                                }
+                            };
+                        }
+                        return order;
+                    });
+
+                    if (hasChanges) {
+                        await legacyDocRef.update({ value: updatedOrders });
+                        console.log(`Cleaned up Legacy slips for branch ${branchId}`);
                     }
                 }
             }
-            
-            if (count > 0) {
-                await batch.commit();
-            }
-            console.log(`Cleaned up slips in ${count} orders for branch ${branchId}`);
         }
     } catch (error) {
         console.error('Error cleaning Firestore documents:', error);
