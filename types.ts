@@ -221,6 +221,8 @@ export interface StaffCall {
 }
 
 // --- NEW MAINTENANCE TYPES ---
+export type MaintenanceStatus = 'active' | 'broken' | 'repairing';
+
 export interface MaintenanceItem {
     id: number;
     name: string;
@@ -228,6 +230,7 @@ export interface MaintenanceItem {
     description?: string;
     cycleMonths: number; // 1 or 3
     lastMaintenanceDate: number | null; // timestamp
+    status?: MaintenanceStatus; // Operational status: active (normal), broken (broken), repairing (in repair)
 }
 
 export interface MaintenanceLog {

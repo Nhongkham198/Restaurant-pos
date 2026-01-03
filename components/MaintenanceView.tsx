@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useRef } from 'react';
-import type { MaintenanceItem, MaintenanceLog, User } from '../types';
+import type { MaintenanceItem, MaintenanceLog, User, MaintenanceStatus } from '../types';
 import Swal from 'sweetalert2';
 
 // Declare XLSX for Excel operations
@@ -32,7 +32,7 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
     currentUser
 }) => {
     // --- State ---
-    const [selectedTab, setSelectedTab] = useState<'status' | 'all' | 'history'>('status');
+    const [selectedTab, setSelectedTab] = useState<'status' | 'all' | 'history' | 'breakdown'>('status');
     const fileInputRef = useRef<HTMLInputElement>(null);
     
     // Manage Item Modal
@@ -71,40 +71,57 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
         const oneDay = 24 * 60 * 60 * 1000;
 
         return maintenanceItems.map(item => {
+            // Operational Status Override
+            if (item.status === 'broken' || item.status === 'repairing') {
+                return { ...item, maintenanceStatus: 'operational_issue', dueTimestamp: 0, daysDiff: 0 } as any;
+            }
+
             const lastDate = item.lastMaintenanceDate || 0;
             // Calculate Due Date
             const dueDate = new Date(lastDate);
             if (isNaN(dueDate.getTime())) {
                 // Handle invalid date
-                return { ...item, status: 'ok', dueTimestamp: 0, daysDiff: 0 } as any;
+                return { ...item, maintenanceStatus: 'ok', dueTimestamp: 0, daysDiff: 0 } as any;
             }
 
             dueDate.setMonth(dueDate.getMonth() + item.cycleMonths);
             const dueTimestamp = dueDate.getTime();
 
-            // Status Logic
-            let status: 'ok' | 'due_soon' | 'overdue' = 'ok';
+            // Maintenance Schedule Status
+            let maintenanceStatus: 'ok' | 'due_soon' | 'overdue' = 'ok';
             let daysDiff = Math.ceil((dueTimestamp - now) / oneDay);
 
             if (daysDiff < 0) {
-                status = 'overdue';
+                maintenanceStatus = 'overdue';
             } else if (daysDiff <= 7) { // Warn 7 days in advance
-                status = 'due_soon';
+                maintenanceStatus = 'due_soon';
             }
 
-            return { ...item, status, dueTimestamp, daysDiff };
+            return { ...item, maintenanceStatus, dueTimestamp, daysDiff };
         }).sort((a, b) => {
-            // Sort by priority: Overdue > Due Soon > OK
-            const priority = { overdue: 0, due_soon: 1, ok: 2 };
-            if (priority[a.status] !== priority[b.status]) {
-                return priority[a.status] - priority[b.status];
-            }
+            // Priority: Broken/Repairing > Overdue > Due Soon > OK
+            const priority = (item: any) => {
+                if (item.status === 'broken') return 0;
+                if (item.status === 'repairing') return 1;
+                if (item.maintenanceStatus === 'overdue') return 2;
+                if (item.maintenanceStatus === 'due_soon') return 3;
+                return 4;
+            };
+            
+            const pA = priority(a);
+            const pB = priority(b);
+            
+            if (pA !== pB) return pA - pB;
             return a.daysDiff - b.daysDiff;
         });
     }, [maintenanceItems]);
 
     const itemsDueOrOverdue = useMemo(() => {
-        return itemsWithStatus.filter(i => i.status !== 'ok');
+        return itemsWithStatus.filter(i => i.maintenanceStatus === 'due_soon' || i.maintenanceStatus === 'overdue');
+    }, [itemsWithStatus]);
+
+    const itemsBreakdown = useMemo(() => {
+        return itemsWithStatus.filter(i => i.status === 'broken' || i.status === 'repairing');
     }, [itemsWithStatus]);
 
     const canManage = useMemo(() => {
@@ -114,7 +131,40 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
 
     // --- Handlers ---
 
-    // Excel Export
+    const handleUpdateStatus = async (item: MaintenanceItem) => {
+        const { value: status } = await Swal.fire({
+            title: 'เปลี่ยนสถานะเครื่องจักร',
+            input: 'select',
+            inputOptions: {
+                active: '✅ ปกติ (ใช้งานได้)',
+                broken: '❌ เสีย / พัง',
+                repairing: '🛠️ กำลังส่งซ่อม'
+            },
+            inputValue: item.status || 'active',
+            showCancelButton: true,
+            confirmButtonText: 'บันทึก',
+            cancelButtonText: 'ยกเลิก',
+            inputValidator: (value) => {
+                if (!value) {
+                    return 'กรุณาเลือกสถานะ';
+                }
+            }
+        });
+
+        if (status) {
+            setMaintenanceItems(prev => prev.map(i => i.id === item.id ? { ...i, status: status as MaintenanceStatus } : i));
+            Swal.fire({
+                icon: 'success',
+                title: 'อัปเดตสถานะเรียบร้อย',
+                toast: true,
+                position: 'top-end',
+                showConfirmButton: false,
+                timer: 1500
+            });
+        }
+    };
+
+    // Excel Export (Updated to include status)
     const handleExportExcel = () => {
         // Sheet 1: Machines
         const machinesData = maintenanceItems.map(item => {
@@ -133,6 +183,7 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
             return {
                 ID: item.id,
                 Name: item.name,
+                Status: item.status || 'active',
                 Description: item.description || '',
                 CycleMonths: item.cycleMonths,
                 LastMaintenanceDate: dateStr,
@@ -200,7 +251,8 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
                         description: row.Description,
                         imageUrl: row.ImageURL,
                         cycleMonths: Number(row.CycleMonths) || 1,
-                        lastMaintenanceDate: row.LastMaintenanceDate ? new Date(row.LastMaintenanceDate).getTime() : null
+                        lastMaintenanceDate: row.LastMaintenanceDate ? new Date(row.LastMaintenanceDate).getTime() : null,
+                        status: row.Status || 'active'
                     }));
 
                     // Simple merge strategy: replace items with same ID, add new ones
@@ -208,11 +260,6 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
                     importedItems.forEach(item => itemMap.set(item.id, item));
                     newItems = Array.from(itemMap.values());
                 }
-
-                // Process History Sheet (Optional, usually we append logs)
-                let newLogs: MaintenanceLog[] = [...maintenanceLogs];
-                // Note: Importing logs back is tricky without full ID matching, skipping complex log import for safety
-                // or just append if user desires. For now, let's focus on machine definitions as primary import.
 
                 setMaintenanceItems(newItems);
                 Swal.fire('นำเข้าสำเร็จ', 'ข้อมูลเครื่องจักรถูกอัปเดตเรียบร้อยแล้ว', 'success');
@@ -281,7 +328,8 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
                 imageUrl: newItemImage,
                 description: newItemDesc,
                 cycleMonths: newItemCycle,
-                lastMaintenanceDate: lastDateTimestamp
+                lastMaintenanceDate: lastDateTimestamp,
+                status: 'active'
             };
             setMaintenanceItems(prev => [...prev, newItem]);
         }
@@ -350,7 +398,8 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
 
         setMaintenanceItems(prev => prev.map(i => i.id === performingItem.id ? {
             ...i,
-            lastMaintenanceDate: logDate
+            lastMaintenanceDate: logDate,
+            status: 'active' // If maintenance performed, assume it's active again
         } : i));
 
         setIsPerformModalOpen(false);
@@ -382,9 +431,6 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
 
         setMaintenanceLogs(prev => prev.map(l => l.id === editingLog.id ? updatedLog : l));
         
-        // Optionally update the item's last maintenance date if this was the latest log
-        // (Simplified: not implementing complex date recalculation for simplicity, assume manual update is enough)
-
         setIsEditLogModalOpen(false);
         Swal.fire('บันทึกสำเร็จ', 'แก้ไขประวัติการบำรุงรักษาเรียบร้อย', 'success');
     };
@@ -420,10 +466,21 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
 
     // --- Render Components ---
 
-    const StatusBadge = ({ status, days }: { status: string, days: number }) => {
-        if (status === 'overdue') return <span className="px-2 py-1 bg-red-100 text-red-800 text-xs font-bold rounded-full">เกินกำหนด {Math.abs(days)} วัน</span>;
-        if (status === 'due_soon') return <span className="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs font-bold rounded-full">ครบกำหนดใน {days} วัน</span>;
+    const StatusBadge = ({ maintenanceStatus, status, days }: { maintenanceStatus: string, status?: MaintenanceStatus, days: number }) => {
+        if (status === 'broken') return <span className="px-2 py-1 bg-red-600 text-white text-xs font-bold rounded-full animate-pulse shadow-sm">⚠️ เสีย/พัง</span>;
+        if (status === 'repairing') return <span className="px-2 py-1 bg-orange-500 text-white text-xs font-bold rounded-full shadow-sm">🔧 กำลังส่งซ่อม</span>;
+        
+        if (maintenanceStatus === 'overdue') return <span className="px-2 py-1 bg-red-100 text-red-800 text-xs font-bold rounded-full">เกินกำหนด {Math.abs(days)} วัน</span>;
+        if (maintenanceStatus === 'due_soon') return <span className="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs font-bold rounded-full">ครบกำหนดใน {days} วัน</span>;
         return <span className="px-2 py-1 bg-green-100 text-green-800 text-xs font-bold rounded-full">ปกติ</span>;
+    };
+
+    const getBorderColor = (item: any) => {
+        if (item.status === 'broken') return 'border-red-600 border-2 bg-red-50/30';
+        if (item.status === 'repairing') return 'border-orange-500 border-2 bg-orange-50/30';
+        if (item.maintenanceStatus === 'overdue') return 'border-red-300 bg-red-50';
+        if (item.maintenanceStatus === 'due_soon') return 'border-yellow-300 bg-yellow-50';
+        return 'bg-white border-gray-200';
     };
 
     return (
@@ -440,7 +497,7 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
             <div className="p-4 bg-white border-b flex flex-col md:flex-row justify-between items-center gap-4 flex-shrink-0">
                 <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                     </svg>
                     การบำรุงรักษา
@@ -452,7 +509,6 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
                             onClick={() => fileInputRef.current?.click()}
                             className="px-4 py-2 border border-green-600 text-green-600 rounded-lg hover:bg-green-50 font-semibold shadow-sm flex items-center gap-2"
                         >
-                            {/* Swapped to Arrow Down (Download style) for Import */}
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                             </svg>
@@ -462,7 +518,6 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
                             onClick={handleExportExcel}
                             className="px-4 py-2 border border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50 font-semibold shadow-sm flex items-center gap-2"
                         >
-                            {/* Swapped to Arrow Up (Upload style) for Export */}
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                             </svg>
@@ -482,10 +537,10 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
             </div>
 
             {/* Tabs */}
-            <div className="px-4 pt-4 flex gap-2 border-b bg-gray-50 flex-shrink-0">
+            <div className="px-4 pt-4 flex gap-2 border-b bg-gray-50 flex-shrink-0 overflow-x-auto">
                 <button 
                     onClick={() => setSelectedTab('status')}
-                    className={`px-4 py-2 font-semibold rounded-t-lg border-x border-t transition-all ${
+                    className={`px-4 py-2 font-semibold rounded-t-lg border-x border-t transition-all whitespace-nowrap ${
                         selectedTab === 'status' 
                         ? 'bg-white text-red-600 border-red-300 border-b-4 border-b-red-500' 
                         : 'text-gray-500 hover:bg-gray-200 border-transparent'
@@ -494,18 +549,28 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
                     ถึงกำหนด ({itemsDueOrOverdue.length})
                 </button>
                 <button 
+                    onClick={() => setSelectedTab('breakdown')}
+                    className={`px-4 py-2 font-semibold rounded-t-lg border-x border-t transition-all whitespace-nowrap ${
+                        selectedTab === 'breakdown' 
+                        ? 'bg-white text-orange-600 border-orange-300 border-b-4 border-b-orange-500' 
+                        : 'text-gray-500 hover:bg-gray-200 border-transparent'
+                    }`}
+                >
+                    แจ้งซ่อม/เสีย ({itemsBreakdown.length})
+                </button>
+                <button 
                     onClick={() => setSelectedTab('all')}
-                    className={`px-4 py-2 font-semibold rounded-t-lg border-x border-t transition-all ${
+                    className={`px-4 py-2 font-semibold rounded-t-lg border-x border-t transition-all whitespace-nowrap ${
                         selectedTab === 'all' 
                         ? 'bg-white text-blue-600 border-blue-300 border-b-4 border-b-blue-500' 
                         : 'text-gray-500 hover:bg-gray-200 border-transparent'
                     }`}
                 >
-                    เครื่องจักรทั้งหมด ({maintenanceItems.length})
+                    ทั้งหมด ({maintenanceItems.length})
                 </button>
                 <button 
                     onClick={() => setSelectedTab('history')}
-                    className={`px-4 py-2 font-semibold rounded-t-lg border-x border-t transition-all ${
+                    className={`px-4 py-2 font-semibold rounded-t-lg border-x border-t transition-all whitespace-nowrap ${
                         selectedTab === 'history' 
                         ? 'bg-white text-green-600 border-green-300 border-b-4 border-b-green-500' 
                         : 'text-gray-500 hover:bg-gray-200 border-transparent'
@@ -519,12 +584,16 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
             <div className="flex-1 overflow-y-auto p-4 w-full h-full">
                 {selectedTab !== 'history' ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
-                        {(selectedTab === 'status' ? itemsDueOrOverdue : itemsWithStatus).map(item => (
-                            <div key={item.id} className={`border rounded-xl shadow-sm overflow-hidden flex flex-col transition-shadow hover:shadow-md h-full ${item.status === 'overdue' ? 'border-red-300 bg-red-50' : item.status === 'due_soon' ? 'border-yellow-300 bg-yellow-50' : 'bg-white'}`}>
+                        {(
+                            selectedTab === 'status' ? itemsDueOrOverdue : 
+                            selectedTab === 'breakdown' ? itemsBreakdown :
+                            itemsWithStatus
+                        ).map(item => (
+                            <div key={item.id} className={`border rounded-xl shadow-sm overflow-hidden flex flex-col transition-shadow hover:shadow-md h-full ${getBorderColor(item)}`}>
                                 <div className="h-48 w-full bg-gray-200 relative flex-shrink-0">
                                     <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" />
                                     <div className="absolute top-2 right-2">
-                                        <StatusBadge status={item.status} days={item.daysDiff} />
+                                        <StatusBadge maintenanceStatus={item.maintenanceStatus} status={item.status} days={item.daysDiff} />
                                     </div>
                                     <div className="absolute bottom-0 left-0 right-0 bg-black/60 p-2 text-white">
                                         <h3 className="font-bold truncate">{item.name}</h3>
@@ -545,31 +614,50 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
                                                     : '-'}
                                             </span>
                                         </div>
-                                        <div className={`flex justify-between font-bold ${item.status === 'overdue' ? 'text-red-600' : 'text-gray-800'}`}>
-                                            <span>ครบกำหนด:</span>
-                                            <span>
-                                                {item.dueTimestamp && !isNaN(new Date(item.dueTimestamp).getTime())
-                                                    ? new Date(item.dueTimestamp).toLocaleDateString('th-TH')
-                                                    : '-'}
-                                            </span>
-                                        </div>
+                                        {/* Hide Due Date if Broken/Repairing as it's not relevant */}
+                                        {!item.status || item.status === 'active' ? (
+                                            <div className={`flex justify-between font-bold ${item.maintenanceStatus === 'overdue' ? 'text-red-600' : 'text-gray-800'}`}>
+                                                <span>ครบกำหนด:</span>
+                                                <span>
+                                                    {item.dueTimestamp && !isNaN(new Date(item.dueTimestamp).getTime())
+                                                        ? new Date(item.dueTimestamp).toLocaleDateString('th-TH')
+                                                        : '-'}
+                                                </span>
+                                            </div>
+                                        ) : (
+                                            <div className="text-center font-bold text-red-600 py-1 bg-red-100 rounded">
+                                                {item.status === 'broken' ? 'ระงับใช้งาน (เสีย)' : 'กำลังส่งซ่อม'}
+                                            </div>
+                                        )}
                                     </div>
-                                    <div className="flex gap-2">
-                                        <button 
-                                            onClick={() => handleOpenPerformModal(item)}
-                                            className="flex-1 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold shadow-sm transition-colors text-sm"
-                                        >
-                                            บำรุงรักษา
-                                        </button>
+                                    
+                                    <div className="flex flex-col gap-2">
+                                        <div className="flex gap-2">
+                                            <button 
+                                                onClick={() => handleOpenPerformModal(item)}
+                                                disabled={item.status !== 'active' && item.status !== undefined}
+                                                className={`flex-1 py-2 text-white rounded-lg font-semibold shadow-sm transition-colors text-sm ${item.status === 'broken' || item.status === 'repairing' ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'}`}
+                                            >
+                                                บำรุงรักษา
+                                            </button>
+                                            <button 
+                                                onClick={() => handleUpdateStatus(item)}
+                                                className={`px-3 py-2 rounded-lg font-semibold shadow-sm transition-colors text-sm ${item.status === 'broken' ? 'bg-red-600 text-white' : item.status === 'repairing' ? 'bg-orange-500 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+                                                title="แจ้งเสีย/ปรับสถานะ"
+                                            >
+                                                {item.status === 'broken' ? 'เสีย' : item.status === 'repairing' ? 'ซ่อม' : 'ปรับสถานะ'}
+                                            </button>
+                                        </div>
+                                        
                                         {canManage && (
-                                            <>
-                                                <button onClick={() => handleOpenManageModal(item)} className="px-3 py-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200" title="แก้ไข">
-                                                    ✏️
+                                            <div className="flex gap-2 justify-end mt-1 pt-2 border-t border-gray-200">
+                                                <button onClick={() => handleOpenManageModal(item)} className="text-xs text-blue-600 hover:underline">
+                                                    แก้ไขข้อมูล
                                                 </button>
-                                                <button onClick={() => handleDeleteItem(item.id)} className="px-3 py-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200" title="ลบ">
-                                                    🗑️
+                                                <button onClick={() => handleDeleteItem(item.id)} className="text-xs text-red-600 hover:underline">
+                                                    ลบ
                                                 </button>
-                                            </>
+                                            </div>
                                         )}
                                     </div>
                                 </div>
@@ -578,6 +666,11 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
                         {(selectedTab === 'status' && itemsDueOrOverdue.length === 0) && (
                             <div className="col-span-full text-center py-10 text-gray-500">
                                 <p className="text-lg">🎉 ไม่มีรายการที่ต้องบำรุงรักษาในขณะนี้</p>
+                            </div>
+                        )}
+                        {(selectedTab === 'breakdown' && itemsBreakdown.length === 0) && (
+                            <div className="col-span-full text-center py-10 text-gray-500">
+                                <p className="text-lg">✅ เครื่องจักรทุกเครื่องทำงานปกติ</p>
                             </div>
                         )}
                          {(selectedTab === 'all' && itemsWithStatus.length === 0) && (
