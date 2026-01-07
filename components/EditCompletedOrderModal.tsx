@@ -100,6 +100,15 @@ export const EditCompletedOrderModal: React.FC<EditCompletedOrderModalProps> = (
             }
         }
         onSave({ id: order.id, items: editedItems });
+        
+        Swal.fire({
+            icon: 'success',
+            title: 'บันทึกสำเร็จ',
+            text: 'แก้ไขออเดอร์เรียบร้อยแล้ว',
+            timer: 1500,
+            showConfirmButton: false
+        });
+        onClose();
     };
 
     if (!isOpen || !order) return null;
