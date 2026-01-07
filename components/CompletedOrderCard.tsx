@@ -98,8 +98,8 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({ order, o
     return (
         <>
             <div className={cardClasses}>
-                <header className={`p-4 flex justify-between items-center ${order.isDeleted ? 'bg-red-100/60' : 'bg-gray-50'}`} >
-                    <div className="flex items-center gap-4 flex-1">
+                <header className={`p-4 flex justify-between items-start ${order.isDeleted ? 'bg-red-100/60' : 'bg-gray-50'}`} >
+                    <div className="flex items-center gap-4 flex-1 overflow-hidden">
                         {isEditMode && (
                             <div className="p-2 flex-shrink-0">
                                 <input
@@ -110,7 +110,7 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({ order, o
                                 />
                             </div>
                         )}
-                        <div className="flex-1 cursor-pointer" onClick={() => setIsExpanded(!isExpanded)}>
+                        <div className="flex-1 cursor-pointer overflow-hidden" onClick={() => setIsExpanded(!isExpanded)}>
                             <div className="flex items-baseline gap-2 flex-wrap">
                                 <p className={`font-bold text-xl ${order.isDeleted ? 'text-red-700' : 'text-teal-700'}`}>
                                     <span className={order.isDeleted ? 'text-red-400' : 'text-gray-500'}>#</span>{String(order.orderNumber).padStart(3, '0')}
@@ -119,16 +119,19 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({ order, o
                                 {order.isDeleted && <span className="text-xs px-2 py-0.5 rounded-full bg-red-200 text-red-800 font-semibold">(ลบโดย: {order.deletedBy})</span>}
                             </div>
                             {order.customerName && !order.isDeleted && (
-                                <p className="text-base text-blue-700 font-semibold">{order.customerName}</p>
+                                <p className="text-base text-blue-700 font-semibold truncate">{order.customerName}</p>
                             )}
-                            <p className="text-sm text-gray-500 mt-1">{completionDate} <span className="text-gray-400">| ผู้ส่ง: {order.placedBy}</span> {order.completedBy && <span className="text-gray-400">| ผู้รับเงิน: {order.completedBy}</span>}</p>
+                            <p className="text-sm text-gray-500 mt-1 truncate">{completionDate} <span className="text-gray-400">| ผู้ส่ง: {order.placedBy}</span> {order.completedBy && <span className="text-gray-400">| ผู้รับเงิน: {order.completedBy}</span>}</p>
                         </div>
                     </div>
-                    <div className="flex items-center gap-4 cursor-pointer" onClick={() => setIsExpanded(!isExpanded)}>
-                        <p className={`text-2xl font-bold ${order.isDeleted ? 'text-red-700' : 'text-gray-800'}`}>{total.toLocaleString(undefined, { minimumFractionDigits: 2 })} ฿</p>
-                        <svg className={`w-5 h-5 text-gray-500 transition-transform ${isExpanded ? 'rotate-180' : ''}`} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                        </svg>
+                    
+                    <div className="flex items-center gap-3 cursor-pointer flex-shrink-0 ml-2" onClick={() => setIsExpanded(!isExpanded)}>
+                        <p className={`text-2xl font-bold whitespace-nowrap ${order.isDeleted ? 'text-red-700' : 'text-gray-800'}`}>{total.toLocaleString(undefined, { minimumFractionDigits: 2 })} ฿</p>
+                        <div className="flex-shrink-0">
+                            <svg className={`w-6 h-6 text-gray-500 transition-transform ${isExpanded ? 'rotate-180' : ''}`} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                            </svg>
+                        </div>
                     </div>
                 </header>
 
