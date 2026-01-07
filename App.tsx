@@ -1,10 +1,4 @@
 
-
-
-
-
-
-
 // ... existing imports
 // (Keeping all imports same as before)
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
@@ -441,6 +435,7 @@ const App: React.FC = () => {
     useEffect(() => {
         if (!isOnline) return;
         activeOrders.forEach(order => {
+            if (order.orderType === 'lineman') return; // Skip healing for LineMan orders as they have virtual table/floor
             const realTable = tables.find(t => t.id === order.tableId);
             if (realTable && (realTable.floor !== order.floor || realTable.name !== order.tableName)) {
                 // Self-healing: Update using the collection updater
@@ -850,9 +845,15 @@ const App: React.FC = () => {
         orderItems: OrderItem[] = currentOrderItems,
         custName: string = customerName,
         custCount: number = customerCount,
-        tableOverride: Table | null = selectedTable
+        tableOverride: Table | null = selectedTable,
+        isLineMan: boolean = false
     ) => {
-        if (!tableOverride || orderItems.length === 0) return;
+        // Validation: Must select table OR be LineMan
+        if (!isLineMan && !tableOverride) {
+            Swal.fire('กรุณาเลือกโต๊ะ', 'ต้องเลือกโต๊ะสำหรับออเดอร์ หรือเลือก LineMan', 'warning');
+            return;
+        }
+        if (orderItems.length === 0) return;
         if (!isOnline) {
             Swal.fire('เชื่อมต่ออินเทอร์เน็ตไม่ได้', 'ไม่สามารถสั่งอาหารได้ในขณะนี้', 'error');
             return;
@@ -884,21 +885,26 @@ const App: React.FC = () => {
                     originalOrderNumber: nextOrderId,
                 }));
 
+                // Handle Virtual Table for LineMan
+                const orderTableName = isLineMan ? 'LineMan' : (tableOverride ? tableOverride.name : 'Unknown');
+                const orderFloor = isLineMan ? 'Delivery' : (tableOverride ? tableOverride.floor : 'Unknown');
+                const orderTableId = isLineMan ? -99 : (tableOverride ? tableOverride.id : 0); // Use negative ID for LineMan
+
                 const newOrder: ActiveOrder = {
                     id: Date.now(), // Use timestamp as ID
                     orderNumber: nextOrderId,
-                    tableId: tableOverride.id,
-                    tableName: tableOverride.name,
+                    tableId: orderTableId,
+                    tableName: orderTableName,
                     customerName: custName,
-                    floor: tableOverride.floor,
+                    floor: orderFloor,
                     customerCount: custCount,
                     items: itemsWithOrigin,
                     status: (isCustomerMode || sendToKitchen) ? 'waiting' : 'served',
                     orderTime: Date.now(),
-                    orderType: 'dine-in',
+                    orderType: isLineMan ? 'lineman' : 'dine-in', // Handle new orderType
                     taxRate: isTaxEnabled ? taxRate : 0,
                     taxAmount: 0, 
-                    placedBy: currentUser ? currentUser.username : (custName || `โต๊ะ ${tableOverride.name}`),
+                    placedBy: currentUser ? currentUser.username : (custName || `โต๊ะ ${orderTableName}`),
                 };
                 const subtotal = newOrder.items.reduce((sum, item) => sum + item.finalPrice * item.quantity, 0);
                 newOrder.taxAmount = newOrder.taxRate > 0 ? subtotal * (newOrder.taxRate / 100) : 0;
@@ -943,9 +949,52 @@ const App: React.FC = () => {
         activeOrdersActions.update(orderId, { status: 'cooking', cookingStartTime: Date.now() });
     };
 
-    const handleCompleteOrder = (orderId: number) => {
+    const handleCompleteOrder = async (orderId: number) => {
         if (!isOnline) return;
-        activeOrdersActions.update(orderId, { status: 'served' });
+        
+        // Find the order to check its type
+        const order = activeOrders.find(o => o.id === orderId);
+        if (!order) return;
+
+        // If LineMan order, perform auto-complete (Transfer payment)
+        if (order.orderType === 'lineman') {
+            try {
+                // Auto-complete logic similar to handleConfirmPayment
+                const paymentDetails: PaymentDetails = { method: 'transfer' };
+                const completed: CompletedOrder = {
+                    ...order,
+                    status: 'completed',
+                    completionTime: Date.now(),
+                    paymentDetails: paymentDetails,
+                    completedBy: currentUser?.username || 'Auto-Kitchen'
+                };
+
+                // 1. Update status in Active Orders to 'completed'
+                await activeOrdersActions.update(orderId, { 
+                    status: 'completed', 
+                    completionTime: completed.completionTime,
+                    paymentDetails: paymentDetails
+                });
+
+                // 2. Add to Completed Orders Collection
+                await db.collection(`branches/${branchId}/completedOrders_v2`).doc(orderId.toString()).set(completed);
+                
+                Swal.fire({
+                    icon: 'success',
+                    title: 'LineMan Completed',
+                    text: `ออเดอร์ #${order.orderNumber} จบงานและบันทึกยอดขายแล้ว`,
+                    timer: 1500,
+                    showConfirmButton: false
+                });
+
+            } catch (error) {
+                console.error("Auto-complete failed", error);
+                Swal.fire('Error', 'Failed to auto-complete LineMan order', 'error');
+            }
+        } else {
+            // Standard Dine-in/Takeaway logic: Just mark as Served
+            activeOrdersActions.update(orderId, { status: 'served' });
+        }
     };
     
     const handleShowBill = (orderId: number) => {

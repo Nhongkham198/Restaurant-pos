@@ -1,5 +1,5 @@
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import type { OrderItem, Table, TakeawayCutleryOption, Reservation, User, View } from '../types';
 import { OrderListItem } from './OrderListItem';
 import Swal from 'sweetalert2';
@@ -9,7 +9,7 @@ interface SidebarProps {
     onQuantityChange: (cartItemId: string, newQuantity: number) => void;
     onRemoveItem: (cartItemId: string) => void;
     onClearOrder: () => void;
-    onPlaceOrder: () => void;
+    onPlaceOrder: (items: OrderItem[], customerName: string, customerCount: number, tableOverride: Table | null, isLineMan: boolean) => void;
     isPlacingOrder: boolean;
     tables: Table[];
     selectedTable: Table | null;
@@ -73,11 +73,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
     isMobilePage = false,
     onToggleAvailability,
 }) => {
+    const [isLineMan, setIsLineMan] = useState(false);
+
     const total = useMemo(() => {
         return currentOrderItems.reduce((sum, item) => sum + item.finalPrice * item.quantity, 0);
     }, [currentOrderItems]);
 
-    const canPlaceOrder = currentOrderItems.length > 0 && selectedTable !== null;
+    // If LineMan is checked, we allow placing order without a selected table
+    const canPlaceOrder = currentOrderItems.length > 0 && (selectedTable !== null || isLineMan);
     
     const availableTables = useMemo(() => {
         return tables.filter(t => t.floor === selectedFloor).sort((a, b) => {
@@ -106,13 +109,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
     };
 
     const handleConfirmPlaceOrder = () => {
-        if (selectedTable === null) {
-            Swal.fire('กรุณาเลือกโต๊ะ', 'ต้องเลือกโต๊ะสำหรับออเดอร์', 'warning');
+        if (!isLineMan && selectedTable === null) {
+            Swal.fire('กรุณาเลือกโต๊ะ', 'ต้องเลือกโต๊ะสำหรับออเดอร์ หรือเลือก LineMan', 'warning');
             return;
         }
         if (!canPlaceOrder) return;
 
-        onPlaceOrder();
+        // If LineMan, we pass a dummy table object or let App.tsx handle it.
+        // We'll update the onPlaceOrder signature to accept isLineMan flag.
+        onPlaceOrder(currentOrderItems, customerName, customerCount, selectedTable, isLineMan);
+        
+        // Reset local state after order is placed (though parent usually handles clearing order items)
+        if (isLineMan) {
+            setIsLineMan(false);
+        }
     };
     
     const handleFloorChange = (floor: string) => {
@@ -279,8 +289,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     />
                 </div>
 
-                {/* Floor Selection */}
-                <div>
+                {/* Floor Selection (Disable if LineMan) */}
+                <div className={isLineMan ? "opacity-50 pointer-events-none" : ""}>
                     <label className="text-xs font-medium text-gray-400">เลือกชั้น:</label>
                     <div className="mt-1 grid grid-cols-2 gap-2">
                         {floors.map(floor => (
@@ -297,7 +307,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
                 {/* Table and Customer Count */}
                 <div className="grid grid-cols-2 gap-4">
-                    <div>
+                    <div className={isLineMan ? "opacity-50 pointer-events-none" : ""}>
                         <label htmlFor="table-select" className="block text-xs font-medium text-gray-400 mb-1">เลือกโต๊ะ:</label>
                         <select
                             id="table-select"
@@ -327,8 +337,33 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     </div>
                 </div>
 
+                {/* LineMan Checkbox - Hide on mobile (use footer button instead) */}
+                {!isMobilePage && (
+                    <div className="bg-gray-800 p-2 rounded-lg border border-gray-700">
+                        <label className="flex items-center gap-3 cursor-pointer">
+                            <div className="relative flex items-center">
+                                <input
+                                    type="checkbox"
+                                    checked={isLineMan}
+                                    onChange={(e) => {
+                                        setIsLineMan(e.target.checked);
+                                        if (e.target.checked) {
+                                            onSelectTable(null); // Clear table selection
+                                        }
+                                    }}
+                                    className="peer h-6 w-6 cursor-pointer appearance-none rounded border border-gray-500 bg-gray-700 checked:bg-green-500 checked:border-green-500 transition-all"
+                                />
+                                <svg className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-4 h-4 text-white opacity-0 peer-checked:opacity-100 pointer-events-none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
+                                    <polyline points="20 6 9 17 4 12"></polyline>
+                                </svg>
+                            </div>
+                            <span className={`font-bold text-lg ${isLineMan ? 'text-green-400' : 'text-gray-300'}`}>LineMan (เดลิเวอรี่)</span>
+                        </label>
+                    </div>
+                )}
+
                 {/* Reservation button */}
-                {selectedTable && !isMobilePage && (
+                {selectedTable && !isMobilePage && !isLineMan && (
                     <div>
                         <button
                             onClick={handleReservationClick}
@@ -392,16 +427,39 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 </div>
 
                 <div className="grid grid-cols-3 gap-3">
-                    <button
-                        onClick={onClearOrder}
-                        className="col-span-1 bg-gray-800 border border-gray-700 p-3 rounded-xl hover:bg-gray-700 hover:border-gray-600 hover:text-white text-gray-400 font-semibold transition-all"
-                    >
-                        ล้าง
-                    </button>
+                    {isMobilePage ? (
+                        <button
+                            onClick={() => {
+                                const newState = !isLineMan;
+                                setIsLineMan(newState);
+                                if (newState) onSelectTable(null);
+                            }}
+                            className={`col-span-1 flex flex-col items-center justify-center p-2 rounded-xl font-bold transition-all border leading-none gap-1 active:scale-95 ${
+                                isLineMan 
+                                    ? 'bg-green-600 text-white border-green-500 shadow-lg shadow-green-900/50' 
+                                    : 'bg-gray-800 text-gray-400 border-gray-700 hover:bg-gray-700 hover:text-white'
+                            }`}
+                        >
+                            <span>LineMan</span>
+                            <div className={`w-1.5 h-1.5 rounded-full ${isLineMan ? 'bg-white' : 'bg-gray-600'}`}></div>
+                        </button>
+                    ) : (
+                        <button
+                            onClick={onClearOrder}
+                            className="col-span-1 bg-gray-800 border border-gray-700 p-3 rounded-xl hover:bg-gray-700 hover:border-gray-600 hover:text-white text-gray-400 font-semibold transition-all"
+                        >
+                            ล้าง
+                        </button>
+                    )}
+                    
                     <button
                         onClick={handleConfirmPlaceOrder}
                         disabled={isPlacingOrder}
-                        className="col-span-2 flex-grow bg-blue-600 p-3 rounded-xl hover:bg-blue-700 text-white font-bold shadow-lg shadow-blue-900/30 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-all transform active:scale-95"
+                        className={`col-span-2 flex-grow p-3 rounded-xl text-white font-bold shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-all transform active:scale-95 ${
+                            isLineMan 
+                                ? 'bg-green-600 hover:bg-green-700 shadow-green-900/30' 
+                                : 'bg-blue-600 hover:bg-blue-700 shadow-blue-900/30'
+                        }`}
                     >
                         {isPlacingOrder ? (
                             <>
@@ -411,7 +469,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         ) : !canPlaceOrder ? (
                             'กรุณาเลือกโต๊ะ'
                         ) : (
-                            'ยืนยันออเดอร์'
+                            isLineMan ? 'ยืนยัน (LineMan)' : 'ยืนยันออเดอร์'
                         )}
                     </button>
                 </div>

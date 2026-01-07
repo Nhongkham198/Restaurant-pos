@@ -30,6 +30,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
     
     // NEW: State for Category Filtering
     const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string | null>(null);
+    // NEW: State for Order Type Filtering (LineMan, Dine-in, Takeaway)
+    const [selectedOrderTypeFilter, setSelectedOrderTypeFilter] = useState<string | null>(null);
 
     // Check permissions for monthly view
     const canViewMonthly = useMemo(() => {
@@ -76,11 +78,21 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
         }
     };
 
-    const handleClearFilter = () => {
-        setSelectedCategoryFilter(null);
+    const handleOrderTypeClick = (typeLabel: string) => {
+        // Toggle
+        if (selectedOrderTypeFilter === typeLabel) {
+            setSelectedOrderTypeFilter(null);
+        } else {
+            setSelectedOrderTypeFilter(typeLabel);
+        }
     };
 
-    // Filter orders based on the selected local date/month AND role visibility
+    const handleClearFilter = () => {
+        setSelectedCategoryFilter(null);
+        setSelectedOrderTypeFilter(null);
+    };
+
+    // Filter orders based on the selected local date/month AND role visibility AND filters
     const filteredCompletedOrders = useMemo(() => {
         let orders = completedOrders;
         
@@ -91,17 +103,40 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
 
         return orders.filter(order => {
             const orderDate = new Date(order.completionTime);
+            let matchesDate = false;
             
             if (viewMode === 'monthly') {
-                return orderDate.getMonth() === selectedDate.getMonth() &&
-                       orderDate.getFullYear() === selectedDate.getFullYear();
+                matchesDate = orderDate.getMonth() === selectedDate.getMonth() &&
+                              orderDate.getFullYear() === selectedDate.getFullYear();
+            } else {
+                matchesDate = orderDate.getDate() === selectedDate.getDate() &&
+                              orderDate.getMonth() === selectedDate.getMonth() &&
+                              orderDate.getFullYear() === selectedDate.getFullYear();
             }
 
-            return orderDate.getDate() === selectedDate.getDate() &&
-                   orderDate.getMonth() === selectedDate.getMonth() &&
-                   orderDate.getFullYear() === selectedDate.getFullYear();
+            if (!matchesDate) return false;
+
+            // Apply Order Type Filter (LineMan/Takeaway/Dine-in)
+            if (selectedOrderTypeFilter) {
+                const isLineMan = order.orderType === 'lineman';
+                const isTakeawayOrder = order.orderType === 'takeaway';
+                // Check if any item is takeaway (hybrid order)
+                const hasTakeawayItems = order.items.some(i => i.isTakeaway);
+
+                if (selectedOrderTypeFilter === 'LineMan') {
+                    if (!isLineMan) return false;
+                } else if (selectedOrderTypeFilter === 'กลับบ้าน') {
+                    // Include if order is strictly takeaway OR has takeaway items
+                    if (!isTakeawayOrder && !hasTakeawayItems) return false;
+                } else if (selectedOrderTypeFilter === 'ทานที่ร้าน') {
+                    // Strictly Dine-in order type
+                    if (order.orderType !== 'dine-in') return false;
+                }
+            }
+
+            return true;
         });
-    }, [completedOrders, selectedDate, currentUser, viewMode]);
+    }, [completedOrders, selectedDate, currentUser, viewMode, selectedOrderTypeFilter]);
 
     const filteredCancelledOrders = useMemo(() => {
         let orders = cancelledOrders;
@@ -113,22 +148,45 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
 
         return orders.filter(order => {
             const orderDate = new Date(order.cancellationTime);
+            let matchesDate = false;
             
             if (viewMode === 'monthly') {
-                return orderDate.getMonth() === selectedDate.getMonth() &&
-                       orderDate.getFullYear() === selectedDate.getFullYear();
+                matchesDate = orderDate.getMonth() === selectedDate.getMonth() &&
+                              orderDate.getFullYear() === selectedDate.getFullYear();
+            } else {
+                matchesDate = orderDate.getDate() === selectedDate.getDate() &&
+                              orderDate.getMonth() === selectedDate.getMonth() &&
+                              orderDate.getFullYear() === selectedDate.getFullYear();
             }
 
-            return orderDate.getDate() === selectedDate.getDate() &&
-                   orderDate.getMonth() === selectedDate.getMonth() &&
-                   orderDate.getFullYear() === selectedDate.getFullYear();
+            if (!matchesDate) return false;
+
+            // Apply Order Type Filter
+            if (selectedOrderTypeFilter) {
+                const isLineMan = order.orderType === 'lineman';
+                if (selectedOrderTypeFilter === 'LineMan' && !isLineMan) return false;
+                if (selectedOrderTypeFilter === 'ทานที่ร้าน' && (isLineMan || order.orderType === 'takeaway')) return false;
+                // Simplified check for cancellation logs
+            }
+
+            return true;
         });
-    }, [cancelledOrders, selectedDate, currentUser, viewMode]);
+    }, [cancelledOrders, selectedDate, currentUser, viewMode, selectedOrderTypeFilter]);
 
     const dailyStats = useMemo(() => {
         const totalSales = filteredCompletedOrders.reduce((sum, order) => {
-            const subtotal = order.items.reduce((itemSum, item) => itemSum + item.finalPrice * item.quantity, 0);
-            return sum + subtotal + order.taxAmount;
+            const subtotal = order.items.reduce((itemSum, item) => {
+                // Apply Category Filter to Sum if active
+                if (selectedCategoryFilter && (item.category || 'ไม่มีหมวดหมู่') !== selectedCategoryFilter) {
+                    return itemSum;
+                }
+                return itemSum + item.finalPrice * item.quantity;
+            }, 0);
+            
+            // If category filter is active, we don't include tax in the stat card usually, 
+            // or we approximate it. For now, let's include tax only if no category filter 
+            // OR if we assume tax applies proportionally (simplifying to exclude tax when filtering items for clarity)
+            return sum + subtotal + (selectedCategoryFilter ? 0 : order.taxAmount);
         }, 0);
         
         const totalCustomers = filteredCompletedOrders.reduce((sum, order) => sum + order.customerCount, 0);
@@ -141,7 +199,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
             totalCustomers,
             averagePerCustomer
         };
-    }, [filteredCompletedOrders, filteredCancelledOrders]);
+    }, [filteredCompletedOrders, filteredCancelledOrders, selectedCategoryFilter]);
 
     // UPDATED: Chart Data Logic to support Category Filter
     const chartData = useMemo(() => {
@@ -227,12 +285,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
         }
     }, [filteredCompletedOrders, openingTime, closingTime, viewMode, selectedDate, selectedCategoryFilter]);
 
-    // UPDATED: Order Item Type Data with Filter Logic
+    // UPDATED: Order Item Type Data with Filter Logic - Including LineMan
     const orderItemTypeData = useMemo(() => {
         let dineInItems = 0;
         let takeawayItems = 0;
+        let linemanItems = 0;
         
         filteredCompletedOrders.forEach(order => {
+            // Count based on order type first, but also check individual items if needed
+            const isLineManOrder = order.orderType === 'lineman';
+            
             order.items.forEach(item => {
                 // Apply filter if selected
                 if (selectedCategoryFilter) {
@@ -240,7 +302,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
                     if (itemCategory !== selectedCategoryFilter) return;
                 }
 
-                if (item.isTakeaway) {
+                if (isLineManOrder) {
+                    linemanItems += item.quantity;
+                } else if (item.isTakeaway) {
                     takeawayItems += item.quantity;
                 } else {
                     dineInItems += item.quantity;
@@ -249,16 +313,20 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
         });
 
         return {
-            title: selectedCategoryFilter ? `ประเภทรายการ: ${selectedCategoryFilter}` : 'ประเภทรายการ (ทานที่ร้าน / กลับบ้าน)',
-            labels: ['ทานที่ร้าน', 'กลับบ้าน'],
-            data: [dineInItems, takeawayItems],
-            colors: ['#3b82f6', '#8b5cf6']
+            title: selectedCategoryFilter ? `ประเภทรายการ: ${selectedCategoryFilter}` : 'ประเภทรายการ (ทานที่ร้าน / กลับบ้าน / LineMan)',
+            labels: ['ทานที่ร้าน', 'กลับบ้าน', 'LineMan'],
+            data: [dineInItems, takeawayItems, linemanItems],
+            colors: ['#3b82f6', '#8b5cf6', '#10b981'] // Blue, Purple, Green (LineMan)
         };
     }, [filteredCompletedOrders, selectedCategoryFilter]);
 
     // Category sales data remains independent of the filter (it acts AS the filter control)
     const categorySalesData = useMemo(() => {
         const salesByCategory: Record<string, number> = {};
+        // We iterate over filteredCompletedOrders which respects OrderType filter but NOT Category filter yet (for this chart)
+        // Wait, filteredCompletedOrders DOES NOT respect category filter. Category filter is applied IN the reduce functions above.
+        // So this chart shows the distribution of the CURRENT filtered orders (by date & order type).
+        
         filteredCompletedOrders.forEach(order => {
             order.items.forEach(item => {
                 const category = item.category || 'ไม่มีหมวดหมู่';
@@ -343,17 +411,19 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
             </div>
 
             {/* Filter Indicator */}
-            {selectedCategoryFilter && (
+            {(selectedCategoryFilter || selectedOrderTypeFilter) && (
                 <div className="bg-blue-50 border border-blue-200 text-blue-800 px-4 py-3 rounded-lg flex items-center justify-between animate-fade-in-up">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                             <path fillRule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v3a1 1 0 01-.293.707L12 11.414V15a1 1 0 01-.293.707l-2 2A1 1 0 018 17v-5.586L3.293 6.707A1 1 0 013 6V3z" clipRule="evenodd" />
                         </svg>
-                        <span>กำลังแสดงข้อมูลเฉพาะหมวดหมู่: <strong>{selectedCategoryFilter}</strong></span>
+                        <span>กำลังแสดงข้อมูล:</span>
+                        {selectedOrderTypeFilter && <span className="bg-blue-200 text-blue-900 px-2 py-0.5 rounded text-sm font-bold">{selectedOrderTypeFilter}</span>}
+                        {selectedCategoryFilter && <span className="bg-blue-200 text-blue-900 px-2 py-0.5 rounded text-sm font-bold">{selectedCategoryFilter}</span>}
                     </div>
                     <button 
                         onClick={handleClearFilter}
-                        className="text-sm font-semibold hover:underline text-blue-600"
+                        className="text-sm font-semibold hover:underline text-blue-600 whitespace-nowrap ml-2"
                     >
                         ล้างตัวกรอง
                     </button>
@@ -383,6 +453,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
                         data={orderItemTypeData.data}
                         labels={orderItemTypeData.labels}
                         colors={orderItemTypeData.colors}
+                        onSliceClick={handleOrderTypeClick}
+                        selectedLabel={selectedOrderTypeFilter}
                     />
                 </div>
             </div>

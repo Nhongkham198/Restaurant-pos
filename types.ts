@@ -80,7 +80,7 @@ interface BaseOrder {
     floor: string;
     customerCount: number;
     items: OrderItem[];
-    orderType: 'dine-in' | 'takeaway';
+    orderType: 'dine-in' | 'takeaway' | 'lineman';
     taxRate: number;
     taxAmount: number;
     placedBy: string;

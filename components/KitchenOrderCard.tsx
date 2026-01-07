@@ -36,16 +36,18 @@ export const KitchenOrderCard: React.FC<KitchenOrderCardProps> = ({ order, onCom
 
     const isCooking = order.status === 'cooking';
     const isOverdue = order.isOverdue ?? false;
+    const isLineMan = order.orderType === 'lineman';
     const isTakeaway = order.orderType === 'takeaway' || order.items.some(i => i.isTakeaway);
 
     // KDS Style Colors
     const headerColor = useMemo(() => {
+        if (isLineMan) return 'bg-green-600'; // Specific green for LineMan
         if (isOverdue) return 'bg-red-600';
-        if (isCooking) return 'bg-green-600';
+        if (isCooking) return 'bg-green-600'; // Same green for cooking, but LineMan takes precedent visually in label
         return 'bg-blue-600'; // Waiting
-    }, [isCooking, isOverdue]);
+    }, [isCooking, isOverdue, isLineMan]);
 
-    const typeLabel = isTakeaway ? 'TAKE AWAY' : 'EAT IN';
+    const typeLabel = isLineMan ? 'LINEMAN' : (isTakeaway ? 'TAKE AWAY' : 'EAT IN');
     
     return (
         <div className="flex flex-col bg-gray-800 text-white rounded-lg overflow-hidden border-2 border-gray-700 shadow-xl h-full transform transition-all duration-200 hover:scale-[1.02]">
@@ -58,7 +60,7 @@ export const KitchenOrderCard: React.FC<KitchenOrderCardProps> = ({ order, onCom
                 </div>
                 <div className="flex flex-col items-end">
                     <span className="text-3xl font-mono font-bold">{formatTime(elapsedSeconds)}</span>
-                    <span className="text-xs font-bold opacity-90 truncate max-w-[100px]">โต๊ะ {order.tableName}</span>
+                    <span className="text-xs font-bold opacity-90 truncate max-w-[100px]">{isLineMan ? 'Delivery' : `โต๊ะ ${order.tableName}`}</span>
                 </div>
             </div>
 
@@ -82,7 +84,7 @@ export const KitchenOrderCard: React.FC<KitchenOrderCardProps> = ({ order, onCom
                                 </span>
                             </div>
                             
-                            {item.isTakeaway && (
+                            {(item.isTakeaway || isLineMan) && (
                                 <span className="text-xs font-bold text-purple-400 uppercase mt-0.5">*** กลับบ้าน ***</span>
                             )}
 
@@ -100,7 +102,7 @@ export const KitchenOrderCard: React.FC<KitchenOrderCardProps> = ({ order, onCom
                                 </div>
                             )}
 
-                            {item.isTakeaway && item.takeawayCutlery && item.takeawayCutlery.length > 0 && (
+                            {(item.isTakeaway || isLineMan) && item.takeawayCutlery && item.takeawayCutlery.length > 0 && (
                                 <div className="text-xs text-purple-300 pl-2 mt-1">
                                     [รับ: {item.takeawayCutlery.map(c => 
                                         c === 'spoon-fork' ? 'ช้อนส้อม' : 
@@ -122,7 +124,7 @@ export const KitchenOrderCard: React.FC<KitchenOrderCardProps> = ({ order, onCom
                         onClick={() => onCompleteOrder(order.id)}
                         className="w-full bg-gray-700 hover:bg-green-600 text-white font-bold py-3 rounded text-xl uppercase tracking-widest transition-colors border-2 border-gray-600 hover:border-green-500"
                     >
-                        BUMP (เสิร์ฟ)
+                        {isLineMan ? 'COMPLETE (จบงาน)' : 'BUMP (เสิร์ฟ)'}
                     </button>
                 ) : (
                     <button
