@@ -111,22 +111,24 @@ export const KitchenOrderCard: React.FC<KitchenOrderCardProps> = ({ order, onCom
                                 className={`flex flex-col border-b border-gray-700 pb-2 last:border-0 last:pb-0 transition-all duration-200 ${isChecked ? 'opacity-40' : 'opacity-100'}`}
                             >
                                 <div 
-                                    className="flex items-start justify-between cursor-pointer group"
-                                    onClick={() => handleToggleItem(item.cartItemId)}
+                                    className={`flex items-start justify-between ${isCooking ? 'cursor-pointer group' : ''}`}
+                                    onClick={() => isCooking && handleToggleItem(item.cartItemId)}
                                 >
                                     <div className="flex items-center gap-3 flex-1">
-                                        {/* Checkbox Circle */}
-                                        <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${
-                                            isChecked 
-                                                ? 'bg-green-500 border-green-500' 
-                                                : 'border-gray-500 group-hover:border-gray-300'
-                                        }`}>
-                                            {isChecked && (
-                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-white" viewBox="0 0 20 20" fill="currentColor">
-                                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                                </svg>
-                                            )}
-                                        </div>
+                                        {/* Checkbox Circle - Only show when cooking */}
+                                        {isCooking && (
+                                            <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${
+                                                isChecked 
+                                                    ? 'bg-green-500 border-green-500' 
+                                                    : 'border-gray-500 group-hover:border-gray-300'
+                                            }`}>
+                                                {isChecked && (
+                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-white" viewBox="0 0 20 20" fill="currentColor">
+                                                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                                    </svg>
+                                                )}
+                                            </div>
+                                        )}
 
                                         <span className={`font-bold text-lg leading-tight transition-colors ${
                                             isChecked ? 'text-gray-400 line-through' : 'text-white'
@@ -144,7 +146,7 @@ export const KitchenOrderCard: React.FC<KitchenOrderCardProps> = ({ order, onCom
                                     </span>
                                 </div>
                                 
-                                <div className={`pl-9 transition-opacity ${isChecked ? 'opacity-50' : 'opacity-100'}`}>
+                                <div className={`${isCooking ? 'pl-9' : 'pl-0'} transition-opacity ${isChecked ? 'opacity-50' : 'opacity-100'}`}>
                                     {(item.isTakeaway || isLineMan) && (
                                         <span className="text-xs font-bold text-purple-400 uppercase mt-0.5 block">*** กลับบ้าน ***</span>
                                     )}
