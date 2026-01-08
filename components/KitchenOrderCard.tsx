@@ -16,6 +16,16 @@ const formatTime = (totalSeconds: number) => {
 
 export const KitchenOrderCard: React.FC<KitchenOrderCardProps> = ({ order, onCompleteOrder, onStartCooking }) => {
     const [elapsedSeconds, setElapsedSeconds] = useState(0);
+    
+    // Checklist state: Persist to localStorage to survive page refreshes
+    const [checkedItems, setCheckedItems] = useState<Set<string>>(() => {
+        try {
+            const saved = localStorage.getItem(`checklist_${order.id}`);
+            return saved ? new Set(JSON.parse(saved)) : new Set();
+        } catch (e) {
+            return new Set();
+        }
+    });
 
     useEffect(() => {
         const calculateElapsedTime = () => {
@@ -33,6 +43,25 @@ export const KitchenOrderCard: React.FC<KitchenOrderCardProps> = ({ order, onCom
 
         return () => clearInterval(timer);
     }, [order.status, order.orderTime, order.cookingStartTime]);
+
+    const handleToggleItem = (cartItemId: string) => {
+        setCheckedItems(prev => {
+            const next = new Set(prev);
+            if (next.has(cartItemId)) {
+                next.delete(cartItemId);
+            } else {
+                next.add(cartItemId);
+            }
+            localStorage.setItem(`checklist_${order.id}`, JSON.stringify(Array.from(next)));
+            return next;
+        });
+    };
+
+    const handleComplete = () => {
+        // Clean up storage when order is completed
+        localStorage.removeItem(`checklist_${order.id}`);
+        onCompleteOrder(order.id);
+    };
 
     const isCooking = order.status === 'cooking';
     const isOverdue = order.isOverdue ?? false;
@@ -73,47 +102,81 @@ export const KitchenOrderCard: React.FC<KitchenOrderCardProps> = ({ order, onCom
             {/* Order Items List - NO SCROLL, FULL HEIGHT */}
             <div className="p-3 flex-1 flex flex-col gap-2">
                 <ul className="space-y-3">
-                    {order.items.map((item, idx) => (
-                        <li key={item.cartItemId || idx} className="flex flex-col border-b border-gray-700 pb-2 last:border-0 last:pb-0">
-                            <div className="flex items-start justify-between">
-                                <span className="font-bold text-lg text-white leading-tight">
-                                    {item.name}
-                                </span>
-                                <span className="font-black text-xl text-yellow-400 bg-gray-700 px-2 rounded ml-2 min-w-[2rem] text-center">
-                                    {item.quantity}
-                                </span>
-                            </div>
-                            
-                            {(item.isTakeaway || isLineMan) && (
-                                <span className="text-xs font-bold text-purple-400 uppercase mt-0.5">*** กลับบ้าน ***</span>
-                            )}
+                    {order.items.map((item, idx) => {
+                        const isChecked = checkedItems.has(item.cartItemId);
+                        
+                        return (
+                            <li 
+                                key={item.cartItemId || idx} 
+                                className={`flex flex-col border-b border-gray-700 pb-2 last:border-0 last:pb-0 transition-all duration-200 ${isChecked ? 'opacity-40' : 'opacity-100'}`}
+                            >
+                                <div 
+                                    className="flex items-start justify-between cursor-pointer group"
+                                    onClick={() => handleToggleItem(item.cartItemId)}
+                                >
+                                    <div className="flex items-center gap-3 flex-1">
+                                        {/* Checkbox Circle */}
+                                        <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${
+                                            isChecked 
+                                                ? 'bg-green-500 border-green-500' 
+                                                : 'border-gray-500 group-hover:border-gray-300'
+                                        }`}>
+                                            {isChecked && (
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-white" viewBox="0 0 20 20" fill="currentColor">
+                                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                                </svg>
+                                            )}
+                                        </div>
 
-                            {(item.selectedOptions && item.selectedOptions.length > 0) && (
-                                <div className="text-sm text-cyan-300 pl-2 mt-1 border-l-2 border-cyan-500/30">
-                                    {item.selectedOptions.map(opt => (
-                                        <div key={opt.id}>+ {opt.name}</div>
-                                    ))}
-                                </div>
-                            )}
+                                        <span className={`font-bold text-lg leading-tight transition-colors ${
+                                            isChecked ? 'text-gray-400 line-through' : 'text-white'
+                                        }`}>
+                                            {item.name}
+                                        </span>
+                                    </div>
 
-                            {item.notes && (
-                                <div className="text-sm font-bold text-red-300 bg-red-900/30 p-1 rounded mt-1 border border-red-800/50">
-                                    Note: {item.notes}
+                                    <span className={`font-black text-xl px-2 rounded ml-2 min-w-[2rem] text-center transition-colors ${
+                                        isChecked 
+                                            ? 'text-gray-500 bg-gray-800' 
+                                            : 'text-yellow-400 bg-gray-700'
+                                    }`}>
+                                        {item.quantity}
+                                    </span>
                                 </div>
-                            )}
+                                
+                                <div className={`pl-9 transition-opacity ${isChecked ? 'opacity-50' : 'opacity-100'}`}>
+                                    {(item.isTakeaway || isLineMan) && (
+                                        <span className="text-xs font-bold text-purple-400 uppercase mt-0.5 block">*** กลับบ้าน ***</span>
+                                    )}
 
-                            {(item.isTakeaway || isLineMan) && item.takeawayCutlery && item.takeawayCutlery.length > 0 && (
-                                <div className="text-xs text-purple-300 pl-2 mt-1">
-                                    [รับ: {item.takeawayCutlery.map(c => 
-                                        c === 'spoon-fork' ? 'ช้อนส้อม' : 
-                                        c === 'chopsticks' ? 'ตะเกียบ' : 
-                                        c === 'other' ? item.takeawayCutleryNotes : 
-                                        'ไม่รับ'
-                                    ).join(', ')}]
+                                    {(item.selectedOptions && item.selectedOptions.length > 0) && (
+                                        <div className="text-sm text-cyan-300 mt-1 border-l-2 border-cyan-500/30 pl-2">
+                                            {item.selectedOptions.map(opt => (
+                                                <div key={opt.id}>+ {opt.name}</div>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    {item.notes && (
+                                        <div className="text-sm font-bold text-red-300 bg-red-900/30 p-1 rounded mt-1 border border-red-800/50">
+                                            Note: {item.notes}
+                                        </div>
+                                    )}
+
+                                    {(item.isTakeaway || isLineMan) && item.takeawayCutlery && item.takeawayCutlery.length > 0 && (
+                                        <div className="text-xs text-purple-300 mt-1">
+                                            [รับ: {item.takeawayCutlery.map(c => 
+                                                c === 'spoon-fork' ? 'ช้อนส้อม' : 
+                                                c === 'chopsticks' ? 'ตะเกียบ' : 
+                                                c === 'other' ? item.takeawayCutleryNotes : 
+                                                'ไม่รับ'
+                                            ).join(', ')}]
+                                        </div>
+                                    )}
                                 </div>
-                            )}
-                        </li>
-                    ))}
+                            </li>
+                        );
+                    })}
                 </ul>
             </div>
 
@@ -121,7 +184,7 @@ export const KitchenOrderCard: React.FC<KitchenOrderCardProps> = ({ order, onCom
             <div className="p-2 bg-gray-800 border-t border-gray-700">
                 {isCooking ? (
                     <button
-                        onClick={() => onCompleteOrder(order.id)}
+                        onClick={handleComplete}
                         className="w-full bg-gray-700 hover:bg-green-600 text-white font-bold py-3 rounded text-xl uppercase tracking-widest transition-colors border-2 border-gray-600 hover:border-green-500"
                     >
                         {isLineMan ? 'COMPLETE (จบงาน)' : 'BUMP (เสิร์ฟ)'}
