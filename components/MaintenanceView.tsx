@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import type { MaintenanceItem, MaintenanceLog, User, MaintenanceStatus } from '../types';
 import Swal from 'sweetalert2';
 
@@ -12,6 +12,7 @@ interface MaintenanceViewProps {
     maintenanceLogs: MaintenanceLog[];
     setMaintenanceLogs: React.Dispatch<React.SetStateAction<MaintenanceLog[]>>;
     currentUser: User | null;
+    isEditMode: boolean;
 }
 
 // Helper to convert File to Base64
@@ -29,7 +30,8 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
     setMaintenanceItems,
     maintenanceLogs,
     setMaintenanceLogs,
-    currentUser
+    currentUser,
+    isEditMode
 }) => {
     // --- State ---
     const [selectedTab, setSelectedTab] = useState<'status' | 'all' | 'history' | 'breakdown'>('status');
@@ -497,13 +499,13 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
             <div className="p-4 bg-white border-b flex flex-col md:flex-row justify-between items-center gap-4 flex-shrink-0">
                 <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                     </svg>
                     การบำรุงรักษา
                 </h1>
                 
-                {canManage && (
+                {canManage && isEditMode && (
                     <div className="flex gap-2">
                         <button 
                             onClick={() => fileInputRef.current?.click()}
@@ -649,7 +651,7 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
                                             </button>
                                         </div>
                                         
-                                        {canManage && (
+                                        {canManage && isEditMode && (
                                             <div className="flex gap-2 justify-end mt-1 pt-2 border-t border-gray-200">
                                                 <button onClick={() => handleOpenManageModal(item)} className="text-xs text-blue-600 hover:underline">
                                                     แก้ไขข้อมูล
@@ -690,7 +692,7 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
                                 return (
                                     <div key={log.id} className="border rounded-lg p-4 flex flex-col md:flex-row gap-4 bg-white shadow-sm relative">
                                         {/* Admin Edit/Delete Buttons */}
-                                        {canManage && (
+                                        {canManage && isEditMode && (
                                             <div className="absolute top-4 right-4 flex gap-2">
                                                 <button onClick={() => handleOpenEditLogModal(log)} className="p-1 text-gray-500 hover:text-blue-600 rounded-full hover:bg-blue-50 transition-colors" title="แก้ไขประวัติ">
                                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L15.232 5.232z" /></svg>
@@ -835,6 +837,14 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
                                     )}
                                 </div>
                             </div>
+
+                            {/* Added Description Section - AS REQUESTED */}
+                            {performingItem.description && (
+                                <div className="bg-gray-50 p-3 rounded-lg border-2 border-dashed border-gray-300">
+                                    <label className="block text-sm font-bold text-gray-700 mb-1">📋 รายละเอียด (วิธีการดูแล / สิ่งที่ต้องทำ)</label>
+                                    <p className="text-sm text-gray-600 whitespace-pre-wrap">{performingItem.description}</p>
+                                </div>
+                            )}
 
                             <div>
                                 <label className="block text-sm font-medium text-gray-700">หมายเหตุ / สิ่งที่พบ</label>

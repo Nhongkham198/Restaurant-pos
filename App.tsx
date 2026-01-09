@@ -39,8 +39,8 @@ import type {
     MaintenanceItem,
     MaintenanceLog
 } from './types';
-// FIX: Use alias import to match configuration and resolve export errors
-import { useFirestoreSync, useFirestoreCollection } from '@/hooks/useFirestoreSync';
+// FIX: Use relative import instead of alias to ensure module resolution works properly
+import { useFirestoreSync, useFirestoreCollection } from './hooks/useFirestoreSync';
 import { functionsService } from './services/firebaseFunctionsService';
 import { printerService } from './services/printerService';
 import firebase from 'firebase/compat/app';
@@ -1595,6 +1595,7 @@ const App: React.FC = () => {
                                                 maintenanceLogs={maintenanceLogs}
                                                 setMaintenanceLogs={setMaintenanceLogs}
                                                 currentUser={currentUser}
+                                                isEditMode={isEditMode}
                                             />
                                         )}
                                     </div>
@@ -1621,6 +1622,7 @@ const App: React.FC = () => {
                                     maintenanceLogs={maintenanceLogs}
                                     setMaintenanceLogs={setMaintenanceLogs}
                                     currentUser={currentUser}
+                                    isEditMode={isEditMode}
                                 />
                             )}
                         </>
