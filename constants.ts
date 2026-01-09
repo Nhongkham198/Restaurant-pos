@@ -150,7 +150,7 @@ export const DEFAULT_MAINTENANCE_ITEMS: MaintenanceItem[] = [
         description: 'ทำความสะอาดแผ่นกรองและถังเก็บน้ำแข็ง',
         imageUrl: 'https://images.unsplash.com/photo-1595427339879-19c99c372c3d?q=80&w=300&auto=format&fit=crop',
         cycleMonths: 1,
-        lastMaintenanceDate: Date.now() - (40 * 24 * 60 * 60 * 1000), // Overdue (40 days ago)
+        lastMaintenanceDate: Date.now(), // Fixed: Set to current date so it's not overdue on init
         status: 'active'
     },
     {
