@@ -9,6 +9,7 @@
 
 
 
+
 import React, { useState, ReactNode, useRef, useMemo } from 'react';
 import type { User, View } from '../types';
 import Swal from 'sweetalert2';
@@ -37,6 +38,8 @@ interface AdminSidebarProps {
     onUpdateCurrentUser: (updates: Partial<User>) => void;
     onUpdateLogoUrl: (newUrl: string) => void;
     onUpdateRestaurantName: (newName: string) => void;
+    isOrderNotificationsEnabled: boolean;
+    onToggleOrderNotifications: () => void;
 }
 
 const NavItem: React.FC<{
@@ -135,6 +138,8 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({
     onUpdateCurrentUser,
     onUpdateLogoUrl,
     onUpdateRestaurantName,
+    isOrderNotificationsEnabled,
+    onToggleOrderNotifications,
 }) => {
     const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({
       'stock': true,
@@ -269,6 +274,18 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({
                             </div>
                         )}
                     </div>
+
+                    {/* Order Notification Toggle */}
+                    {!isAuditor && (
+                         <div className={`flex ${isCollapsed ? 'justify-center' : 'items-center'} mt-2`}>
+                            <label className="relative inline-flex items-center cursor-pointer" title="เปิด/ปิด การแจ้งเตือนออเดอร์">
+                                <input type="checkbox" checked={isOrderNotificationsEnabled} onChange={onToggleOrderNotifications} className="sr-only peer" />
+                                <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-500"></div>
+                                {!isCollapsed && <span className="ml-3 text-sm font-medium text-gray-300">แจ้งเตือนออเดอร์</span>}
+                            </label>
+                        </div>
+                    )}
+
                     {/* Edit Mode Toggle */}
                     {canEdit && !isAuditor && (
                         <div className={`flex ${isCollapsed ? 'justify-center' : 'items-center'}`}>

@@ -164,6 +164,19 @@ const App: React.FC = () => {
     const [isAdminSidebarCollapsed, setIsAdminSidebarCollapsed] = useState(false);
     const [isOrderSidebarVisible, setIsOrderSidebarVisible] = useState(true);
 
+    // --- NOTIFICATION TOGGLE STATE ---
+    const [isOrderNotificationsEnabled, setIsOrderNotificationsEnabled] = useState(() => {
+        return localStorage.getItem('isOrderNotificationsEnabled') === 'true';
+    });
+
+    const toggleOrderNotifications = () => {
+        setIsOrderNotificationsEnabled(prev => {
+            const newValue = !prev;
+            localStorage.setItem('isOrderNotificationsEnabled', String(newValue));
+            return newValue;
+        });
+    };
+
     // --- CUSTOMER MODE STATE ---
     const [isCustomerMode, setIsCustomerMode] = useState(false);
     const [customerTableId, setCustomerTableId] = useState<number | null>(null);
@@ -275,6 +288,7 @@ const App: React.FC = () => {
     const mountTimeRef = useRef(Date.now());
     const notifiedLowStockRef = useRef<Set<number>>(new Set());
     const notifiedDailyStockRef = useRef<string>(''); // For daily 16:00 alert
+    const notifiedMaintenanceRef = useRef<Set<number>>(new Set()); // For maintenance alert
 
     // ============================================================================
     // 2. COMPUTED VALUES (MEMO)
@@ -572,6 +586,61 @@ const App: React.FC = () => {
         return () => clearInterval(intervalId);
     }, [stockItems, isCustomerMode]);
 
+    // --- Maintenance Alert Effect (Urgent / 3 days) ---
+    useEffect(() => {
+        if (isCustomerMode || !currentUser) return;
+
+        const now = Date.now();
+        const oneDay = 24 * 60 * 60 * 1000;
+        // Warn if due within 3 days (inclusive of today/overdue)
+        const warningThresholdDays = 3; 
+
+        const dueItems = maintenanceItems.filter(item => {
+            // Skip broken/repairing items as they are already known issues
+            if (item.status === 'broken' || item.status === 'repairing') return false;
+
+            if (!item.lastMaintenanceDate) return true; // Treat as due if never done
+            
+            const last = new Date(item.lastMaintenanceDate);
+            // Calculate next due date
+            const nextDue = new Date(last);
+            nextDue.setMonth(last.getMonth() + item.cycleMonths);
+            
+            const diffTime = nextDue.getTime() - now;
+            const diffDays = Math.ceil(diffTime / oneDay);
+
+            return diffDays <= warningThresholdDays;
+        });
+
+        // Filter out items already notified in this session to prevent spamming on every render
+        const newDueItems = dueItems.filter(item => !notifiedMaintenanceRef.current.has(item.id));
+
+        if (newDueItems.length > 0) {
+            // Mark as notified
+            newDueItems.forEach(item => notifiedMaintenanceRef.current.add(item.id));
+            
+            // Clean up ref for items that are no longer due (e.g. if maintenance was performed)
+            const currentDueIds = new Set(dueItems.map(i => i.id));
+            notifiedMaintenanceRef.current.forEach(id => {
+                if (!currentDueIds.has(id)) {
+                    notifiedMaintenanceRef.current.delete(id);
+                }
+            });
+
+            const itemNames = newDueItems.map(i => i.name).join(', ');
+            
+            Swal.fire({
+                title: '🔔 แจ้งเตือนซ่อมบำรุงด่วน!',
+                html: `รายการต่อไปนี้ครบกำหนดบำรุงรักษาแล้ว (หรือภายใน 3 วัน):<br/><b style="color:red">${itemNames}</b><br/><br/>กรุณาตรวจสอบที่เมนู "บำรุงรักษา"`,
+                icon: 'warning',
+                confirmButtonText: 'รับทราบ',
+                // Keep open until acknowledged, as this is important
+                timer: 20000, 
+                timerProgressBar: true
+            });
+        }
+    }, [maintenanceItems, isCustomerMode, currentUser]);
+
     // ... (Customer Mode Init Effect) ...
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
@@ -596,7 +665,11 @@ const App: React.FC = () => {
             prevActiveOrdersRef.current = activeOrders;
             return;
         }
-        if (currentUser?.role !== 'kitchen' || !notificationSoundUrl || !isAudioUnlocked) {
+        
+        // Modified condition to include manual toggle for order notifications
+        const shouldNotify = (currentUser?.role === 'kitchen' || isOrderNotificationsEnabled) && notificationSoundUrl && isAudioUnlocked;
+
+        if (!shouldNotify) {
             prevActiveOrdersRef.current = activeOrders; 
             return;
         }
@@ -607,7 +680,7 @@ const App: React.FC = () => {
             order.orderNumber
         );
         if (newOrders.length > 0) {
-            const audio = new Audio(notificationSoundUrl);
+            const audio = new Audio(notificationSoundUrl!);
             audio.play().catch(() => {});
             newOrders.forEach(order => {
                 Swal.fire({
@@ -620,7 +693,7 @@ const App: React.FC = () => {
             });
         }
         prevActiveOrdersRef.current = activeOrders;
-    }, [activeOrders, currentUser, notificationSoundUrl, isAudioUnlocked]);
+    }, [activeOrders, currentUser, notificationSoundUrl, isAudioUnlocked, isOrderNotificationsEnabled]);
 
     // ... (Staff Call Effect) ...
     useEffect(() => {
@@ -1428,6 +1501,7 @@ const App: React.FC = () => {
                    kitchenBadgeCount={totalKitchenBadgeCount} tablesBadgeCount={tablesBadgeCount} leaveBadgeCount={leaveBadgeCount} stockBadgeCount={stockBadgeCount}
                    maintenanceBadgeCount={maintenanceBadgeCount}
                    onUpdateCurrentUser={handleUpdateCurrentUser} onUpdateLogoUrl={setLogoUrl} onUpdateRestaurantName={setRestaurantName}
+                   isOrderNotificationsEnabled={isOrderNotificationsEnabled} onToggleOrderNotifications={toggleOrderNotifications}
                 />
             )}
             
