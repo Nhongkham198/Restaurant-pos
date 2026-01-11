@@ -37,6 +37,8 @@ interface SidebarProps {
     onLogout: () => void;
     isMobilePage?: boolean;
     onToggleAvailability: (id: number) => void;
+    isOrderNotificationsEnabled: boolean;
+    onToggleOrderNotifications: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -72,6 +74,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
     onLogout,
     isMobilePage = false,
     onToggleAvailability,
+    isOrderNotificationsEnabled,
+    onToggleOrderNotifications,
 }) => {
     const [isLineMan, setIsLineMan] = useState(false);
 
@@ -260,18 +264,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
                             <span className="text-xs bg-gray-700 text-gray-300 px-1.5 py-0.5 rounded font-mono">{currentUser.role}</span>
                         </div>
                     </div>
-                    <h1 className="text-xl font-bold text-red-500 absolute left-1/2 -translate-x-1/2">
+                    <h1 className="text-xl font-bold text-red-500 absolute left-1/2 -translate-x-1/2 whitespace-nowrap overflow-hidden max-w-[35%] text-ellipsis">
                         {restaurantName}
                     </h1>
-                    <button 
-                        onClick={onOpenSearch} 
-                        className="p-2 text-gray-300 rounded-full hover:bg-gray-700"
-                        aria-label="Search Menu"
-                    >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                        </svg>
-                    </button>
+                    <div className="flex items-center gap-3">
+                        <label className="relative inline-flex items-center cursor-pointer" title="เปิด/ปิด เสียงแจ้งเตือน">
+                            <input type="checkbox" checked={isOrderNotificationsEnabled} onChange={onToggleOrderNotifications} className="sr-only peer" />
+                            <div className="w-9 h-5 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-green-500"></div>
+                        </label>
+                        <button 
+                            onClick={onOpenSearch} 
+                            className="p-2 text-gray-300 rounded-full hover:bg-gray-700"
+                            aria-label="Search Menu"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                        </button>
+                    </div>
                 </header>
             )}
             

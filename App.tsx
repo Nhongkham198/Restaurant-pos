@@ -1471,7 +1471,21 @@ const App: React.FC = () => {
 
     if (!selectedBranch) return <div>Error: No branch selected. Please log out and try again.</div>
 
-    const MobileHeader = ({ user, restaurantName, onOpenSearch, onProfileClick }: { user: User, restaurantName: string, onOpenSearch: () => void, onProfileClick: () => void }) => (
+    const MobileHeader = ({ 
+        user, 
+        restaurantName, 
+        onOpenSearch, 
+        onProfileClick,
+        isOrderNotificationsEnabled,
+        onToggleOrderNotifications 
+    }: { 
+        user: User, 
+        restaurantName: string, 
+        onOpenSearch: () => void, 
+        onProfileClick: () => void,
+        isOrderNotificationsEnabled: boolean,
+        onToggleOrderNotifications: () => void
+    }) => (
         <header className="bg-gray-900 text-white p-3 flex justify-between items-center flex-shrink-0 md:hidden z-30 shadow-lg relative">
             <div className="flex items-center gap-3 cursor-pointer" onClick={onProfileClick}>
                 <img src={user.profilePictureUrl || "https://img.icons8.com/fluency/48/user-male-circle.png"} alt={user.username} className="h-10 w-10 rounded-full object-cover border-2 border-gray-700"/>
@@ -1480,10 +1494,20 @@ const App: React.FC = () => {
                     <span className="text-xs bg-gray-700 text-gray-300 px-1.5 py-0.5 rounded font-mono">{user.role}</span>
                 </div>
             </div>
-            <h1 className="text-xl font-bold text-red-500 absolute left-1/2 -translate-x-1/2">{restaurantName}</h1>
-            <button onClick={onOpenSearch} className="p-2 text-gray-300 rounded-full hover:bg-gray-700" aria-label="Search Menu">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-            </button>
+            {/* Title - ensure it doesn't overlap */}
+            <h1 className="text-xl font-bold text-red-500 absolute left-1/2 -translate-x-1/2 whitespace-nowrap hidden sm:block">{restaurantName}</h1>
+            
+            <div className="flex items-center gap-3">
+                {/* Toggle Switch */}
+                <label className="relative inline-flex items-center cursor-pointer" title="เปิด/ปิด เสียงแจ้งเตือน">
+                    <input type="checkbox" checked={isOrderNotificationsEnabled} onChange={onToggleOrderNotifications} className="sr-only peer" />
+                    <div className="w-9 h-5 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-green-500"></div>
+                </label>
+
+                <button onClick={onOpenSearch} className="p-2 text-gray-300 rounded-full hover:bg-gray-700" aria-label="Search Menu">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                </button>
+            </div>
         </header>
     );
 
@@ -1546,6 +1570,8 @@ const App: React.FC = () => {
                                         onOpenSearch={() => setModalState(prev => ({...prev, isMenuSearch: true}))} currentUser={currentUser} onEditOrderItem={handleUpdateOrderItem}
                                         onViewChange={setCurrentView} restaurantName={restaurantName} onLogout={handleLogout}
                                         onToggleAvailability={handleToggleAvailability}
+                                        isOrderNotificationsEnabled={isOrderNotificationsEnabled}
+                                        onToggleOrderNotifications={toggleOrderNotifications}
                                     />
                                 )}
                             </aside>
@@ -1574,11 +1600,20 @@ const App: React.FC = () => {
                                         onOpenSearch={() => setModalState(prev => ({...prev, isMenuSearch: true}))} currentUser={currentUser} onEditOrderItem={handleUpdateOrderItem}
                                         onViewChange={setCurrentView} restaurantName={restaurantName} onLogout={handleLogout}
                                         onToggleAvailability={handleToggleAvailability}
+                                        isOrderNotificationsEnabled={isOrderNotificationsEnabled}
+                                        onToggleOrderNotifications={toggleOrderNotifications}
                                     />
                                 </div>
                             ) : (
                                 <div className="w-full flex flex-col h-full">
-                                    <MobileHeader user={currentUser!} restaurantName={restaurantName} onOpenSearch={() => setModalState(prev => ({...prev, isMenuSearch: true}))} onProfileClick={handleMobileProfileClick}/>
+                                    <MobileHeader 
+                                        user={currentUser!} 
+                                        restaurantName={restaurantName} 
+                                        onOpenSearch={() => setModalState(prev => ({...prev, isMenuSearch: true}))} 
+                                        onProfileClick={handleMobileProfileClick}
+                                        isOrderNotificationsEnabled={isOrderNotificationsEnabled}
+                                        onToggleOrderNotifications={toggleOrderNotifications}
+                                    />
                                     <div className="flex-1 overflow-y-auto">
                                         {currentView === 'kitchen' && <KitchenView activeOrders={activeOrders} onCompleteOrder={handleCompleteOrder} onStartCooking={handleStartCooking} />}
                                         {currentView === 'tables' && <TableLayout tables={tables} activeOrders={activeOrders} onTableSelect={(id) => { setSelectedTableId(id); setCurrentView('pos'); }} onShowBill={handleShowBill} onGeneratePin={handleGeneratePin} currentUser={currentUser} printerConfig={printerConfig} floors={floors} selectedBranch={selectedBranch} />}
