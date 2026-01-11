@@ -115,13 +115,26 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({ order, o
                                 <p className={`font-bold text-xl ${order.isDeleted ? 'text-red-700' : 'text-teal-700'}`}>
                                     <span className={order.isDeleted ? 'text-red-400' : 'text-gray-500'}>#</span>{String(order.orderNumber).padStart(3, '0')}
                                 </p>
-                                <p className={`font-semibold text-lg truncate ${order.isDeleted ? 'text-red-800' : 'text-gray-800'}`}>โต๊ะ {order.tableName} ({order.floor})</p>
+                                <p className={`font-semibold text-lg leading-tight ${order.isDeleted ? 'text-red-800' : 'text-gray-800'}`}>
+                                    โต๊ะ {order.tableName} <span className="whitespace-nowrap">({order.floor})</span>
+                                </p>
                                 {order.isDeleted && <span className="text-xs px-2 py-0.5 rounded-full bg-red-200 text-red-800 font-semibold">(ลบโดย: {order.deletedBy})</span>}
                             </div>
                             {order.customerName && !order.isDeleted && (
                                 <p className="text-base text-blue-700 font-semibold truncate">{order.customerName}</p>
                             )}
-                            <p className="text-sm text-gray-500 mt-1 truncate">{completionDate} <span className="text-gray-400">| ผู้ส่ง: {order.placedBy}</span> {order.completedBy && <span className="text-gray-400">| ผู้รับเงิน: {order.completedBy}</span>}</p>
+                            
+                            <div className="text-sm text-gray-500 mt-1 flex flex-wrap gap-x-2">
+                                <span>{completionDate}</span>
+                                <span className="whitespace-nowrap">
+                                    <span className="text-gray-400">|</span> ผู้ส่ง: {order.placedBy}
+                                </span>
+                                {order.completedBy && (
+                                    <span className="whitespace-nowrap">
+                                        <span className="text-gray-400">|</span> ผู้รับเงิน: {order.completedBy}
+                                    </span>
+                                )}
+                            </div>
                         </div>
                     </div>
                     

@@ -202,11 +202,15 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         const currentCount = myItems.length;
         const prevCount = prevMyItemsCountRef.current;
         
-        // Trigger only if I had items before, and now they are gone (0 active items)
-        if (prevCount > 0 && currentCount === 0 && !isProcessingPaymentRef.current) {
+        // Detect if items have just been cleared (likely payment or cancel)
+        // OR if we are already in the "Waiting for Sync" state
+        const isTransitioning = prevCount > 0 && currentCount === 0;
+        
+        if (isTransitioning || (isProcessingPaymentRef.current && currentCount === 0)) {
+            
             isProcessingPaymentRef.current = true;
     
-            // Find the most recently completed order that belongs to ME
+            // Try to find the completed order in the history
             const myJustCompletedOrders = completedOrders.filter(o =>
                 myOrderNumbers.some(myNum =>
                     o.orderNumber === myNum || (o.mergedOrderNumbers && o.mergedOrderNumbers.includes(myNum))
@@ -214,12 +218,21 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
             );
     
             if (myJustCompletedOrders.length === 0) {
-                isProcessingPaymentRef.current = false;
-                prevMyItemsCountRef.current = currentCount;
+                // Not found yet (likely Firestore sync delay).
+                // We RETURN here to skip updating prevMyItemsCountRef.
+                // This keeps the "trigger condition" (prev > 0) alive for the next render.
                 return; 
             }
 
+            // Found it! Proceed to show bill and logout.
             const latestCompletedOrder = myJustCompletedOrders.sort((a, b) => b.completionTime - a.completionTime)[0];
+            
+            // Safety check: Avoid processing the same completion multiple times in a single session
+            const processedKey = `processed_complete_${latestCompletedOrder.id}`;
+            if (sessionStorage.getItem(processedKey)) {
+                return;
+            }
+            sessionStorage.setItem(processedKey, 'true');
     
             // Build the bill HTML for display and for html2canvas
             const subtotal = latestCompletedOrder.items.reduce((sum, item) => sum + item.finalPrice * item.quantity, 0);
@@ -318,9 +331,17 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                     handleLogout();
                 }
             });
+            
+            // Clean up state
+            isProcessingPaymentRef.current = false;
+            prevMyItemsCountRef.current = 0;
+            return;
         }
     
+        // Normal update if NOT in the middle of a payment wait
+        isProcessingPaymentRef.current = false;
         prevMyItemsCountRef.current = currentCount;
+
     }, [myItems.length, isAuthenticated, completedOrders, myOrderNumbers, logoUrl, restaurantName, customerName]);
     
 

@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import type { CancelledOrder } from '../types';
 
@@ -50,7 +51,8 @@ export const CancelledOrderCard: React.FC<CancelledOrderCardProps> = ({ order, i
                             <p className={`font-bold text-xl ${order.isDeleted ? 'text-red-700' : 'text-red-700'}`}>
                                 <span className={order.isDeleted ? 'text-red-400' : 'text-gray-500'}>#</span>{String(order.orderNumber).padStart(3, '0')}
                             </p>
-                            <p className={`font-semibold text-lg truncate ${order.isDeleted ? 'text-red-800' : 'text-gray-800'}`}>โต๊ะ {order.tableName} ({order.floor})</p>
+                            {/* Removed whitespace-nowrap to allow text to wrap naturally if it's too long */}
+                            <p className={`font-semibold text-lg leading-tight ${order.isDeleted ? 'text-red-800' : 'text-gray-800'}`}>โต๊ะ {order.tableName} ({order.floor})</p>
                             {order.isDeleted && <span className="text-xs px-2 py-0.5 rounded-full bg-red-200 text-red-800 font-semibold">(ลบโดย: {order.deletedBy})</span>}
                         </div>
                         <p className="text-sm text-gray-500 mt-1">{cancellationDate}</p>
