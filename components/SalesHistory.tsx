@@ -104,7 +104,9 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({
     // ... Filtering logic ...
     const filteredCompleted = useMemo(() => {
         let items = completedOrders;
-        if (!['admin', 'branch-admin', 'auditor'].includes(currentUser?.role || '')) {
+        // Logic Update: Only 'admin' and 'auditor' can see deleted items.
+        // 'branch-admin' (Manager) will perform soft-delete but won't see them anymore.
+        if (!['admin', 'auditor'].includes(currentUser?.role || '')) {
              items = items.filter(o => !o.isDeleted);
         }
 
@@ -126,7 +128,8 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({
 
     const filteredCancelled = useMemo(() => {
         let items = cancelledOrders;
-        if (!['admin', 'branch-admin', 'auditor'].includes(currentUser?.role || '')) {
+        // Logic Update: Only 'admin' and 'auditor' can see deleted items.
+        if (!['admin', 'auditor'].includes(currentUser?.role || '')) {
              items = items.filter(o => !o.isDeleted);
         }
 
@@ -147,7 +150,8 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({
 
     const filteredPrint = useMemo(() => {
         let items = printHistory;
-        if (!['admin', 'branch-admin', 'auditor'].includes(currentUser?.role || '')) {
+        // Logic Update: Only 'admin' and 'auditor' can see deleted items.
+        if (!['admin', 'auditor'].includes(currentUser?.role || '')) {
              items = items.filter(o => !o.isDeleted);
         }
 
