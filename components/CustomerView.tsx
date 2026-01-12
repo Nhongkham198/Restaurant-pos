@@ -39,6 +39,12 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [customerName, setCustomerName] = useState('ลูกค้า'); // Default to generic name
     
+    // --- COMPLETED SESSION STATE ---
+    // Check if this session is marked as completed (paid) in sessionStorage (clears on tab close/new scan)
+    const [isSessionCompleted, setIsSessionCompleted] = useState(() => {
+        return sessionStorage.getItem(`customer_completed_${table.id}`) === 'true';
+    });
+
     // --- CART PERSISTENCE ---
     const cartKey = `customer_cart_${table.id}`;
     const [cartItems, setCartItems] = useState<OrderItem[]>(() => {
@@ -83,6 +89,9 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     
     // --- Auto-Login / Session Logic (No PIN) ---
     useEffect(() => {
+        // If session is already completed, don't try to restore or create a new session logic yet
+        if (isSessionCompleted) return;
+
         const sessionKey = `customer_session_${table.id}`;
         const savedSession = localStorage.getItem(sessionKey);
         
@@ -99,7 +108,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
             // No session, create one automatically
             initializeSession(sessionKey);
         }
-    }, [table.id]);
+    }, [table.id, isSessionCompleted]);
 
     const initializeSession = (sessionKey: string) => {
         // Generate a simple guest session
@@ -120,6 +129,19 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         setIsAuthenticated(false);
         // Page usually reloads or re-inits here, triggering auto-login again for a fresh session
         window.location.reload(); 
+    };
+
+    // New handler for payment completion without full reload
+    const handlePaymentCompleteLock = () => {
+        // Clear local data
+        localStorage.removeItem(cartKey);
+        localStorage.removeItem(myOrdersKey);
+        
+        // Mark session as completed in sessionStorage (survives refresh, dies on close/new scan)
+        sessionStorage.setItem(`customer_completed_${table.id}`, 'true');
+        
+        // Update state to trigger "Thank You" view
+        setIsSessionCompleted(true);
     };
 
     const t = (text: string) => text;
@@ -197,7 +219,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
 
     // --- Detect Payment & Trigger Save Bill/Logout Flow ---
     useEffect(() => {
-        if (!isAuthenticated) return;
+        if (!isAuthenticated || isSessionCompleted) return;
     
         const currentCount = myItems.length;
         const prevCount = prevMyItemsCountRef.current;
@@ -314,21 +336,21 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
 
                         Swal.fire({
                             title: t('บันทึกสำเร็จ!'),
-                            text: t('ออกจากระบบอัตโนมัติ...'),
+                            text: t('ขอบคุณที่ใช้บริการ...'),
                             icon: 'success',
                             timer: 2000,
                             timerProgressBar: true,
                             showConfirmButton: false
                         }).then(() => {
-                            handleLogout();
+                            handlePaymentCompleteLock();
                         });
                     } else {
                         Swal.fire(t('เกิดข้อผิดพลาด'), t('ไม่สามารถบันทึกบิลได้'), 'error')
-                        .then(() => handleLogout());
+                        .then(() => handlePaymentCompleteLock());
                     }
                 } else {
                     // This handles clicking "Deny" OR when the timer runs out
-                    handleLogout();
+                    handlePaymentCompleteLock();
                 }
             });
             
@@ -342,7 +364,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         isProcessingPaymentRef.current = false;
         prevMyItemsCountRef.current = currentCount;
 
-    }, [myItems.length, isAuthenticated, completedOrders, myOrderNumbers, logoUrl, restaurantName, customerName]);
+    }, [myItems.length, isAuthenticated, completedOrders, myOrderNumbers, logoUrl, restaurantName, customerName, isSessionCompleted]);
     
 
     const handleSelectItem = (item: MenuItem) => {
@@ -547,9 +569,37 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     }, [allBranchOrders, isAuthenticated, table.id, myItems.length]);
 
     
+    // --- 1. SESSION COMPLETED SCREEN (THANK YOU) ---
+    if (isSessionCompleted) {
+        return (
+            <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6 text-center animate-fade-in">
+                <div className="bg-white p-10 rounded-2xl shadow-xl w-full max-w-sm border-t-8 border-green-500">
+                    <div className="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                    </div>
+                    
+                    <h2 className="text-2xl font-bold text-gray-800 mb-2">{restaurantName}</h2>
+                    <h3 className="text-xl font-semibold text-gray-700 mb-4">ขอบคุณที่ใช้บริการ</h3>
+                    
+                    <div className="space-y-2 text-gray-500 text-sm mb-8">
+                        <p>การชำระเงินของคุณเสร็จสมบูรณ์แล้ว</p>
+                        <p>หวังว่าคุณจะมีความสุขกับมื้ออาหาร</p>
+                    </div>
+
+                    <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 text-blue-800 text-sm">
+                        <p className="font-semibold mb-1">ต้องการสั่งอาหารเพิ่ม?</p>
+                        <p className="opacity-80">กรุณาสแกน QR Code ที่โต๊ะใหม่อีกครั้ง</p>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    // --- 2. LOADING/LOGIN SCREEN ---
     // If not authenticated (though effect above should catch this instantly),
     // show a simple loading state or a fallback.
-    // We removed the PIN form, so basically we just wait for the effect to auto-login.
     if (!isAuthenticated) {
         return (
             <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center">
@@ -559,7 +609,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         );
     }
 
-    // --- MENU SCREEN ---
+    // --- 3. MENU SCREEN (Main UI) ---
     return (
         <div className="h-screen flex flex-col bg-gray-50 overflow-hidden">
             {/* Header */}

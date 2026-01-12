@@ -39,10 +39,9 @@ if (isFirebaseConfigured) {
     
     db = firebase.firestore();
     
-    // FIX: Force long polling to avoid timeout issues in environments that block WebSockets or have connectivity issues.
-    // This addresses the "Backend didn't respond within 10 seconds" error.
-    db.settings({ experimentalForceLongPolling: true });
-
+    // Removed experimentalForceLongPolling to fix "Detected an update time that is in the future" errors
+    // and clock skew issues. Defaulting to auto-detected transport (WebSockets/LongPolling).
+    
     storage = firebase.storage(); // Initialize Storage
     
     // --- ENABLE OFFLINE PERSISTENCE ---
