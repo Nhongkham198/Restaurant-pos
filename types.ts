@@ -164,15 +164,19 @@ export interface ReceiptPrintSettings {
 }
 
 export interface KitchenPrinterSettings {
-    ipAddress: string;
-    port?: string;
+    ipAddress: string; // The Node.js Server IP
+    port?: string;     // The Node.js Server Port
     paperWidth: '58mm' | '80mm';
+    targetPrinterIp?: string; // The Actual Printer IP (Hardware)
+    targetPrinterPort?: string; // The Actual Printer Port (Hardware, usually 9100)
 }
 
 export interface CashierPrinterSettings {
     ipAddress: string;
     port?: string;
     paperWidth: '58mm' | '80mm';
+    targetPrinterIp?: string;
+    targetPrinterPort?: string;
     receiptOptions: ReceiptPrintSettings;
 }
 

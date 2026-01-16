@@ -34,8 +34,8 @@ const DEFAULT_RECEIPT_OPTIONS: ReceiptPrintSettings = {
     printThankYouMessage: true,
 };
 
-const DEFAULT_KITCHEN_PRINTER: KitchenPrinterSettings = { ipAddress: '', port: '3000', paperWidth: '80mm' };
-const DEFAULT_CASHIER_PRINTER: CashierPrinterSettings = { ipAddress: '', port: '3000', paperWidth: '80mm', receiptOptions: DEFAULT_RECEIPT_OPTIONS };
+const DEFAULT_KITCHEN_PRINTER: KitchenPrinterSettings = { ipAddress: '', port: '3000', paperWidth: '80mm', targetPrinterIp: '', targetPrinterPort: '9100' };
+const DEFAULT_CASHIER_PRINTER: CashierPrinterSettings = { ipAddress: '', port: '3000', paperWidth: '80mm', targetPrinterIp: '', targetPrinterPort: '9100', receiptOptions: DEFAULT_RECEIPT_OPTIONS };
 
 const ReceiptOptionCheckbox: React.FC<{
     name: keyof ReceiptPrintSettings;
@@ -159,6 +159,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 ...(currentPrinterConfig?.kitchen || {})
             };
             if (!finalKitchenConf.port) finalKitchenConf.port = '3000';
+            if (!finalKitchenConf.targetPrinterPort) finalKitchenConf.targetPrinterPort = '9100';
             
             const finalCashierConf: CashierPrinterSettings = {
                 ...DEFAULT_CASHIER_PRINTER,
@@ -169,6 +170,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 }
             };
             if (!finalCashierConf.port) finalCashierConf.port = '3000';
+            if (!finalCashierConf.targetPrinterPort) finalCashierConf.targetPrinterPort = '9100';
 
             setSettingsForm({
                 qrCodeUrl: currentQrCodeUrl || '',
@@ -328,7 +330,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         setConnectionStatus(prev => ({ ...prev, [type]: 'checking' }));
 
         try {
-            const success = await printerService.printTest(printer.ipAddress, printer.paperWidth, printer.port || '3000');
+            const success = await printerService.printTest(
+                printer.ipAddress, 
+                printer.paperWidth, 
+                printer.port || '3000',
+                printer.targetPrinterIp,
+                printer.targetPrinterPort
+            );
             if (success) {
                 setConnectionStatus(prev => ({ ...prev, [type]: 'success' }));
             } else {
@@ -461,36 +469,261 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                 </div>
                             </div>
                         )}
-                        {activeTab === 'recommended' && (
-                             <div>
-                                <h4 className="text-lg font-semibold text-gray-700 mb-2">จัดการเมนูแนะนำ</h4>
-                                <p className="text-sm text-gray-500 mb-4">เลือกรายการอาหารที่จะแสดงเป็นเมนูแนะนำในหน้า POS</p>
-                                <input 
-                                    type="text" 
-                                    placeholder="ค้นหาเมนู..." 
-                                    value={recommendSearchTerm} 
-                                    onChange={(e) => setRecommendSearchTerm(e.target.value)} 
-                                    className="w-full p-2 border border-gray-300 rounded-md mb-4"
-                                />
-                                <div className="max-h-96 overflow-y-auto space-y-2 border p-2 rounded-md bg-gray-50">
-                                    {filteredMenuItems.map(item => (
-                                        <label key={item.id} className="flex items-center gap-3 p-2 rounded-md hover:bg-gray-100 cursor-pointer bg-white">
+                        {/* ... (Other tabs similar to before, omitting for brevity except Kitchen/Cashier) ... */}
+                        
+                        {activeTab === 'kitchen' && (
+                            <div>
+                                <h4 className="text-lg font-semibold text-gray-700 mb-2">ตั้งค่าเครื่องพิมพ์ในครัว</h4>
+                                
+                                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800 mb-4">
+                                    <p className="font-bold flex items-center gap-1">
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd"/></svg>
+                                        คำแนะนำการตั้งค่า:
+                                    </p>
+                                    <ul className="list-disc list-inside mt-1 space-y-1 ml-1">
+                                        <li><strong>Print Server IP:</strong> คือ IP ของคอมพิวเตอร์ที่เปิดโปรแกรมจอดำๆ ไว้ (เช่น <code>192.168.1.13</code>)</li>
+                                        <li><strong>IP เครื่องพิมพ์ (Hardware):</strong> คือ IP ของตัวเครื่องพิมพ์เอง (เช่น <code>192.168.1.200</code>)</li>
+                                        <li>ต้องแน่ใจว่า IP ทั้งสองอยู่ในวง LAN เดียวกัน</li>
+                                    </ul>
+                                </div>
+
+                                <div className="space-y-4">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-sm font-bold text-blue-700">Print Server IP (Node.js)</label>
                                             <input
-                                                type="checkbox"
-                                                checked={localRecommendedIds.has(item.id)}
-                                                onChange={() => handleToggleRecommend(item.id)}
-                                                className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                                type="text"
+                                                value={settingsForm.printerConfig.kitchen.ipAddress}
+                                                onChange={(e) => handlePrinterChange('kitchen', 'ipAddress', e.target.value)}
+                                                placeholder="เช่น 192.168.1.13 หรือ localhost"
+                                                className="mt-1 block w-full border border-gray-300 p-2 rounded-md shadow-sm bg-blue-50"
                                             />
-                                            <img src={item.imageUrl} alt={item.name} className="w-12 h-12 rounded-md object-cover"/>
-                                            <span className="font-medium text-gray-800">{item.name}</span>
-                                        </label>
-                                    ))}
-                                    {filteredMenuItems.length === 0 && (
-                                        <p className="text-center text-gray-500 py-4">ไม่พบเมนู</p>
-                                    )}
+                                            <p className="text-xs text-gray-500 mt-1">IP ของคอมฯ ที่เปิดโปรแกรม Server ไว้</p>
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700">Port (Node.js)</label>
+                                            <input
+                                                type="text"
+                                                value={settingsForm.printerConfig.kitchen.port}
+                                                onChange={(e) => handlePrinterChange('kitchen', 'port', e.target.value)}
+                                                placeholder="3000"
+                                                className="mt-1 block w-full border border-gray-300 p-2 rounded-md shadow-sm"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="border-t border-gray-200 pt-4">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="block text-sm font-bold text-green-700">IP เครื่องพิมพ์ (Hardware)</label>
+                                                <input
+                                                    type="text"
+                                                    value={settingsForm.printerConfig.kitchen.targetPrinterIp || ''}
+                                                    onChange={(e) => handlePrinterChange('kitchen', 'targetPrinterIp', e.target.value)}
+                                                    placeholder="เช่น 192.168.1.200"
+                                                    className="mt-1 block w-full border border-green-300 p-2 rounded-md shadow-sm bg-green-50"
+                                                />
+                                                <p className="text-xs text-gray-500 mt-1">IP ของเครื่องพิมพ์ใบเสร็จโดยตรง</p>
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700">Port เครื่องพิมพ์</label>
+                                                <input
+                                                    type="text"
+                                                    value={settingsForm.printerConfig.kitchen.targetPrinterPort || '9100'}
+                                                    onChange={(e) => handlePrinterChange('kitchen', 'targetPrinterPort', e.target.value)}
+                                                    placeholder="9100"
+                                                    className="mt-1 block w-full border border-gray-300 p-2 rounded-md shadow-sm"
+                                                />
+                                                <p className="text-xs text-gray-500 mt-1">ปกติคือ 9100</p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">ขนาดกระดาษ</label>
+                                        <div className="flex items-center gap-4">
+                                            <label className="flex items-center gap-2 cursor-pointer">
+                                                <input
+                                                    type="radio"
+                                                    name="kitchenPaperWidth"
+                                                    checked={settingsForm.printerConfig.kitchen.paperWidth === '58mm'}
+                                                    onChange={() => handlePrinterChange('kitchen', 'paperWidth', '58mm')}
+                                                    className="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500"
+                                                />
+                                                <span className="text-gray-800">58mm</span>
+                                            </label>
+                                            <label className="flex items-center gap-2 cursor-pointer">
+                                                <input
+                                                    type="radio"
+                                                    name="kitchenPaperWidth"
+                                                    checked={settingsForm.printerConfig.kitchen.paperWidth === '80mm'}
+                                                    onChange={() => handlePrinterChange('kitchen', 'paperWidth', '80mm')}
+                                                    className="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500"
+                                                />
+                                                <span className="text-gray-800">80mm</span>
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    <div className="pt-2 flex items-center justify-between">
+                                        <StatusIndicator status={connectionStatus.kitchen} />
+                                        <div className="flex gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => handleCheckConnection('kitchen')}
+                                                className="px-4 py-2 bg-indigo-600 text-white font-medium rounded-md hover:bg-indigo-700 shadow-sm"
+                                            >
+                                                ทดสอบเชื่อมต่อ Server
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleTestPrint('kitchen')}
+                                                className="px-4 py-2 bg-white border border-gray-300 text-gray-700 font-medium rounded-md hover:bg-gray-50"
+                                            >
+                                                ทดสอบพิมพ์
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleSavePrinterSettings('kitchen')}
+                                                className="px-4 py-2 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700"
+                                            >
+                                                บันทึก
+                                            </button>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         )}
+
+                        {activeTab === 'cashier' && (
+                            <div>
+                                <h4 className="text-lg font-semibold text-gray-700 mb-2">ตั้งค่าเครื่องพิมพ์ใบเสร็จ</h4>
+                                 {/* Similar structure to Kitchen printer with added Receipt Options */}
+                                <div className="space-y-4">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-sm font-bold text-blue-700">Print Server IP (Node.js)</label>
+                                            <input
+                                                type="text"
+                                                value={settingsForm.printerConfig.cashier.ipAddress}
+                                                onChange={(e) => handlePrinterChange('cashier', 'ipAddress', e.target.value)}
+                                                placeholder="เช่น 192.168.1.13"
+                                                className="mt-1 block w-full border border-gray-300 p-2 rounded-md shadow-sm bg-blue-50"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700">Port (Node.js)</label>
+                                            <input
+                                                type="text"
+                                                value={settingsForm.printerConfig.cashier.port}
+                                                onChange={(e) => handlePrinterChange('cashier', 'port', e.target.value)}
+                                                placeholder="3000"
+                                                className="mt-1 block w-full border border-gray-300 p-2 rounded-md shadow-sm"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="border-t border-gray-200 pt-4">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="block text-sm font-bold text-green-700">IP เครื่องพิมพ์ (Hardware)</label>
+                                                <input
+                                                    type="text"
+                                                    value={settingsForm.printerConfig.cashier.targetPrinterIp || ''}
+                                                    onChange={(e) => handlePrinterChange('cashier', 'targetPrinterIp', e.target.value)}
+                                                    placeholder="เช่น 192.168.1.201"
+                                                    className="mt-1 block w-full border border-green-300 p-2 rounded-md shadow-sm bg-green-50"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700">Port เครื่องพิมพ์</label>
+                                                <input
+                                                    type="text"
+                                                    value={settingsForm.printerConfig.cashier.targetPrinterPort || '9100'}
+                                                    onChange={(e) => handlePrinterChange('cashier', 'targetPrinterPort', e.target.value)}
+                                                    placeholder="9100"
+                                                    className="mt-1 block w-full border border-gray-300 p-2 rounded-md shadow-sm"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Paper Size & Receipt Options... (Same as before) */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">ขนาดกระดาษ</label>
+                                        <div className="flex items-center gap-4">
+                                            <label className="flex items-center gap-2 cursor-pointer">
+                                                <input
+                                                    type="radio"
+                                                    name="cashierPaperWidth"
+                                                    checked={settingsForm.printerConfig.cashier.paperWidth === '58mm'}
+                                                    onChange={() => handlePrinterChange('cashier', 'paperWidth', '58mm')}
+                                                    className="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500"
+                                                />
+                                                <span className="text-gray-800">58mm</span>
+                                            </label>
+                                            <label className="flex items-center gap-2 cursor-pointer">
+                                                <input
+                                                    type="radio"
+                                                    name="cashierPaperWidth"
+                                                    checked={settingsForm.printerConfig.cashier.paperWidth === '80mm'}
+                                                    onChange={() => handlePrinterChange('cashier', 'paperWidth', '80mm')}
+                                                    className="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500"
+                                                />
+                                                <span className="text-gray-800">80mm</span>
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    <div className="pt-2 border-t border-gray-200">
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">รายละเอียดบนใบเสร็จ</label>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                            <ReceiptOptionCheckbox name="printRestaurantName" label="ชื่อร้าน" checked={receiptOptions.printRestaurantName} onChange={handleReceiptOptionChange} />
+                                            {/* ... other options ... */}
+                                            <ReceiptOptionCheckbox name="printOrderId" label="รหัสออเดอร์" checked={receiptOptions.printOrderId} onChange={handleReceiptOptionChange} />
+                                            <ReceiptOptionCheckbox name="printTableInfo" label="โต๊ะ" checked={receiptOptions.printTableInfo} onChange={handleReceiptOptionChange} />
+                                            <ReceiptOptionCheckbox name="printDateTime" label="วัน/เวลา" checked={receiptOptions.printDateTime} onChange={handleReceiptOptionChange} />
+                                            <ReceiptOptionCheckbox name="printPlacedBy" label="พนักงาน" checked={receiptOptions.printPlacedBy} onChange={handleReceiptOptionChange} />
+                                            <ReceiptOptionCheckbox name="printItems" label="รายการอาหาร" checked={receiptOptions.printItems} onChange={handleReceiptOptionChange} />
+                                            <ReceiptOptionCheckbox name="printSubtotal" label="ราคารวมย่อย" checked={receiptOptions.printSubtotal} onChange={handleReceiptOptionChange} />
+                                            <ReceiptOptionCheckbox name="printTax" label="ภาษี" checked={receiptOptions.printTax} onChange={handleReceiptOptionChange} />
+                                            <ReceiptOptionCheckbox name="printTotal" label="ยอดสุทธิ" checked={receiptOptions.printTotal} onChange={handleReceiptOptionChange} />
+                                            <ReceiptOptionCheckbox name="printPaymentDetails" label="การชำระเงิน" checked={receiptOptions.printPaymentDetails} onChange={handleReceiptOptionChange} />
+                                            <ReceiptOptionCheckbox name="printThankYouMessage" label="ข้อความขอบคุณ" checked={receiptOptions.printThankYouMessage} onChange={handleReceiptOptionChange} />
+                                        </div>
+                                        <button type="button" onClick={handleRestoreDefaults} className="mt-2 text-sm text-blue-600 hover:underline">คืนค่าเริ่มต้น</button>
+                                    </div>
+
+                                    <div className="pt-2 flex items-center justify-between border-t border-gray-200 mt-2">
+                                        <StatusIndicator status={connectionStatus.cashier} />
+                                        <div className="flex gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => handleCheckConnection('cashier')}
+                                                className="px-4 py-2 bg-indigo-600 text-white font-medium rounded-md hover:bg-indigo-700 shadow-sm"
+                                            >
+                                                ทดสอบเชื่อมต่อ Server
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleTestPrint('cashier')}
+                                                className="px-4 py-2 bg-white border border-gray-300 text-gray-700 font-medium rounded-md hover:bg-gray-50"
+                                            >
+                                                ทดสอบพิมพ์
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleSavePrinterSettings('cashier')}
+                                                className="px-4 py-2 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700"
+                                            >
+                                                บันทึก
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                        {/* ... (Other tabs: sound, qrcode, recommended need to be rendered if activeTab matches) ... */}
                         {activeTab === 'sound' && (
                              <div>
                                 <h4 className="text-lg font-semibold text-gray-700 mb-2">ตั้งค่าเสียงแจ้งเตือนออเดอร์</h4>
@@ -595,208 +828,33 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                 </div>
                             </div>
                         )}
-
-                        {activeTab === 'kitchen' && (
-                            <div>
-                                <h4 className="text-lg font-semibold text-gray-700 mb-2">ตั้งค่าเครื่องพิมพ์ในครัว</h4>
-                                
-                                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800 mb-4">
-                                    <p className="font-bold flex items-center gap-1">
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd"/></svg>
-                                        การเชื่อมต่อแบบ Web API:
-                                    </p>
-                                    <ul className="list-disc list-inside mt-1 space-y-1 ml-1">
-                                        <li>ระบุ <strong>IP ของคอมพิวเตอร์ที่รัน Node.js Server</strong> (ไม่ใช่ IP เครื่องพิมพ์โดยตรง)</li>
-                                        <li>Port เริ่มต้นของ Node.js Server มักจะเป็น <strong>3000</strong> หรือ <strong>8080</strong></li>
-                                        <li>ระบบจะส่งคำสั่งพิมพ์ไปยัง Server นี้เพื่อส่งต่อให้เครื่องพิมพ์ (รองรับภาษาไทย)</li>
-                                    </ul>
-                                </div>
-
-                                <div className="space-y-4">
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700">Print Server IP (Node.js)</label>
-                                        <input
-                                            type="text"
-                                            value={settingsForm.printerConfig.kitchen.ipAddress}
-                                            onChange={(e) => handlePrinterChange('kitchen', 'ipAddress', e.target.value)}
-                                            placeholder="Ex: 192.168.1.50 หรือ localhost"
-                                            className="mt-1 block w-full border border-gray-300 p-2 rounded-md shadow-sm"
-                                        />
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700">Port (Node.js)</label>
-                                        <input
-                                            type="text"
-                                            value={settingsForm.printerConfig.kitchen.port}
-                                            onChange={(e) => handlePrinterChange('kitchen', 'port', e.target.value)}
-                                            placeholder="Ex: 3000"
-                                            className="mt-1 block w-full border border-gray-300 p-2 rounded-md shadow-sm"
-                                        />
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">ขนาดกระดาษ</label>
-                                        <div className="flex items-center gap-4">
-                                            <label className="flex items-center gap-2 cursor-pointer">
-                                                <input
-                                                    type="radio"
-                                                    name="kitchenPaperWidth"
-                                                    checked={settingsForm.printerConfig.kitchen.paperWidth === '58mm'}
-                                                    onChange={() => handlePrinterChange('kitchen', 'paperWidth', '58mm')}
-                                                    className="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500"
-                                                />
-                                                <span className="text-gray-800">58mm</span>
-                                            </label>
-                                            <label className="flex items-center gap-2 cursor-pointer">
-                                                <input
-                                                    type="radio"
-                                                    name="kitchenPaperWidth"
-                                                    checked={settingsForm.printerConfig.kitchen.paperWidth === '80mm'}
-                                                    onChange={() => handlePrinterChange('kitchen', 'paperWidth', '80mm')}
-                                                    className="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500"
-                                                />
-                                                <span className="text-gray-800">80mm</span>
-                                            </label>
-                                        </div>
-                                    </div>
-
-                                    <div className="pt-2 flex items-center justify-between">
-                                        <StatusIndicator status={connectionStatus.kitchen} />
-                                        <div className="flex gap-2">
-                                            <button
-                                                type="button"
-                                                onClick={() => handleCheckConnection('kitchen')}
-                                                className="px-4 py-2 bg-indigo-600 text-white font-medium rounded-md hover:bg-indigo-700 shadow-sm"
-                                            >
-                                                เชื่อมต่อ
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => handleTestPrint('kitchen')}
-                                                className="px-4 py-2 bg-white border border-gray-300 text-gray-700 font-medium rounded-md hover:bg-gray-50"
-                                            >
-                                                ทดสอบพิมพ์
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => handleSavePrinterSettings('kitchen')}
-                                                className="px-4 py-2 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700"
-                                            >
-                                                บันทึก
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-                        {activeTab === 'cashier' && (
-                            <div>
-                                <h4 className="text-lg font-semibold text-gray-700 mb-2">ตั้งค่าเครื่องพิมพ์ใบเสร็จ</h4>
-                                 <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800 mb-4">
-                                    <p className="font-bold flex items-center gap-1">
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd"/></svg>
-                                        การเชื่อมต่อแบบ Web API:
-                                    </p>
-                                    <ul className="list-disc list-inside mt-1 space-y-1 ml-1">
-                                        <li>ระบุ <strong>IP ของคอมพิวเตอร์ที่รัน Node.js Server</strong> (ไม่ใช่ IP เครื่องพิมพ์โดยตรง)</li>
-                                        <li>Port เริ่มต้นของ Node.js Server มักจะเป็น <strong>3000</strong> หรือ <strong>8080</strong></li>
-                                    </ul>
-                                </div>
-                                <div className="space-y-4">
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700">Print Server IP (Node.js)</label>
-                                        <input
-                                            type="text"
-                                            value={settingsForm.printerConfig.cashier.ipAddress}
-                                            onChange={(e) => handlePrinterChange('cashier', 'ipAddress', e.target.value)}
-                                            placeholder="Ex: 192.168.1.50 หรือ localhost"
-                                            className="mt-1 block w-full border border-gray-300 p-2 rounded-md shadow-sm"
-                                        />
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700">Port (Node.js)</label>
-                                        <input
-                                            type="text"
-                                            value={settingsForm.printerConfig.cashier.port}
-                                            onChange={(e) => handlePrinterChange('cashier', 'port', e.target.value)}
-                                            placeholder="Ex: 3000"
-                                            className="mt-1 block w-full border border-gray-300 p-2 rounded-md shadow-sm"
-                                        />
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">ขนาดกระดาษ</label>
-                                        <div className="flex items-center gap-4">
-                                            <label className="flex items-center gap-2 cursor-pointer">
-                                                <input
-                                                    type="radio"
-                                                    name="cashierPaperWidth"
-                                                    checked={settingsForm.printerConfig.cashier.paperWidth === '58mm'}
-                                                    onChange={() => handlePrinterChange('cashier', 'paperWidth', '58mm')}
-                                                    className="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500"
-                                                />
-                                                <span className="text-gray-800">58mm</span>
-                                            </label>
-                                            <label className="flex items-center gap-2 cursor-pointer">
-                                                <input
-                                                    type="radio"
-                                                    name="cashierPaperWidth"
-                                                    checked={settingsForm.printerConfig.cashier.paperWidth === '80mm'}
-                                                    onChange={() => handlePrinterChange('cashier', 'paperWidth', '80mm')}
-                                                    className="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500"
-                                                />
-                                                <span className="text-gray-800">80mm</span>
-                                            </label>
-                                        </div>
-                                    </div>
-
-                                    <div className="pt-2 border-t border-gray-200">
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">รายละเอียดบนใบเสร็จ</label>
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                            <ReceiptOptionCheckbox name="printRestaurantName" label="ชื่อร้าน" checked={receiptOptions.printRestaurantName} onChange={handleReceiptOptionChange} />
-                                            <ReceiptOptionCheckbox name="printOrderId" label="รหัสออเดอร์" checked={receiptOptions.printOrderId} onChange={handleReceiptOptionChange} />
-                                            <ReceiptOptionCheckbox name="printTableInfo" label="โต๊ะ" checked={receiptOptions.printTableInfo} onChange={handleReceiptOptionChange} />
-                                            <ReceiptOptionCheckbox name="printDateTime" label="วัน/เวลา" checked={receiptOptions.printDateTime} onChange={handleReceiptOptionChange} />
-                                            <ReceiptOptionCheckbox name="printPlacedBy" label="พนักงาน" checked={receiptOptions.printPlacedBy} onChange={handleReceiptOptionChange} />
-                                            <ReceiptOptionCheckbox name="printItems" label="รายการอาหาร" checked={receiptOptions.printItems} onChange={handleReceiptOptionChange} />
-                                            <ReceiptOptionCheckbox name="printSubtotal" label="ราคารวมย่อย" checked={receiptOptions.printSubtotal} onChange={handleReceiptOptionChange} />
-                                            <ReceiptOptionCheckbox name="printTax" label="ภาษี" checked={receiptOptions.printTax} onChange={handleReceiptOptionChange} />
-                                            <ReceiptOptionCheckbox name="printTotal" label="ยอดสุทธิ" checked={receiptOptions.printTotal} onChange={handleReceiptOptionChange} />
-                                            <ReceiptOptionCheckbox name="printPaymentDetails" label="การชำระเงิน" checked={receiptOptions.printPaymentDetails} onChange={handleReceiptOptionChange} />
-                                            <ReceiptOptionCheckbox name="printThankYouMessage" label="ข้อความขอบคุณ" checked={receiptOptions.printThankYouMessage} onChange={handleReceiptOptionChange} />
-                                        </div>
-                                        <button type="button" onClick={handleRestoreDefaults} className="mt-2 text-sm text-blue-600 hover:underline">คืนค่าเริ่มต้น</button>
-                                    </div>
-
-                                    <div className="pt-2 flex items-center justify-between border-t border-gray-200 mt-2">
-                                        <StatusIndicator status={connectionStatus.cashier} />
-                                        <div className="flex gap-2">
-                                            <button
-                                                type="button"
-                                                onClick={() => handleCheckConnection('cashier')}
-                                                className="px-4 py-2 bg-indigo-600 text-white font-medium rounded-md hover:bg-indigo-700 shadow-sm"
-                                            >
-                                                เชื่อมต่อ
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => handleTestPrint('cashier')}
-                                                className="px-4 py-2 bg-white border border-gray-300 text-gray-700 font-medium rounded-md hover:bg-gray-50"
-                                            >
-                                                ทดสอบพิมพ์
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => handleSavePrinterSettings('cashier')}
-                                                className="px-4 py-2 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700"
-                                            >
-                                                บันทึก
-                                            </button>
-                                        </div>
-                                    </div>
+                        {activeTab === 'recommended' && (
+                             <div>
+                                <h4 className="text-lg font-semibold text-gray-700 mb-2">จัดการเมนูแนะนำ</h4>
+                                <p className="text-sm text-gray-500 mb-4">เลือกรายการอาหารที่จะแสดงเป็นเมนูแนะนำในหน้า POS</p>
+                                <input 
+                                    type="text" 
+                                    placeholder="ค้นหาเมนู..." 
+                                    value={recommendSearchTerm} 
+                                    onChange={(e) => setRecommendSearchTerm(e.target.value)} 
+                                    className="w-full p-2 border border-gray-300 rounded-md mb-4"
+                                />
+                                <div className="max-h-96 overflow-y-auto space-y-2 border p-2 rounded-md bg-gray-50">
+                                    {filteredMenuItems.map(item => (
+                                        <label key={item.id} className="flex items-center gap-3 p-2 rounded-md hover:bg-gray-100 cursor-pointer bg-white">
+                                            <input
+                                                type="checkbox"
+                                                checked={localRecommendedIds.has(item.id)}
+                                                onChange={() => handleToggleRecommend(item.id)}
+                                                className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                            />
+                                            <img src={item.imageUrl} alt={item.name} className="w-12 h-12 rounded-md object-cover"/>
+                                            <span className="font-medium text-gray-800">{item.name}</span>
+                                        </label>
+                                    ))}
+                                    {filteredMenuItems.length === 0 && (
+                                        <p className="text-center text-gray-500 py-4">ไม่พบเมนู</p>
+                                    )}
                                 </div>
                             </div>
                         )}

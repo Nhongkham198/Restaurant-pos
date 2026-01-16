@@ -4,13 +4,27 @@ const cors = require('cors');
 const bodyParser = require('body-parser');
 const net = require('net');
 const iconv = require('iconv-lite'); // สำหรับแปลงภาษาไทย
+const fs = require('fs');
+const path = require('path');
 
-// --- การตั้งค่า (แก้ไขตรงนี้ให้ตรงกับเครื่องพิมพ์ของคุณ) ---
-const PRINTER_CONFIG = {
-    host: '192.168.1.200', // <--- ใส่ IP ของเครื่องพิมพ์ใบเสร็จที่นี่ (เช่น 192.168.1.200)
-    port: 9100,            // พอร์ตมาตรฐานของเครื่องพิมพ์ใบเสร็จส่วนใหญ่คือ 9100
-    width: 42              // จำนวนตัวอักษรต่อบรรทัด (42 สำหรับ 80mm, 32 สำหรับ 58mm)
+// --- โหลดการตั้งค่าจากไฟล์ config.json ---
+const configPath = path.join(__dirname, 'config.json');
+let PRINTER_CONFIG = {
+    host: '192.168.1.200', // Default fallback
+    port: 9100,
+    width: 42
 };
+
+// พยายามอ่านไฟล์ config
+if (fs.existsSync(configPath)) {
+    try {
+        const savedConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+        PRINTER_CONFIG = { ...PRINTER_CONFIG, ...savedConfig };
+        console.log(`Loaded config: Printer at ${PRINTER_CONFIG.host}:${PRINTER_CONFIG.port}`);
+    } catch (e) {
+        console.error("Error loading config.json, using defaults.");
+    }
+}
 
 const SERVER_PORT = 3000; // พอร์ตของ Server นี้ (ที่จะเอาไปใส่ในหน้าตั้งค่า POS)
 
@@ -36,20 +50,25 @@ const COMMANDS = {
 
 // Route สำหรับตรวจสอบว่า Server ทำงานอยู่ไหม
 app.get('/', (req, res) => {
-    res.send('Print Server is Running... Ready to connect!');
+    res.send(`Print Server is Running...`);
 });
 
 // Route สำหรับรับคำสั่งพิมพ์จาก POS
 app.post('/print', (req, res) => {
-    const { order, paperSize } = req.body;
+    // รับ targetPrinter จาก frontend ถ้ามี ให้ใช้ค่านี้แทน config เดิม
+    const { order, paperSize, targetPrinter } = req.body;
     
-    console.log(`[${new Date().toLocaleTimeString()}] Received print job #${order.orderId}`);
+    // Determine Target Printer Config
+    const targetHost = (targetPrinter && targetPrinter.ip) ? targetPrinter.ip : PRINTER_CONFIG.host;
+    const targetPort = (targetPrinter && targetPrinter.port) ? targetPrinter.port : PRINTER_CONFIG.port;
+
+    console.log(`[${new Date().toLocaleTimeString()}] Received print job #${order.orderId} -> Target: ${targetHost}:${targetPort}`);
 
     // เชื่อมต่อกับเครื่องพิมพ์
     const client = new net.Socket();
     
-    client.connect(PRINTER_CONFIG.port, PRINTER_CONFIG.host, () => {
-        console.log('Connected to printer at ' + PRINTER_CONFIG.host);
+    client.connect(targetPort, targetHost, () => {
+        console.log('Connected to printer at ' + targetHost);
         
         // 1. ส่งคำสั่งเริ่มต้น (Init)
         client.write(Buffer.from(COMMANDS.INIT));
@@ -73,7 +92,10 @@ app.post('/print', (req, res) => {
 
     client.on('error', (err) => {
         console.error('Printer Connection Error:', err.message);
-        res.status(500).json({ success: false, error: 'ไม่สามารถเชื่อมต่อเครื่องพิมพ์ได้: ' + err.message });
+        // ส่ง Error กลับไปที่ Frontend ให้ชัดเจน
+        if (!res.headersSent) {
+            res.status(500).json({ success: false, error: `ไม่สามารถเชื่อมต่อเครื่องพิมพ์ที่ ${targetHost}:${targetPort} ได้ (${err.message})` });
+        }
     });
 
     client.on('close', () => {
@@ -88,10 +110,11 @@ app.post('/print', (req, res) => {
 app.listen(SERVER_PORT, () => {
     console.log(`\n=== POS PRINT SERVER STARTED ===`);
     console.log(`listening on port: ${SERVER_PORT}`);
-    console.log(`Target Printer: ${PRINTER_CONFIG.host}:${PRINTER_CONFIG.port}`);
+    console.log(`Default Printer Config: ${PRINTER_CONFIG.host}:${PRINTER_CONFIG.port}`);
     console.log(`\nวิธีใช้งาน:`);
     console.log(`1. เปิดโปรแกรม POS บนมือถือ/คอม`);
     console.log(`2. ไปที่ "ตั้งค่า" -> "เครื่องพิมพ์ครัว"`);
-    console.log(`3. ใส่ IP ของคอมพิวเตอร์เครื่องนี้ (เช่น 192.168.1.xx) และ Port ${SERVER_PORT}`);
+    console.log(`3. ใส่ IP ของคอมพิวเตอร์เครื่องนี้ (เช่น 192.168.1.xx) ในช่อง "Print Server IP"`);
+    console.log(`4. ใส่ IP ของเครื่องพิมพ์จริง ในช่อง "IP เครื่องพิมพ์ (Hardware)" บนหน้าเว็บ`);
     console.log(`================================\n`);
 });

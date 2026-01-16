@@ -1,3 +1,4 @@
+
 import type { ActiveOrder, KitchenPrinterSettings, Table, CompletedOrder, CashierPrinterSettings } from '../types';
 
 export const printerService = {
@@ -73,6 +74,10 @@ export const printerService = {
                         items: lines,
                     },
                     paperSize: config.paperWidth,
+                    targetPrinter: {
+                        ip: config.targetPrinterIp || '',
+                        port: config.targetPrinterPort || '9100'
+                    }
                 };
 
                 const response = await fetch(url, {
@@ -87,7 +92,8 @@ export const printerService = {
                 clearTimeout(timeoutId);
 
                 if (!response.ok) {
-                    throw new Error(`Printer API responded with status ${response.status}`);
+                    const errJson = await response.json().catch(() => ({}));
+                    throw new Error(errJson.error || `Printer API responded with status ${response.status}`);
                 }
             } catch (error) {
                 console.error(`Print error for item ${item.name}:`, error);
@@ -165,6 +171,10 @@ export const printerService = {
                     items: lines,
                 },
                 paperSize: config.paperWidth,
+                targetPrinter: {
+                    ip: config.targetPrinterIp || '',
+                    port: config.targetPrinterPort || '9100'
+                }
             };
 
             const response = await fetch(url, {
@@ -177,7 +187,8 @@ export const printerService = {
             clearTimeout(timeoutId);
 
             if (!response.ok) {
-                throw new Error(`Printer API responded with status ${response.status}`);
+                const errJson = await response.json().catch(() => ({}));
+                throw new Error(errJson.error || `Printer API responded with status ${response.status}`);
             }
         } catch (error) {
             console.error(`Print receipt error for order #${order.orderNumber}:`, error);
@@ -217,6 +228,10 @@ export const printerService = {
                     items: itemsAsStrings,
                 },
                 paperSize: config.paperWidth,
+                targetPrinter: {
+                    ip: config.targetPrinterIp || '',
+                    port: config.targetPrinterPort || '9100'
+                }
             };
 
             const response = await fetch(url, {
@@ -240,7 +255,7 @@ export const printerService = {
     /**
      * Sends a test payload to the printer service.
      */
-    printTest: async (ip: string, paperWidth: string, port: string): Promise<boolean> => {
+    printTest: async (ip: string, paperWidth: string, port: string, targetPrinterIp?: string, targetPrinterPort?: string): Promise<boolean> => {
         if (!ip) return false;
         // Default to port 3001 to match user's backend.
         const url = `http://${ip}:${port || 3001}/print`;
@@ -260,7 +275,11 @@ export const printerService = {
                         new Date().toLocaleString('th-TH')
                     ]
                 },
-                paperSize: paperWidth
+                paperSize: paperWidth,
+                targetPrinter: {
+                    ip: targetPrinterIp || '',
+                    port: targetPrinterPort || '9100'
+                }
             };
 
             const response = await fetch(url, {
