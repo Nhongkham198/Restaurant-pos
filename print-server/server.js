@@ -67,6 +67,9 @@ app.post('/print', (req, res) => {
     // เชื่อมต่อกับเครื่องพิมพ์
     const client = new net.Socket();
     
+    // Set a timeout of 5 seconds for connection attempt
+    client.setTimeout(5000);
+
     client.connect(targetPort, targetHost, () => {
         console.log('Connected to printer at ' + targetHost);
         
@@ -88,6 +91,15 @@ app.post('/print', (req, res) => {
 
         // 4. ปิดการเชื่อมต่อ
         client.end();
+    });
+
+    // Handle timeout specifically
+    client.on('timeout', () => {
+        console.error('Printer Connection Timeout');
+        client.destroy(); // Kill socket
+        if (!res.headersSent) {
+            res.status(500).json({ success: false, error: `เชื่อมต่อเครื่องพิมพ์ ${targetHost} ไม่ได้ (Timeout)` });
+        }
     });
 
     client.on('error', (err) => {

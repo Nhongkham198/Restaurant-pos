@@ -256,7 +256,7 @@ export const printerService = {
      * Sends a test payload to the printer service.
      */
     printTest: async (ip: string, paperWidth: string, port: string, targetPrinterIp?: string, targetPrinterPort?: string): Promise<boolean> => {
-        if (!ip) return false;
+        if (!ip) throw new Error("ไม่ระบุ IP ของ Server");
         // Default to port 3001 to match user's backend.
         const url = `http://${ip}:${port || 3001}/print`;
 
@@ -290,10 +290,16 @@ export const printerService = {
             });
             
             clearTimeout(timeoutId);
-            return response.ok;
+            
+            if (!response.ok) {
+                const errJson = await response.json().catch(() => ({}));
+                throw new Error(errJson.error || `Server Error: ${response.status}`);
+            }
+            
+            return true;
         } catch (error) {
             console.error("Test print error:", error);
-            return false;
+            throw error; // Propagate error to UI
         }
     },
 
