@@ -2,6 +2,7 @@
 import React, { useMemo, useState } from 'react';
 import type { OrderItem, Table, TakeawayCutleryOption, Reservation, User, View } from '../types';
 import { OrderListItem } from './OrderListItem';
+import { NumpadModal } from './NumpadModal'; // Import NumpadModal
 import Swal from 'sweetalert2';
 
 interface SidebarProps {
@@ -78,6 +79,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
     onToggleOrderNotifications,
 }) => {
     const [isLineMan, setIsLineMan] = useState(false);
+    // New state for LineMan Numpad
+    const [isLineManNumpadOpen, setIsLineManNumpadOpen] = useState(false);
+    const [lineManNumber, setLineManNumber] = useState('');
 
     const total = useMemo(() => {
         return currentOrderItems.reduce((sum, item) => sum + item.finalPrice * item.quantity, 0);
@@ -126,6 +130,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
         // Reset local state after order is placed (though parent usually handles clearing order items)
         if (isLineMan) {
             setIsLineMan(false);
+            setLineManNumber('');
+            if (customerName.startsWith('LineMan #')) {
+                onCustomerNameChange('');
+            }
         }
     };
     
@@ -356,9 +364,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
                                     type="checkbox"
                                     checked={isLineMan}
                                     onChange={(e) => {
-                                        setIsLineMan(e.target.checked);
                                         if (e.target.checked) {
-                                            onSelectTable(null); // Clear table selection
+                                            setIsLineManNumpadOpen(true);
+                                        } else {
+                                            setIsLineMan(false);
+                                            setLineManNumber('');
+                                            onCustomerNameChange('');
                                         }
                                     }}
                                     className="peer h-6 w-6 cursor-pointer appearance-none rounded border border-gray-500 bg-gray-700 checked:bg-green-500 checked:border-green-500 transition-all"
@@ -367,7 +378,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                                     <polyline points="20 6 9 17 4 12"></polyline>
                                 </svg>
                             </div>
-                            <span className={`font-bold text-lg ${isLineMan ? 'text-green-400' : 'text-gray-300'}`}>LineMan (เดลิเวอรี่)</span>
+                            <span className={`font-bold text-lg ${isLineMan ? 'text-green-400' : 'text-gray-300'}`}>
+                                LineMan {lineManNumber ? `#${lineManNumber}` : '(เดลิเวอรี่)'}
+                            </span>
                         </label>
                     </div>
                 )}
@@ -440,9 +453,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     {isMobilePage ? (
                         <button
                             onClick={() => {
-                                const newState = !isLineMan;
-                                setIsLineMan(newState);
-                                if (newState) onSelectTable(null);
+                                if (!isLineMan) {
+                                    setIsLineManNumpadOpen(true);
+                                } else {
+                                    setIsLineMan(false);
+                                    setLineManNumber('');
+                                    onCustomerNameChange('');
+                                }
                             }}
                             className={`col-span-1 flex flex-col items-center justify-center p-2 rounded-xl font-bold transition-all border leading-none gap-1 active:scale-95 ${
                                 isLineMan 
@@ -479,7 +496,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         ) : !canPlaceOrder ? (
                             'กรุณาเลือกโต๊ะ'
                         ) : (
-                            isLineMan ? 'ยืนยัน (LineMan)' : 'ยืนยันออเดอร์'
+                            isLineMan ? `ยืนยัน (LineMan #${lineManNumber})` : 'ยืนยันออเดอร์'
                         )}
                     </button>
                 </div>
@@ -498,6 +515,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     </div>
                 )}
             </div>
+
+            <NumpadModal
+                isOpen={isLineManNumpadOpen}
+                onClose={() => setIsLineManNumpadOpen(false)}
+                title="ระบุหมายเลข LineMan"
+                initialValue={0}
+                onSubmit={(value) => {
+                    const numStr = value.toString();
+                    setLineManNumber(numStr);
+                    setIsLineMan(true);
+                    onSelectTable(null); // Clear table selection when entering LineMan mode
+                    onCustomerNameChange(`LineMan #${numStr}`); // Auto-fill customer name
+                }}
+            />
         </div>
     );
 };

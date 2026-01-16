@@ -16,15 +16,16 @@ const generateReceiptImage = async (lines: string[], paperWidth: '58mm' | '80mm'
         container.style.top = '-9999px';
         container.style.left = '-9999px';
         container.style.backgroundColor = 'white';
-        container.style.color = 'black';
+        container.style.color = '#000000'; // Pure black for best contrast
+        
         // Set width based on paper size (80mm ~ 576 dots, 58mm ~ 384 dots)
-        // We use slightly less to ensure margins
-        container.style.width = paperWidth === '80mm' ? '550px' : '370px';
-        container.style.fontFamily = '"Sarabun", sans-serif'; // Use the Thai font we loaded
-        container.style.padding = '10px';
-        container.style.lineHeight = '1.2';
-        container.style.fontSize = '22px'; // Readable size
-        container.style.fontWeight = '500';
+        // Use slightly less width to ensure safe margins
+        container.style.width = paperWidth === '80mm' ? '560px' : '370px';
+        container.style.fontFamily = '"Sarabun", sans-serif'; 
+        container.style.padding = '15px';
+        container.style.lineHeight = '1.3'; // Increase line height for readability
+        container.style.fontSize = '36px'; // Increased from 22px to 36px (Big & Clear)
+        container.style.fontWeight = '600'; // Semi-bold base
 
         // Render lines
         let htmlContent = '';
@@ -33,13 +34,17 @@ const generateReceiptImage = async (lines: string[], paperWidth: '58mm' | '80mm'
             let style = '';
             let text = line;
             
-            if (line.includes('***')) { // Bold/Important
-                style = 'font-weight: bold; font-size: 24px; margin: 5px 0;';
+            if (line.includes('***')) { // Bold/Important Headers
+                style = 'font-weight: 800; font-size: 42px; margin: 10px 0; display: block;';
             } else if (line.startsWith('---') || line.startsWith('===')) { // Separator
-                text = '<div style="border-bottom: 2px dashed black; margin: 10px 0;"></div>';
-                style = 'height: 2px; overflow: hidden;';
-            } else if (line.startsWith(' ')) { // Indented (options)
-                style = 'padding-left: 20px; font-size: 20px; color: #333;';
+                text = '<div style="border-bottom: 3px dashed black; margin: 15px 0;"></div>';
+                style = 'height: 5px; overflow: hidden;';
+            } else if (line.startsWith(' ')) { // Indented (options/notes)
+                // Slightly smaller but still large enough to read
+                style = 'padding-left: 35px; font-size: 30px; font-weight: 500; color: #000;';
+            } else if (line.includes('ออเดอร์:') || line.includes('โต๊ะ:')) {
+                // Make Order # and Table # extra prominent
+                style = 'font-weight: 800; font-size: 40px;';
             }
 
             if (text.startsWith('<div')) {
@@ -56,10 +61,15 @@ const generateReceiptImage = async (lines: string[], paperWidth: '58mm' | '80mm'
         setTimeout(() => {
             if (window.html2canvas) {
                 window.html2canvas(container, {
-                    scale: 1, // Native scale matches pixel width
+                    scale: 1, // Native scale matches pixel width (1px = 1 dot)
                     useCORS: true,
                     logging: false,
-                    backgroundColor: '#ffffff' // Force white background
+                    backgroundColor: '#ffffff', // Force white background
+                    onclone: (clonedDoc: Document) => {
+                        // Ensure fonts are loaded in the clone if needed
+                        const clonedContainer = clonedDoc.body.lastChild as HTMLElement;
+                        if(clonedContainer) clonedContainer.style.visibility = 'visible';
+                    }
                 }).then((canvas: HTMLCanvasElement) => {
                     const base64 = canvas.toDataURL('image/png');
                     document.body.removeChild(container);
@@ -72,7 +82,7 @@ const generateReceiptImage = async (lines: string[], paperWidth: '58mm' | '80mm'
                 document.body.removeChild(container);
                 reject(new Error("html2canvas library not found"));
             }
-        }, 100);
+        }, 150); // Increased timeout slightly for reliable font rendering
     });
 };
 
@@ -191,9 +201,7 @@ export const printerService = {
                     const opts = item.selectedOptions.map(o => o.name).join(', ');
                     lines.push(`    (${opts})`);
                 }
-                // Alignment hack with spaces (Canvas renders spaces correctly for monospaced look if needed, but Sarabun is variable width)
-                // For variable width font in image, simple right align is hard without tables.
-                // We'll just put price on next line indented or same line.
+                // Use a large space or separate line for price if needed
                 lines.push(`                      ${itemTotal.toFixed(2)}`);
             });
         }
@@ -244,23 +252,19 @@ export const printerService = {
     },
 
     printTableQRCode: async (table: Table, qrUrl: string, config: KitchenPrinterSettings): Promise<void> => {
-        // Image printing for QR is tricky because we need to render the QR code image into the canvas.
-        // For now, let's stick to text link or skip implementing image-based QR printing to keep complexity down, 
-        // as html2canvas might taint canvas with external QR images if not careful.
-        // We will just print the URL text for now or throw "Not supported in Image Mode yet".
         throw new Error("การพิมพ์ QR Code ยังไม่รองรับในโหมดรูปภาพ");
     },
 
     printTest: async (ip: string, paperWidth: string, port: string, targetPrinterIp?: string, targetPrinterPort?: string): Promise<boolean> => {
         const url = `http://${ip}:${port || 3000}/print-image`;
         const lines = [
-            "--- ทดสอบการพิมพ์ (รูปภาพ) ---",
+            "--- ทดสอบการพิมพ์ (แบบใหญ่) ---",
             "สวัสดีครับ / Hello World",
             "ภาษาไทยทดสอบ: กขคง",
             "สระบนล่าง: น้ำ ปู รู้",
             "วรรณยุกต์: ก้ ก๊ ก๋",
             "--------------------------------",
-            "Image Mode Works!",
+            "ตัวหนังสือใหญ่มองเห็นชัด!",
             new Date().toLocaleString('th-TH')
         ];
 
