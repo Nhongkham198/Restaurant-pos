@@ -201,7 +201,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     }, [isOpen, currentQrCodeUrl, currentNotificationSoundUrl, currentStaffCallSoundUrl, currentPrinterConfig, currentOpeningTime, currentClosingTime, currentRecommendedMenuItemIds]);
 
     // ... (File Change Handlers: handleSoundFileChange, handleStaffCallSoundFileChange, handleQrCodeFileChange) ...
-    // Keeping them same as previous version but abbreviated for XML validity
     const handleSoundFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
@@ -346,6 +345,48 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         Swal.fire({ icon: 'success', title: 'บันทึกการตั้งค่าเรียบร้อย', showConfirmButton: false, timer: 1500 });
     };
 
+    const handleShowFixGuide = (serverSubnet: string, printerSubnet: string, printerCurrentIp: string) => {
+        const tempPcIp = `${printerSubnet}.99`;
+        const targetPrinterIp = `${serverSubnet}.200`; // Suggest .200 as stable IP
+
+        Swal.fire({
+            title: '🛠️ คู่มือแก้ไข IP เครื่องพิมพ์',
+            html: `
+                <div class="text-left space-y-4 text-sm">
+                    <p class="font-bold text-red-600">ปัญหา: เครื่องพิมพ์ (${printerCurrentIp}) อยู่วง ${printerSubnet}.x<br/>แต่คอมพิวเตอร์อยู่วง ${serverSubnet}.x ทำให้มองไม่เห็นกัน</p>
+                    
+                    <div class="bg-gray-100 p-3 rounded-lg border border-gray-300">
+                        <h4 class="font-bold mb-2 border-b pb-1">ขั้นตอนที่ 1: เปลี่ยน IP คอมพิวเตอร์ชั่วคราว</h4>
+                        <p>ไปที่ Network Settings ของคอมฯ แล้วตั้งค่า Manual IP:</p>
+                        <ul class="list-disc list-inside ml-2 font-mono text-blue-700">
+                            <li>IP Address: <strong>${tempPcIp}</strong></li>
+                            <li>Subnet Mask: <strong>255.255.255.0</strong></li>
+                        </ul>
+                    </div>
+
+                    <div class="bg-gray-100 p-3 rounded-lg border border-gray-300">
+                        <h4 class="font-bold mb-2 border-b pb-1">ขั้นตอนที่ 2: ตั้งค่าเครื่องพิมพ์</h4>
+                        <ol class="list-decimal list-inside space-y-1">
+                            <li>เปิด Chrome พิมพ์ <strong>${printerCurrentIp}</strong></li>
+                            <li>ไปที่เมนู <strong>Network</strong> หรือ <strong>Config</strong></li>
+                            <li>เปลี่ยน IP Address เป็น: <strong class="text-green-600 bg-green-100 px-1">${targetPrinterIp}</strong></li>
+                            <li>กด Save (เครื่องพิมพ์อาจรีสตาร์ท)</li>
+                        </ol>
+                    </div>
+
+                    <div class="bg-gray-100 p-3 rounded-lg border border-gray-300">
+                        <h4 class="font-bold mb-2 border-b pb-1">ขั้นตอนที่ 3: คืนค่าเดิม</h4>
+                        <p>กลับไปที่ตั้งค่า Network ของคอมพิวเตอร์ แล้วเลือก <strong>"Obtain IP address automatically"</strong></p>
+                    </div>
+                    
+                    <p class="text-center font-bold text-green-600 mt-2">เสร็จสิ้น! ลองกด "ทดสอบพิมพ์" อีกครั้ง</p>
+                </div>
+            `,
+            width: '600px',
+            confirmButtonText: 'เข้าใจแล้ว',
+        });
+    };
+
     // --- Subnet Logic ---
     const renderSubnetDiagnosis = (type: 'kitchen' | 'cashier') => {
         const serverIp = settingsForm.printerConfig[type].ipAddress;
@@ -399,18 +440,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
                             <button 
                                 type="button"
-                                onClick={() => Swal.fire({
-                                    title: 'วิธีเปลี่ยน IP เครื่องพิมพ์',
-                                    html: `<div class="text-left text-sm space-y-2">
-                                        <p>1. <strong>ใช้เครื่องมือตั้งค่า:</strong> โหลดโปรแกรม Setting tool จากผู้ผลิตเครื่องพิมพ์ (ในแผ่น CD หรือเว็บผู้ผลิต)</p>
-                                        <p>2. <strong>เปลี่ยน IP คอมพิวเตอร์ชั่วคราว:</strong> ตั้งค่า IP คอมฯ ให้เป็นวงเดียวกับเครื่องพิมพ์ (เช่น 192.168.7.100) เพื่อเข้าไปหน้าตั้งค่าเครื่องพิมพ์ แล้วเปลี่ยน IP เครื่องพิมพ์กลับมาเป็นวง 192.168.1.xxx</p>
-                                        <p>3. <strong>Factory Reset:</strong> (ถ้าทำได้) กดปุ่ม Feed ค้างไว้ตอนเปิดเครื่อง เพื่อดู IP เริ่มต้น หรือรีเซ็ตเป็น DHCP</p>
-                                    </div>`,
-                                    icon: 'info'
-                                })}
-                                className="mt-3 text-xs text-red-600 underline hover:text-red-800"
+                                onClick={() => handleShowFixGuide(serverInfo.subnet, printerInfo.subnet, printerIp)}
+                                className="mt-3 text-sm font-bold text-red-600 bg-red-100 hover:bg-red-200 px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
                             >
-                                ดูวิธีเปลี่ยน IP เครื่องพิมพ์
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.972.094 2.22-.948 2.286-1.56.38-1.56 2.6 0 2.98.972.54 2.22.094 2.286.948.836 1.372-.734 2.942-2.106 2.106a1.532 1.532 0 01-.948-2.286c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286-.948c-1.372.836-2.942-.734-2.106-2.106a1.532 1.532 0 01.948-2.286c.38-1.56 2.6-1.56 2.98 0a1.532 1.532 0 012.286-.948c1.372.836 2.942-.734 2.106-2.106a1.532 1.532 0 01.948 2.286zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" /></svg>
+                                เปิดคู่มือการแก้ไขทีละขั้นตอน
                             </button>
                         </div>
                     </div>

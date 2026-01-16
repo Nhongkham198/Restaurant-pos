@@ -65,7 +65,8 @@ export const printerService = {
             // --- Send Request for this specific item ---
             try {
                 const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout
+                // Increase timeout to 8s to allow backend (5s) to fail gracefully first
+                const timeoutId = setTimeout(() => controller.abort(), 8000); 
 
                 const payload = {
                     order: {
@@ -95,9 +96,11 @@ export const printerService = {
                     const errJson = await response.json().catch(() => ({}));
                     throw new Error(errJson.error || `Printer API responded with status ${response.status}`);
                 }
-            } catch (error) {
+            } catch (error: any) {
                 console.error(`Print error for item ${item.name}:`, error);
-                // Re-throw to notify the UI that printing failed
+                if (error.name === 'AbortError') {
+                    throw new Error("หมดเวลาเชื่อมต่อ (Timeout) - เครื่องพิมพ์ไม่ตอบสนอง ตรวจสอบ IP และสายแลน");
+                }
                 throw error;
             }
         }
@@ -163,7 +166,7 @@ export const printerService = {
         
         try {
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 5000);
+            const timeoutId = setTimeout(() => controller.abort(), 8000);
 
             const payload = {
                 order: {
@@ -190,8 +193,11 @@ export const printerService = {
                 const errJson = await response.json().catch(() => ({}));
                 throw new Error(errJson.error || `Printer API responded with status ${response.status}`);
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error(`Print receipt error for order #${order.orderNumber}:`, error);
+            if (error.name === 'AbortError') {
+                throw new Error("หมดเวลาเชื่อมต่อ (Timeout) - เครื่องพิมพ์ไม่ตอบสนอง");
+            }
             throw error;
         }
     },
@@ -220,7 +226,7 @@ export const printerService = {
 
         try {
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 5000);
+            const timeoutId = setTimeout(() => controller.abort(), 8000);
 
             const payload = {
                 order: {
@@ -246,8 +252,11 @@ export const printerService = {
             if (!response.ok) {
                 throw new Error(`Printer API responded with status ${response.status}`);
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error("Print QR error:", error);
+            if (error.name === 'AbortError') {
+                throw new Error("หมดเวลาเชื่อมต่อ (Timeout) - เครื่องพิมพ์ไม่ตอบสนอง");
+            }
             throw error;
         }
     },
@@ -262,7 +271,7 @@ export const printerService = {
 
         try {
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 5000);
+            const timeoutId = setTimeout(() => controller.abort(), 8000);
 
             // Create a dummy order payload that the backend can process.
             const payload = {
@@ -297,8 +306,11 @@ export const printerService = {
             }
             
             return true;
-        } catch (error) {
+        } catch (error: any) {
             console.error("Test print error:", error);
+            if (error.name === 'AbortError') {
+                throw new Error("หมดเวลาเชื่อมต่อ (Timeout) - เครื่องพิมพ์ไม่ตอบสนอง ตรวจสอบ IP ให้แน่ใจว่าอยู่ในวงเดียวกัน");
+            }
             throw error; // Propagate error to UI
         }
     },
