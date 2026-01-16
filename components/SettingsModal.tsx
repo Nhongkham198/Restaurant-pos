@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import type { PrinterConfig, ReceiptPrintSettings, KitchenPrinterSettings, CashierPrinterSettings, MenuItem } from '../types';
 import { printerService } from '../services/printerService';
 import Swal from 'sweetalert2';
+import { MenuItemImage } from './MenuItemImage';
 
 interface SettingsModalProps {
     isOpen: boolean;
@@ -34,26 +35,24 @@ const DEFAULT_RECEIPT_OPTIONS: ReceiptPrintSettings = {
     printThankYouMessage: true,
 };
 
-const DEFAULT_KITCHEN_PRINTER: KitchenPrinterSettings = { ipAddress: '', port: '3000', paperWidth: '80mm', targetPrinterIp: '', targetPrinterPort: '9100' };
-const DEFAULT_CASHIER_PRINTER: CashierPrinterSettings = { ipAddress: '', port: '3000', paperWidth: '80mm', targetPrinterIp: '', targetPrinterPort: '9100', receiptOptions: DEFAULT_RECEIPT_OPTIONS };
+const DEFAULT_KITCHEN_PRINTER: KitchenPrinterSettings = { 
+    connectionType: 'network', 
+    ipAddress: '', 
+    port: '3000', 
+    paperWidth: '80mm', 
+    targetPrinterIp: '', 
+    targetPrinterPort: '9100' 
+};
 
-const ReceiptOptionCheckbox: React.FC<{
-    name: keyof ReceiptPrintSettings;
-    label: string;
-    checked: boolean;
-    onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-}> = ({ name, label, checked, onChange }) => (
-    <label className="flex items-center gap-2 p-2 rounded-md hover:bg-gray-100 cursor-pointer">
-        <input
-            type="checkbox"
-            name={name}
-            checked={checked}
-            onChange={onChange}
-            className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-        />
-        <span className="text-gray-700">{label}</span>
-    </label>
-);
+const DEFAULT_CASHIER_PRINTER: CashierPrinterSettings = { 
+    connectionType: 'network', 
+    ipAddress: '', 
+    port: '3000', 
+    paperWidth: '80mm', 
+    targetPrinterIp: '', 
+    targetPrinterPort: '9100', 
+    receiptOptions: DEFAULT_RECEIPT_OPTIONS 
+};
 
 const TabButton: React.FC<{ label: string; isActive: boolean; onClick: () => void; }> = ({ label, isActive, onClick }) => (
     <button
@@ -104,42 +103,19 @@ const StatusIndicator: React.FC<{ status: ConnectionStatus, label: string }> = (
     );
 };
 
-// Helper to extract subnet info
-const analyzeIP = (ip: string) => {
-    const parts = ip.trim().split('.');
-    if (parts.length === 4) {
-        return {
-            subnet: parts.slice(0, 3).join('.'),
-            host: parts[3],
-            full: ip
-        };
-    }
-    return null;
-};
-
 export const SettingsModal: React.FC<SettingsModalProps> = ({ 
-    isOpen, 
-    onClose, 
-    onSave, 
-    currentQrCodeUrl, 
-    currentNotificationSoundUrl,
-    currentStaffCallSoundUrl,
-    currentPrinterConfig,
-    currentOpeningTime, 
-    currentClosingTime,
-    onSavePrinterConfig,
-    menuItems,
-    currentRecommendedMenuItemIds,
-    onSaveRecommendedItems,
+    isOpen, onClose, onSave, currentQrCodeUrl, currentNotificationSoundUrl, currentStaffCallSoundUrl,
+    currentPrinterConfig, currentOpeningTime, currentClosingTime, onSavePrinterConfig,
+    menuItems, currentRecommendedMenuItemIds, onSaveRecommendedItems,
 }) => {
     
     const [activeTab, setActiveTab] = useState<'general' | 'sound' | 'staffCallSound' | 'qrcode' | 'kitchen' | 'cashier' | 'recommended'>('general');
     const [settingsForm, setSettingsForm] = useState({
         qrCodeUrl: '',
         soundDataUrl: '',
-        soundFileName: 'No file chosen',
+        soundFileName: 'ไม่ได้เลือกไฟล์',
         staffCallSoundDataUrl: '',
-        staffCallSoundFileName: 'No file chosen',
+        staffCallSoundFileName: 'ไม่ได้เลือกไฟล์',
         openingTime: '10:00',
         closingTime: '22:00',
         printerConfig: { 
@@ -148,10 +124,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         }
     });
     
-    // Split status for granular feedback
-    const [serverStatus, setServerStatus] = useState<{kitchen: ConnectionStatus, cashier: ConnectionStatus}>({ kitchen: 'idle', cashier: 'idle' });
     const [printerStatus, setPrinterStatus] = useState<{kitchen: ConnectionStatus, cashier: ConnectionStatus}>({ kitchen: 'idle', cashier: 'idle' });
-    
     const [localRecommendedIds, setLocalRecommendedIds] = useState(new Set<number>());
     const [recommendSearchTerm, setRecommendSearchTerm] = useState('');
 
@@ -161,19 +134,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
     useEffect(() => {
         if (isOpen) {
-            setActiveTab('general'); // Reset to general tab on open
-            setServerStatus({ kitchen: 'idle', cashier: 'idle' });
-            setPrinterStatus({ kitchen: 'idle', cashier: 'idle' });
             setLocalRecommendedIds(new Set(currentRecommendedMenuItemIds || []));
-            setRecommendSearchTerm('');
-
+            
             const finalKitchenConf: KitchenPrinterSettings = {
                 ...DEFAULT_KITCHEN_PRINTER,
                 ...(currentPrinterConfig?.kitchen || {})
             };
-            if (!finalKitchenConf.port) finalKitchenConf.port = '3000';
-            if (!finalKitchenConf.targetPrinterPort) finalKitchenConf.targetPrinterPort = '9100';
-            
             const finalCashierConf: CashierPrinterSettings = {
                 ...DEFAULT_CASHIER_PRINTER,
                 ...(currentPrinterConfig?.cashier || {}),
@@ -182,15 +148,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     ...(currentPrinterConfig?.cashier?.receiptOptions || {})
                 }
             };
-            if (!finalCashierConf.port) finalCashierConf.port = '3000';
-            if (!finalCashierConf.targetPrinterPort) finalCashierConf.targetPrinterPort = '9100';
 
             setSettingsForm({
                 qrCodeUrl: currentQrCodeUrl || '',
                 soundDataUrl: currentNotificationSoundUrl || '',
-                soundFileName: currentNotificationSoundUrl ? 'Current Sound' : 'No file chosen',
+                soundFileName: currentNotificationSoundUrl ? 'ไฟล์ปัจจุบัน' : 'ไม่ได้เลือกไฟล์',
                 staffCallSoundDataUrl: currentStaffCallSoundUrl || '',
-                staffCallSoundFileName: currentStaffCallSoundUrl ? 'Current Sound' : 'No file chosen',
+                staffCallSoundFileName: currentStaffCallSoundUrl ? 'ไฟล์ปัจจุบัน' : 'ไม่ได้เลือกไฟล์',
                 openingTime: currentOpeningTime || '10:00',
                 closingTime: currentClosingTime || '22:00',
                 printerConfig: {
@@ -201,124 +165,34 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         }
     }, [isOpen, currentQrCodeUrl, currentNotificationSoundUrl, currentStaffCallSoundUrl, currentPrinterConfig, currentOpeningTime, currentClosingTime, currentRecommendedMenuItemIds]);
 
-    // ... (File Change Handlers: handleSoundFileChange, handleStaffCallSoundFileChange, handleQrCodeFileChange) ...
-    const handleSoundFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file) {
-             setSettingsForm(prev => ({ ...prev, soundFileName: file.name }));
-            const reader = new FileReader();
-            reader.onload = (event) => setSettingsForm(prev => ({ ...prev, soundDataUrl: event.target?.result as string }));
-            reader.readAsDataURL(file);
-        }
-    };
-    const handleStaffCallSoundFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file) {
-             setSettingsForm(prev => ({ ...prev, staffCallSoundFileName: file.name }));
-            const reader = new FileReader();
-            reader.onload = (event) => setSettingsForm(prev => ({ ...prev, staffCallSoundDataUrl: event.target?.result as string }));
-            reader.readAsDataURL(file);
-        }
-    };
-    const handleQrCodeFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file && file.type.startsWith('image/')) {
-            const reader = new FileReader();
-            reader.onload = (event) => setSettingsForm(prev => ({ ...prev, qrCodeUrl: event.target?.result as string }));
-            reader.readAsDataURL(file);
-        }
-    };
-    const handleTriggerQrCodeUpload = () => qrCodeFileInputRef.current?.click();
-    const handleRemoveQrCode = () => setSettingsForm(prev => ({ ...prev, qrCodeUrl: '' }));
-    
-    
-    const handlePrinterChange = (type: 'kitchen' | 'cashier', field: string, value: string) => {
-        // Reset status when IP/Port changes
-        if (field === 'ipAddress' || field === 'port') {
-            setServerStatus(prev => ({ ...prev, [type]: 'idle' }));
-        }
-        if (field === 'targetPrinterIp' || field === 'targetPrinterPort') {
-            setPrinterStatus(prev => ({ ...prev, [type]: 'idle' }));
-        }
+    const handlePrinterChange = (type: 'kitchen' | 'cashier', field: string, value: any) => {
         setSettingsForm(prev => ({
             ...prev,
             printerConfig: {
                 ...prev.printerConfig,
                 [type]: {
-                    ...prev.printerConfig[type],
+                    ...prev.printerConfig[type] as any,
                     [field]: value
                 }
             }
         }));
     };
-    
-    const handleReceiptOptionChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const { name, checked } = e.target;
-        setSettingsForm(prev => ({
-            ...prev,
-            printerConfig: {
-                ...prev.printerConfig,
-                cashier: {
-                    ...prev.printerConfig.cashier,
-                    receiptOptions: {
-                        ...prev.printerConfig.cashier.receiptOptions,
-                        [name as keyof ReceiptPrintSettings]: checked
-                    }
-                }
-            }
-        }));
-    };
-
-    const handleRestoreDefaults = () => {
-         setSettingsForm(prev => ({
-            ...prev,
-            printerConfig: {
-                ...prev.printerConfig,
-                cashier: {
-                    ...prev.printerConfig.cashier,
-                    receiptOptions: DEFAULT_RECEIPT_OPTIONS
-                }
-            }
-        }));
-    };
-
-    const handleCheckServerConnection = async (type: 'kitchen' | 'cashier') => {
-        const printer = settingsForm.printerConfig[type];
-        setServerStatus(prev => ({ ...prev, [type]: 'checking' }));
-        try {
-            const success = await printerService.checkConnection(printer.ipAddress, printer.port || '3000');
-            setServerStatus(prev => ({ ...prev, [type]: success ? 'success' : 'error' }));
-            if (!success) {
-                Swal.fire('เชื่อมต่อ Server ไม่ได้', 'กรุณาตรวจสอบว่าเปิดโปรแกรม Print Server (Node.js) หรือยัง', 'error');
-            }
-        } catch {
-            setServerStatus(prev => ({ ...prev, [type]: 'error' }));
-        }
-    };
 
     const handleCheckPrinterStatus = async (type: 'kitchen' | 'cashier') => {
         const printer = settingsForm.printerConfig[type];
-        
-        // 1. Check Server first
-        if (serverStatus[type] !== 'success') {
-            await handleCheckServerConnection(type);
-            // If server fails, we can't check printer
-            // But we don't return here because state update is async, we'll re-check via service call inside checkPrinterStatus wrapper implicitly
-        }
-
+        if (!printer) return;
         setPrinterStatus(prev => ({ ...prev, [type]: 'checking' }));
         try {
             const result = await printerService.checkPrinterStatus(
                 printer.ipAddress, 
                 printer.port || '3000',
                 printer.targetPrinterIp || '',
-                printer.targetPrinterPort || '9100'
+                printer.targetPrinterPort || '9100',
+                printer.connectionType
             );
-            
             setPrinterStatus(prev => ({ ...prev, [type]: result.online ? 'success' : 'error' }));
-            
             if (result.online) {
-                Swal.fire({ icon: 'success', title: 'เครื่องพิมพ์ออนไลน์', text: 'พร้อมใช้งาน', timer: 1500, showConfirmButton: false });
+                Swal.fire({ icon: 'success', title: 'สถานะเครื่องพิมพ์', text: result.message, timer: 1500, showConfirmButton: false });
             } else {
                 Swal.fire({ icon: 'error', title: 'ไม่พบเครื่องพิมพ์', text: result.message });
             }
@@ -329,184 +203,148 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
     const handleTestPrint = async (type: 'kitchen' | 'cashier') => {
         const printer = settingsForm.printerConfig[type];
+        if (!printer) return;
         try {
             await printerService.printTest(
                 printer.ipAddress, 
                 printer.paperWidth, 
                 printer.port || '3000',
                 printer.targetPrinterIp,
-                printer.targetPrinterPort
+                printer.targetPrinterPort,
+                printer.connectionType
             );
-            Swal.fire({ icon: 'success', title: 'ส่งคำสั่งพิมพ์สำเร็จ', text: 'กรุณาตรวจสอบที่เครื่องพิมพ์', timer: 2000, showConfirmButton: false });
+            Swal.fire({ icon: 'success', title: 'ส่งคำสั่งสำเร็จ', text: 'กรุณาตรวจสอบที่เครื่องพิมพ์', timer: 1500, showConfirmButton: false });
         } catch (error: any) {
-            Swal.fire({ icon: 'error', title: 'พิมพ์ไม่สำเร็จ', text: error.message || 'ไม่สามารถเชื่อมต่อเครื่องพิมพ์ได้', footer: 'ลองตรวจสอบ IP เครื่องพิมพ์ว่าอยู่ในวงเดียวกับ Server หรือไม่' });
+            Swal.fire({ icon: 'error', title: 'พิมพ์ไม่สำเร็จ', text: error.message });
         }
     };
 
-    const handleSavePrinterSettings = (type: 'kitchen' | 'cashier') => {
-        const newConfig: PrinterConfig = {
-            kitchen: { ...settingsForm.printerConfig.kitchen },
-            cashier: { ...settingsForm.printerConfig.cashier },
-        };
-        onSavePrinterConfig(newConfig);
-        Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'บันทึกการตั้งค่าแล้ว!', showConfirmButton: false, timer: 1500 });
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, type: 'sound' | 'staffCallSound' | 'qrcode') => {
+        const file = e.target.files?.[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const dataUrl = event.target?.result as string;
+                if (type === 'sound') {
+                    setSettingsForm(prev => ({ ...prev, soundDataUrl: dataUrl, soundFileName: file.name }));
+                } else if (type === 'staffCallSound') {
+                    setSettingsForm(prev => ({ ...prev, staffCallSoundDataUrl: dataUrl, staffCallSoundFileName: file.name }));
+                } else if (type === 'qrcode') {
+                    setSettingsForm(prev => ({ ...prev, qrCodeUrl: dataUrl }));
+                }
+            };
+            reader.readAsDataURL(file);
+        }
     };
 
-    const handleToggleRecommend = (itemId: number) => {
-        setLocalRecommendedIds(prev => {
-            const newSet = new Set(prev);
-            if (newSet.has(itemId)) newSet.delete(itemId); else newSet.add(itemId);
-            return newSet;
+    const handlePlaySound = (dataUrl: string) => {
+        if (!dataUrl) {
+            Swal.fire('ไม่พบไฟล์เสียง', 'กรุณาเลือกไฟล์เสียงก่อนทดลองฟัง', 'warning');
+            return;
+        }
+        const audio = new Audio(dataUrl);
+        audio.play().catch(err => {
+            console.error("Audio playback error", err);
+            Swal.fire('ไม่สามารถเล่นเสียงได้', 'รูปแบบไฟล์อาจไม่รองรับ', 'error');
         });
     };
 
-    const filteredMenuItems = useMemo(() => {
-        if (!recommendSearchTerm) return menuItems;
-        return menuItems.filter(item => item.name.toLowerCase().includes(recommendSearchTerm.toLowerCase()));
+    const handleToggleRecommended = (id: number) => {
+        setLocalRecommendedIds(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+        });
+    };
+
+    const filteredRecommendedItems = useMemo(() => {
+        return menuItems.filter(item => 
+            item.name.toLowerCase().includes(recommendSearchTerm.toLowerCase())
+        );
     }, [menuItems, recommendSearchTerm]);
 
-
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleFinalSave = (e: React.FormEvent) => {
         e.preventDefault();
         onSaveRecommendedItems(Array.from(localRecommendedIds));
         onSave(
-            settingsForm.qrCodeUrl, 
-            settingsForm.soundDataUrl, 
+            settingsForm.qrCodeUrl,
+            settingsForm.soundDataUrl,
             settingsForm.staffCallSoundDataUrl,
-            settingsForm.printerConfig, 
+            settingsForm.printerConfig,
             settingsForm.openingTime,
             settingsForm.closingTime
         );
-        Swal.fire({ icon: 'success', title: 'บันทึกการตั้งค่าเรียบร้อย', showConfirmButton: false, timer: 1500 });
-    };
-
-    const handleShowFixGuide = (serverSubnet: string, printerSubnet: string, printerCurrentIp: string) => {
-        const tempPcIp = `${printerSubnet}.99`;
-        const targetPrinterIp = `${serverSubnet}.200`; // Suggest .200 as stable IP
-
         Swal.fire({
-            title: '🛠️ คู่มือแก้ไข IP เครื่องพิมพ์',
-            html: `
-                <div class="text-left space-y-4 text-sm">
-                    <p class="font-bold text-red-600">ปัญหา: เครื่องพิมพ์ (${printerCurrentIp}) อยู่วง ${printerSubnet}.x<br/>แต่คอมพิวเตอร์อยู่วง ${serverSubnet}.x ทำให้มองไม่เห็นกัน</p>
-                    
-                    <div class="bg-gray-100 p-3 rounded-lg border border-gray-300">
-                        <h4 class="font-bold mb-2 border-b pb-1">ขั้นตอนที่ 1: เปลี่ยน IP คอมพิวเตอร์ชั่วคราว</h4>
-                        <p>ไปที่ Network Settings ของคอมฯ แล้วตั้งค่า Manual IP:</p>
-                        <ul class="list-disc list-inside ml-2 font-mono text-blue-700">
-                            <li>IP Address: <strong>${tempPcIp}</strong></li>
-                            <li>Subnet Mask: <strong>255.255.255.0</strong></li>
-                        </ul>
-                    </div>
-
-                    <div class="bg-gray-100 p-3 rounded-lg border border-gray-300">
-                        <h4 class="font-bold mb-2 border-b pb-1">ขั้นตอนที่ 2: ตั้งค่าเครื่องพิมพ์</h4>
-                        <ol class="list-decimal list-inside space-y-1">
-                            <li>เปิด Chrome พิมพ์ <strong>${printerCurrentIp}</strong></li>
-                            <li>ไปที่เมนู <strong>Network</strong> หรือ <strong>Config</strong></li>
-                            <li>เปลี่ยน IP Address เป็น: <strong class="text-green-600 bg-green-100 px-1">${targetPrinterIp}</strong></li>
-                            <li>กด Save (เครื่องพิมพ์อาจรีสตาร์ท)</li>
-                        </ol>
-                    </div>
-
-                    <div class="bg-gray-100 p-3 rounded-lg border border-gray-300">
-                        <h4 class="font-bold mb-2 border-b pb-1">ขั้นตอนที่ 3: คืนค่าเดิม</h4>
-                        <p>กลับไปที่ตั้งค่า Network ของคอมพิวเตอร์ แล้วเลือก <strong>"Obtain IP address automatically"</strong></p>
-                    </div>
-                    
-                    <p class="text-center font-bold text-green-600 mt-2">เสร็จสิ้น! ลองกด "ทดสอบพิมพ์" อีกครั้ง</p>
-                </div>
-            `,
-            width: '600px',
-            confirmButtonText: 'เข้าใจแล้ว',
+            icon: 'success',
+            title: 'บันทึกสำเร็จ',
+            text: 'การตั้งค่าระบบถูกบันทึกเรียบร้อยแล้ว',
+            timer: 1500,
+            showConfirmButton: false
         });
-    };
-
-    // --- Subnet Logic ---
-    const renderSubnetDiagnosis = (type: 'kitchen' | 'cashier') => {
-        const serverIp = settingsForm.printerConfig[type].ipAddress;
-        const printerIp = settingsForm.printerConfig[type].targetPrinterIp;
-        
-        if (!serverIp || !printerIp) return null;
-        
-        const serverInfo = analyzeIP(serverIp);
-        const printerInfo = analyzeIP(printerIp);
-        
-        if (!serverInfo || !printerInfo) return null; // Invalid IP format
-
-        const isSubnetMismatch = serverInfo.subnet !== printerInfo.subnet;
-
-        if (isSubnetMismatch) {
-            const suggestedIp = `${serverInfo.subnet}.200`; // Suggest .200 on server's subnet
-            
-            return (
-                <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 rounded-r shadow-sm">
-                    <div className="flex items-start gap-3">
-                        <div className="p-2 bg-red-100 rounded-full text-red-600">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
-                        </div>
-                        <div>
-                            <h4 className="text-lg font-bold text-red-800">เกิดข้อผิดพลาด: คนละวงแลน (Subnet Mismatch)</h4>
-                            <div className="mt-2 text-sm text-red-700 space-y-1">
-                                <p>คอมพิวเตอร์และเครื่องพิมพ์อยู่คนละเครือข่าย ทำให้มองไม่เห็นกัน:</p>
-                                <ul className="list-disc list-inside ml-2">
-                                    <li>คอมพิวเตอร์ (Server): <strong>{serverIp}</strong> (วง {serverInfo.subnet})</li>
-                                    <li>เครื่องพิมพ์: <strong>{printerIp}</strong> (วง {printerInfo.subnet})</li>
-                                </ul>
-                            </div>
-                            
-                            <div className="mt-4 p-3 bg-white border border-red-200 rounded-lg">
-                                <p className="font-bold text-gray-800 mb-2">วิธีแก้ไข:</p>
-                                <p className="text-sm text-gray-600 mb-2">
-                                    ต้องเปลี่ยน IP เครื่องพิมพ์ให้มาอยู่วงเดียวกับคอมพิวเตอร์ (วง {serverInfo.subnet})
-                                </p>
-                                <div className="flex flex-wrap gap-2 items-center">
-                                    <span className="text-sm">IP แนะนำ:</span>
-                                    <code className="bg-green-100 text-green-800 px-2 py-1 rounded font-mono font-bold border border-green-200">{suggestedIp}</code>
-                                    <button 
-                                        type="button"
-                                        onClick={() => handlePrinterChange(type, 'targetPrinterIp', suggestedIp)}
-                                        className="ml-auto text-xs bg-blue-600 text-white px-3 py-1.5 rounded hover:bg-blue-700 transition-colors shadow-sm"
-                                    >
-                                        ใช้ IP ที่แนะนำ
-                                    </button>
-                                </div>
-                            </div>
-
-                            <button 
-                                type="button"
-                                onClick={() => handleShowFixGuide(serverInfo.subnet, printerInfo.subnet, printerIp)}
-                                className="mt-3 text-sm font-bold text-red-600 bg-red-100 hover:bg-red-200 px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
-                            >
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.972.094 2.22-.948 2.286-1.56.38-1.56 2.6 0 2.98.972.54 2.22.094 2.286.948.836 1.372-.734 2.942-2.106 2.106a1.532 1.532 0 01-.948-2.286c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286-.948c-1.372.836-2.942-.734-2.106-2.106a1.532 1.532 0 01.948-2.286c.38-1.56 2.6-1.56 2.98 0a1.532 1.532 0 012.286-.948c1.372.836 2.942-.734 2.106-2.106a1.532 1.532 0 01.948 2.286zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" /></svg>
-                                เปิดคู่มือการแก้ไขทีละขั้นตอน
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            );
-        }
-        return null;
     };
 
     if (!isOpen) return null;
 
-    const receiptOptions = settingsForm.printerConfig.cashier?.receiptOptions || DEFAULT_RECEIPT_OPTIONS;
+    const renderPrinterSettings = (type: 'kitchen' | 'cashier') => {
+        const conf = settingsForm.printerConfig[type];
+        if (!conf) return null;
+        return (
+            <div className="space-y-4">
+                <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                    <label className="block text-sm font-bold text-gray-700 mb-2">ประเภทการเชื่อมต่อ</label>
+                    <div className="flex gap-4">
+                        <button 
+                            type="button" 
+                            onClick={() => handlePrinterChange(type, 'connectionType', 'network')}
+                            className={`flex-1 py-2 rounded-md font-bold border-2 transition-all ${conf.connectionType === 'network' ? 'bg-blue-600 text-white border-blue-700 shadow-inner' : 'bg-white text-gray-600 border-gray-300'}`}
+                        >
+                            WiFi / Network
+                        </button>
+                        <button 
+                            type="button" 
+                            onClick={() => handlePrinterChange(type, 'connectionType', 'usb')}
+                            className={`flex-1 py-2 rounded-md font-bold border-2 transition-all ${conf.connectionType === 'usb' ? 'bg-orange-600 text-white border-orange-700 shadow-inner' : 'bg-white text-gray-600 border-gray-300'}`}
+                        >
+                            USB (ต่อตรง)
+                        </button>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label className="block text-sm font-bold text-blue-700">Print Server IP (เครื่องที่รัน Node.js)</label>
+                        <input type="text" value={conf.ipAddress} onChange={(e) => handlePrinterChange(type, 'ipAddress', e.target.value)} placeholder="เช่น 192.168.1.13" className="mt-1 block w-full border border-gray-300 p-2 rounded-md shadow-sm text-gray-900" />
+                    </div>
+                    {conf.connectionType === 'network' && (
+                        <div>
+                            <label className="block text-sm font-bold text-green-700">Printer IP (ตัวเครื่องพิมพ์)</label>
+                            <input type="text" value={conf.targetPrinterIp || ''} onChange={(e) => handlePrinterChange(type, 'targetPrinterIp', e.target.value)} placeholder="เช่น 192.168.1.200" className="mt-1 block w-full border border-gray-300 p-2 rounded-md shadow-sm text-gray-900" />
+                        </div>
+                    )}
+                </div>
+
+                <div className="flex flex-wrap gap-2 pt-4">
+                    <StatusIndicator status={printerStatus[type]} label="สถานะเครื่องพิมพ์" />
+                    <button type="button" onClick={() => handleCheckPrinterStatus(type)} className="px-4 py-2 bg-teal-600 text-white text-sm font-medium rounded-md hover:bg-teal-700">ตรวจสอบสถานะ</button>
+                    <button type="button" onClick={() => handleTestPrint(type)} className="px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-50">ทดสอบพิมพ์</button>
+                </div>
+            </div>
+        );
+    };
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4" onClick={onClose}>
             <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl flex flex-col h-[90vh]" onClick={e => e.stopPropagation()}>
-                <form onSubmit={handleSubmit} className="flex flex-col h-full overflow-hidden">
+                <form onSubmit={handleFinalSave} className="flex flex-col h-full overflow-hidden">
                     <div className="p-6 border-b flex justify-between items-center flex-shrink-0">
                         <h3 className="text-xl font-bold text-gray-800">Settings</h3>
-                        <button type="button" onClick={onClose} className="p-1 rounded-full text-gray-400 hover:bg-gray-200 hover:text-gray-600">
-                             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                            </svg>
+                        <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600">
+                             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                         </button>
                     </div>
 
-                     <div className="px-4 sm:px-6 border-b border-gray-200 flex-shrink-0 overflow-x-auto">
+                    <div className="px-4 sm:px-6 border-b border-gray-200 flex-shrink-0 overflow-x-auto">
                         <nav className="-mb-px flex space-x-4 sm:space-x-6">
                             <TabButton label="ทั่วไป" isActive={activeTab === 'general'} onClick={() => setActiveTab('general')} />
                             <TabButton label="เมนูแนะนำ" isActive={activeTab === 'recommended'} onClick={() => setActiveTab('recommended')} />
@@ -520,296 +358,132 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
                     <div className="p-6 space-y-6 overflow-y-auto flex-1">
                         {activeTab === 'general' && (
-                            <div>
-                                <h4 className="text-lg font-semibold text-gray-700 mb-2">ตั้งค่าร้านค้า</h4>
+                            <div className="space-y-4">
+                                <h4 className="text-lg font-semibold text-gray-700">ตั้งค่าร้านค้า</h4>
                                 <div className="space-y-4">
                                     <div>
-                                        <label htmlFor="opening-time" className="block text-sm font-medium text-gray-700">เวลาเปิดร้าน</label>
-                                        <input
-                                            type="time"
-                                            id="opening-time"
-                                            value={settingsForm.openingTime}
-                                            onChange={(e) => setSettingsForm(prev => ({ ...prev, openingTime: e.target.value }))}
-                                            className="mt-1 block w-full border border-gray-300 p-2 rounded-md shadow-sm"
-                                        />
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">เวลาเปิดร้าน</label>
+                                        <input type="time" value={settingsForm.openingTime} onChange={(e) => setSettingsForm(prev => ({ ...prev, openingTime: e.target.value }))} className="w-full border border-gray-300 p-2 rounded-lg text-gray-900" />
                                     </div>
                                     <div>
-                                        <label htmlFor="closing-time" className="block text-sm font-medium text-gray-700">เวลาปิดร้าน</label>
-                                        <input
-                                            type="time"
-                                            id="closing-time"
-                                            value={settingsForm.closingTime}
-                                            onChange={(e) => setSettingsForm(prev => ({ ...prev, closingTime: e.target.value }))}
-                                            className="mt-1 block w-full border border-gray-300 p-2 rounded-md shadow-sm"
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-                        
-                        {activeTab === 'kitchen' && (
-                            <div>
-                                <h4 className="text-lg font-semibold text-gray-700 mb-2">ตั้งค่าเครื่องพิมพ์ในครัว</h4>
-                                
-                                {/* DIAGNOSIS & WARNING SECTION */}
-                                {renderSubnetDiagnosis('kitchen')}
-
-                                <div className="space-y-4">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="block text-sm font-bold text-blue-700">Print Server IP (Node.js)</label>
-                                            <input
-                                                type="text"
-                                                value={settingsForm.printerConfig.kitchen.ipAddress}
-                                                onChange={(e) => handlePrinterChange('kitchen', 'ipAddress', e.target.value)}
-                                                placeholder="เช่น 192.168.1.13 หรือ localhost"
-                                                className="mt-1 block w-full border border-gray-300 p-2 rounded-md shadow-sm bg-blue-50"
-                                            />
-                                            <p className="text-xs text-gray-500 mt-1">IP ของคอมพิวเตอร์ที่รันโปรแกรมนี้ (ใช้ localhost ได้ถ้าเครื่องเดียวกัน)</p>
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700">Port (Node.js)</label>
-                                            <input
-                                                type="text"
-                                                value={settingsForm.printerConfig.kitchen.port}
-                                                onChange={(e) => handlePrinterChange('kitchen', 'port', e.target.value)}
-                                                placeholder="3000"
-                                                className="mt-1 block w-full border border-gray-300 p-2 rounded-md shadow-sm"
-                                            />
-                                        </div>
-                                    </div>
-
-                                    <div className="border-t border-gray-200 pt-4">
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            <div>
-                                                <label className="block text-sm font-bold text-green-700">IP เครื่องพิมพ์ (Hardware)</label>
-                                                <input
-                                                    type="text"
-                                                    value={settingsForm.printerConfig.kitchen.targetPrinterIp || ''}
-                                                    onChange={(e) => handlePrinterChange('kitchen', 'targetPrinterIp', e.target.value)}
-                                                    placeholder="เช่น 192.168.1.200"
-                                                    className="mt-1 block w-full border border-green-300 p-2 rounded-md shadow-sm bg-green-50"
-                                                />
-                                                <p className="text-xs text-gray-500 mt-1">ดูได้จากใบ Self-test ของเครื่องพิมพ์</p>
-                                            </div>
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-700">Port เครื่องพิมพ์</label>
-                                                <input
-                                                    type="text"
-                                                    value={settingsForm.printerConfig.kitchen.targetPrinterPort || '9100'}
-                                                    onChange={(e) => handlePrinterChange('kitchen', 'targetPrinterPort', e.target.value)}
-                                                    placeholder="9100"
-                                                    className="mt-1 block w-full border border-gray-300 p-2 rounded-md shadow-sm"
-                                                />
-                                                <p className="text-xs text-gray-500 mt-1">ปกติคือ 9100</p>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">ขนาดกระดาษ</label>
-                                        <div className="flex items-center gap-4">
-                                            <label className="flex items-center gap-2 cursor-pointer">
-                                                <input type="radio" name="kitchenPaperWidth" checked={settingsForm.printerConfig.kitchen.paperWidth === '58mm'} onChange={() => handlePrinterChange('kitchen', 'paperWidth', '58mm')} className="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500" />
-                                                <span className="text-gray-800">58mm</span>
-                                            </label>
-                                            <label className="flex items-center gap-2 cursor-pointer">
-                                                <input type="radio" name="kitchenPaperWidth" checked={settingsForm.printerConfig.kitchen.paperWidth === '80mm'} onChange={() => handlePrinterChange('kitchen', 'paperWidth', '80mm')} className="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500" />
-                                                <span className="text-gray-800">80mm</span>
-                                            </label>
-                                        </div>
-                                    </div>
-
-                                    {/* Action Buttons Row */}
-                                    <div className="pt-4 flex flex-col gap-3">
-                                        {/* Status Indicators */}
-                                        <div className="flex gap-4">
-                                            <StatusIndicator status={serverStatus.kitchen} label="Server" />
-                                            <StatusIndicator status={printerStatus.kitchen} label="Printer" />
-                                        </div>
-
-                                        <div className="flex flex-wrap gap-2">
-                                            <button 
-                                                type="button" 
-                                                onClick={() => handleCheckServerConnection('kitchen')} 
-                                                className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-md hover:bg-indigo-700 shadow-sm"
-                                            >
-                                                1. ทดสอบเชื่อมต่อ Server (PC)
-                                            </button>
-                                            <button 
-                                                type="button" 
-                                                onClick={() => handleCheckPrinterStatus('kitchen')} 
-                                                className="px-4 py-2 bg-teal-600 text-white text-sm font-medium rounded-md hover:bg-teal-700 shadow-sm"
-                                            >
-                                                2. ตรวจสอบสถานะเครื่องพิมพ์
-                                            </button>
-                                            <button 
-                                                type="button" 
-                                                onClick={() => handleTestPrint('kitchen')} 
-                                                className="px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-50"
-                                            >
-                                                3. ทดสอบพิมพ์
-                                            </button>
-                                            <button 
-                                                type="button" 
-                                                onClick={() => handleSavePrinterSettings('kitchen')} 
-                                                className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 ml-auto"
-                                            >
-                                                บันทึก
-                                            </button>
-                                        </div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">เวลาปิดร้าน</label>
+                                        <input type="time" value={settingsForm.closingTime} onChange={(e) => setSettingsForm(prev => ({ ...prev, closingTime: e.target.value }))} className="w-full border border-gray-300 p-2 rounded-lg text-gray-900" />
                                     </div>
                                 </div>
                             </div>
                         )}
 
-                        {activeTab === 'cashier' && (
-                            <div>
-                                <h4 className="text-lg font-semibold text-gray-700 mb-2">ตั้งค่าเครื่องพิมพ์ใบเสร็จ</h4>
-                                
-                                {renderSubnetDiagnosis('cashier')}
-
-                                <div className="space-y-4">
-                                    {/* ... (Same layout as Kitchen) ... */}
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="block text-sm font-bold text-blue-700">Print Server IP (Node.js)</label>
-                                            <input type="text" value={settingsForm.printerConfig.cashier.ipAddress} onChange={(e) => handlePrinterChange('cashier', 'ipAddress', e.target.value)} placeholder="เช่น 192.168.1.13" className="mt-1 block w-full border border-gray-300 p-2 rounded-md shadow-sm bg-blue-50" />
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700">Port (Node.js)</label>
-                                            <input type="text" value={settingsForm.printerConfig.cashier.port} onChange={(e) => handlePrinterChange('cashier', 'port', e.target.value)} placeholder="3000" className="mt-1 block w-full border border-gray-300 p-2 rounded-md shadow-sm" />
-                                        </div>
-                                    </div>
-
-                                    <div className="border-t border-gray-200 pt-4">
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            <div>
-                                                <label className="block text-sm font-bold text-green-700">IP เครื่องพิมพ์ (Hardware)</label>
-                                                <input type="text" value={settingsForm.printerConfig.cashier.targetPrinterIp || ''} onChange={(e) => handlePrinterChange('cashier', 'targetPrinterIp', e.target.value)} placeholder="เช่น 192.168.1.201" className="mt-1 block w-full border border-green-300 p-2 rounded-md shadow-sm bg-green-50" />
-                                            </div>
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-700">Port เครื่องพิมพ์</label>
-                                                <input type="text" value={settingsForm.printerConfig.cashier.targetPrinterPort || '9100'} onChange={(e) => handlePrinterChange('cashier', 'targetPrinterPort', e.target.value)} placeholder="9100" className="mt-1 block w-full border border-gray-300 p-2 rounded-md shadow-sm" />
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">ขนาดกระดาษ</label>
-                                        <div className="flex items-center gap-4">
-                                            <label className="flex items-center gap-2 cursor-pointer">
-                                                <input type="radio" name="cashierPaperWidth" checked={settingsForm.printerConfig.cashier.paperWidth === '58mm'} onChange={() => handlePrinterChange('cashier', 'paperWidth', '58mm')} className="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500" />
-                                                <span className="text-gray-800">58mm</span>
-                                            </label>
-                                            <label className="flex items-center gap-2 cursor-pointer">
-                                                <input type="radio" name="cashierPaperWidth" checked={settingsForm.printerConfig.cashier.paperWidth === '80mm'} onChange={() => handlePrinterChange('cashier', 'paperWidth', '80mm')} className="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500" />
-                                                <span className="text-gray-800">80mm</span>
-                                            </label>
-                                        </div>
-                                    </div>
-
-                                    <div className="pt-2 border-t border-gray-200">
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">รายละเอียดบนใบเสร็จ</label>
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                            <ReceiptOptionCheckbox name="printRestaurantName" label="ชื่อร้าน" checked={receiptOptions.printRestaurantName} onChange={handleReceiptOptionChange} />
-                                            <ReceiptOptionCheckbox name="printOrderId" label="รหัสออเดอร์" checked={receiptOptions.printOrderId} onChange={handleReceiptOptionChange} />
-                                            <ReceiptOptionCheckbox name="printTableInfo" label="โต๊ะ" checked={receiptOptions.printTableInfo} onChange={handleReceiptOptionChange} />
-                                            <ReceiptOptionCheckbox name="printDateTime" label="วัน/เวลา" checked={receiptOptions.printDateTime} onChange={handleReceiptOptionChange} />
-                                            <ReceiptOptionCheckbox name="printPlacedBy" label="พนักงาน" checked={receiptOptions.printPlacedBy} onChange={handleReceiptOptionChange} />
-                                            <ReceiptOptionCheckbox name="printItems" label="รายการอาหาร" checked={receiptOptions.printItems} onChange={handleReceiptOptionChange} />
-                                            <ReceiptOptionCheckbox name="printSubtotal" label="ราคารวมย่อย" checked={receiptOptions.printSubtotal} onChange={handleReceiptOptionChange} />
-                                            <ReceiptOptionCheckbox name="printTax" label="ภาษี" checked={receiptOptions.printTax} onChange={handleReceiptOptionChange} />
-                                            <ReceiptOptionCheckbox name="printTotal" label="ยอดสุทธิ" checked={receiptOptions.printTotal} onChange={handleReceiptOptionChange} />
-                                            <ReceiptOptionCheckbox name="printPaymentDetails" label="การชำระเงิน" checked={receiptOptions.printPaymentDetails} onChange={handleReceiptOptionChange} />
-                                            <ReceiptOptionCheckbox name="printThankYouMessage" label="ข้อความขอบคุณ" checked={receiptOptions.printThankYouMessage} onChange={handleReceiptOptionChange} />
-                                        </div>
-                                        <button type="button" onClick={handleRestoreDefaults} className="mt-2 text-sm text-blue-600 hover:underline">คืนค่าเริ่มต้น</button>
-                                    </div>
-
-                                    {/* Action Buttons Row - Cashier */}
-                                    <div className="pt-4 flex flex-col gap-3 border-t border-gray-200 mt-2">
-                                        <div className="flex gap-4">
-                                            <StatusIndicator status={serverStatus.cashier} label="Server" />
-                                            <StatusIndicator status={printerStatus.cashier} label="Printer" />
-                                        </div>
-                                        <div className="flex flex-wrap gap-2">
-                                            <button type="button" onClick={() => handleCheckServerConnection('cashier')} className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-md hover:bg-indigo-700 shadow-sm">1. ทดสอบเชื่อมต่อ Server</button>
-                                            <button type="button" onClick={() => handleCheckPrinterStatus('cashier')} className="px-4 py-2 bg-teal-600 text-white text-sm font-medium rounded-md hover:bg-teal-700 shadow-sm">2. ตรวจสอบสถานะเครื่องพิมพ์</button>
-                                            <button type="button" onClick={() => handleTestPrint('cashier')} className="px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-50">3. ทดสอบพิมพ์</button>
-                                            <button type="button" onClick={() => handleSavePrinterSettings('cashier')} className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 ml-auto">บันทึก</button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-                        {/* Other tabs... */}
-                        {activeTab === 'sound' && (
-                             <div>
-                                <h4 className="text-lg font-semibold text-gray-700 mb-2">ตั้งค่าเสียงแจ้งเตือนออเดอร์</h4>
-                                {/* ... sound logic ... */}
-                                <div className="flex items-center gap-4">
-                                    <button type="button" onClick={() => soundFileInputRef.current?.click()} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 font-semibold">Choose File</button>
-                                    <span className="text-gray-600 text-sm truncate">{settingsForm.soundFileName}</span>
-                                    <input type="file" ref={soundFileInputRef} onChange={handleSoundFileChange} accept="audio/*" className="hidden" />
-                                </div>
-                            </div>
-                        )}
-                         {activeTab === 'staffCallSound' && (
-                             <div>
-                                <h4 className="text-lg font-semibold text-gray-700 mb-2">ตั้งค่าเสียงกริ่งเรียกพนักงาน</h4>
-                                {/* ... staff sound logic ... */}
-                                <div className="flex items-center gap-4">
-                                    <button type="button" onClick={() => staffCallSoundFileInputRef.current?.click()} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 font-semibold">Choose File</button>
-                                    <span className="text-gray-600 text-sm truncate">{settingsForm.staffCallSoundFileName}</span>
-                                    <input type="file" ref={staffCallSoundFileInputRef} onChange={handleStaffCallSoundFileChange} accept="audio/*" className="hidden" />
-                                </div>
-                            </div>
-                        )}
-                        {activeTab === 'qrcode' && (
-                             <div>
-                                <h4 className="text-lg font-semibold text-gray-700 mb-2">QR Code สำหรับโอนจ่าย</h4>
-                                <input type="file" ref={qrCodeFileInputRef} onChange={handleQrCodeFileChange} accept="image/*" className="hidden" />
-                                <div className="mt-4 p-4 border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center text-center min-h-[250px]">
-                                    {settingsForm.qrCodeUrl ? (
-                                        <>
-                                            <p className="text-sm font-medium text-gray-700 mb-2">ตัวอย่าง QR Code</p>
-                                            <img src={settingsForm.qrCodeUrl} alt="QR Code Preview" className="max-w-full max-h-40 object-contain border p-1 bg-white shadow-sm" />
-                                            <div className="mt-4 flex gap-3">
-                                                <button type="button" onClick={handleTriggerQrCodeUpload} className="px-4 py-2 bg-blue-100 text-blue-800 text-sm font-semibold rounded-md hover:bg-blue-200">เปลี่ยนรูปภาพ</button>
-                                                <button type="button" onClick={handleRemoveQrCode} className="px-4 py-2 bg-red-100 text-red-800 text-sm font-semibold rounded-md hover:bg-red-200">ลบ</button>
-                                            </div>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <p className="mt-2 text-gray-500">ยังไม่มี QR Code</p>
-                                            <button type="button" onClick={handleTriggerQrCodeUpload} className="mt-4 px-5 py-2.5 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700">อัปโหลด QR Code</button>
-                                        </>
-                                    )}
-                                </div>
-                            </div>
-                        )}
                         {activeTab === 'recommended' && (
-                             <div>
-                                <h4 className="text-lg font-semibold text-gray-700 mb-2">จัดการเมนูแนะนำ</h4>
-                                <input type="text" placeholder="ค้นหาเมนู..." value={recommendSearchTerm} onChange={(e) => setRecommendSearchTerm(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md mb-4" />
-                                <div className="max-h-96 overflow-y-auto space-y-2 border p-2 rounded-md bg-gray-50">
-                                    {filteredMenuItems.map(item => (
-                                        <label key={item.id} className="flex items-center gap-3 p-2 rounded-md hover:bg-gray-100 cursor-pointer bg-white">
-                                            <input type="checkbox" checked={localRecommendedIds.has(item.id)} onChange={() => handleToggleRecommend(item.id)} className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
-                                            <img src={item.imageUrl} alt={item.name} className="w-12 h-12 rounded-md object-cover"/>
-                                            <span className="font-medium text-gray-800">{item.name}</span>
+                            <div className="space-y-4">
+                                <div className="flex flex-col gap-1">
+                                    <h4 className="text-lg font-semibold text-gray-700">จัดการเมนูแนะนำ</h4>
+                                    <p className="text-sm text-gray-500">เลือกรายการอาหารที่จะแสดงเป็นเมนูแนะนำในหน้า POS</p>
+                                </div>
+                                <input 
+                                    type="text" 
+                                    placeholder="ค้นหาเมนู..." 
+                                    value={recommendSearchTerm} 
+                                    onChange={(e) => setRecommendSearchTerm(e.target.value)} 
+                                    className="w-full p-2 border rounded-lg text-gray-900"
+                                />
+                                <div className="grid grid-cols-1 gap-2 max-h-[500px] overflow-y-auto">
+                                    {filteredRecommendedItems.map(item => (
+                                        <label key={item.id} className="flex items-center gap-4 p-3 border rounded-lg hover:bg-gray-50 cursor-pointer transition-colors">
+                                            <input 
+                                                type="checkbox" 
+                                                checked={localRecommendedIds.has(item.id)}
+                                                onChange={() => handleToggleRecommended(item.id)}
+                                                className="h-5 w-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                                            />
+                                            <div className="w-16 h-16 rounded-md overflow-hidden bg-gray-100 flex-shrink-0">
+                                                <MenuItemImage src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" />
+                                            </div>
+                                            <div className="flex-1">
+                                                <span className="font-bold text-gray-800 block text-lg">{item.name}</span>
+                                                <span className="text-sm text-gray-500">{item.category}</span>
+                                            </div>
                                         </label>
                                     ))}
-                                    {filteredMenuItems.length === 0 && <p className="text-center text-gray-500 py-4">ไม่พบเมนู</p>}
                                 </div>
                             </div>
                         )}
+
+                        {(activeTab === 'sound' || activeTab === 'staffCallSound') && (
+                            <div className="space-y-4">
+                                <h4 className="text-lg font-semibold text-gray-700">
+                                    {activeTab === 'sound' ? 'เสียงแจ้งเตือนออเดอร์ใหม่' : 'เสียงแจ้งเตือนเรียกพนักงาน'}
+                                </h4>
+                                <div className="p-6 bg-gray-50 rounded-xl border-2 border-dashed border-gray-300 flex flex-col items-center">
+                                    <input 
+                                        type="file" 
+                                        accept="audio/*" 
+                                        ref={activeTab === 'sound' ? soundFileInputRef : staffCallSoundFileInputRef}
+                                        onChange={(e) => handleFileChange(e, activeTab === 'sound' ? 'sound' : 'staffCallSound')}
+                                        className="hidden"
+                                    />
+                                    <div className="mb-4 text-center">
+                                        <p className="text-sm text-gray-500 mb-1">ไฟล์ปัจจุบัน:</p>
+                                        <p className="font-bold text-blue-600 text-lg">{activeTab === 'sound' ? settingsForm.soundFileName : settingsForm.staffCallSoundFileName}</p>
+                                    </div>
+                                    
+                                    <div className="flex gap-3">
+                                        <button 
+                                            type="button" 
+                                            onClick={() => (activeTab === 'sound' ? soundFileInputRef.current : staffCallSoundFileInputRef.current)?.click()}
+                                            className="px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold shadow-sm transition-all"
+                                        >
+                                            เลือกไฟล์เสียงใหม่
+                                        </button>
+                                        <button 
+                                            type="button"
+                                            onClick={() => handlePlaySound(activeTab === 'sound' ? settingsForm.soundDataUrl : settingsForm.staffCallSoundDataUrl)}
+                                            className="px-6 py-2.5 bg-green-500 text-white rounded-lg hover:bg-green-600 font-bold shadow-sm transition-all flex items-center gap-2"
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
+                                            </svg>
+                                            ทดลองฟังเสียง
+                                        </button>
+                                    </div>
+                                    <p className="mt-4 text-xs text-gray-400 italic">* รองรับไฟล์ MP3, WAV, OGG</p>
+                                </div>
+                            </div>
+                        )}
+
+                        {activeTab === 'qrcode' && (
+                            <div className="space-y-4 text-center">
+                                <h4 className="text-lg font-semibold text-gray-700">QR Code สำหรับรับชำระเงิน</h4>
+                                <div className="p-4 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300 inline-block mx-auto min-w-[250px]">
+                                    {settingsForm.qrCodeUrl ? (
+                                        <img src={settingsForm.qrCodeUrl} alt="Payment QR" className="w-48 h-48 mx-auto object-contain mb-4 border bg-white shadow-sm" />
+                                    ) : (
+                                        <div className="w-48 h-48 mx-auto flex items-center justify-center bg-white border border-gray-200 mb-4 text-gray-400 rounded">ยังไม่มีรูปภาพ</div>
+                                    )}
+                                    <input 
+                                        type="file" 
+                                        accept="image/*" 
+                                        ref={qrCodeFileInputRef}
+                                        onChange={(e) => handleFileChange(e, 'qrcode')}
+                                        className="hidden"
+                                    />
+                                    <button 
+                                        type="button" 
+                                        onClick={() => qrCodeFileInputRef.current?.click()}
+                                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold"
+                                    >
+                                        อัปโหลดรูปภาพ QR Code
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {activeTab === 'kitchen' && renderPrinterSettings('kitchen')}
+                        {activeTab === 'cashier' && renderPrinterSettings('cashier')}
                     </div>
 
-                    <div className="p-6 border-t bg-gray-50 rounded-b-lg flex justify-end gap-3 flex-shrink-0">
-                        <button type="button" onClick={onClose} className="px-6 py-2 bg-gray-200 text-gray-800 font-semibold rounded-lg hover:bg-gray-300 transition-colors">ปิด</button>
-                        <button type="submit" className="px-6 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-colors shadow-md">บันทึกทั้งหมด & ปิด</button>
+                    <div className="p-6 border-t bg-gray-50 flex justify-end gap-3 flex-shrink-0">
+                        <button type="button" onClick={onClose} className="px-6 py-2 bg-gray-200 text-gray-800 font-semibold rounded-lg hover:bg-gray-300">ปิด</button>
+                        <button type="submit" className="px-6 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700">บันทึกทั้งหมด</button>
                     </div>
                 </form>
             </div>

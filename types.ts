@@ -163,7 +163,10 @@ export interface ReceiptPrintSettings {
     printThankYouMessage: boolean;
 }
 
+export type PrinterConnectionType = 'network' | 'usb';
+
 export interface KitchenPrinterSettings {
+    connectionType: PrinterConnectionType;
     ipAddress: string; // The Node.js Server IP
     port?: string;     // The Node.js Server Port
     paperWidth: '58mm' | '80mm';
@@ -172,6 +175,7 @@ export interface KitchenPrinterSettings {
 }
 
 export interface CashierPrinterSettings {
+    connectionType: PrinterConnectionType;
     ipAddress: string;
     port?: string;
     paperWidth: '58mm' | '80mm';

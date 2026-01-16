@@ -15,13 +15,15 @@ export const LeaveAnalytics: React.FC<LeaveAnalyticsProps> = ({ leaveRequests, u
         const approvedLeaves = leaveRequests.filter(req => req.status === 'approved');
         
         // --- Per User Stats ---
+        // Use username as key to aggregate correctly even if user ID changed (deleted/recreated)
+        // This also ensures we find the current profile picture for the name
         const userStats: Record<string, { totalDays: number, count: number, dates: number[], username: string, profilePic?: string }> = {};
         
         approvedLeaves.forEach(req => {
-            const userId = req.userId;
-            if (!userStats[userId]) {
-                const user = users.find(u => u.id === userId);
-                userStats[userId] = { 
+            const userKey = req.username;
+            if (!userStats[userKey]) {
+                const user = users.find(u => u.username === userKey);
+                userStats[userKey] = { 
                     totalDays: 0, 
                     count: 0, 
                     dates: [], 
@@ -38,9 +40,9 @@ export const LeaveAnalytics: React.FC<LeaveAnalyticsProps> = ({ leaveRequests, u
                 duration = Math.ceil((req.endDate - req.startDate) / (1000 * 60 * 60 * 24)) + 1;
             }
             
-            userStats[userId].totalDays += duration;
-            userStats[userId].count += 1;
-            userStats[userId].dates.push(req.startDate);
+            userStats[userKey].totalDays += duration;
+            userStats[userKey].count += 1;
+            userStats[userKey].dates.push(req.startDate);
         });
 
         // --- Top Leavers (Chart Data) ---
