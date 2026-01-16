@@ -7,8 +7,21 @@ const iconv = require('iconv-lite');
 const fs = require('fs');
 const path = require('path');
 const { PNG } = require('pngjs');
-const escpos = require('escpos');
-escpos.USB = require('escpos-usb');
+
+// --- USB Library Loading (Safe Mode) ---
+let escpos, escposUsb;
+let isUsbAvailable = false;
+
+try {
+    escpos = require('escpos');
+    escposUsb = require('escpos-usb');
+    escpos.USB = escposUsb;
+    isUsbAvailable = true;
+    console.log('[System] USB Drivers loaded successfully.');
+} catch (e) {
+    console.warn('[Warning] USB Drivers not found or failed to load. USB printing will be disabled.');
+    console.warn('Error details:', e.message);
+}
 
 // --- โหลดการตั้งค่าจากไฟล์ config.json ---
 const configPath = path.join(__dirname, 'config.json');
@@ -85,19 +98,22 @@ function pngToRaster(pngBuffer) {
 }
 
 app.get('/', (req, res) => {
-    res.send(`POS Print Server (Image Mode + USB Supported)`);
+    res.send(`POS Print Server (Network ${isUsbAvailable ? '+ USB' : ''} Supported)`);
 });
 
 app.post('/check-printer', (req, res) => {
     const { ip, port, connectionType } = req.body;
     
     if (connectionType === 'usb') {
+        if (!isUsbAvailable) {
+            return res.json({ online: false, message: 'USB Driver not loaded on server' });
+        }
         try {
             const devices = escpos.USB.findPrinter();
             if (devices && devices.length > 0) {
                 return res.json({ online: true, message: `Found ${devices.length} USB Printer(s)` });
             } else {
-                return res.json({ online: false, message: 'No USB Printer found' });
+                return res.json({ online: false, message: 'No USB Printer found (Check connection/Zadig)' });
             }
         } catch (e) {
             return res.json({ online: false, message: e.message });
@@ -138,19 +154,22 @@ app.post('/print-image', async (req, res) => {
         const rasterData = pngToRaster(imageBuffer);
 
         if (connectionType === 'usb') {
+            if (!isUsbAvailable) {
+                return res.status(500).json({ success: false, error: 'USB Drivers not active on server' });
+            }
+
             console.log('[USB Print] Processing...');
             try {
-                // FIXED: ระบุ VID (0x0FE6) และ PID (0x811E) เพื่อล็อคเป้าหมายไปที่เครื่อง KPOS
-                const device = new escpos.USB(0x0FE6, 0x811E);
+                const device = new escpos.USB();
                 const printer = new escpos.Printer(device);
 
                 device.open((err) => {
                     if (err) {
                         console.error('USB Open Error:', err);
-                        return res.status(500).json({ success: false, error: 'Cannot open USB printer (Check connection or VID/PID)' });
+                        return res.status(500).json({ success: false, error: 'Cannot open USB printer: ' + err.message });
                     }
                     
-                    // Send raw raster data using printer.adapter.write
+                    // Send raw raster data using printer.adapter.write for maximum compatibility
                     printer.adapter.write(Buffer.from(COMMANDS.INIT));
                     printer.adapter.write(rasterData);
                     printer.adapter.write(Buffer.from('\n\n\n'));
@@ -163,10 +182,10 @@ app.post('/print-image', async (req, res) => {
                 });
             } catch (usbErr) {
                 console.error('USB Printer Error:', usbErr);
-                res.status(500).json({ success: false, error: 'USB Print failed: ' + usbErr.message });
+                res.status(500).json({ success: false, error: usbErr.message });
             }
         } else {
-            // Network Printing (Original Logic)
+            // Network Printing
             const targetHost = (targetPrinter && targetPrinter.ip) ? targetPrinter.ip : PRINTER_CONFIG.host;
             const targetPort = (targetPrinter && targetPrinter.port) ? targetPrinter.port : PRINTER_CONFIG.port;
 
@@ -205,8 +224,11 @@ app.post('/print-image', async (req, res) => {
 app.listen(SERVER_PORT, () => {
     console.log(`\n=== POS PRINT SERVER STARTED ===`);
     console.log(`listening on port: ${SERVER_PORT}`);
-    console.log(`Modes: Network (WiFi/LAN) and USB (Fixed: KPOS)`);
+    console.log(`Network Mode: Enabled`);
+    console.log(`USB Mode: ${isUsbAvailable ? 'Enabled' : 'Disabled (Drivers not loaded)'}`);
     console.log(`--------------------------------`);
-    console.log(`REQUIRED: npm install escpos escpos-usb`);
+    if (!isUsbAvailable) {
+        console.log(`NOTE: To enable USB, ensure 'usb' and 'escpos-usb' are installed correctly.`);
+    }
     console.log(`================================\n`);
 });

@@ -10,7 +10,7 @@ interface SidebarProps {
     onQuantityChange: (cartItemId: string, newQuantity: number) => void;
     onRemoveItem: (cartItemId: string) => void;
     onClearOrder: () => void;
-    onPlaceOrder: (items: OrderItem[], customerName: string, customerCount: number, tableOverride: Table | null, isLineMan: boolean) => void;
+    onPlaceOrder: (items: OrderItem[], customerName: string, customerCount: number, tableOverride: Table | null, isLineMan: boolean, lineManNumber?: string) => void;
     isPlacingOrder: boolean;
     tables: Table[];
     selectedTable: Table | null;
@@ -124,8 +124,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
         if (!canPlaceOrder) return;
 
         // If LineMan, we pass a dummy table object or let App.tsx handle it.
-        // We'll update the onPlaceOrder signature to accept isLineMan flag.
-        onPlaceOrder(currentOrderItems, customerName, customerCount, selectedTable, isLineMan);
+        // We pass the isLineMan flag and the manual lineManNumber
+        onPlaceOrder(currentOrderItems, customerName, customerCount, selectedTable, isLineMan, isLineMan ? lineManNumber : undefined);
         
         // Reset local state after order is placed (though parent usually handles clearing order items)
         if (isLineMan) {
@@ -520,9 +520,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 isOpen={isLineManNumpadOpen}
                 onClose={() => setIsLineManNumpadOpen(false)}
                 title="ระบุหมายเลข LineMan"
-                initialValue={0}
+                initialValue="0"
                 onSubmit={(value) => {
-                    const numStr = value.toString();
+                    const numStr = value; // Keep as string to preserve leading zeros
                     setLineManNumber(numStr);
                     setIsLineMan(true);
                     onSelectTable(null); // Clear table selection when entering LineMan mode

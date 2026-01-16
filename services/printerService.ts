@@ -66,21 +66,25 @@ export const printerService = {
         const url = `http://${config.ipAddress}:${config.port || 3000}/print-image`;
         const timeString = new Date(order.orderTime).toLocaleTimeString('th-TH');
         
+        // Prefer manual number if available (e.g. LineMan #023)
+        const displayOrderNumber = order.manualOrderNumber ? `#${order.manualOrderNumber}` : `#${String(order.orderNumber).padStart(3, '0')}`;
+
         const lines: string[] = [];
         lines.push(`โต๊ะ: ${order.tableName} (${order.floor})`);
-        lines.push(`ออเดอร์: #${String(order.orderNumber).padStart(3, '0')}`);
+        lines.push(`ออเดอร์: ${displayOrderNumber}`);
         lines.push(`เวลา: ${timeString}`);
         lines.push('--------------------------------');
 
         order.items.forEach((item, index) => {
-            lines.push(`${index + 1}. ${item.name} x${item.quantity}`);
+            // Added extra spaces before 'x' for better readability as requested
+            lines.push(`${index + 1}. ${item.name}   x ${item.quantity}`);
             if (item.notes) lines.push(`   *** หมายเหตุ: ${item.notes} ***`);
             lines.push(' ');
         });
 
         try {
             const base64Image = await generateReceiptImage(lines, config.paperWidth);
-            await fetch(url, {
+            const res = await fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -92,6 +96,10 @@ export const printerService = {
                     }
                 })
             });
+            if (!res.ok) {
+                const errData = await res.json().catch(() => ({}));
+                throw new Error(errData.error || `Server returned ${res.status}`);
+            }
         } catch (error: any) {
             throw new Error("พิมพ์ล้มเหลว: " + error.message);
         }
@@ -106,7 +114,7 @@ export const printerService = {
 
         try {
             const base64Image = await generateReceiptImage(lines, config.paperWidth);
-            await fetch(url, {
+            const res = await fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -118,6 +126,10 @@ export const printerService = {
                     }
                 })
             });
+            if (!res.ok) {
+                const errData = await res.json().catch(() => ({}));
+                throw new Error(errData.error || `Server returned ${res.status}`);
+            }
         } catch (error: any) {
             throw new Error("พิมพ์ล้มเหลว: " + error.message);
         }
@@ -136,7 +148,10 @@ export const printerService = {
                 targetPrinter: { ip: targetPrinterIp || '', port: targetPrinterPort || '9100' }
             })
         });
-        if (!res.ok) throw new Error("Server Error");
+        if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.error || `Server returned ${res.status}`);
+        }
         return true;
     },
     
@@ -150,7 +165,6 @@ export const printerService = {
         return await res.json();
     },
 
-    // ADDED: printTableQRCode method to fix error in TableLayout.tsx
     printTableQRCode: async (table: Table, customerUrl: string, config: KitchenPrinterSettings): Promise<void> => {
         if (!config.ipAddress) throw new Error("ไม่ได้ตั้งค่า IP ของ Print Server");
 
@@ -169,7 +183,7 @@ export const printerService = {
         try {
             const base64Image = await generateReceiptImage(lines, config.paperWidth);
             const url = `http://${config.ipAddress}:${config.port || 3000}/print-image`;
-            await fetch(url, {
+            const res = await fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -181,6 +195,10 @@ export const printerService = {
                     }
                 })
             });
+            if (!res.ok) {
+                const errData = await res.json().catch(() => ({}));
+                throw new Error(errData.error || `Server returned ${res.status}`);
+            }
         } catch (error: any) {
             throw new Error("พิมพ์ล้มเหลว: " + error.message);
         }

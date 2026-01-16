@@ -78,6 +78,9 @@ export const KitchenOrderCard: React.FC<KitchenOrderCardProps> = ({ order, onCom
 
     const typeLabel = isLineMan ? 'LINEMAN' : (isTakeaway ? 'TAKE AWAY' : 'EAT IN');
     
+    // Display Logic: Use manual number if available (for LineMan), otherwise system order number
+    const displayOrderNumber = order.manualOrderNumber ? `#${order.manualOrderNumber}` : `#${String(order.orderNumber).padStart(3, '0')}`;
+
     return (
         <div className="flex flex-col bg-gray-800 text-white rounded-lg overflow-hidden border-2 border-gray-700 shadow-xl h-full transform transition-all duration-200 hover:scale-[1.02]">
             
@@ -85,7 +88,7 @@ export const KitchenOrderCard: React.FC<KitchenOrderCardProps> = ({ order, onCom
             <div className={`${headerColor} px-3 py-2 flex justify-between items-center`}>
                 <div className="flex flex-col">
                     <span className="text-xs font-bold opacity-80 uppercase tracking-wider">{typeLabel}</span>
-                    <span className="text-3xl font-black leading-none">#{String(order.orderNumber).padStart(3, '0')}</span>
+                    <span className="text-3xl font-black leading-none">{displayOrderNumber}</span>
                 </div>
                 <div className="flex flex-col items-end">
                     <span className="text-3xl font-mono font-bold">{formatTime(elapsedSeconds)}</span>

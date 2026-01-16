@@ -4,8 +4,8 @@ import React, { useState, useEffect } from 'react';
 interface NumpadModalProps {
     isOpen: boolean;
     onClose: () => void;
-    initialValue: number;
-    onSubmit: (value: number) => void;
+    initialValue: number | string; // Allow string initial value
+    onSubmit: (value: string) => void; // Return string to preserve leading zeros
     title: string;
 }
 
@@ -53,9 +53,8 @@ export const NumpadModal: React.FC<NumpadModalProps> = ({ isOpen, onClose, initi
     };
 
     const handleConfirm = () => {
-        // Parse the current string value to float
-        const num = parseFloat(currentValue);
-        onSubmit(isNaN(num) ? 0 : num);
+        // Return as string to preserve leading zeros (e.g. "055")
+        onSubmit(currentValue);
         onClose();
     };
 

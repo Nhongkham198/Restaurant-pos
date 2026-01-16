@@ -133,7 +133,7 @@ export const AdjustStockModal: React.FC<AdjustStockModalProps> = ({ isOpen, onCl
                 title="จำนวนที่ปรับ"
                 initialValue={adjustment}
                 onSubmit={(newValue) => {
-                    setAdjustment(newValue);
+                    setAdjustment(Number(newValue));
                 }}
             />
         </>

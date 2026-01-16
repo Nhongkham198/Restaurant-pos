@@ -95,6 +95,8 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({ order, o
         }
     }, [zoomLevel]);
 
+    const displayOrderNumber = order.manualOrderNumber ? `#${order.manualOrderNumber}` : `#${String(order.orderNumber).padStart(3, '0')}`;
+
     return (
         <>
             <div className={cardClasses}>
@@ -113,7 +115,7 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({ order, o
                         <div className="flex-1 cursor-pointer overflow-hidden" onClick={() => setIsExpanded(!isExpanded)}>
                             <div className="flex items-baseline gap-2 flex-wrap">
                                 <p className={`font-bold text-xl ${order.isDeleted ? 'text-red-700' : 'text-teal-700'}`}>
-                                    <span className={order.isDeleted ? 'text-red-400' : 'text-gray-500'}>#</span>{String(order.orderNumber).padStart(3, '0')}
+                                    {displayOrderNumber}
                                 </p>
                                 <p className={`font-semibold text-lg leading-tight ${order.isDeleted ? 'text-red-800' : 'text-gray-800'}`}>
                                     โต๊ะ {order.tableName} <span className="whitespace-nowrap">({order.floor})</span>

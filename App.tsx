@@ -919,7 +919,8 @@ const App: React.FC = () => {
         custName: string = customerName,
         custCount: number = customerCount,
         tableOverride: Table | null = selectedTable,
-        isLineMan: boolean = false
+        isLineMan: boolean = false,
+        lineManNumber?: string // NEW: Optional manual number
     ) => {
         // Validation: Must select table OR be LineMan
         if (!isLineMan && !tableOverride) {
@@ -966,6 +967,7 @@ const App: React.FC = () => {
                 const newOrder: ActiveOrder = {
                     id: Date.now(), // Use timestamp as ID
                     orderNumber: nextOrderId,
+                    manualOrderNumber: lineManNumber, // SAVE MANUAL NUMBER
                     tableId: orderTableId,
                     tableName: orderTableName,
                     customerName: custName,
