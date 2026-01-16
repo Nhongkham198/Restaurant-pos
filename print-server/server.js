@@ -53,6 +53,37 @@ app.get('/', (req, res) => {
     res.send(`Print Server is Running...`);
 });
 
+// Route ใหม่: ตรวจสอบสถานะเครื่องพิมพ์ (Ping แบบ TCP)
+app.post('/check-printer', (req, res) => {
+    const { ip, port } = req.body;
+    const targetHost = ip || PRINTER_CONFIG.host;
+    const targetPort = port || PRINTER_CONFIG.port;
+
+    console.log(`Checking printer status at ${targetHost}:${targetPort}...`);
+
+    const sock = new net.Socket();
+    sock.setTimeout(2500); // 2.5 วินาที timeout
+
+    sock.on('connect', () => {
+        console.log(`Printer at ${targetHost} is ONLINE`);
+        sock.destroy();
+        res.json({ online: true, message: 'เครื่องพิมพ์ออนไลน์พร้อมใช้งาน' });
+    });
+
+    sock.on('error', (err) => {
+        console.error(`Printer check error: ${err.message}`);
+        res.json({ online: false, message: `เชื่อมต่อไม่ได้: ${err.message}` });
+    });
+
+    sock.on('timeout', () => {
+        console.error(`Printer check timeout`);
+        sock.destroy();
+        res.json({ online: false, message: 'หมดเวลาเชื่อมต่อ (Timeout) - เครื่องพิมพ์อาจปิดอยู่หรือคนละวงแลน' });
+    });
+
+    sock.connect(targetPort, targetHost);
+});
+
 // Route สำหรับรับคำสั่งพิมพ์จาก POS
 app.post('/print', (req, res) => {
     // รับ targetPrinter จาก frontend ถ้ามี ให้ใช้ค่านี้แทน config เดิม

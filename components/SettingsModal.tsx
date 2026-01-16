@@ -71,35 +71,35 @@ const TabButton: React.FC<{ label: string; isActive: boolean; onClick: () => voi
 
 type ConnectionStatus = 'idle' | 'checking' | 'success' | 'error';
 
-const StatusIndicator: React.FC<{ status: ConnectionStatus }> = ({ status }) => {
+const StatusIndicator: React.FC<{ status: ConnectionStatus, label: string }> = ({ status, label }) => {
     if (status === 'idle') return null;
     if (status === 'checking') {
         return (
-            <span className="flex items-center gap-1 text-yellow-600 text-sm font-medium animate-pulse">
-                <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <span className="flex items-center gap-1 text-yellow-600 text-xs font-medium animate-pulse">
+                <svg className="animate-spin h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
-                กำลังเชื่อมต่อ...
+                {label} ...
             </span>
         );
     }
     if (status === 'success') {
         return (
-            <span className="flex items-center gap-1 text-green-600 text-sm font-medium">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+            <span className="flex items-center gap-1 text-green-600 text-xs font-medium">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                 </svg>
-                เชื่อมต่อสำเร็จ
+                {label} OK
             </span>
         );
     }
     return (
-        <span className="flex items-center gap-1 text-red-600 text-sm font-medium">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+        <span className="flex items-center gap-1 text-red-600 text-xs font-medium">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
             </svg>
-            ไม่สามารถเชื่อมต่อได้
+            {label} Failed
         </span>
     );
 };
@@ -147,10 +147,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             cashier: { ...DEFAULT_CASHIER_PRINTER }
         }
     });
-    const [connectionStatus, setConnectionStatus] = useState<{
-        kitchen: ConnectionStatus;
-        cashier: ConnectionStatus;
-    }>({ kitchen: 'idle', cashier: 'idle' });
+    
+    // Split status for granular feedback
+    const [serverStatus, setServerStatus] = useState<{kitchen: ConnectionStatus, cashier: ConnectionStatus}>({ kitchen: 'idle', cashier: 'idle' });
+    const [printerStatus, setPrinterStatus] = useState<{kitchen: ConnectionStatus, cashier: ConnectionStatus}>({ kitchen: 'idle', cashier: 'idle' });
     
     const [localRecommendedIds, setLocalRecommendedIds] = useState(new Set<number>());
     const [recommendSearchTerm, setRecommendSearchTerm] = useState('');
@@ -162,7 +162,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     useEffect(() => {
         if (isOpen) {
             setActiveTab('general'); // Reset to general tab on open
-            setConnectionStatus({ kitchen: 'idle', cashier: 'idle' }); // Reset connection status
+            setServerStatus({ kitchen: 'idle', cashier: 'idle' });
+            setPrinterStatus({ kitchen: 'idle', cashier: 'idle' });
             setLocalRecommendedIds(new Set(currentRecommendedMenuItemIds || []));
             setRecommendSearchTerm('');
 
@@ -234,7 +235,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     const handlePrinterChange = (type: 'kitchen' | 'cashier', field: string, value: string) => {
         // Reset status when IP/Port changes
         if (field === 'ipAddress' || field === 'port') {
-            setConnectionStatus(prev => ({ ...prev, [type]: 'idle' }));
+            setServerStatus(prev => ({ ...prev, [type]: 'idle' }));
+        }
+        if (field === 'targetPrinterIp' || field === 'targetPrinterPort') {
+            setPrinterStatus(prev => ({ ...prev, [type]: 'idle' }));
         }
         setSettingsForm(prev => ({
             ...prev,
@@ -278,20 +282,53 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         }));
     };
 
-    const handleCheckConnection = async (type: 'kitchen' | 'cashier') => {
+    const handleCheckServerConnection = async (type: 'kitchen' | 'cashier') => {
         const printer = settingsForm.printerConfig[type];
-        setConnectionStatus(prev => ({ ...prev, [type]: 'checking' }));
+        setServerStatus(prev => ({ ...prev, [type]: 'checking' }));
         try {
             const success = await printerService.checkConnection(printer.ipAddress, printer.port || '3000');
-            setConnectionStatus(prev => ({ ...prev, [type]: success ? 'success' : 'error' }));
+            setServerStatus(prev => ({ ...prev, [type]: success ? 'success' : 'error' }));
+            if (!success) {
+                Swal.fire('เชื่อมต่อ Server ไม่ได้', 'กรุณาตรวจสอบว่าเปิดโปรแกรม Print Server (Node.js) หรือยัง', 'error');
+            }
         } catch {
-            setConnectionStatus(prev => ({ ...prev, [type]: 'error' }));
+            setServerStatus(prev => ({ ...prev, [type]: 'error' }));
+        }
+    };
+
+    const handleCheckPrinterStatus = async (type: 'kitchen' | 'cashier') => {
+        const printer = settingsForm.printerConfig[type];
+        
+        // 1. Check Server first
+        if (serverStatus[type] !== 'success') {
+            await handleCheckServerConnection(type);
+            // If server fails, we can't check printer
+            // But we don't return here because state update is async, we'll re-check via service call inside checkPrinterStatus wrapper implicitly
+        }
+
+        setPrinterStatus(prev => ({ ...prev, [type]: 'checking' }));
+        try {
+            const result = await printerService.checkPrinterStatus(
+                printer.ipAddress, 
+                printer.port || '3000',
+                printer.targetPrinterIp || '',
+                printer.targetPrinterPort || '9100'
+            );
+            
+            setPrinterStatus(prev => ({ ...prev, [type]: result.online ? 'success' : 'error' }));
+            
+            if (result.online) {
+                Swal.fire({ icon: 'success', title: 'เครื่องพิมพ์ออนไลน์', text: 'พร้อมใช้งาน', timer: 1500, showConfirmButton: false });
+            } else {
+                Swal.fire({ icon: 'error', title: 'ไม่พบเครื่องพิมพ์', text: result.message });
+            }
+        } catch (error) {
+            setPrinterStatus(prev => ({ ...prev, [type]: 'error' }));
         }
     };
 
     const handleTestPrint = async (type: 'kitchen' | 'cashier') => {
         const printer = settingsForm.printerConfig[type];
-        setConnectionStatus(prev => ({ ...prev, [type]: 'checking' }));
         try {
             await printerService.printTest(
                 printer.ipAddress, 
@@ -300,10 +337,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 printer.targetPrinterIp,
                 printer.targetPrinterPort
             );
-            setConnectionStatus(prev => ({ ...prev, [type]: 'success' }));
             Swal.fire({ icon: 'success', title: 'ส่งคำสั่งพิมพ์สำเร็จ', text: 'กรุณาตรวจสอบที่เครื่องพิมพ์', timer: 2000, showConfirmButton: false });
         } catch (error: any) {
-            setConnectionStatus(prev => ({ ...prev, [type]: 'error' }));
             Swal.fire({ icon: 'error', title: 'พิมพ์ไม่สำเร็จ', text: error.message || 'ไม่สามารถเชื่อมต่อเครื่องพิมพ์ได้', footer: 'ลองตรวจสอบ IP เครื่องพิมพ์ว่าอยู่ในวงเดียวกับ Server หรือไม่' });
         }
     };
@@ -585,12 +620,43 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                         </div>
                                     </div>
 
-                                    <div className="pt-2 flex items-center justify-between">
-                                        <StatusIndicator status={connectionStatus.kitchen} />
-                                        <div className="flex gap-2">
-                                            <button type="button" onClick={() => handleCheckConnection('kitchen')} className="px-4 py-2 bg-indigo-600 text-white font-medium rounded-md hover:bg-indigo-700 shadow-sm">ทดสอบเชื่อมต่อ Server</button>
-                                            <button type="button" onClick={() => handleTestPrint('kitchen')} className="px-4 py-2 bg-white border border-gray-300 text-gray-700 font-medium rounded-md hover:bg-gray-50">ทดสอบพิมพ์</button>
-                                            <button type="button" onClick={() => handleSavePrinterSettings('kitchen')} className="px-4 py-2 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700">บันทึก</button>
+                                    {/* Action Buttons Row */}
+                                    <div className="pt-4 flex flex-col gap-3">
+                                        {/* Status Indicators */}
+                                        <div className="flex gap-4">
+                                            <StatusIndicator status={serverStatus.kitchen} label="Server" />
+                                            <StatusIndicator status={printerStatus.kitchen} label="Printer" />
+                                        </div>
+
+                                        <div className="flex flex-wrap gap-2">
+                                            <button 
+                                                type="button" 
+                                                onClick={() => handleCheckServerConnection('kitchen')} 
+                                                className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-md hover:bg-indigo-700 shadow-sm"
+                                            >
+                                                1. ทดสอบเชื่อมต่อ Server (PC)
+                                            </button>
+                                            <button 
+                                                type="button" 
+                                                onClick={() => handleCheckPrinterStatus('kitchen')} 
+                                                className="px-4 py-2 bg-teal-600 text-white text-sm font-medium rounded-md hover:bg-teal-700 shadow-sm"
+                                            >
+                                                2. ตรวจสอบสถานะเครื่องพิมพ์
+                                            </button>
+                                            <button 
+                                                type="button" 
+                                                onClick={() => handleTestPrint('kitchen')} 
+                                                className="px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-50"
+                                            >
+                                                3. ทดสอบพิมพ์
+                                            </button>
+                                            <button 
+                                                type="button" 
+                                                onClick={() => handleSavePrinterSettings('kitchen')} 
+                                                className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 ml-auto"
+                                            >
+                                                บันทึก
+                                            </button>
                                         </div>
                                     </div>
                                 </div>
@@ -604,6 +670,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                 {renderSubnetDiagnosis('cashier')}
 
                                 <div className="space-y-4">
+                                    {/* ... (Same layout as Kitchen) ... */}
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <div>
                                             <label className="block text-sm font-bold text-blue-700">Print Server IP (Node.js)</label>
@@ -660,12 +727,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                         <button type="button" onClick={handleRestoreDefaults} className="mt-2 text-sm text-blue-600 hover:underline">คืนค่าเริ่มต้น</button>
                                     </div>
 
-                                    <div className="pt-2 flex items-center justify-between border-t border-gray-200 mt-2">
-                                        <StatusIndicator status={connectionStatus.cashier} />
-                                        <div className="flex gap-2">
-                                            <button type="button" onClick={() => handleCheckConnection('cashier')} className="px-4 py-2 bg-indigo-600 text-white font-medium rounded-md hover:bg-indigo-700 shadow-sm">ทดสอบเชื่อมต่อ Server</button>
-                                            <button type="button" onClick={() => handleTestPrint('cashier')} className="px-4 py-2 bg-white border border-gray-300 text-gray-700 font-medium rounded-md hover:bg-gray-50">ทดสอบพิมพ์</button>
-                                            <button type="button" onClick={() => handleSavePrinterSettings('cashier')} className="px-4 py-2 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700">บันทึก</button>
+                                    {/* Action Buttons Row - Cashier */}
+                                    <div className="pt-4 flex flex-col gap-3 border-t border-gray-200 mt-2">
+                                        <div className="flex gap-4">
+                                            <StatusIndicator status={serverStatus.cashier} label="Server" />
+                                            <StatusIndicator status={printerStatus.cashier} label="Printer" />
+                                        </div>
+                                        <div className="flex flex-wrap gap-2">
+                                            <button type="button" onClick={() => handleCheckServerConnection('cashier')} className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-md hover:bg-indigo-700 shadow-sm">1. ทดสอบเชื่อมต่อ Server</button>
+                                            <button type="button" onClick={() => handleCheckPrinterStatus('cashier')} className="px-4 py-2 bg-teal-600 text-white text-sm font-medium rounded-md hover:bg-teal-700 shadow-sm">2. ตรวจสอบสถานะเครื่องพิมพ์</button>
+                                            <button type="button" onClick={() => handleTestPrint('cashier')} className="px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-50">3. ทดสอบพิมพ์</button>
+                                            <button type="button" onClick={() => handleSavePrinterSettings('cashier')} className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 ml-auto">บันทึก</button>
                                         </div>
                                     </div>
                                 </div>

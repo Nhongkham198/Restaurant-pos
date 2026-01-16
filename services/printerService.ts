@@ -342,5 +342,41 @@ export const printerService = {
             console.error("Connection check error:", error);
             return false;
         }
+    },
+
+    /**
+     * Checks if the Node.js server can reach the actual printer IP.
+     */
+    checkPrinterStatus: async (serverIp: string, serverPort: string, printerIp: string, printerPort: string): Promise<{ online: boolean, message: string }> => {
+        if (!serverIp || !printerIp) return { online: false, message: 'ข้อมูล IP ไม่ครบถ้วน' };
+        
+        const url = `http://${serverIp}:${serverPort || 3001}/check-printer`;
+
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ip: printerIp, port: printerPort || '9100' }),
+                signal: controller.signal
+            });
+            
+            clearTimeout(timeoutId);
+
+            if (!response.ok) {
+                return { online: false, message: 'Server ตอบกลับด้วย Error' };
+            }
+
+            const data = await response.json();
+            return data;
+        } catch (error: any) {
+            console.error("Check printer status error:", error);
+            if (error.name === 'AbortError') {
+               return { online: false, message: 'ไม่สามารถติดต่อ Print Server ได้ (Timeout)' };
+            }
+            return { online: false, message: 'ไม่สามารถติดต่อ Print Server ได้ (ตรวจสอบ start.bat)' };
+        }
     }
 };
