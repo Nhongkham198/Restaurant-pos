@@ -34,7 +34,10 @@ const generateReceiptImage = async (lines: string[], paperWidth: '58mm' | '80mm'
             let style = '';
             let text = line;
             
-            if (line.includes('***')) { // Bold/Important Headers
+            if (line.startsWith('LINEMAN #')) {
+                // SPECIAL HUGE FONT FOR LINEMAN ORDER NUMBER
+                style = 'font-weight: 900; font-size: 70px; text-align: center; display: block; margin: 10px 0 20px 0; line-height: 1;';
+            } else if (line.includes('***')) { // Bold/Important Headers
                 style = 'font-weight: 800; font-size: 42px; margin: 10px 0; display: block;';
             } else if (line.startsWith('---') || line.startsWith('===')) { // Separator
                 text = '<div style="border-bottom: 3px dashed black; margin: 15px 0;"></div>';
@@ -102,17 +105,30 @@ export const printerService = {
         const lines: string[] = [];
 
         // --- Header ---
-        lines.push(`โต๊ะ: ${order.tableName} (${order.floor})`);
-        lines.push(`ออเดอร์: #${String(order.orderNumber).padStart(3, '0')}`);
-        lines.push(`เวลา: ${timeString}`);
-        lines.push(`พนักงาน: ${order.placedBy}`);
-        if (order.customerName) lines.push(`ลูกค้า: ${order.customerName}`);
-        lines.push('--------------------------------');
+        if (order.orderType === 'lineman') {
+            // CUSTOM HEADER FOR LINEMAN
+            lines.push(`LINEMAN #${String(order.orderNumber).padStart(3, '0')}`);
+            lines.push(`เวลา: ${timeString}`);
+            lines.push('--------------------------------');
+        } else {
+            // STANDARD HEADER
+            lines.push(`โต๊ะ: ${order.tableName} (${order.floor})`);
+            lines.push(`ออเดอร์: #${String(order.orderNumber).padStart(3, '0')}`);
+            lines.push(`เวลา: ${timeString}`);
+            lines.push(`พนักงาน: ${order.placedBy}`);
+            if (order.customerName) lines.push(`ลูกค้า: ${order.customerName}`);
+            lines.push('--------------------------------');
+        }
 
         // --- Items ---
         order.items.forEach((item, index) => {
             lines.push(`${index + 1}. ${item.name}`);
-            if (item.isTakeaway) lines.push(`   *** กลับบ้าน ***`);
+            
+            // Only show 'Back Home' for non-LineMan orders, as LineMan implies takeaway
+            if (item.isTakeaway && order.orderType !== 'lineman') {
+                lines.push(`   *** กลับบ้าน ***`);
+            }
+            
             lines.push(`   จำนวน: x${item.quantity}`);
             
             if (item.selectedOptions && item.selectedOptions.length > 0) {
@@ -121,7 +137,7 @@ export const printerService = {
             if (item.notes) {
                 lines.push(`   *** หมายเหตุ: ${item.notes} ***`);
             }
-            if (item.isTakeaway && item.takeawayCutlery && item.takeawayCutlery.length > 0) {
+            if ((item.isTakeaway || order.orderType === 'lineman') && item.takeawayCutlery && item.takeawayCutlery.length > 0) {
                  const cutlery = item.takeawayCutlery.map(c => 
                     c === 'spoon-fork' ? 'ช้อนส้อม' : 
                     c === 'chopsticks' ? 'ตะเกียบ' : 
