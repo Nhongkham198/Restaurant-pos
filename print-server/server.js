@@ -45,8 +45,24 @@ const COMMANDS = {
     ALIGN_LEFT: ESC + 'a' + '\x00',
     ALIGN_CENTER: ESC + 'a' + '\x01',
     ALIGN_RIGHT: ESC + 'a' + '\x02',
-    CODE_PAGE_THAI: ESC + 't' + '\x15' // ลองเปลี่ยน \x15 เป็นค่าอื่นหากภาษาไทยเพี้ยน (ขึ้นอยู่กับยี่ห้อ)
+    // คำสั่งเลือก Code Page ภาษาไทย
+    // เครื่องพิมพ์ส่วนใหญ่ใช้ \x15 (21) หรือ \xFF (255) สำหรับภาษาไทย
+    // หากพิมพ์ไม่ออก ให้ลองแก้ \x15 เป็น \xFF หรือ \x16 ดูครับ
+    CODE_PAGE_THAI: ESC + 't' + '\x15' 
 };
+
+// ฟังก์ชั่นแก้ไขสระลอย/จม สำหรับภาษาไทย (Thai Glyph Replacement)
+// ช่วยให้ สระอื, ไม้เอก, ไม้โท ไม่ซ้อนทับกัน หรือลอยห่างเกินไป
+function cleanThaiString(text) {
+    if (!text) return '';
+    
+    // แปลง SARA AM (ำ) ให้เป็น นิคหิต (ํ) + สระอา (า) เพื่อการจัดวางที่ดีขึ้นในบางฟอนต์
+    // text = text.replace(/ำ/g, '\u0E4D\u0E32'); 
+    
+    // สามารถเพิ่ม logic การสลับตำแหน่งสระบนล่างได้ที่นี่หากจำเป็น
+    // แต่เบื้องต้นการใช้ Code Page ที่ถูกต้องจะแก้ปัญหาส่วนใหญ่ได้
+    return text;
+}
 
 // Route สำหรับตรวจสอบว่า Server ทำงานอยู่ไหม
 app.get('/', (req, res) => {
@@ -107,20 +123,27 @@ app.post('/print', (req, res) => {
         // 1. ส่งคำสั่งเริ่มต้น (Init)
         client.write(Buffer.from(COMMANDS.INIT));
         
-        // 2. วนลูปข้อมูลแต่ละบรรทัดที่ส่งมาจาก Frontend
+        // 2. *** ส่งคำสั่งเลือกภาษาไทย (สำคัญมาก) ***
+        client.write(Buffer.from(COMMANDS.CODE_PAGE_THAI));
+        
+        // 3. วนลูปข้อมูลแต่ละบรรทัดที่ส่งมาจาก Frontend
         if (order.items && Array.isArray(order.items)) {
             order.items.forEach(line => {
+                // จัดการข้อความภาษาไทยก่อนพิมพ์
+                const processedLine = cleanThaiString(line);
+                
                 // แปลงข้อความเป็น TIS-620 (ภาษาไทย)
-                const encodedLine = iconv.encode(line + '\n', 'tis620');
+                // การใช้ iconv-lite กับ tis620 จะแปลง Unicode เป็น 1-byte char ที่เครื่องพิมพ์เข้าใจ
+                const encodedLine = iconv.encode(processedLine + '\n', 'tis620');
                 client.write(encodedLine);
             });
         }
 
-        // 3. ส่งคำสั่งตัดกระดาษ (Cut)
+        // 4. ส่งคำสั่งตัดกระดาษ (Cut)
         client.write(Buffer.from('\n\n\n')); // Feed กระดาษเปล่านิดหน่อย
         client.write(Buffer.from(COMMANDS.CUT));
 
-        // 4. ปิดการเชื่อมต่อ
+        // 5. ปิดการเชื่อมต่อ
         client.end();
     });
 

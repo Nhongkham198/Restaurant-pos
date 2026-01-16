@@ -1,6 +1,19 @@
 
 import type { ActiveOrder, KitchenPrinterSettings, Table, CompletedOrder, CashierPrinterSettings } from '../types';
 
+// Helper: Center text for thermal printer (approximate for 42 chars width)
+const centerText = (text: string, width: number = 42): string => {
+    const len = text.length; // Thai chars logic is complex, simple length approximation
+    if (len >= width) return text;
+    const padding = Math.floor((width - len) / 2);
+    return ' '.repeat(padding) + text;
+};
+
+// Helper: Create a separator line
+const separator = (char: string = '-', width: number = 42): string => {
+    return char.repeat(width);
+};
+
 export const printerService = {
     /**
      * Sends the order object to a backend/intermediary service for printing.
@@ -21,20 +34,20 @@ export const printerService = {
             const lines: string[] = [];
 
             // --- Header (Included on every ticket) ---
+            // Use ESC/POS alignment commands in server.js ideally, but spaces work for basic centering
             lines.push(`โต๊ะ: ${order.tableName} (${order.floor})`);
             lines.push(`ออเดอร์: #${order.orderNumber} (ใบที่ ${i + 1}/${totalItems})`);
-            lines.push(`เวลา: ${timeString}`);
-            lines.push(`พนักงาน: ${order.placedBy}`);
+            lines.push(`เวลา: ${timeString}  พนักงาน: ${order.placedBy}`);
             if (order.customerName) {
                 lines.push(`ลูกค้า: ${order.customerName}`);
             }
-            lines.push('--------------------------------');
+            lines.push(separator('-'));
 
             // --- Item Details ---
-            // Item Name
-            lines.push(`${item.name} ${item.isTakeaway ? '(กลับบ้าน)' : ''}`);
+            // Large/Bold Item Name Logic is handled by printer font, here we just send text
+            lines.push(`${item.name}`);
+            if (item.isTakeaway) lines.push(`** กลับบ้าน **`);
             
-            // Quantity (Large/Bold emphasis usually depends on printer, but text is clear here)
             lines.push(`จำนวน:  x${item.quantity}`);
 
             // Options
@@ -46,7 +59,7 @@ export const printerService = {
 
             // Notes
             if (item.notes) {
-                lines.push(`   ** หมายเหตุ: ${item.notes}`);
+                lines.push(`   *** หมายเหตุ: ${item.notes} ***`);
             }
             
             // Takeaway Cutlery
@@ -61,6 +74,7 @@ export const printerService = {
                      lines.push(`   [รับ: ${cutleryLines.join(', ')}]`);
                  }
             }
+            lines.push(' '); // Spacer at bottom
 
             // --- Send Request for this specific item ---
             try {
@@ -117,51 +131,59 @@ export const printerService = {
         const total = order.items.reduce((s, i) => s + (i.finalPrice * i.quantity), 0) + order.taxAmount;
 
         // Header
-        if (options.printRestaurantName) lines.push(restaurantName);
-        lines.push('ใบเสร็จรับเงิน/ใบกำกับภาษีอย่างย่อ');
-        lines.push('----------------------------------------');
+        if (options.printRestaurantName) {
+            lines.push(centerText(restaurantName));
+        }
+        lines.push(centerText('ใบเสร็จรับเงิน'));
+        lines.push(separator('='));
 
         if (options.printOrderId) lines.push(`ออเดอร์ #: ${order.orderNumber}`);
-        if (options.printTableInfo) lines.push(`โต๊ะ: ${order.tableName} / ลูกค้า: ${order.customerCount} คน`);
+        if (options.printTableInfo) lines.push(`โต๊ะ: ${order.tableName}  ลูกค้า: ${order.customerCount} คน`);
         if (options.printDateTime) lines.push(`วันที่: ${new Date(order.completionTime).toLocaleString('th-TH')}`);
         if (options.printPlacedBy) lines.push(`พนักงาน: ${order.placedBy}`);
-        lines.push('----------------------------------------');
+        lines.push(separator('-'));
 
         // Items
         if (options.printItems) {
-            lines.push('รายการอาหาร');
             order.items.forEach(item => {
                 const itemTotal = item.finalPrice * item.quantity;
-                lines.push(`${item.quantity}x ${item.name} ..... ${itemTotal.toFixed(2)}`);
+                // Simple layout: Qty x Name ..... Price
+                lines.push(`${item.quantity} x ${item.name}`);
+                // Indent options
                 if (item.selectedOptions && item.selectedOptions.length > 0) {
                     const optionsText = item.selectedOptions.map(o => o.name).join(', ');
-                    lines.push(`  (${optionsText})`);
+                    lines.push(`    (${optionsText})`);
                 }
+                // Right align price on next line or same line if logic allows (keeping it simple here)
+                lines.push(`                      ${itemTotal.toFixed(2)}`);
             });
         }
-        lines.push('----------------------------------------');
+        lines.push(separator('-'));
 
         const subtotal = order.items.reduce((sum, item) => sum + item.finalPrice * item.quantity, 0);
 
         // Totals
-        if (options.printSubtotal) lines.push(`ยอดรวม: ${subtotal.toFixed(2)} บาท`);
-        if (options.printTax && order.taxAmount > 0) lines.push(`ภาษี (${order.taxRate}%): ${order.taxAmount.toFixed(2)} บาท`);
-        if (options.printTotal) lines.push(`ยอดสุทธิ: ${total.toFixed(2)} บาท`);
-        lines.push('----------------------------------------');
+        if (options.printSubtotal) lines.push(`รวมเงิน:       ${subtotal.toFixed(2)}`);
+        if (options.printTax && order.taxAmount > 0) lines.push(`ภาษี (${order.taxRate}%):    ${order.taxAmount.toFixed(2)}`);
+        if (options.printTotal) {
+            lines.push(separator(' '));
+            lines.push(`ยอดสุทธิ:      ${total.toFixed(2)}`);
+            lines.push(separator('='));
+        }
 
         // Payment
         if (options.printPaymentDetails) {
             lines.push(`ชำระโดย: ${order.paymentDetails.method === 'cash' ? 'เงินสด' : 'โอนจ่าย'}`);
             if (order.paymentDetails.method === 'cash') {
-                lines.push(`รับเงินมา: ${order.paymentDetails.cashReceived?.toFixed(2)} บาท`);
-                lines.push(`เงินทอน: ${order.paymentDetails.changeGiven?.toFixed(2)} บาท`);
+                lines.push(`รับเงิน:        ${order.paymentDetails.cashReceived?.toFixed(2)}`);
+                lines.push(`เงินทอน:       ${order.paymentDetails.changeGiven?.toFixed(2)}`);
             }
         }
         lines.push('');
 
         // Footer
         if (options.printThankYouMessage) {
-            lines.push('ขอบคุณที่ใช้บริการ');
+            lines.push(centerText('ขอบคุณที่ใช้บริการ'));
         }
         
         try {
@@ -214,14 +236,14 @@ export const printerService = {
 
         // Construct a simple "ticket" for the QR Code
         const itemsAsStrings = [
-            `*** QR CODE สำหรับโต๊ะ ***`,
-            `โต๊ะ: ${table.name} (${table.floor})`,
-            `--------------------------------`,
-            `สแกนเพื่อสั่งอาหาร:`,
-            `${qrUrl}`,
-            `--------------------------------`,
-            `(นำไปติดที่โต๊ะเพื่อให้ลูกค้าสแกน)`,
-            new Date().toLocaleString('th-TH')
+            centerText('*** QR CODE สำหรับโต๊ะ ***'),
+            centerText(`โต๊ะ: ${table.name} (${table.floor})`),
+            separator('-'),
+            centerText('สแกนเพื่อสั่งอาหาร:'),
+            qrUrl, // QR URL usually too long to center nicely, just print it
+            separator('-'),
+            centerText('(นำไปติดที่โต๊ะเพื่อให้ลูกค้าสแกน)'),
+            centerText(new Date().toLocaleString('th-TH'))
         ];
 
         try {
@@ -278,10 +300,14 @@ export const printerService = {
                 order: {
                     orderId: "TEST",
                     items: [
-                        "ทดสอบการพิมพ์",
-                        "ภาษาไทยชัดเจน 100%",
-                        "Printer Connected!",
-                        new Date().toLocaleString('th-TH')
+                        centerText("--- ทดสอบการพิมพ์ ---"),
+                        centerText("ภาษาไทย: กขคง"),
+                        centerText("สระ: ะ า อิ อี อึ อื"),
+                        centerText("วรรณยุกต์: ่ ้ ๊ ๋"),
+                        centerText("ผสมคำ: น้ำ ม้า ป๋า กุ้ง"),
+                        separator('-'),
+                        centerText("Printer Connected!"),
+                        centerText(new Date().toLocaleString('th-TH'))
                     ]
                 },
                 paperSize: paperWidth,
