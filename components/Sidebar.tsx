@@ -520,9 +520,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 isOpen={isLineManNumpadOpen}
                 onClose={() => setIsLineManNumpadOpen(false)}
                 title="ระบุหมายเลข LineMan"
-                initialValue="0"
+                initialValue="" // Start with empty to allow typing '0' as first char without it being treated as numeric replacement
+                allowLeadingZeros={true} // Enable leading zeros mode
                 onSubmit={(value) => {
-                    const numStr = value; // Keep as string to preserve leading zeros
+                    const numStr = value || '0';
                     setLineManNumber(numStr);
                     setIsLineMan(true);
                     onSelectTable(null); // Clear table selection when entering LineMan mode

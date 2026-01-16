@@ -7,6 +7,7 @@ interface NumpadModalProps {
     initialValue: number | string; // Allow string initial value
     onSubmit: (value: string) => void; // Return string to preserve leading zeros
     title: string;
+    allowLeadingZeros?: boolean;
 }
 
 const NumpadButton: React.FC<{ value: string; onClick: (value: string) => void; className?: string; children?: React.ReactNode }> = ({ value, onClick, className = '', children }) => (
@@ -15,7 +16,7 @@ const NumpadButton: React.FC<{ value: string; onClick: (value: string) => void; 
     </button>
 );
 
-export const NumpadModal: React.FC<NumpadModalProps> = ({ isOpen, onClose, initialValue, onSubmit, title }) => {
+export const NumpadModal: React.FC<NumpadModalProps> = ({ isOpen, onClose, initialValue, onSubmit, title, allowLeadingZeros = false }) => {
     const [currentValue, setCurrentValue] = useState<string>('0');
 
     useEffect(() => {
@@ -34,7 +35,8 @@ export const NumpadModal: React.FC<NumpadModalProps> = ({ isOpen, onClose, initi
             return;
         }
 
-        if (currentValue === '0') {
+        // If not allowing leading zeros (default numeric mode), replace '0' with new digit
+        if (currentValue === '0' && !allowLeadingZeros) {
             setCurrentValue(digit);
         } else {
             if (currentValue.length < 10) { // Limit digits
@@ -45,11 +47,16 @@ export const NumpadModal: React.FC<NumpadModalProps> = ({ isOpen, onClose, initi
 
     const handleBackspace = () => {
         const newValue = currentValue.slice(0, -1);
-        setCurrentValue(newValue.length > 0 ? newValue : '0');
+        if (newValue.length === 0) {
+            // If allowing leading zeros, allow empty string. Otherwise default to '0'.
+            setCurrentValue(allowLeadingZeros ? '' : '0');
+        } else {
+            setCurrentValue(newValue);
+        }
     };
     
     const handleClear = () => {
-        setCurrentValue('0');
+        setCurrentValue(allowLeadingZeros ? '' : '0');
     };
 
     const handleConfirm = () => {
@@ -62,7 +69,7 @@ export const NumpadModal: React.FC<NumpadModalProps> = ({ isOpen, onClose, initi
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60] p-4" onClick={onClose}>
             <div className="bg-white rounded-lg shadow-xl p-6 max-w-xs w-full" onClick={e => e.stopPropagation()}>
                 <h2 className="text-xl font-semibold text-center text-gray-800 mb-4">{title}</h2>
-                <div className="bg-gray-100 text-gray-900 text-right text-4xl font-mono font-bold p-4 rounded-lg mb-4 h-20 overflow-x-auto break-all">
+                <div className="bg-gray-100 text-gray-900 text-right text-4xl font-mono font-bold p-4 rounded-lg mb-4 h-20 overflow-x-auto break-all flex items-center justify-end">
                     {currentValue}
                 </div>
 
