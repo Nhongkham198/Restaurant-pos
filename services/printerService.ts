@@ -18,8 +18,8 @@ const generateReceiptImage = async (lines: string[], paperWidth: '58mm' | '80mm'
         container.style.width = paperWidth === '80mm' ? '560px' : '370px';
         container.style.fontFamily = '"Sarabun", sans-serif'; 
         container.style.padding = '15px';
-        container.style.lineHeight = '1.3';
-        container.style.fontSize = '36px'; 
+        container.style.lineHeight = '1.25'; // กระชับบรรทัดให้พอดีเหมือนรูปที่ 2
+        container.style.fontSize = '34px'; // ปรับขนาดฟอนต์ให้พอดี
         container.style.fontWeight = '600';
 
         let htmlContent = '';
@@ -81,13 +81,13 @@ export const printerService = {
         lines.push('--------------------------------');
 
         order.items.forEach((item, index) => {
-            // FIX: Use simple inline spans to force text to flow in a single block.
-            // This replicates the "paragraph" style in the reference image.
+            // FIX: ใช้ display block ธรรมดาและใส่ span inline เพื่อให้ข้อความไหลต่อกันเป็นธรรมชาติเหมือนรูปที่ 2
+            // ปรับ margin-bottom ให้ลดลงเพื่อให้รายการชิดกันมากขึ้น
             const itemHtml = `
-            <div style="margin-bottom: 12px; line-height: 1.3;">
+            <div style="margin-bottom: 8px; line-height: 1.2; word-wrap: break-word;">
                 <span style="font-weight: bold;">${index + 1}. ${item.name}</span>
                 <span style="font-weight: 800; white-space: nowrap; margin-left: 8px; font-size: 1.1em;">x ${item.quantity}</span>
-                ${item.notes ? `<div style="font-size: 0.85em; font-weight: normal; margin-left: 20px; margin-top: 2px;">*** ${item.notes} ***</div>` : ''}
+                ${item.notes ? `<div style="font-size: 0.85em; font-weight: normal; margin-left: 15px; margin-top: 2px;">*** ${item.notes} ***</div>` : ''}
             </div>`;
             
             lines.push(itemHtml);
