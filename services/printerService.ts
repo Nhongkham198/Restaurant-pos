@@ -18,8 +18,8 @@ const generateReceiptImage = async (lines: string[], paperWidth: '58mm' | '80mm'
         container.style.width = paperWidth === '80mm' ? '560px' : '370px';
         container.style.fontFamily = '"Sarabun", sans-serif'; 
         container.style.padding = '15px';
-        container.style.lineHeight = '1.25'; // กระชับบรรทัดให้พอดีเหมือนรูปที่ 2
-        container.style.fontSize = '34px'; // ปรับขนาดฟอนต์ให้พอดี
+        container.style.lineHeight = '1.2';
+        container.style.fontSize = '32px'; // Reduced slightly to ensuring fitting
         container.style.fontWeight = '600';
 
         let htmlContent = '';
@@ -27,9 +27,9 @@ const generateReceiptImage = async (lines: string[], paperWidth: '58mm' | '80mm'
             let style = '';
             let text = line;
             if (line.startsWith('LINEMAN #')) {
-                style = 'font-weight: 900; font-size: 70px; text-align: center; display: block; margin: 10px 0;';
+                style = 'font-weight: 900; font-size: 60px; text-align: center; display: block; margin: 10px 0;';
             } else if (line.includes('***')) {
-                style = 'font-weight: 800; font-size: 40px; margin: 10px 0;';
+                style = 'font-weight: 800; font-size: 36px; margin: 10px 0;';
             } else if (line.startsWith('---')) {
                 text = '<div style="border-bottom: 3px dashed black; margin: 10px 0;"></div>';
                 style = 'height: 3px;';
@@ -81,13 +81,14 @@ export const printerService = {
         lines.push('--------------------------------');
 
         order.items.forEach((item, index) => {
-            // FIX: ใช้ display block ธรรมดาและใส่ span inline เพื่อให้ข้อความไหลต่อกันเป็นธรรมชาติเหมือนรูปที่ 2
-            // ปรับ margin-bottom ให้ลดลงเพื่อให้รายการชิดกันมากขึ้น
+            // FIX: Remove spans and wrappers that caused forced line breaks.
+            // Concatenate text directly to ensure natural flow like Picture 2.
+            const itemText = `${index + 1}. ${item.name}   x ${item.quantity}`;
+            
             const itemHtml = `
-            <div style="margin-bottom: 8px; line-height: 1.2; word-wrap: break-word;">
-                <span style="font-weight: bold;">${index + 1}. ${item.name}</span>
-                <span style="font-weight: 800; white-space: nowrap; margin-left: 8px; font-size: 1.1em;">x ${item.quantity}</span>
-                ${item.notes ? `<div style="font-size: 0.85em; font-weight: normal; margin-left: 15px; margin-top: 2px;">*** ${item.notes} ***</div>` : ''}
+            <div style="margin-bottom: 10px; word-wrap: break-word;">
+                ${itemText}
+                ${item.notes ? `<div style="font-size: 0.85em; font-weight: normal; margin-left: 20px; margin-top: 2px;">*** ${item.notes} ***</div>` : ''}
             </div>`;
             
             lines.push(itemHtml);
