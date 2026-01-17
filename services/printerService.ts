@@ -18,8 +18,8 @@ const generateReceiptImage = async (lines: string[], paperWidth: '58mm' | '80mm'
         container.style.width = paperWidth === '80mm' ? '560px' : '370px';
         container.style.fontFamily = '"Sarabun", sans-serif'; 
         container.style.padding = '15px';
-        container.style.lineHeight = '1.1'; // Tighter line height for the whole container
-        container.style.fontSize = '30px'; // Slightly adjusted base font
+        container.style.lineHeight = '1.2'; // Slightly relaxed line height
+        container.style.fontSize = '34px'; // Increased font size for better readability
         container.style.fontWeight = '600';
 
         let htmlContent = '';
@@ -31,7 +31,8 @@ const generateReceiptImage = async (lines: string[], paperWidth: '58mm' | '80mm'
             } else if (line.includes('***')) {
                 style = 'font-weight: 800; font-size: 36px; margin: 5px 0;';
             } else if (line.startsWith('---')) {
-                text = '<div style="border-bottom: 2px dashed black; margin: 5px 0;"></div>';
+                // Increased margin to separate the line from text above and below
+                text = '<div style="border-bottom: 2px dashed black; margin: 15px 0 15px 0;"></div>';
                 style = 'height: 2px;';
             }
             
@@ -85,23 +86,24 @@ export const printerService = {
         lines.push(`ออเดอร์: ${displayOrderNumber}`);
         lines.push('--------------------------------');
 
-        // FIX: Build a SINGLE table for ALL items to minimize vertical spacing
-        // This ensures strictly 3 columns and compact rows (saving paper)
+        // FIX: Build a SINGLE table for ALL items to minimize vertical spacing but allow row padding
         let itemsHtml = `
         <div style="width: 100%;">
             <table style="width: 100%; border-collapse: collapse; table-layout: fixed;">`;
 
         order.items.forEach((item, index) => {
+            // Added padding-bottom: 12px to separate items
+            // Added padding-top: 4px
             itemsHtml += `
                 <tr style="vertical-align: top;">
-                    <td style="width: 12%; font-weight: bold; text-align: left; line-height: 1; padding-top: 4px; padding-bottom: 4px;">
+                    <td style="width: 12%; font-weight: bold; text-align: left; line-height: 1.1; padding-top: 4px; padding-bottom: 12px;">
                         ${index + 1}.
                     </td>
-                    <td style="width: 68%; text-align: left; font-weight: bold; line-height: 1; word-wrap: break-word; overflow-wrap: break-word; padding-right: 5px; padding-top: 4px; padding-bottom: 4px;">
+                    <td style="width: 68%; text-align: left; font-weight: bold; line-height: 1.1; word-wrap: break-word; overflow-wrap: break-word; padding-right: 5px; padding-top: 4px; padding-bottom: 12px;">
                         ${item.name}
-                        ${item.notes ? `<div style="font-size: 0.8em; font-weight: normal; margin-top: 2px;">*** ${item.notes} ***</div>` : ''}
+                        ${item.notes ? `<div style="font-size: 0.85em; font-weight: normal; margin-top: 4px;">*** ${item.notes} ***</div>` : ''}
                     </td>
-                    <td style="width: 20%; text-align: right; font-weight: 800; font-size: 1.1em; line-height: 1; white-space: nowrap; padding-top: 4px; padding-bottom: 4px;">
+                    <td style="width: 20%; text-align: right; font-weight: 800; font-size: 1.1em; line-height: 1.1; white-space: nowrap; padding-top: 4px; padding-bottom: 12px;">
                         x ${item.quantity}
                     </td>
                 </tr>`;
