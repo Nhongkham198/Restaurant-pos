@@ -967,7 +967,7 @@ const App: React.FC = () => {
                 const newOrder: ActiveOrder = {
                     id: Date.now(), // Use timestamp as ID
                     orderNumber: nextOrderId,
-                    manualOrderNumber: lineManNumber, // SAVE MANUAL NUMBER
+                    manualOrderNumber: lineManNumber || null, // FIX: Ensure it is not undefined
                     tableId: orderTableId,
                     tableName: orderTableName,
                     customerName: custName,

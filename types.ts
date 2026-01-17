@@ -74,7 +74,7 @@ export interface PaymentDetails {
 interface BaseOrder {
     id: number;
     orderNumber: number;
-    manualOrderNumber?: string; // NEW: Stores the manual input (e.g. LineMan #023)
+    manualOrderNumber?: string | null; // NEW: Stores the manual input (e.g. LineMan #023)
     tableId: number;
     tableName: string;
     customerName?: string;
