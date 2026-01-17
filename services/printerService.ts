@@ -64,22 +64,39 @@ export const printerService = {
         if (!config.ipAddress) throw new Error("ไม่ได้ตั้งค่า IP ของ Print Server");
 
         const url = `http://${config.ipAddress}:${config.port || 3000}/print-image`;
-        const timeString = new Date(order.orderTime).toLocaleTimeString('th-TH');
+        // Time removed as requested
+        // const timeString = new Date(order.orderTime).toLocaleTimeString('th-TH');
         
         // Prefer manual number if available (e.g. LineMan #023)
         const displayOrderNumber = order.manualOrderNumber ? `#${order.manualOrderNumber}` : `#${String(order.orderNumber).padStart(3, '0')}`;
 
         const lines: string[] = [];
-        lines.push(`โต๊ะ: ${order.tableName} (${order.floor})`);
+        
+        // Conditional Table Label: Remove "โต๊ะ:" if LineMan
+        if (order.orderType === 'lineman') {
+            lines.push(`${order.tableName}`); 
+        } else {
+            lines.push(`โต๊ะ: ${order.tableName} (${order.floor})`);
+        }
+
         lines.push(`ออเดอร์: ${displayOrderNumber}`);
-        lines.push(`เวลา: ${timeString}`);
+        // Time line removed
         lines.push('--------------------------------');
 
         order.items.forEach((item, index) => {
-            // Added extra spaces before 'x' for better readability as requested
-            lines.push(`${index + 1}. ${item.name}   x ${item.quantity}`);
-            if (item.notes) lines.push(`   *** หมายเหตุ: ${item.notes} ***`);
-            lines.push(' ');
+            // New HTML Layout for Indentation (The Red Line Rule)
+            // Flexbox ensures text wraps to the right of the number
+            const itemHtml = `
+            <div style="display: flex; align-items: flex-start; width: 100%; margin-bottom: 10px;">
+                <div style="width: 35px; min-width: 35px; font-weight: bold; line-height: 1.2;">${index + 1}.</div>
+                <div style="flex: 1; line-height: 1.2; padding-right: 5px;">
+                    <div>${item.name}</div>
+                    ${item.notes ? `<div style="font-size: 0.85em; font-weight: bold; margin-top: 2px;">*** หมายเหตุ: ${item.notes} ***</div>` : ''}
+                </div>
+                <div style="white-space: nowrap; font-weight: bold;">x ${item.quantity}</div>
+            </div>`;
+            
+            lines.push(itemHtml);
         });
 
         try {
