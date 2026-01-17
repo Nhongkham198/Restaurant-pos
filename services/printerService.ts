@@ -18,8 +18,8 @@ const generateReceiptImage = async (lines: string[], paperWidth: '58mm' | '80mm'
         container.style.width = paperWidth === '80mm' ? '560px' : '370px';
         container.style.fontFamily = '"Sarabun", sans-serif'; 
         container.style.padding = '15px';
-        container.style.lineHeight = '1.3';
-        container.style.fontSize = '36px';
+        container.style.lineHeight = '1.2'; // Compact line height
+        container.style.fontSize = '34px'; // Slightly reduced from 36px for better fit
         container.style.fontWeight = '600';
 
         let htmlContent = '';
@@ -29,10 +29,10 @@ const generateReceiptImage = async (lines: string[], paperWidth: '58mm' | '80mm'
             if (line.startsWith('LINEMAN #')) {
                 style = 'font-weight: 900; font-size: 70px; text-align: center; display: block; margin: 10px 0;';
             } else if (line.includes('***')) {
-                style = 'font-weight: 800; font-size: 42px; margin: 10px 0;';
+                style = 'font-weight: 800; font-size: 40px; margin: 10px 0;';
             } else if (line.startsWith('---')) {
-                text = '<div style="border-bottom: 3px dashed black; margin: 15px 0;"></div>';
-                style = 'height: 5px;';
+                text = '<div style="border-bottom: 3px dashed black; margin: 10px 0;"></div>';
+                style = 'height: 3px;';
             }
             if (text.startsWith('<div')) htmlContent += text;
             else htmlContent += `<div style="${style} white-space: pre-wrap;">${text}</div>`;
@@ -55,7 +55,7 @@ const generateReceiptImage = async (lines: string[], paperWidth: '58mm' | '80mm'
                     resolve(base64);
                 }).catch(reject);
             } else reject(new Error("html2canvas not found"));
-        }, 500); // Increased from 150ms to 500ms to allow external images like QR codes to load
+        }, 500); 
     });
 };
 
@@ -64,8 +64,6 @@ export const printerService = {
         if (!config.ipAddress) throw new Error("ไม่ได้ตั้งค่า IP ของ Print Server");
 
         const url = `http://${config.ipAddress}:${config.port || 3000}/print-image`;
-        // Time removed as requested
-        // const timeString = new Date(order.orderTime).toLocaleTimeString('th-TH');
         
         // Prefer manual number if available (e.g. LineMan #023)
         const displayOrderNumber = order.manualOrderNumber ? `#${order.manualOrderNumber}` : `#${String(order.orderNumber).padStart(3, '0')}`;
@@ -80,19 +78,19 @@ export const printerService = {
         }
 
         lines.push(`ออเดอร์: ${displayOrderNumber}`);
-        // Time line removed
         lines.push('--------------------------------');
 
         order.items.forEach((item, index) => {
-            // HTML Layout using Display Table for robust alignment
+            // Updated Layout: Use Flexbox for better flow. 
+            // Name and Quantity are in the same block to flow naturally.
             const itemHtml = `
-            <div style="display: table; width: 100%; margin-bottom: 10px;">
-                <div style="display: table-cell; vertical-align: top; width: 40px; min-width: 40px; font-weight: bold; line-height: 1.2;">${index + 1}.</div>
-                <div style="display: table-cell; vertical-align: top; line-height: 1.2; padding-right: 5px;">
-                    <div>${item.name}</div>
-                    ${item.notes ? `<div style="font-size: 0.85em; font-weight: bold; margin-top: 2px;">*** หมายเหตุ: ${item.notes} ***</div>` : ''}
+            <div style="display: flex; flex-direction: row; align-items: flex-start; margin-bottom: 8px;">
+                <div style="min-width: 35px; width: 35px; font-weight: bold;">${index + 1}.</div>
+                <div style="flex: 1; font-weight: bold;">
+                    <span>${item.name}</span>
+                    <span style="white-space: nowrap; margin-left: 12px; font-size: 1.1em;">x ${item.quantity}</span>
+                    ${item.notes ? `<div style="font-size: 0.85em; font-weight: normal; margin-top: 2px;">*** ${item.notes} ***</div>` : ''}
                 </div>
-                <div style="display: table-cell; vertical-align: top; white-space: nowrap; font-weight: bold; text-align: right; width: 50px;">x ${item.quantity}</div>
             </div>`;
             
             lines.push(itemHtml);
