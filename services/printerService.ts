@@ -92,6 +92,21 @@ export const printerService = {
             <table style="width: 100%; border-collapse: collapse; table-layout: fixed;">`;
 
         order.items.forEach((item, index) => {
+            // Build options string
+            let detailsHtml = '';
+            
+            // 1. Selected Options (e.g. + เพิ่มชีส, + เผ็ดน้อย)
+            if (item.selectedOptions && item.selectedOptions.length > 0) {
+                item.selectedOptions.forEach(opt => {
+                    detailsHtml += `<div style="font-size: 0.85em; font-weight: normal; margin-top: 2px; padding-left: 15px;">+ ${opt.name}</div>`;
+                });
+            }
+
+            // 2. Notes (e.g. *** ไม่ใส่ผัก ***)
+            if (item.notes) {
+                detailsHtml += `<div style="font-size: 0.85em; font-weight: normal; margin-top: 4px; padding-left: 15px;">*** ${item.notes} ***</div>`;
+            }
+
             // Added padding-bottom: 12px to separate items
             // Added padding-top: 4px
             itemsHtml += `
@@ -101,7 +116,7 @@ export const printerService = {
                     </td>
                     <td style="width: 68%; text-align: left; font-weight: bold; line-height: 1.1; word-wrap: break-word; overflow-wrap: break-word; padding-right: 5px; padding-top: 4px; padding-bottom: 12px;">
                         ${item.name}
-                        ${item.notes ? `<div style="font-size: 0.85em; font-weight: normal; margin-top: 4px;">*** ${item.notes} ***</div>` : ''}
+                        ${detailsHtml}
                     </td>
                     <td style="width: 20%; text-align: right; font-weight: 800; font-size: 1.1em; line-height: 1.1; white-space: nowrap; padding-top: 4px; padding-bottom: 12px;">
                         x ${item.quantity}
