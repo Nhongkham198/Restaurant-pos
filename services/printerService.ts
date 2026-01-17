@@ -18,8 +18,8 @@ const generateReceiptImage = async (lines: string[], paperWidth: '58mm' | '80mm'
         container.style.width = paperWidth === '80mm' ? '560px' : '370px';
         container.style.fontFamily = '"Sarabun", sans-serif'; 
         container.style.padding = '15px';
-        container.style.lineHeight = '1.2'; // Compact line height
-        container.style.fontSize = '34px'; // Slightly reduced from 36px for better fit
+        container.style.lineHeight = '1.3';
+        container.style.fontSize = '36px'; 
         container.style.fontWeight = '600';
 
         let htmlContent = '';
@@ -81,16 +81,13 @@ export const printerService = {
         lines.push('--------------------------------');
 
         order.items.forEach((item, index) => {
-            // Updated Layout: Use Flexbox for better flow. 
-            // Name and Quantity are in the same block to flow naturally.
+            // FIX: Use simple inline spans to force text to flow in a single block.
+            // This replicates the "paragraph" style in the reference image.
             const itemHtml = `
-            <div style="display: flex; flex-direction: row; align-items: flex-start; margin-bottom: 8px;">
-                <div style="min-width: 35px; width: 35px; font-weight: bold;">${index + 1}.</div>
-                <div style="flex: 1; font-weight: bold;">
-                    <span>${item.name}</span>
-                    <span style="white-space: nowrap; margin-left: 12px; font-size: 1.1em;">x ${item.quantity}</span>
-                    ${item.notes ? `<div style="font-size: 0.85em; font-weight: normal; margin-top: 2px;">*** ${item.notes} ***</div>` : ''}
-                </div>
+            <div style="margin-bottom: 12px; line-height: 1.3;">
+                <span style="font-weight: bold;">${index + 1}. ${item.name}</span>
+                <span style="font-weight: 800; white-space: nowrap; margin-left: 8px; font-size: 1.1em;">x ${item.quantity}</span>
+                ${item.notes ? `<div style="font-size: 0.85em; font-weight: normal; margin-left: 20px; margin-top: 2px;">*** ${item.notes} ***</div>` : ''}
             </div>`;
             
             lines.push(itemHtml);
