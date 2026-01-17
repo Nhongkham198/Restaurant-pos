@@ -1,5 +1,7 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import type { ActiveOrder, OrderItem, User } from '../types';
+import Swal from 'sweetalert2';
 
 interface TableBillModalProps {
     isOpen: boolean;
@@ -12,8 +14,9 @@ interface TableBillModalProps {
     onUpdateOrder: (orderId: number, items: OrderItem[], customerCount: number) => void;
     currentUser: User | null;
     onInitiateCancel: (order: ActiveOrder) => void;
-    activeOrderCount: number;
+    activeOrders: ActiveOrder[]; // Changed from count to full array to find siblings
     onInitiateMerge: (order: ActiveOrder) => void;
+    onMergeAndPay: (sourceOrderIds: number[], targetOrderId: number) => void; // New prop for auto-merge
 }
 
 export const TableBillModal: React.FC<TableBillModalProps> = ({
@@ -27,8 +30,9 @@ export const TableBillModal: React.FC<TableBillModalProps> = ({
     onUpdateOrder,
     currentUser,
     onInitiateCancel,
-    activeOrderCount,
+    activeOrders,
     onInitiateMerge,
+    onMergeAndPay,
 }) => {
     const [editedItems, setEditedItems] = useState<OrderItem[]>([]);
     const [editedCustomerCount, setEditedCustomerCount] = useState(1);
@@ -69,12 +73,47 @@ export const TableBillModal: React.FC<TableBillModalProps> = ({
         onUpdateOrder(order.id, editedItems, editedCustomerCount);
     };
 
+    const handlePaymentClick = () => {
+        // Find other active orders on the SAME table (same ID, same Floor/Name context)
+        const siblingOrders = activeOrders.filter(o => 
+            o.id !== order.id && 
+            o.tableId === order.tableId && 
+            o.tableName === order.tableName && 
+            o.floor === order.floor
+        );
+
+        if (siblingOrders.length > 0) {
+            Swal.fire({
+                title: 'พบหลายบิลในโต๊ะนี้!',
+                text: `มีอีก ${siblingOrders.length} บิลที่ยังไม่ชำระในโต๊ะ ${order.tableName} ท่านต้องการรวมบิลทั้งหมดเพื่อชำระครั้งเดียวหรือไม่?`,
+                icon: 'info',
+                showCancelButton: true,
+                confirmButtonColor: '#3085d6',
+                cancelButtonColor: '#716add', // Different color for "No, keep separate" to distinguish from "Cancel"
+                confirmButtonText: 'ใช่, รวมบิลทั้งหมด',
+                cancelButtonText: 'ไม่, จ่ายแยกบิลนี้',
+                showDenyButton: true,
+                denyButtonText: 'ยกเลิก',
+                denyButtonColor: '#d33'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    // Merge All Siblings INTO Current Order
+                    const sourceIds = siblingOrders.map(s => s.id);
+                    onMergeAndPay(sourceIds, order.id);
+                } else if (result.dismiss === Swal.DismissReason.cancel) {
+                    // User chose "No, keep separate"
+                    onInitiatePayment(order);
+                }
+                // If Deny/Close, do nothing (stay on modal)
+            });
+        } else {
+            // Single order, proceed as normal
+            onInitiatePayment(order);
+        }
+    };
+
     const canCancel = !!currentUser;
     const itemsToRender = isEditMode ? editedItems : order.items;
-
-    // We need to know where the merged items begin to render the sub-header
-    let lastOrderNumber = order.orderNumber;
-
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4" onClick={onClose}>
@@ -187,7 +226,9 @@ export const TableBillModal: React.FC<TableBillModalProps> = ({
                                 <button onClick={() => onSplit(order)} className="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-3 px-4 rounded-lg transition-colors">แยกบิล</button>
                             </div>
                             <button onClick={() => onInitiateMerge(order)} className="w-full bg-teal-500 hover:bg-teal-600 text-white font-bold py-3 px-4 rounded-lg transition-colors">รวมบิล</button>
-                            <button onClick={() => onInitiatePayment(order)} className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg transition-colors">ชำระเงิน</button>
+                            
+                            {/* Updated Payment Button Action */}
+                            <button onClick={handlePaymentClick} className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg transition-colors">ชำระเงิน</button>
                             
                             <div className="grid grid-cols-2 gap-2">
                                 <button onClick={onClose} className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-3 px-4 rounded-lg transition-colors">ปิด</button>
