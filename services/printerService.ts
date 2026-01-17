@@ -84,16 +84,15 @@ export const printerService = {
         lines.push('--------------------------------');
 
         order.items.forEach((item, index) => {
-            // New HTML Layout for Indentation (The Red Line Rule)
-            // Flexbox ensures text wraps to the right of the number
+            // HTML Layout using Display Table for robust alignment
             const itemHtml = `
-            <div style="display: flex; align-items: flex-start; width: 100%; margin-bottom: 10px;">
-                <div style="width: 35px; min-width: 35px; font-weight: bold; line-height: 1.2;">${index + 1}.</div>
-                <div style="flex: 1; line-height: 1.2; padding-right: 5px;">
+            <div style="display: table; width: 100%; margin-bottom: 10px;">
+                <div style="display: table-cell; vertical-align: top; width: 40px; min-width: 40px; font-weight: bold; line-height: 1.2;">${index + 1}.</div>
+                <div style="display: table-cell; vertical-align: top; line-height: 1.2; padding-right: 5px;">
                     <div>${item.name}</div>
                     ${item.notes ? `<div style="font-size: 0.85em; font-weight: bold; margin-top: 2px;">*** หมายเหตุ: ${item.notes} ***</div>` : ''}
                 </div>
-                <div style="white-space: nowrap; font-weight: bold;">x ${item.quantity}</div>
+                <div style="display: table-cell; vertical-align: top; white-space: nowrap; font-weight: bold; text-align: right; width: 50px;">x ${item.quantity}</div>
             </div>`;
             
             lines.push(itemHtml);
