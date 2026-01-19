@@ -12,7 +12,7 @@ import {
     DEFAULT_STOCK_CATEGORIES, 
     DEFAULT_STOCK_UNITS, 
     DEFAULT_STOCK_ITEMS, 
-    DEFAULT_FLOORS,
+    DEFAULT_FLOORS, 
     DEFAULT_MAINTENANCE_ITEMS
 } from './constants';
 import type { 
@@ -37,7 +37,8 @@ import type {
     CancellationReason, 
     OrderCounter,
     MaintenanceItem,
-    MaintenanceLog
+    MaintenanceLog,
+    CashierPrinterSettings
 } from './types';
 // FIX: Use relative import instead of alias to ensure module resolution works properly
 import { useFirestoreSync, useFirestoreCollection } from './hooks/useFirestoreSync';
@@ -1140,12 +1141,37 @@ const App: React.FC = () => {
     const handlePaymentSuccessClose = async (shouldPrint: boolean) => {
         const order = orderForModal as CompletedOrder;
         handleModalClose();
-        if (shouldPrint && order && printerConfig?.cashier) {
+        if (shouldPrint && order && printerConfig) {
              try {
-                await printerService.printReceipt(order, printerConfig.cashier, restaurantName);
+                // Determine which printer config to use
+                let configToUse = printerConfig.cashier;
+                const isCashierConfigured = configToUse && configToUse.ipAddress && configToUse.ipAddress.trim() !== '';
+
+                // If Cashier printer is not configured, try falling back to Kitchen printer
+                if (!isCashierConfigured && printerConfig.kitchen && printerConfig.kitchen.ipAddress) {
+                    console.warn("Cashier printer not configured, falling back to Kitchen printer settings.");
+                    configToUse = {
+                        connectionType: printerConfig.kitchen.connectionType,
+                        ipAddress: printerConfig.kitchen.ipAddress,
+                        port: printerConfig.kitchen.port,
+                        paperWidth: printerConfig.kitchen.paperWidth,
+                        targetPrinterIp: printerConfig.kitchen.targetPrinterIp,
+                        targetPrinterPort: printerConfig.kitchen.targetPrinterPort,
+                        // Preserve receipt options from cashier config if they exist (even if IP was missing), or undefined to use defaults
+                        receiptOptions: printerConfig.cashier?.receiptOptions
+                    } as CashierPrinterSettings;
+                }
+
+                if (configToUse && configToUse.ipAddress) {
+                    await printerService.printReceipt(order, configToUse, restaurantName);
+                } else {
+                    throw new Error("ยังไม่ได้ตั้งค่า IP ของเครื่องพิมพ์ (Cashier หรือ Kitchen)");
+                }
+
             } catch (printError: any) {
                 console.error("Receipt print failed:", printError);
-                Swal.fire('พิมพ์ไม่สำเร็จ', 'ไม่สามารถเชื่อมต่อเครื่องพิมพ์ใบเสร็จได้', 'error');
+                // Show the actual error message if available, otherwise generic
+                Swal.fire('พิมพ์ไม่สำเร็จ', printError.message || 'ไม่สามารถเชื่อมต่อเครื่องพิมพ์ใบเสร็จได้', 'error');
             }
         }
     };
