@@ -162,6 +162,7 @@ export interface ReceiptPrintSettings {
     printTotal: boolean;
     printPaymentDetails: boolean;
     printThankYouMessage: boolean;
+    restaurantAddress?: string;
 }
 
 export type PrinterConnectionType = 'network' | 'usb';

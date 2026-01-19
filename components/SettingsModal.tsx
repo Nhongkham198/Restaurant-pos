@@ -33,6 +33,7 @@ const DEFAULT_RECEIPT_OPTIONS: ReceiptPrintSettings = {
     printTotal: true,
     printPaymentDetails: true,
     printThankYouMessage: true,
+    restaurantAddress: ''
 };
 
 const DEFAULT_KITCHEN_PRINTER: KitchenPrinterSettings = { 
@@ -178,6 +179,35 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         }));
     };
 
+    const handleReceiptOptionChange = (key: keyof ReceiptPrintSettings, value: boolean | string) => {
+        setSettingsForm(prev => ({
+            ...prev,
+            printerConfig: {
+                ...prev.printerConfig,
+                cashier: {
+                    ...(prev.printerConfig.cashier as CashierPrinterSettings),
+                    receiptOptions: {
+                        ...(prev.printerConfig.cashier as CashierPrinterSettings).receiptOptions,
+                        [key]: value
+                    }
+                }
+            }
+        }));
+    };
+
+    const handleRestoreDefaults = () => {
+        setSettingsForm(prev => ({
+            ...prev,
+            printerConfig: {
+                ...prev.printerConfig,
+                cashier: {
+                    ...(prev.printerConfig.cashier as CashierPrinterSettings),
+                    receiptOptions: DEFAULT_RECEIPT_OPTIONS
+                }
+            }
+        }));
+    };
+
     const handleCheckPrinterStatus = async (type: 'kitchen' | 'cashier') => {
         const printer = settingsForm.printerConfig[type];
         if (!printer) return;
@@ -289,6 +319,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     const renderPrinterSettings = (type: 'kitchen' | 'cashier') => {
         const conf = settingsForm.printerConfig[type];
         if (!conf) return null;
+        
+        const isCashier = type === 'cashier';
+        const cashierConf = conf as CashierPrinterSettings;
+
         return (
             <div className="space-y-4">
                 <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
@@ -334,6 +368,76 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     <button type="button" onClick={() => handleCheckPrinterStatus(type)} className="px-4 py-2 bg-teal-600 text-white text-sm font-medium rounded-md hover:bg-teal-700">ตรวจสอบสถานะ</button>
                     <button type="button" onClick={() => handleTestPrint(type)} className="px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-50">ทดสอบพิมพ์</button>
                 </div>
+
+                {/* Receipt Details Settings (Only for Cashier) */}
+                {isCashier && (
+                    <div className="mt-6 border-t pt-6">
+                        <div className="flex justify-between items-center mb-4">
+                            <h4 className="text-lg font-bold text-gray-800">รายละเอียดบนใบเสร็จ</h4>
+                            <button
+                                type="button"
+                                onClick={handleRestoreDefaults}
+                                className="text-sm text-blue-600 hover:text-blue-800 underline"
+                            >
+                                คืนค่าเริ่มต้น
+                            </button>
+                        </div>
+                        
+                        <div className="mb-4">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">ที่อยู่ร้านค้า (บนใบเสร็จ)</label>
+                            <input 
+                                type="text" 
+                                value={cashierConf.receiptOptions?.restaurantAddress || ''} 
+                                onChange={(e) => handleReceiptOptionChange('restaurantAddress', e.target.value)} 
+                                className="w-full border border-gray-300 p-2 rounded-md shadow-sm text-gray-900 focus:ring-blue-500 focus:border-blue-500"
+                                placeholder="กรอกที่อยู่ร้านค้า..."
+                            />
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-3 gap-x-6">
+                            <label className="flex items-center gap-3 cursor-pointer">
+                                <input type="checkbox" checked={cashierConf.receiptOptions?.printRestaurantName} onChange={(e) => handleReceiptOptionChange('printRestaurantName', e.target.checked)} className="h-5 w-5 text-blue-600 rounded" />
+                                <span className="text-gray-700">ชื่อร้าน</span>
+                            </label>
+                            <label className="flex items-center gap-3 cursor-pointer">
+                                <input type="checkbox" checked={cashierConf.receiptOptions?.printTableInfo} onChange={(e) => handleReceiptOptionChange('printTableInfo', e.target.checked)} className="h-5 w-5 text-blue-600 rounded" />
+                                <span className="text-gray-700">โต๊ะ</span>
+                            </label>
+                            <label className="flex items-center gap-3 cursor-pointer">
+                                <input type="checkbox" checked={cashierConf.receiptOptions?.printDateTime} onChange={(e) => handleReceiptOptionChange('printDateTime', e.target.checked)} className="h-5 w-5 text-blue-600 rounded" />
+                                <span className="text-gray-700">วัน/เวลา</span>
+                            </label>
+                            <label className="flex items-center gap-3 cursor-pointer">
+                                <input type="checkbox" checked={cashierConf.receiptOptions?.printPlacedBy} onChange={(e) => handleReceiptOptionChange('printPlacedBy', e.target.checked)} className="h-5 w-5 text-blue-600 rounded" />
+                                <span className="text-gray-700">พนักงาน</span>
+                            </label>
+                            <label className="flex items-center gap-3 cursor-pointer">
+                                <input type="checkbox" checked={cashierConf.receiptOptions?.printItems} onChange={(e) => handleReceiptOptionChange('printItems', e.target.checked)} className="h-5 w-5 text-blue-600 rounded" />
+                                <span className="text-gray-700">รายการอาหาร</span>
+                            </label>
+                            <label className="flex items-center gap-3 cursor-pointer">
+                                <input type="checkbox" checked={cashierConf.receiptOptions?.printSubtotal} onChange={(e) => handleReceiptOptionChange('printSubtotal', e.target.checked)} className="h-5 w-5 text-blue-600 rounded" />
+                                <span className="text-gray-700">ราคารวมย่อย</span>
+                            </label>
+                            <label className="flex items-center gap-3 cursor-pointer">
+                                <input type="checkbox" checked={cashierConf.receiptOptions?.printTax} onChange={(e) => handleReceiptOptionChange('printTax', e.target.checked)} className="h-5 w-5 text-blue-600 rounded" />
+                                <span className="text-gray-700">ภาษี</span>
+                            </label>
+                            <label className="flex items-center gap-3 cursor-pointer">
+                                <input type="checkbox" checked={cashierConf.receiptOptions?.printTotal} onChange={(e) => handleReceiptOptionChange('printTotal', e.target.checked)} className="h-5 w-5 text-blue-600 rounded" />
+                                <span className="text-gray-700">ยอดสุทธิ</span>
+                            </label>
+                            <label className="flex items-center gap-3 cursor-pointer">
+                                <input type="checkbox" checked={cashierConf.receiptOptions?.printPaymentDetails} onChange={(e) => handleReceiptOptionChange('printPaymentDetails', e.target.checked)} className="h-5 w-5 text-blue-600 rounded" />
+                                <span className="text-gray-700">การชำระเงิน</span>
+                            </label>
+                            <label className="flex items-center gap-3 cursor-pointer">
+                                <input type="checkbox" checked={cashierConf.receiptOptions?.printThankYouMessage} onChange={(e) => handleReceiptOptionChange('printThankYouMessage', e.target.checked)} className="h-5 w-5 text-blue-600 rounded" />
+                                <span className="text-gray-700">ข้อความขอบคุณ</span>
+                            </label>
+                        </div>
+                    </div>
+                )}
             </div>
         );
     };
