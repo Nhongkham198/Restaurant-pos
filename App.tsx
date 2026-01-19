@@ -1492,6 +1492,51 @@ const App: React.FC = () => {
     const handleToggleAvailability = (id: number) => {
         setMenuItems(prev => prev.map(i => i.id === id ? { ...i, isAvailable: i.isAvailable === false ? true : false } : i));
     };
+
+    // --- NEW: Handle Update Order Items (Logic for Voiding to 0) ---
+    const handleUpdateOrder = async (orderId: number, items: OrderItem[], count: number) => {
+        if (!isOnline) return;
+
+        if (items.length === 0) {
+            // Order is empty -> Auto Cancel
+            const orderToCancel = activeOrders.find(o => o.id === orderId);
+            if (!orderToCancel) return;
+
+            const cancelledOrder: CancelledOrder = {
+                ...orderToCancel,
+                status: 'cancelled',
+                cancellationTime: Date.now(),
+                cancelledBy: currentUser?.username || 'Unknown',
+                cancellationReason: 'อื่นๆ',
+                cancellationNotes: 'ลบรายการสินค้าจนหมด (System Auto-Cancel)',
+                // Keep original items in history so we know what was deleted
+            };
+
+            // 1. Add to History
+            await db.collection(`branches/${branchId}/cancelledOrders_v2`).doc(cancelledOrder.id.toString()).set(cancelledOrder);
+
+            // 2. Update Active Order to Cancelled (Removes from Kitchen/POS views)
+            await activeOrdersActions.update(orderId, {
+                status: 'cancelled',
+                cancellationReason: 'อื่นๆ',
+                cancellationNotes: 'ลบรายการสินค้าจนหมด',
+                items: [] // Update the active doc to have 0 items (though status hides it)
+            });
+
+            Swal.fire({
+                icon: 'info',
+                title: 'ยกเลิกออเดอร์อัตโนมัติ',
+                text: 'เนื่องจากไม่มีรายการอาหารเหลืออยู่ ระบบได้บันทึกเป็นประวัติการยกเลิกเรียบร้อยแล้ว',
+                timer: 2000,
+                showConfirmButton: false
+            });
+
+        } else {
+            // Normal Update
+            await activeOrdersActions.update(orderId, { items, customerCount: count });
+        }
+        handleModalClose();
+    };
     
     // ... (Render Logic) ...
     if (isCustomerMode) {
@@ -1752,7 +1797,7 @@ const App: React.FC = () => {
                 onInitiatePayment={(order) => { setOrderForModal(order); setModalState(prev => ({...prev, isPayment: true, isTableBill: false})); }} 
                 onInitiateMove={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isMoveTable: true, isTableBill: false})); }} 
                 onSplit={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isSplitBill: true, isTableBill: false})); }} 
-                onUpdateOrder={(id, items, count) => activeOrdersActions.update(id, { items, customerCount: count }).then(handleModalClose)} 
+                onUpdateOrder={handleUpdateOrder} 
                 isEditMode={isEditMode} 
                 currentUser={currentUser} 
                 onInitiateCancel={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isCancelOrder: true, isTableBill: false}))}} 
