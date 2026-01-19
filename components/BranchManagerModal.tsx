@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import type { Branch } from '../types';
+
+import React, { useState, useMemo } from 'react';
+import type { Branch, User } from '../types';
 import Swal from 'sweetalert2';
 
 interface BranchManagerModalProps {
@@ -7,14 +8,31 @@ interface BranchManagerModalProps {
     onClose: () => void;
     branches: Branch[];
     setBranches: React.Dispatch<React.SetStateAction<Branch[]>>;
+    currentUser: User | null;
 }
 
 const initialFormState = { name: '', location: '' };
 
-export const BranchManagerModal: React.FC<BranchManagerModalProps> = ({ isOpen, onClose, branches, setBranches }) => {
+export const BranchManagerModal: React.FC<BranchManagerModalProps> = ({ isOpen, onClose, branches, setBranches, currentUser }) => {
     const [isAdding, setIsAdding] = useState(false);
     const [editingBranch, setEditingBranch] = useState<Branch | null>(null);
     const [formData, setFormData] = useState<{ name: string; location?: string }>(initialFormState);
+
+    // Calculate visible branches based on user permissions
+    const visibleBranches = useMemo(() => {
+        if (!currentUser) return [];
+        
+        // Super Admin (Admin with no specific allowed branches) sees everything
+        if (currentUser.role === 'admin' && (!currentUser.allowedBranchIds || currentUser.allowedBranchIds.length === 0)) {
+            return branches;
+        }
+
+        // Restricted Admin or Branch Admin sees only allowed branches
+        return branches.filter(b => currentUser.allowedBranchIds?.includes(b.id));
+    }, [branches, currentUser]);
+
+    // Check if user is a Super Admin (can add new branches)
+    const isSuperAdmin = currentUser?.role === 'admin' && (!currentUser.allowedBranchIds || currentUser.allowedBranchIds.length === 0);
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
@@ -82,22 +100,28 @@ export const BranchManagerModal: React.FC<BranchManagerModalProps> = ({ isOpen, 
                 </div>
                 
                 <div className="p-6 space-y-3 overflow-y-auto flex-1">
-                    {branches.map(branch => (
-                        <div key={branch.id} className={`flex items-center gap-2 p-2 rounded-md transition-colors ${editingBranch?.id === branch.id ? 'bg-gray-100' : 'hover:bg-gray-50'}`}>
-                           <div className="flex-1">
-                                <p className="font-semibold text-gray-800">{branch.name}</p>
-                                {branch.location && <p className="text-sm text-gray-500">{branch.location}</p>}
-                           </div>
-                           <div className="flex gap-2">
-                                <button onClick={() => startEdit(branch)} className="p-2 text-blue-600 hover:bg-blue-100 rounded-full" title="แก้ไข">
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L15.232 5.232z" /></svg>
-                                </button>
-                                <button onClick={() => handleDelete(branch)} className="p-2 text-red-600 hover:bg-red-100 rounded-full" title="ลบ">
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                                </button>
-                           </div>
+                    {visibleBranches.length > 0 ? (
+                        visibleBranches.map(branch => (
+                            <div key={branch.id} className={`flex items-center gap-2 p-2 rounded-md transition-colors ${editingBranch?.id === branch.id ? 'bg-gray-100' : 'hover:bg-gray-50'}`}>
+                            <div className="flex-1">
+                                    <p className="font-semibold text-gray-800">{branch.name}</p>
+                                    {branch.location && <p className="text-sm text-gray-500">{branch.location}</p>}
+                            </div>
+                            <div className="flex gap-2">
+                                    <button onClick={() => startEdit(branch)} className="p-2 text-blue-600 hover:bg-blue-100 rounded-full" title="แก้ไข">
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L15.232 5.232z" /></svg>
+                                    </button>
+                                    <button onClick={() => handleDelete(branch)} className="p-2 text-red-600 hover:bg-red-100 rounded-full" title="ลบ">
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                    </button>
+                            </div>
+                            </div>
+                        ))
+                    ) : (
+                        <div className="text-center text-gray-500 py-4">
+                            <p>ไม่พบข้อมูลสาขา</p>
                         </div>
-                    ))}
+                    )}
                 </div>
 
                 {(isAdding || editingBranch) && (
@@ -116,7 +140,7 @@ export const BranchManagerModal: React.FC<BranchManagerModalProps> = ({ isOpen, 
 
 
                 <div className="bg-gray-100 px-6 py-4 flex justify-between items-center rounded-b-lg border-t">
-                     {!isAdding && !editingBranch ? (
+                     {(!isAdding && !editingBranch && isSuperAdmin) ? (
                         <button onClick={() => { setIsAdding(true); setEditingBranch(null); setFormData(initialFormState); }} className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-md hover:bg-blue-700">เพิ่มสาขาใหม่</button>
                     ) : (<div></div>)}
                     <button type="button" onClick={onClose} className="px-6 py-2 bg-gray-300 text-gray-800 rounded-md hover:bg-gray-400 font-semibold">

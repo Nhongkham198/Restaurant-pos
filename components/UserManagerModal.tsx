@@ -36,14 +36,27 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
     }, [isOpen]);
 
     const usersToDisplay = useMemo(() => {
+        // If current user is Admin but has specific allowed branches (Restricted Admin)
+        if (currentUser.role === 'admin' && currentUser.allowedBranchIds && currentUser.allowedBranchIds.length > 0) {
+            const currentUserBranches = new Set(currentUser.allowedBranchIds);
+            return users.filter(user => {
+                if (user.id === currentUser.id) return true; // See themselves
+                if (user.role === 'admin' && (!user.allowedBranchIds || user.allowedBranchIds.length === 0)) return false; // Can't see Super Admins
+                
+                const userBranches = user.allowedBranchIds || [];
+                // User is visible if they share at least one branch
+                return userBranches.some(branchId => currentUserBranches.has(branchId));
+            });
+        }
+
         if (currentUser.role === 'admin') {
-            return users; // Admin sees everyone
+            return users; // Super Admin sees everyone
         }
         
-        // Branch admin only sees users in their branches + system admins
+        // Branch admin only sees users in their branches + system admins (optional, usually they don't manage admins)
         const currentUserBranches = new Set(currentUser.allowedBranchIds || []);
         return users.filter(user => {
-            if (user.role === 'admin') return true; // Always show admins
+            if (user.role === 'admin') return true; // Always show admins (read-only usually)
             const userBranches = user.allowedBranchIds || [];
             // User is visible if they share at least one branch with the current branch-admin
             return userBranches.some(branchId => currentUserBranches.has(branchId));
@@ -55,9 +68,11 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
         const groups: Record<string, User[]> = {};
 
         // Determine which branches to display headers for
-        const visibleBranches = currentUser.role === 'admin'
-            ? branches
-            : branches.filter(b => (currentUser.allowedBranchIds || []).includes(b.id));
+        // Logic: If Admin has specific branches, restrict views. If no branches (Super Admin), show all.
+        let visibleBranches = branches;
+        if (currentUser.allowedBranchIds && currentUser.allowedBranchIds.length > 0) {
+            visibleBranches = branches.filter(b => currentUser.allowedBranchIds!.includes(b.id));
+        }
 
         // Group system admins separately at the top
         const systemAdmins = usersToDisplay.filter(u => u.role === 'admin');
@@ -140,7 +155,9 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
             Swal.fire('ผิดพลาด', 'กรุณากรอกรหัสผ่าน', 'error');
             return;
         }
-    
+        
+        // Validation: If NOT Admin, must have branches.
+        // For Admin: Warning if no branches (becomes Super Admin), but allowed.
         if (formData.role !== 'admin' && (!formData.allowedBranchIds || formData.allowedBranchIds.length === 0)) {
             Swal.fire('ข้อมูลไม่ครบถ้วน', 'สำหรับพนักงาน POS, ผู้ดูแลสาขา, และพนักงานครัว กรุณากำหนดสิทธิ์สาขาอย่างน้อย 1 สาขา', 'warning');
             return;
@@ -178,12 +195,9 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
                     delete updatedUser.profilePictureUrl;
                 }
     
-                // Handle branch ID logic based on role
-                if (updatedUser.role === 'admin') {
-                    delete updatedUser.allowedBranchIds;
-                } else {
-                    updatedUser.allowedBranchIds = formData.allowedBranchIds || [];
-                }
+                // Handle branch ID logic
+                // Now allow admins to have allowedBranchIds
+                updatedUser.allowedBranchIds = formData.allowedBranchIds || [];
     
                 return updatedUser as User;
             }));
@@ -209,9 +223,8 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
                 newUser.profilePictureUrl = formData.profilePictureUrl;
             }
             
-            if (newUser.role !== 'admin') {
-                newUser.allowedBranchIds = formData.allowedBranchIds || [];
-            }
+            // Allow branches for all roles including admin
+            newUser.allowedBranchIds = formData.allowedBranchIds || [];
 
             setUsers(prev => [...prev, newUser]);
             Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'เพิ่มผู้ใช้แล้ว!', showConfirmButton: false, timer: 1500 });
@@ -270,7 +283,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
     };
 
     const getBranchNames = (branchIds: number[] | undefined) => {
-        if (!branchIds || branchIds.length === 0) return 'ยังไม่กำหนดสาขา';
+        if (!branchIds || branchIds.length === 0) return 'ทุกสาขา (Super Admin)';
         return branchIds
             .map(id => branches.find(b => b.id === id)?.name)
             .filter(Boolean)
@@ -299,7 +312,13 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
                                     {userList.map(user => {
                                         const isActionDisabled = (() => {
                                             if (user.id === currentUser.id) return true;
-                                            if (user.role === 'admin') return currentUser.role !== 'admin';
+                                            if (user.role === 'admin' && currentUser.role !== 'admin') return true;
+                                            
+                                            // Restricted Admin cannot delete Super Admin (admin with no branch restrictions)
+                                            if (currentUser.role === 'admin' && currentUser.allowedBranchIds?.length! > 0) {
+                                                if (user.role === 'admin' && (!user.allowedBranchIds || user.allowedBranchIds.length === 0)) return true;
+                                            }
+
                                             if (currentUser.role === 'branch-admin') {
                                                 const currentUserBranches = currentUser.allowedBranchIds || [];
                                                 const targetUserBranches = user.allowedBranchIds || [];
@@ -312,7 +331,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
                                         const disabledTitle = (() => {
                                             if (user.id === currentUser.id) return 'ไม่สามารถดำเนินการกับบัญชีตัวเองได้';
                                             if (user.role === 'admin' && currentUser.role !== 'admin') return 'ไม่มีสิทธิ์จัดการผู้ดูแลระบบ';
-                                            if (isActionDisabled) return 'ไม่มีสิทธิ์จัดการผู้ใช้ของสาขาอื่น';
+                                            if (isActionDisabled) return 'ไม่มีสิทธิ์จัดการผู้ใช้นี้';
                                             return '';
                                         })();
                 
@@ -329,12 +348,8 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
                                                             user.role === 'auditor' ? 'text-gray-600' :
                                                             'text-blue-600'
                                                         }`}>{roleText(user.role)}</span>
-                                                        {user.role !== 'admin' && (
-                                                            <>
-                                                                <span className="mx-1.5 text-gray-300">&bull;</span>
-                                                                <span>สาขา: {getBranchNames(user.allowedBranchIds)}</span>
-                                                            </>
-                                                        )}
+                                                        <span className="mx-1.5 text-gray-300">&bull;</span>
+                                                        <span>สาขา: {getBranchNames(user.allowedBranchIds)}</span>
                                                     </p>
                                                </div>
                                                <div className="flex gap-2">
@@ -405,26 +420,28 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
                                         )}
                                     </select>
                                 </div>
-                                {formData.role !== 'admin' && (
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">กำหนดสิทธิ์สาขา:</label>
-                                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 p-2 border rounded-md bg-white max-h-32 overflow-y-auto">
-                                            {branches.map(branch => (
-                                                <label key={branch.id} className="flex items-center gap-2 p-1.5 rounded hover:bg-gray-100">
-                                                    <input 
-                                                        type="checkbox"
-                                                        checked={(formData.allowedBranchIds || []).includes(branch.id)}
-                                                        onChange={() => handleBranchChange(branch.id)}
-                                                        className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                                    />
-                                                    <span className="text-gray-800">{branch.name}</span>
-                                                </label>
-                                            ))}
-                                        </div>
+                                {/* Removed check {formData.role !== 'admin'} to allow Admins to have branches */}
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">กำหนดสิทธิ์สาขา:</label>
+                                    {formData.role === 'admin' && (
+                                        <p className="text-xs text-blue-600 mb-2 font-medium">หมายเหตุ: หากไม่เลือกสาขาจะเป็น Super Admin (เห็นทุกสาขา)</p>
+                                    )}
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 p-2 border rounded-md bg-white max-h-32 overflow-y-auto">
+                                        {branches.map(branch => (
+                                            <label key={branch.id} className="flex items-center gap-2 p-1.5 rounded hover:bg-gray-100">
+                                                <input 
+                                                    type="checkbox"
+                                                    checked={(formData.allowedBranchIds || []).includes(branch.id)}
+                                                    onChange={() => handleBranchChange(branch.id)}
+                                                    className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                                />
+                                                <span className="text-gray-800">{branch.name}</span>
+                                            </label>
+                                        ))}
                                     </div>
-                                )}
+                                </div>
                                 
-                                {/* Leave Quotas Section - Admin Only Configuration, but NOT for Admin/Branch Admin roles */}
+                                {/* Leave Quotas Section */}
                                 {currentUser.role === 'admin' && formData.role !== 'admin' && formData.role !== 'branch-admin' && (
                                     <div className="pt-2 border-t mt-2">
                                         <label className="block text-sm font-bold text-gray-700 mb-2">โควตาวันลา (ต่อปี):</label>

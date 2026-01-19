@@ -316,7 +316,13 @@ const App: React.FC = () => {
             if (req.status !== 'pending') return false;
 
             if (currentUser.role === 'admin') {
-                return req.branchId === 1;
+                // Modified: Support Restricted Admin
+                if (currentUser.allowedBranchIds && currentUser.allowedBranchIds.length > 0) {
+                    return currentUser.allowedBranchIds.includes(req.branchId);
+                }
+                // Super Admin sees all (branch 1 check was legacy/placeholder, now allowing global)
+                // return req.branchId === 1; // Removed hardcode
+                return true; 
             }
             if (currentUser.role === 'branch-admin' || currentUser.role === 'auditor') {
                 return currentUser.allowedBranchIds?.includes(req.branchId) ?? false;
@@ -728,7 +734,14 @@ const App: React.FC = () => {
             return;
         }
         let shouldNotify = false;
-        if (currentUser.role === 'admin' && req.branchId === 1) shouldNotify = true;
+        if (currentUser.role === 'admin') {
+            // New Logic: Check if Admin has allowedBranchIds. If so, filter. If not, show all.
+            if (currentUser.allowedBranchIds && currentUser.allowedBranchIds.length > 0) {
+                if (currentUser.allowedBranchIds.includes(req.branchId)) shouldNotify = true;
+            } else {
+                shouldNotify = true; // Super Admin sees all
+            }
+        }
         else if (['branch-admin', 'auditor'].includes(currentUser.role)) {
             if (currentUser.allowedBranchIds?.includes(req.branchId)) shouldNotify = true;
         }
@@ -1752,7 +1765,7 @@ const App: React.FC = () => {
             <SettingsModal isOpen={modalState.isSettings} onClose={handleModalClose} onSave={(qr, sound, staffSound, printer, open, close) => { setQrCodeUrl(qr); setNotificationSoundUrl(sound); setStaffCallSoundUrl(staffSound); setPrinterConfig(printer); setOpeningTime(open); setClosingTime(close); handleModalClose(); }} currentQrCodeUrl={qrCodeUrl} currentNotificationSoundUrl={notificationSoundUrl} currentStaffCallSoundUrl={staffCallSoundUrl} currentPrinterConfig={printerConfig} currentOpeningTime={openingTime} currentClosingTime={closingTime} onSavePrinterConfig={setPrinterConfig} menuItems={menuItems} currentRecommendedMenuItemIds={recommendedMenuItemIds} onSaveRecommendedItems={setRecommendedMenuItemIds} />
             <EditCompletedOrderModal isOpen={modalState.isEditCompleted} order={orderForModal as CompletedOrder | null} onClose={handleModalClose} onSave={async ({id, items}) => { if(newCompletedOrders.some(o => o.id === id)) { await newCompletedOrdersActions.update(id, { items }); } else { setLegacyCompletedOrders(prev => prev.map(o => o.id === id ? {...o, items} : o)); } }} menuItems={menuItems} />
             <UserManagerModal isOpen={modalState.isUserManager} onClose={handleModalClose} users={users} setUsers={setUsers} currentUser={currentUser!} branches={branches} isEditMode={isEditMode} />
-            <BranchManagerModal isOpen={modalState.isBranchManager} onClose={handleModalClose} branches={branches} setBranches={setBranches} />
+            <BranchManagerModal isOpen={modalState.isBranchManager} onClose={handleModalClose} branches={branches} setBranches={setBranches} currentUser={currentUser} />
             <MoveTableModal isOpen={modalState.isMoveTable} onClose={handleModalClose} order={orderForModal as ActiveOrder | null} tables={tables} activeOrders={activeOrders} onConfirmMove={handleConfirmMoveTable} floors={floors} />
             <CancelOrderModal isOpen={modalState.isCancelOrder} onClose={handleModalClose} order={orderForModal as ActiveOrder | null} onConfirm={handleConfirmCancelOrder} />
             <CashBillModal isOpen={modalState.isCashBill} order={orderForModal as CompletedOrder | null} onClose={handleModalClose} restaurantName={restaurantName} logoUrl={logoUrl} />

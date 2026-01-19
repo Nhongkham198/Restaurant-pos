@@ -322,6 +322,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         
         const isCashier = type === 'cashier';
         const cashierConf = conf as CashierPrinterSettings;
+        const opts = cashierConf.receiptOptions || DEFAULT_RECEIPT_OPTIONS;
 
         return (
             <div className="space-y-4">
@@ -383,58 +384,139 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                             </button>
                         </div>
                         
-                        <div className="mb-4">
-                            <label className="block text-sm font-medium text-gray-700 mb-1">ที่อยู่ร้านค้า (บนใบเสร็จ)</label>
-                            <input 
-                                type="text" 
-                                value={cashierConf.receiptOptions?.restaurantAddress || ''} 
-                                onChange={(e) => handleReceiptOptionChange('restaurantAddress', e.target.value)} 
-                                className="w-full border border-gray-300 p-2 rounded-md shadow-sm text-gray-900 focus:ring-blue-500 focus:border-blue-500"
-                                placeholder="กรอกที่อยู่ร้านค้า..."
-                            />
-                        </div>
+                        <div className="flex flex-col lg:flex-row gap-6">
+                            {/* LEFT SIDE: INPUTS */}
+                            <div className="flex-1 space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">ที่อยู่ร้านค้า (บนใบเสร็จ)</label>
+                                    <input 
+                                        type="text" 
+                                        value={opts.restaurantAddress || ''} 
+                                        onChange={(e) => handleReceiptOptionChange('restaurantAddress', e.target.value)} 
+                                        className="w-full border border-gray-300 p-2 rounded-md shadow-sm text-gray-900 focus:ring-blue-500 focus:border-blue-500"
+                                        placeholder="กรอกที่อยู่ร้านค้า..."
+                                    />
+                                </div>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-3 gap-x-6">
-                            <label className="flex items-center gap-3 cursor-pointer">
-                                <input type="checkbox" checked={cashierConf.receiptOptions?.printRestaurantName} onChange={(e) => handleReceiptOptionChange('printRestaurantName', e.target.checked)} className="h-5 w-5 text-blue-600 rounded" />
-                                <span className="text-gray-700">ชื่อร้าน</span>
-                            </label>
-                            <label className="flex items-center gap-3 cursor-pointer">
-                                <input type="checkbox" checked={cashierConf.receiptOptions?.printTableInfo} onChange={(e) => handleReceiptOptionChange('printTableInfo', e.target.checked)} className="h-5 w-5 text-blue-600 rounded" />
-                                <span className="text-gray-700">โต๊ะ</span>
-                            </label>
-                            <label className="flex items-center gap-3 cursor-pointer">
-                                <input type="checkbox" checked={cashierConf.receiptOptions?.printDateTime} onChange={(e) => handleReceiptOptionChange('printDateTime', e.target.checked)} className="h-5 w-5 text-blue-600 rounded" />
-                                <span className="text-gray-700">วัน/เวลา</span>
-                            </label>
-                            <label className="flex items-center gap-3 cursor-pointer">
-                                <input type="checkbox" checked={cashierConf.receiptOptions?.printPlacedBy} onChange={(e) => handleReceiptOptionChange('printPlacedBy', e.target.checked)} className="h-5 w-5 text-blue-600 rounded" />
-                                <span className="text-gray-700">พนักงาน</span>
-                            </label>
-                            <label className="flex items-center gap-3 cursor-pointer">
-                                <input type="checkbox" checked={cashierConf.receiptOptions?.printItems} onChange={(e) => handleReceiptOptionChange('printItems', e.target.checked)} className="h-5 w-5 text-blue-600 rounded" />
-                                <span className="text-gray-700">รายการอาหาร</span>
-                            </label>
-                            <label className="flex items-center gap-3 cursor-pointer">
-                                <input type="checkbox" checked={cashierConf.receiptOptions?.printSubtotal} onChange={(e) => handleReceiptOptionChange('printSubtotal', e.target.checked)} className="h-5 w-5 text-blue-600 rounded" />
-                                <span className="text-gray-700">ราคารวมย่อย</span>
-                            </label>
-                            <label className="flex items-center gap-3 cursor-pointer">
-                                <input type="checkbox" checked={cashierConf.receiptOptions?.printTax} onChange={(e) => handleReceiptOptionChange('printTax', e.target.checked)} className="h-5 w-5 text-blue-600 rounded" />
-                                <span className="text-gray-700">ภาษี</span>
-                            </label>
-                            <label className="flex items-center gap-3 cursor-pointer">
-                                <input type="checkbox" checked={cashierConf.receiptOptions?.printTotal} onChange={(e) => handleReceiptOptionChange('printTotal', e.target.checked)} className="h-5 w-5 text-blue-600 rounded" />
-                                <span className="text-gray-700">ยอดสุทธิ</span>
-                            </label>
-                            <label className="flex items-center gap-3 cursor-pointer">
-                                <input type="checkbox" checked={cashierConf.receiptOptions?.printPaymentDetails} onChange={(e) => handleReceiptOptionChange('printPaymentDetails', e.target.checked)} className="h-5 w-5 text-blue-600 rounded" />
-                                <span className="text-gray-700">การชำระเงิน</span>
-                            </label>
-                            <label className="flex items-center gap-3 cursor-pointer">
-                                <input type="checkbox" checked={cashierConf.receiptOptions?.printThankYouMessage} onChange={(e) => handleReceiptOptionChange('printThankYouMessage', e.target.checked)} className="h-5 w-5 text-blue-600 rounded" />
-                                <span className="text-gray-700">ข้อความขอบคุณ</span>
-                            </label>
+                                <div className="grid grid-cols-2 gap-y-3 gap-x-4">
+                                    <label className="flex items-center gap-3 cursor-pointer">
+                                        <input type="checkbox" checked={opts.printRestaurantName} onChange={(e) => handleReceiptOptionChange('printRestaurantName', e.target.checked)} className="h-5 w-5 text-blue-600 rounded" />
+                                        <span className="text-gray-700">ชื่อร้าน</span>
+                                    </label>
+                                    <label className="flex items-center gap-3 cursor-pointer">
+                                        <input type="checkbox" checked={opts.printTableInfo} onChange={(e) => handleReceiptOptionChange('printTableInfo', e.target.checked)} className="h-5 w-5 text-blue-600 rounded" />
+                                        <span className="text-gray-700">โต๊ะ</span>
+                                    </label>
+                                    <label className="flex items-center gap-3 cursor-pointer">
+                                        <input type="checkbox" checked={opts.printDateTime} onChange={(e) => handleReceiptOptionChange('printDateTime', e.target.checked)} className="h-5 w-5 text-blue-600 rounded" />
+                                        <span className="text-gray-700">วัน/เวลา</span>
+                                    </label>
+                                    <label className="flex items-center gap-3 cursor-pointer">
+                                        <input type="checkbox" checked={opts.printPlacedBy} onChange={(e) => handleReceiptOptionChange('printPlacedBy', e.target.checked)} className="h-5 w-5 text-blue-600 rounded" />
+                                        <span className="text-gray-700">พนักงาน</span>
+                                    </label>
+                                    <label className="flex items-center gap-3 cursor-pointer">
+                                        <input type="checkbox" checked={opts.printItems} onChange={(e) => handleReceiptOptionChange('printItems', e.target.checked)} className="h-5 w-5 text-blue-600 rounded" />
+                                        <span className="text-gray-700">รายการอาหาร</span>
+                                    </label>
+                                    <label className="flex items-center gap-3 cursor-pointer">
+                                        <input type="checkbox" checked={opts.printSubtotal} onChange={(e) => handleReceiptOptionChange('printSubtotal', e.target.checked)} className="h-5 w-5 text-blue-600 rounded" />
+                                        <span className="text-gray-700">ราคารวมย่อย</span>
+                                    </label>
+                                    <label className="flex items-center gap-3 cursor-pointer">
+                                        <input type="checkbox" checked={opts.printTax} onChange={(e) => handleReceiptOptionChange('printTax', e.target.checked)} className="h-5 w-5 text-blue-600 rounded" />
+                                        <span className="text-gray-700">ภาษี</span>
+                                    </label>
+                                    <label className="flex items-center gap-3 cursor-pointer">
+                                        <input type="checkbox" checked={opts.printTotal} onChange={(e) => handleReceiptOptionChange('printTotal', e.target.checked)} className="h-5 w-5 text-blue-600 rounded" />
+                                        <span className="text-gray-700">ยอดสุทธิ</span>
+                                    </label>
+                                    <label className="flex items-center gap-3 cursor-pointer">
+                                        <input type="checkbox" checked={opts.printPaymentDetails} onChange={(e) => handleReceiptOptionChange('printPaymentDetails', e.target.checked)} className="h-5 w-5 text-blue-600 rounded" />
+                                        <span className="text-gray-700">การชำระเงิน</span>
+                                    </label>
+                                    <label className="flex items-center gap-3 cursor-pointer">
+                                        <input type="checkbox" checked={opts.printThankYouMessage} onChange={(e) => handleReceiptOptionChange('printThankYouMessage', e.target.checked)} className="h-5 w-5 text-blue-600 rounded" />
+                                        <span className="text-gray-700">ข้อความขอบคุณ</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            {/* RIGHT SIDE: LIVE PREVIEW */}
+                            <div className="w-full lg:w-[320px] bg-gray-100 p-4 rounded-lg border border-gray-300 flex flex-col">
+                                <h5 className="text-center font-bold text-gray-500 mb-3 text-sm">แสดงตัวอย่างบิล (Live Preview)</h5>
+                                
+                                <div className="bg-white p-4 shadow-sm text-black font-mono text-xs leading-relaxed overflow-y-auto max-h-[400px] border border-gray-200">
+                                    {/* Header */}
+                                    {opts.printRestaurantName && (
+                                        <div className="text-center font-bold text-lg mb-1">ชื่อร้านอาหาร</div>
+                                    )}
+                                    {opts.restaurantAddress && (
+                                        <div className="text-center mb-2 whitespace-pre-wrap word-wrap break-word">{opts.restaurantAddress}</div>
+                                    )}
+                                    <div className="text-center font-bold text-base mb-1">ใบเสร็จรับเงิน</div>
+                                    <div className="border-b border-dashed border-black my-2"></div>
+
+                                    {/* Info */}
+                                    {opts.printTableInfo && <div>โต๊ะ: T1 (ชั้นล่าง)</div>}
+                                    <div>ออเดอร์: #001</div>
+                                    {opts.printDateTime && <div>วันที่: {new Date().toLocaleString('th-TH')}</div>}
+                                    {opts.printPlacedBy && <div>พนักงาน: Admin</div>}
+                                    <div className="border-b border-dashed border-black my-2"></div>
+
+                                    {/* Items */}
+                                    {opts.printItems && (
+                                        <div className="space-y-1 mb-2">
+                                            <div className="flex justify-between">
+                                                <span>1 x ข้าวกะเพรา</span>
+                                                <span>60.00</span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                                <span>1 x น้ำเปล่า</span>
+                                                <span>15.00</span>
+                                            </div>
+                                            <div className="border-b border-dashed border-black my-2"></div>
+                                        </div>
+                                    )}
+
+                                    {/* Totals */}
+                                    {opts.printSubtotal && (
+                                        <div className="flex justify-between">
+                                            <span>ราคารวม</span>
+                                            <span>75.00</span>
+                                        </div>
+                                    )}
+                                    {opts.printTax && (
+                                        <div className="flex justify-between">
+                                            <span>ภาษี (7%)</span>
+                                            <span>5.25</span>
+                                        </div>
+                                    )}
+                                    {opts.printTotal && (
+                                        <div className="flex justify-between font-bold text-sm mt-1">
+                                            <span>ยอดสุทธิ</span>
+                                            <span>80.25</span>
+                                        </div>
+                                    )}
+
+                                    {/* Payment */}
+                                    {opts.printPaymentDetails && (
+                                        <div className="mt-2 pt-2 border-t border-dashed border-black">
+                                            <div>ชำระโดย: เงินสด</div>
+                                            <div>รับเงิน: 100.00</div>
+                                            <div>เงินทอน: 19.75</div>
+                                        </div>
+                                    )}
+
+                                    {/* Footer */}
+                                    {opts.printThankYouMessage && (
+                                        <>
+                                            <div className="border-b border-dashed border-black my-2"></div>
+                                            <div className="text-center mt-2">ขอบคุณที่ใช้บริการ</div>
+                                        </>
+                                    )}
+                                </div>
+                            </div>
                         </div>
                     </div>
                 )}

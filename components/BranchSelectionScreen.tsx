@@ -1,3 +1,4 @@
+
 import React, { useMemo } from 'react';
 import type { Branch, User } from '../types';
 
@@ -19,9 +20,15 @@ export const BranchSelectionScreen: React.FC<BranchSelectionScreenProps> = ({
     const isAdmin = currentUser.role === 'admin';
 
     const branchesToShow = useMemo(() => {
+        // If Admin AND has specific allowed branches, restrict them.
+        // If Admin AND has NO allowed branches (undefined or empty), show ALL (Super Admin).
         if (isAdmin) {
-            return branches;
+            if (currentUser.allowedBranchIds && currentUser.allowedBranchIds.length > 0) {
+                return branches.filter(branch => currentUser.allowedBranchIds!.includes(branch.id));
+            }
+            return branches; // Super Admin case
         }
+        // Normal User case
         return branches.filter(branch => currentUser.allowedBranchIds?.includes(branch.id));
     }, [branches, currentUser, isAdmin]);
 
@@ -53,10 +60,10 @@ export const BranchSelectionScreen: React.FC<BranchSelectionScreenProps> = ({
                 ) : (
                     <div className="py-12 text-center text-gray-500 border-2 border-dashed border-gray-300 rounded-lg">
                         <p className="text-xl">
-                            {isAdmin ? 'ยังไม่มีสาขาในระบบ' : 'คุณยังไม่ได้รับมอบหมายให้ดูแลสาขาใด'}
+                            {isAdmin ? 'ยังไม่มีสาขาในระบบ หรือคุณไม่ได้รับสิทธิ์เข้าถึงสาขาใด' : 'คุณยังไม่ได้รับมอบหมายให้ดูแลสาขาใด'}
                         </p>
                         {isAdmin ? (
-                            <p className="mt-2">กรุณาเพิ่มสาขาแรกของคุณเพื่อเริ่มต้นใช้งาน</p>
+                            <p className="mt-2">กรุณาเพิ่มสาขาแรกของคุณเพื่อเริ่มต้นใช้งาน หรือติดต่อ Super Admin</p>
                         ) : (
                             <p className="mt-2">กรุณาติดต่อผู้ดูแลระบบเพื่อกำหนดสิทธิ์</p>
                         )}
