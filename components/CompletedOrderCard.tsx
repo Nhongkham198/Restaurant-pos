@@ -11,9 +11,19 @@ interface CompletedOrderCardProps {
     onInitiateCashBill: (order: CompletedOrder) => void;
     isSelected: boolean;
     onToggleSelection: (orderId: number) => void;
+    onReprintReceipt: (order: CompletedOrder) => void; // New Prop
 }
 
-export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({ order, onSplitOrder, isEditMode, onEditOrder, onInitiateCashBill, isSelected, onToggleSelection }) => {
+export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({ 
+    order, 
+    onSplitOrder, 
+    isEditMode, 
+    onEditOrder, 
+    onInitiateCashBill, 
+    isSelected, 
+    onToggleSelection,
+    onReprintReceipt // Destructure new prop
+}) => {
     const [isExpanded, setIsExpanded] = useState(false);
     
     // --- Image Viewer State ---
@@ -219,7 +229,11 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({ order, o
                             ))}
                         </div>
 
-                        <div className="mt-4 pt-4 border-t flex justify-end gap-3">
+                        <div className="mt-4 pt-4 border-t flex flex-wrap justify-end gap-3">
+                            <button onClick={() => onReprintReceipt(order)} className="px-4 py-2 bg-gray-200 text-gray-700 text-base font-semibold rounded-md hover:bg-gray-300 flex items-center gap-2 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed" disabled={order.isDeleted}>
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+                                พิมพ์ใบเสร็จ
+                            </button>
                             <button onClick={() => onInitiateCashBill(order)} className="px-4 py-2 bg-green-100 text-green-800 text-base font-semibold rounded-md hover:bg-green-200 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed" disabled={order.isDeleted}>สร้างบิลเงินสด</button>
                             
                             {isEditMode && (

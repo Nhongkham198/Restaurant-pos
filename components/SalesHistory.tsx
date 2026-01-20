@@ -19,6 +19,7 @@ interface SalesHistoryProps {
     onInitiateCashBill: (order: CompletedOrder) => void;
     onDeleteHistory: (completedIds: number[], cancelledIds: number[], printIds: number[]) => Promise<void>;
     currentUser: User | null;
+    onReprintReceipt: (order: CompletedOrder) => void; // New Prop for actual receipt reprint
 }
 
 export const SalesHistory: React.FC<SalesHistoryProps> = ({
@@ -31,7 +32,8 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({
     onEditOrder,
     onInitiateCashBill,
     onDeleteHistory,
-    currentUser
+    currentUser,
+    onReprintReceipt // Destructure
 }) => {
     const [activeTab, setActiveTab] = useState<'completed' | 'cancelled' | 'print'>('completed');
     const [filterType, setFilterType] = useState<'daily' | 'monthly' | 'year' | 'all'>('daily');
@@ -452,6 +454,7 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({
                                     onInitiateCashBill={onInitiateCashBill}
                                     isSelected={selectedCompletedIds.has(order.id)}
                                     onToggleSelection={(id) => toggleSelect(id, 'completed')}
+                                    onReprintReceipt={onReprintReceipt} // Pass new prop
                                 />
                             ))}
                         </div>
