@@ -528,7 +528,13 @@ const App: React.FC = () => {
     useEffect(() => {
         if (isCustomerMode) return; // Prevent alerts in customer mode
 
-        const lowStockItems = stockItems.filter(item => item.quantity <= item.reorderPoint);
+        // FIX: Ensure values are converted to numbers for comparison
+        const lowStockItems = stockItems.filter(item => {
+            const qty = Number(item.quantity) || 0;
+            const reorder = Number(item.reorderPoint) || 0;
+            return qty <= reorder;
+        });
+
         const newLowStockItems = lowStockItems.filter(item => !notifiedLowStockRef.current.has(item.id));
 
         if (newLowStockItems.length > 0) {
@@ -563,7 +569,12 @@ const App: React.FC = () => {
                 const todayStr = now.toDateString();
                 
                 if (notifiedDailyStockRef.current !== todayStr) {
-                    const lowStockItems = stockItems.filter(item => item.quantity <= item.reorderPoint);
+                    // FIX: Ensure values are converted to numbers for comparison
+                    const lowStockItems = stockItems.filter(item => {
+                        const qty = Number(item.quantity) || 0;
+                        const reorder = Number(item.reorderPoint) || 0;
+                        return qty <= reorder;
+                    });
                     
                     if (lowStockItems.length > 0) {
                         notifiedDailyStockRef.current = todayStr;
@@ -1129,7 +1140,8 @@ const App: React.FC = () => {
         handleModalClose();
         if (shouldPrint && order && printerConfig?.cashier) {
              try {
-                await printerService.printReceipt(order, printerConfig.cashier, restaurantName);
+                // UPDATE: Pass logoUrl to printReceipt
+                await printerService.printReceipt(order, printerConfig.cashier, restaurantName, logoUrl);
             } catch (printError: any) {
                 console.error("Receipt print failed:", printError);
                 Swal.fire('พิมพ์ไม่สำเร็จ', 'ไม่สามารถเชื่อมต่อเครื่องพิมพ์ใบเสร็จได้', 'error');
@@ -1586,6 +1598,7 @@ const App: React.FC = () => {
                    maintenanceBadgeCount={maintenanceBadgeCount}
                    onUpdateCurrentUser={handleUpdateCurrentUser} onUpdateLogoUrl={setLogoUrl} onUpdateRestaurantName={setRestaurantName}
                    isOrderNotificationsEnabled={isOrderNotificationsEnabled} onToggleOrderNotifications={toggleOrderNotifications}
+                   printerConfig={printerConfig} // Pass printer config
                 />
             )}
             
@@ -1600,6 +1613,7 @@ const App: React.FC = () => {
                         onOpenUserManager={() => setModalState(prev => ({ ...prev, isUserManager: true }))} logoUrl={logoUrl} onLogoChangeClick={() => {}}
                         restaurantName={restaurantName} onRestaurantNameChange={setRestaurantName} branchName={selectedBranch.name}
                         onChangeBranch={() => setSelectedBranch(null)} onManageBranches={() => setModalState(prev => ({ ...prev, isBranchManager: true }))}
+                        printerConfig={printerConfig} // Pass printer config
                     />
                 )}
                 
@@ -1752,7 +1766,7 @@ const App: React.FC = () => {
             <SettingsModal isOpen={modalState.isSettings} onClose={handleModalClose} onSave={(qr, sound, staffSound, printer, open, close) => { setQrCodeUrl(qr); setNotificationSoundUrl(sound); setStaffCallSoundUrl(staffSound); setPrinterConfig(printer); setOpeningTime(open); setClosingTime(close); handleModalClose(); }} currentQrCodeUrl={qrCodeUrl} currentNotificationSoundUrl={notificationSoundUrl} currentStaffCallSoundUrl={staffCallSoundUrl} currentPrinterConfig={printerConfig} currentOpeningTime={openingTime} currentClosingTime={closingTime} onSavePrinterConfig={setPrinterConfig} menuItems={menuItems} currentRecommendedMenuItemIds={recommendedMenuItemIds} onSaveRecommendedItems={setRecommendedMenuItemIds} />
             <EditCompletedOrderModal isOpen={modalState.isEditCompleted} order={orderForModal as CompletedOrder | null} onClose={handleModalClose} onSave={async ({id, items}) => { if(newCompletedOrders.some(o => o.id === id)) { await newCompletedOrdersActions.update(id, { items }); } else { setLegacyCompletedOrders(prev => prev.map(o => o.id === id ? {...o, items} : o)); } }} menuItems={menuItems} />
             <UserManagerModal isOpen={modalState.isUserManager} onClose={handleModalClose} users={users} setUsers={setUsers} currentUser={currentUser!} branches={branches} isEditMode={isEditMode} />
-            <BranchManagerModal isOpen={modalState.isBranchManager} onClose={handleModalClose} branches={branches} setBranches={setBranches} />
+            <BranchManagerModal isOpen={modalState.isBranchManager} onClose={handleModalClose} branches={branches} setBranches={setBranches} currentUser={currentUser} />
             <MoveTableModal isOpen={modalState.isMoveTable} onClose={handleModalClose} order={orderForModal as ActiveOrder | null} tables={tables} activeOrders={activeOrders} onConfirmMove={handleConfirmMoveTable} floors={floors} />
             <CancelOrderModal isOpen={modalState.isCancelOrder} onClose={handleModalClose} order={orderForModal as ActiveOrder | null} onConfirm={handleConfirmCancelOrder} />
             <CashBillModal isOpen={modalState.isCashBill} order={orderForModal as CompletedOrder | null} onClose={handleModalClose} restaurantName={restaurantName} logoUrl={logoUrl} />

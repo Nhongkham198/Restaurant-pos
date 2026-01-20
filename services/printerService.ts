@@ -7,7 +7,7 @@ declare global {
     }
 }
 
-const generateReceiptImage = async (lines: string[], paperWidth: '58mm' | '80mm'): Promise<string> => {
+const generateReceiptImage = async (lines: string[], paperWidth: '58mm' | '80mm', logoUrl?: string | null): Promise<string> => {
     return new Promise((resolve, reject) => {
         const container = document.createElement('div');
         container.style.position = 'fixed';
@@ -23,17 +23,29 @@ const generateReceiptImage = async (lines: string[], paperWidth: '58mm' | '80mm'
         container.style.fontWeight = '600';
 
         let htmlContent = '';
+        
+        // Add Logo if URL provided
+        if (logoUrl) {
+            htmlContent += `<div style="text-align: center; margin-bottom: 10px;"><img src="${logoUrl}" style="max-width: 60%; height: auto;" crossOrigin="anonymous" /></div>`;
+        }
+
         lines.forEach(line => {
             let style = '';
             let text = line;
             if (line.startsWith('LINEMAN #')) {
                 style = 'font-weight: 900; font-size: 60px; text-align: center; display: block; margin: 5px 0;';
             } else if (line.includes('***')) {
-                style = 'font-weight: 800; font-size: 36px; margin: 5px 0;';
+                style = 'font-weight: 800; font-size: 36px; margin: 5px 0; text-align: center;';
             } else if (line.startsWith('---')) {
                 // Increased margin to separate the line from text above and below
                 text = '<div style="border-bottom: 2px dashed black; margin: 15px 0 15px 0;"></div>';
                 style = 'height: 2px;';
+            } else if (line.startsWith('RESTAURANT_NAME:')) {
+                text = line.replace('RESTAURANT_NAME:', '');
+                style = 'font-weight: 900; font-size: 42px; text-align: center; display: block; margin-bottom: 5px;';
+            } else if (line.startsWith('CENTER:')) {
+                text = line.replace('CENTER:', '');
+                style = 'text-align: center; display: block;';
             }
             
             // Check if line is our custom HTML (starts with <div)
@@ -61,7 +73,7 @@ const generateReceiptImage = async (lines: string[], paperWidth: '58mm' | '80mm'
                     resolve(base64);
                 }).catch(reject);
             } else reject(new Error("html2canvas not found"));
-        }, 500); 
+        }, 800); // Increased timeout for logo loading
     });
 };
 
@@ -153,24 +165,85 @@ export const printerService = {
         }
     },
 
-    printReceipt: async (order: CompletedOrder, config: CashierPrinterSettings, restaurantName: string): Promise<void> => {
+    printReceipt: async (order: CompletedOrder, config: CashierPrinterSettings, restaurantName: string, logoUrl?: string | null): Promise<void> => {
         if (!config.ipAddress) throw new Error("ไม่ได้ตั้งค่า IP ของ Print Server");
 
+        const opts = config.receiptOptions;
         const url = `http://${config.ipAddress}:${config.port || 3000}/print-image`;
-        const lines: string[] = [restaurantName, 'ใบเสร็จรับเงิน', '--------------------------------'];
+        const lines: string[] = [];
+
+        // 1. Header Section
+        if (opts.showRestaurantName) {
+            lines.push(`RESTAURANT_NAME:${restaurantName}`);
+        }
         
-        // Use simpler layout for receipt
-        order.items.forEach(item => {
-             const itemHtml = `
-            <div style="display: flex; justify-content: space-between; margin-bottom: 2px; font-size: 28px;">
-                <div style="flex: 1;">${item.quantity} x ${item.name}</div>
-                <div style="width: 100px; text-align: right;">${(item.finalPrice * item.quantity).toFixed(2)}</div>
-            </div>`;
-            lines.push(itemHtml);
-        });
+        // Address & Phone
+        if (opts.showAddress && opts.address) {
+            lines.push(`CENTER:${opts.address}`);
+        }
+        if (opts.showPhoneNumber && opts.phoneNumber) {
+            lines.push(`CENTER:Tel: ${opts.phoneNumber}`);
+        }
+
+        // Title
+        lines.push('CENTER:ใบเสร็จรับเงิน');
+        lines.push('--------------------------------');
+        
+        // 2. Meta Section
+        if (opts.showTable) lines.push(`โต๊ะ: ${order.tableName}`);
+        if (opts.showOrderId) lines.push(`Order: #${order.orderNumber}`); // If users want this OFF, it's off
+        if (opts.showDateTime) {
+            lines.push(`วันที่: ${new Date(order.completionTime).toLocaleString('th-TH')}`);
+        }
+        if (opts.showStaff && order.completedBy) {
+            lines.push(`พนักงาน: ${order.completedBy}`);
+        }
+
+        if (opts.showItems) lines.push('--------------------------------');
+
+        // 3. Items Section
+        if (opts.showItems) {
+            order.items.forEach(item => {
+                 const itemHtml = `
+                <div style="display: flex; justify-content: space-between; margin-bottom: 2px; font-size: 28px;">
+                    <div style="flex: 1;">${item.quantity} x ${item.name}</div>
+                    <div style="width: 100px; text-align: right;">${(item.finalPrice * item.quantity).toFixed(2)}</div>
+                </div>`;
+                lines.push(itemHtml);
+            });
+            lines.push('--------------------------------');
+        }
+
+        // 4. Totals Section
+        if (opts.showSubtotal || opts.showTax || opts.showTotal) {
+            const subtotal = order.items.reduce((sum, item) => sum + item.finalPrice * item.quantity, 0);
+            
+            if (opts.showSubtotal) {
+                 lines.push(`<div style="display: flex; justify-content: space-between;"><div>รวมเงิน</div><div>${subtotal.toFixed(2)}</div></div>`);
+            }
+            if (opts.showTax) {
+                 lines.push(`<div style="display: flex; justify-content: space-between;"><div>ภาษี (${order.taxRate}%)</div><div>${order.taxAmount.toFixed(2)}</div></div>`);
+            }
+            if (opts.showTotal) {
+                 const total = subtotal + order.taxAmount;
+                 lines.push(`<div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 32px; margin-top: 5px;"><div>ยอดสุทธิ</div><div>${total.toFixed(2)}</div></div>`);
+            }
+        }
+
+        // 5. Payment Method
+        if (opts.showPaymentMethod) {
+            const method = order.paymentDetails.method === 'cash' ? 'เงินสด' : 'โอนจ่าย';
+            lines.push(`<div style="text-align: center; margin-top: 5px;">ชำระโดย: ${method}</div>`);
+        }
+
+        // 6. Footer
+        if (opts.showThankYouMessage && opts.thankYouMessage) {
+            lines.push(`*** ${opts.thankYouMessage} ***`);
+        }
 
         try {
-            const base64Image = await generateReceiptImage(lines, config.paperWidth);
+            const base64Image = await generateReceiptImage(lines, config.paperWidth, logoUrl || undefined);
+            
             const res = await fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },

@@ -97,8 +97,123 @@ function pngToRaster(pngBuffer) {
     return Buffer.concat([header, Buffer.from(data)]);
 }
 
+// --- PRINT QUEUE SYSTEM ---
+// ระบบคิวเพื่อป้องกันการพิมพ์ชนกันเมื่อใช้เครื่องพิมพ์เดียวกัน
+const printQueue = [];
+let isProcessingQueue = false;
+
+// Updated executePrintJob with Retry Logic
+const executePrintJob = async (job) => {
+    const { imageBuffer, connectionType, targetPrinter } = job;
+    const rasterData = pngToRaster(imageBuffer);
+    const MAX_RETRIES = 3;
+    const RETRY_DELAY = 2500; // 2.5 seconds
+
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        try {
+            await new Promise((resolve, reject) => {
+                if (connectionType === 'usb') {
+                     if (!isUsbAvailable) return reject(new Error('USB Drivers not active'));
+                     
+                     try {
+                        // Always try to find a fresh device instance on each attempt
+                        const device = new escpos.USB();
+                        if (!device) return reject(new Error('USB Device not found'));
+
+                        const printer = new escpos.Printer(device);
+                        device.open((err) => {
+                            if (err) return reject(new Error('Cannot open USB printer: ' + err.message));
+                            
+                            try {
+                                printer.adapter.write(Buffer.from(COMMANDS.INIT));
+                                printer.adapter.write(rasterData);
+                                printer.adapter.write(Buffer.from('\n\n\n'));
+                                printer.adapter.write(Buffer.from(COMMANDS.CUT));
+                                
+                                device.close(() => {
+                                    console.log('[USB Print] Success');
+                                    resolve();
+                                });
+                            } catch (writeErr) {
+                                device.close();
+                                reject(writeErr);
+                            }
+                        });
+                     } catch (e) { reject(e); }
+                } else {
+                    // Network Printing
+                    const targetHost = (targetPrinter && targetPrinter.ip) ? targetPrinter.ip : PRINTER_CONFIG.host;
+                    const targetPort = (targetPrinter && targetPrinter.port) ? targetPrinter.port : PRINTER_CONFIG.port;
+                    
+                    console.log(`[Network Print] Printing to ${targetHost}:${targetPort} (Attempt ${attempt}/${MAX_RETRIES})`);
+                    const client = new net.Socket();
+                    client.setTimeout(5000); // 5s timeout per attempt
+                    
+                    let handled = false;
+                    const handleError = (err) => {
+                        if (handled) return;
+                        handled = true;
+                        client.destroy();
+                        reject(err);
+                    };
+
+                    client.connect(targetPort, targetHost, () => {
+                        client.write(Buffer.from(COMMANDS.INIT));
+                        client.write(rasterData);
+                        client.write(Buffer.from('\n\n\n')); 
+                        client.write(Buffer.from(COMMANDS.CUT));
+                        client.end();
+                    });
+
+                    client.on('timeout', () => handleError(new Error('Printer Connection Timeout')));
+                    client.on('error', (err) => handleError(err));
+                    
+                    client.on('close', (hadError) => {
+                        if (!handled && !hadError) {
+                            handled = true;
+                            resolve();
+                        }
+                    });
+                }
+            });
+            
+            // If Promise resolved, the job is done.
+            return;
+
+        } catch (error) {
+            console.error(`[Print] Attempt ${attempt} failed: ${error.message}`);
+            if (attempt === MAX_RETRIES) throw error; // Re-throw if it was the last attempt
+            
+            // Wait before retrying
+            await new Promise(r => setTimeout(r, RETRY_DELAY));
+        }
+    }
+};
+
+const processQueue = async () => {
+    if (isProcessingQueue || printQueue.length === 0) return;
+    
+    isProcessingQueue = true;
+    const job = printQueue.shift(); // Get the next job
+
+    try {
+        await executePrintJob(job);
+        // Respond success to the frontend ONLY after the job is processed
+        if (!job.res.headersSent) job.res.json({ success: true });
+    } catch (error) {
+        console.error('Print Job Failed:', error.message);
+        if (!job.res.headersSent) job.res.status(500).json({ success: false, error: error.message });
+    } finally {
+        isProcessingQueue = false;
+        // Add a small delay to let the printer reset/buffer clear before next job
+        setTimeout(() => {
+            processQueue(); 
+        }, 1000);
+    }
+};
+
 app.get('/', (req, res) => {
-    res.send(`POS Print Server (Network ${isUsbAvailable ? '+ USB' : ''} Supported)`);
+    res.send(`POS Print Server (Network ${isUsbAvailable ? '+ USB' : ''} Supported) - Queue Active: ${printQueue.length}`);
 });
 
 app.post('/check-printer', (req, res) => {
@@ -141,7 +256,7 @@ app.post('/check-printer', (req, res) => {
     sock.connect(targetPort, targetHost);
 });
 
-app.post('/print-image', async (req, res) => {
+app.post('/print-image', (req, res) => {
     const { image, targetPrinter, connectionType } = req.body;
     
     if (!image) {
@@ -151,73 +266,16 @@ app.post('/print-image', async (req, res) => {
     try {
         const base64Data = image.replace(/^data:image\/png;base64,/, "");
         const imageBuffer = Buffer.from(base64Data, 'base64');
-        const rasterData = pngToRaster(imageBuffer);
 
-        if (connectionType === 'usb') {
-            if (!isUsbAvailable) {
-                return res.status(500).json({ success: false, error: 'USB Drivers not active on server' });
-            }
-
-            console.log('[USB Print] Processing...');
-            try {
-                const device = new escpos.USB();
-                const printer = new escpos.Printer(device);
-
-                device.open((err) => {
-                    if (err) {
-                        console.error('USB Open Error:', err);
-                        return res.status(500).json({ success: false, error: 'Cannot open USB printer: ' + err.message });
-                    }
-                    
-                    // Send raw raster data using printer.adapter.write for maximum compatibility
-                    printer.adapter.write(Buffer.from(COMMANDS.INIT));
-                    printer.adapter.write(rasterData);
-                    printer.adapter.write(Buffer.from('\n\n\n'));
-                    printer.adapter.write(Buffer.from(COMMANDS.CUT));
-                    
-                    device.close(() => {
-                        console.log('[USB Print] Success');
-                        if (!res.headersSent) res.json({ success: true });
-                    });
-                });
-            } catch (usbErr) {
-                console.error('USB Printer Error:', usbErr);
-                res.status(500).json({ success: false, error: usbErr.message });
-            }
-        } else {
-            // Network Printing
-            const targetHost = (targetPrinter && targetPrinter.ip) ? targetPrinter.ip : PRINTER_CONFIG.host;
-            const targetPort = (targetPrinter && targetPrinter.port) ? targetPrinter.port : PRINTER_CONFIG.port;
-
-            console.log(`[Network Print] Printing to ${targetHost}...`);
-            const client = new net.Socket();
-            client.setTimeout(10000);
-
-            client.connect(targetPort, targetHost, () => {
-                client.write(Buffer.from(COMMANDS.INIT));
-                client.write(rasterData);
-                client.write(Buffer.from('\n\n\n')); 
-                client.write(Buffer.from(COMMANDS.CUT));
-                client.end();
-            });
-
-            client.on('timeout', () => {
-                client.destroy();
-                if (!res.headersSent) res.status(500).json({ success: false, error: 'Printer Timeout' });
-            });
-
-            client.on('error', (err) => {
-                if (!res.headersSent) res.status(500).json({ success: false, error: err.message });
-            });
-
-            client.on('close', () => {
-                if (!res.headersSent) res.json({ success: true });
-            });
-        }
+        // Add job to queue instead of processing immediately
+        console.log(`[Queue] Added new print job. Queue size: ${printQueue.length + 1}`);
+        printQueue.push({ res, imageBuffer, connectionType, targetPrinter });
+        
+        processQueue();
 
     } catch (error) {
-        console.error('Image Processing Error:', error);
-        res.status(500).json({ success: false, error: 'Image processing failed: ' + error.message });
+        console.error('Request Error:', error);
+        res.status(500).json({ success: false, error: 'Request failed: ' + error.message });
     }
 });
 
@@ -226,6 +284,7 @@ app.listen(SERVER_PORT, () => {
     console.log(`listening on port: ${SERVER_PORT}`);
     console.log(`Network Mode: Enabled`);
     console.log(`USB Mode: ${isUsbAvailable ? 'Enabled' : 'Disabled (Drivers not loaded)'}`);
+    console.log(`Queue System: Active`);
     console.log(`--------------------------------`);
     if (!isUsbAvailable) {
         console.log(`NOTE: To enable USB, ensure 'usb' and 'escpos-usb' are installed correctly.`);

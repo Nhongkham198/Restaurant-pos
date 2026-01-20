@@ -151,17 +151,30 @@ export interface Table {
 }
 
 export interface ReceiptPrintSettings {
-    printRestaurantName: boolean;
-    printOrderId: boolean;
-    printTableInfo: boolean;
-    printDateTime: boolean;
-    printPlacedBy: boolean;
-    printItems: boolean;
-    printSubtotal: boolean;
-    printTax: boolean;
-    printTotal: boolean;
-    printPaymentDetails: boolean;
-    printThankYouMessage: boolean;
+    // Header
+    showLogo: boolean;
+    showRestaurantName: boolean;
+    showAddress: boolean;
+    address: string;
+    showPhoneNumber: boolean;
+    phoneNumber: string;
+    
+    // Meta Info
+    showTable: boolean;
+    showStaff: boolean;
+    showDateTime: boolean;
+    showOrderId: boolean;
+    
+    // Body
+    showItems: boolean;
+    
+    // Footer / Totals
+    showSubtotal: boolean;
+    showTax: boolean;
+    showTotal: boolean;
+    showPaymentMethod: boolean;
+    showThankYouMessage: boolean;
+    thankYouMessage: string;
 }
 
 export type PrinterConnectionType = 'network' | 'usb';
@@ -284,4 +297,11 @@ export interface PrintHistoryEntry {
 export interface OrderCounter {
     count: number;
     lastResetDate: string; // YYYY-MM-DD format
+}
+
+export type PrinterStatus = 'idle' | 'checking' | 'success' | 'error';
+
+export interface SystemPrinterStatus {
+    kitchen: PrinterStatus;
+    cashier: PrinterStatus;
 }

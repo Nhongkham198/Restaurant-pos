@@ -1,5 +1,6 @@
+
 import React, { useState } from 'react';
-import type { Branch } from '../types';
+import type { Branch, User } from '../types';
 import Swal from 'sweetalert2';
 
 interface BranchManagerModalProps {
@@ -7,11 +8,12 @@ interface BranchManagerModalProps {
     onClose: () => void;
     branches: Branch[];
     setBranches: React.Dispatch<React.SetStateAction<Branch[]>>;
+    currentUser: User | null;
 }
 
 const initialFormState = { name: '', location: '' };
 
-export const BranchManagerModal: React.FC<BranchManagerModalProps> = ({ isOpen, onClose, branches, setBranches }) => {
+export const BranchManagerModal: React.FC<BranchManagerModalProps> = ({ isOpen, onClose, branches, setBranches, currentUser }) => {
     const [isAdding, setIsAdding] = useState(false);
     const [editingBranch, setEditingBranch] = useState<Branch | null>(null);
     const [formData, setFormData] = useState<{ name: string; location?: string }>(initialFormState);

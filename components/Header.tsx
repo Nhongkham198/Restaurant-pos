@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import type { User, View } from '../types';
+import type { User, View, PrinterConfig, PrinterStatus } from '../types';
+import { printerService } from '../services/printerService';
 import Swal from 'sweetalert2';
 
 interface HeaderProps {
@@ -26,6 +27,7 @@ interface HeaderProps {
     branchName: string;
     onChangeBranch: () => void;
     onManageBranches: () => void;
+    printerConfig: PrinterConfig | null; // Added prop
 }
 
 const NavButton: React.FC<{
@@ -62,19 +64,101 @@ const NavButton: React.FC<{
     </button>
 );
 
+const PrinterStatusIndicator: React.FC<{ 
+    type: 'kitchen' | 'cashier'; 
+    status: PrinterStatus; 
+    onClick: () => void; 
+}> = ({ type, status, onClick }) => {
+    const icon = type === 'kitchen' ? (
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+    ) : (
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+    );
+
+    let colorClass = "bg-gray-200 text-gray-400"; // Idle/Unknown
+    let title = "คลิกเพื่อตรวจสอบสถานะ";
+
+    if (status === 'checking') {
+        colorClass = "bg-yellow-100 text-yellow-600 animate-pulse";
+        title = "กำลังตรวจสอบ...";
+    } else if (status === 'success') {
+        colorClass = "bg-green-100 text-green-600";
+        title = "พร้อมใช้งาน (Online)";
+    } else if (status === 'error') {
+        colorClass = "bg-red-100 text-red-600";
+        title = "ไม่พร้อมใช้งาน (Offline/Error)";
+    }
+
+    return (
+        <button 
+            onClick={onClick}
+            className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs font-bold transition-colors ${colorClass} hover:opacity-80`}
+            title={`${type === 'kitchen' ? 'เครื่องพิมพ์ครัว' : 'เครื่องพิมพ์ใบเสร็จ'}: ${title}`}
+        >
+            {icon}
+            <div className={`w-2 h-2 rounded-full ${status === 'success' ? 'bg-green-500' : status === 'error' ? 'bg-red-500' : status === 'checking' ? 'bg-yellow-500' : 'bg-gray-400'}`}></div>
+        </button>
+    );
+};
 
 export const Header: React.FC<HeaderProps> = ({ 
     currentView, onViewChange, isEditMode, onToggleEditMode, onOpenSettings, 
     cookingBadgeCount, waitingBadgeCount, tablesBadgeCount, vacantTablesBadgeCount, leaveBadgeCount, stockBadgeCount, maintenanceBadgeCount,
     currentUser, onLogout, onOpenUserManager,
     logoUrl, onLogoChangeClick, restaurantName, onRestaurantNameChange,
-    branchName, onChangeBranch, onManageBranches
+    branchName, onChangeBranch, onManageBranches,
+    printerConfig
 }) => {
     
     const isAdmin = currentUser?.role === 'admin';
     const isKitchenStaff = currentUser?.role === 'kitchen';
     const isPosStaff = currentUser?.role === 'pos';
     
+    // Printer Status State
+    const [kitchenPrinterStatus, setKitchenPrinterStatus] = useState<PrinterStatus>('idle');
+    const [cashierPrinterStatus, setCashierPrinterStatus] = useState<PrinterStatus>('idle');
+
+    const checkPrinter = async (type: 'kitchen' | 'cashier') => {
+        if (!printerConfig) return;
+        const config = printerConfig[type];
+        
+        if (!config || !config.ipAddress) {
+            if (type === 'kitchen') setKitchenPrinterStatus('idle');
+            else setCashierPrinterStatus('idle');
+            return;
+        }
+
+        if (type === 'kitchen') setKitchenPrinterStatus('checking');
+        else setCashierPrinterStatus('checking');
+
+        try {
+            const res = await printerService.checkPrinterStatus(
+                config.ipAddress,
+                config.port || '3000',
+                config.targetPrinterIp || '',
+                config.targetPrinterPort || '9100',
+                config.connectionType
+            );
+            
+            if (type === 'kitchen') setKitchenPrinterStatus(res.online ? 'success' : 'error');
+            else setCashierPrinterStatus(res.online ? 'success' : 'error');
+        } catch (error) {
+            if (type === 'kitchen') setKitchenPrinterStatus('error');
+            else setCashierPrinterStatus('error');
+        }
+    };
+
+    // Auto-check on mount and every 60s
+    useEffect(() => {
+        checkPrinter('kitchen');
+        checkPrinter('cashier');
+        const interval = setInterval(() => {
+            checkPrinter('kitchen');
+            checkPrinter('cashier');
+        }, 60000);
+        return () => clearInterval(interval);
+    }, [printerConfig]);
+
     const roleText = useMemo(() => {
         if (!currentUser) return '';
         switch (currentUser.role) {
@@ -130,7 +214,14 @@ export const Header: React.FC<HeaderProps> = ({
                         ) : (
                             <h1 className="text-xl font-bold text-gray-800">{restaurantName}</h1>
                         )}
-                        <p className="text-sm text-gray-800 font-medium">{branchName}</p>
+                        <div className="flex items-center gap-2">
+                            <p className="text-sm text-gray-800 font-medium">{branchName}</p>
+                            {/* Printer Status Indicators */}
+                            <div className="flex items-center gap-1 ml-2 pl-2 border-l border-gray-300">
+                                <PrinterStatusIndicator type="kitchen" status={kitchenPrinterStatus} onClick={() => checkPrinter('kitchen')} />
+                                <PrinterStatusIndicator type="cashier" status={cashierPrinterStatus} onClick={() => checkPrinter('cashier')} />
+                            </div>
+                        </div>
                     </div>
                 </div>
 

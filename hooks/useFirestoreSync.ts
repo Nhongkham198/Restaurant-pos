@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { db } from '../firebaseConfig';
-import type { Table } from '../types';
+import { db } from '@/firebaseConfig';
+import type { Table } from '@/types';
 import firebase from 'firebase/compat/app';
 import 'firebase/compat/firestore';
 

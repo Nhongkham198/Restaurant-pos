@@ -1,18 +1,8 @@
 
-
-
-
-
-
-
-
-
-
-
-
-import React, { useState, ReactNode, useRef, useMemo } from 'react';
-import type { User, View } from '../types';
+import React, { useState, ReactNode, useRef, useMemo, useEffect } from 'react';
+import type { User, View, PrinterConfig, PrinterStatus } from '../types';
 import Swal from 'sweetalert2';
+import { printerService } from '../services/printerService';
 
 interface AdminSidebarProps {
     isCollapsed: boolean;
@@ -40,6 +30,7 @@ interface AdminSidebarProps {
     onUpdateRestaurantName: (newName: string) => void;
     isOrderNotificationsEnabled: boolean;
     onToggleOrderNotifications: () => void;
+    printerConfig: PrinterConfig | null; // Added prop
 }
 
 const NavItem: React.FC<{
@@ -113,6 +104,35 @@ const SubNavItem: React.FC<{
     </li>
 );
 
+// Small status indicator for Sidebar
+const SidebarPrinterStatus: React.FC<{
+    type: 'kitchen' | 'cashier';
+    status: PrinterStatus;
+    onClick: () => void;
+    isCollapsed: boolean;
+}> = ({ type, status, onClick, isCollapsed }) => {
+    const icon = type === 'kitchen' ? (
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+    ) : (
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+    );
+
+    const color = status === 'success' ? 'bg-green-500' : status === 'error' ? 'bg-red-500' : status === 'checking' ? 'bg-yellow-500' : 'bg-gray-500';
+    const label = type === 'kitchen' ? 'ครัว' : 'แคชเชียร์';
+
+    return (
+        <button 
+            onClick={onClick}
+            className="flex items-center gap-2 p-1.5 rounded hover:bg-gray-700 w-full transition-colors text-gray-400 hover:text-white"
+            title={`คลิกเพื่อตรวจสอบสถานะ: ${label}`}
+        >
+            <div className={`w-2 h-2 rounded-full ${color} ${status === 'checking' ? 'animate-pulse' : ''}`}></div>
+            {icon}
+            {!isCollapsed && <span className="text-xs font-medium">{label}</span>}
+        </button>
+    );
+};
+
 
 const AdminSidebar: React.FC<AdminSidebarProps> = ({
     isCollapsed,
@@ -140,12 +160,58 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({
     onUpdateRestaurantName,
     isOrderNotificationsEnabled,
     onToggleOrderNotifications,
+    printerConfig
 }) => {
     const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({
       'stock': true,
       'leave': false
     });
     const logoInputRef = useRef<HTMLInputElement>(null);
+
+    // Printer Status
+    const [kitchenStatus, setKitchenStatus] = useState<PrinterStatus>('idle');
+    const [cashierStatus, setCashierStatus] = useState<PrinterStatus>('idle');
+
+    const checkPrinter = async (type: 'kitchen' | 'cashier') => {
+        if (!printerConfig) return;
+        const config = printerConfig[type];
+        
+        if (!config || !config.ipAddress) {
+            if (type === 'kitchen') setKitchenStatus('idle');
+            else setCashierStatus('idle');
+            return;
+        }
+
+        if (type === 'kitchen') setKitchenStatus('checking');
+        else setCashierStatus('checking');
+
+        try {
+            const res = await printerService.checkPrinterStatus(
+                config.ipAddress,
+                config.port || '3000',
+                config.targetPrinterIp || '',
+                config.targetPrinterPort || '9100',
+                config.connectionType
+            );
+            
+            if (type === 'kitchen') setKitchenStatus(res.online ? 'success' : 'error');
+            else setCashierStatus(res.online ? 'success' : 'error');
+        } catch (error) {
+            if (type === 'kitchen') setKitchenStatus('error');
+            else setCashierStatus('error');
+        }
+    };
+
+    useEffect(() => {
+        checkPrinter('kitchen');
+        checkPrinter('cashier');
+        const interval = setInterval(() => {
+            checkPrinter('kitchen');
+            checkPrinter('cashier');
+        }, 60000);
+        return () => clearInterval(interval);
+    }, [printerConfig]);
+
 
     const roleText = useMemo(() => {
         if (!currentUser) return '';
@@ -273,6 +339,12 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({
                                 </p>
                             </div>
                         )}
+                    </div>
+
+                    {/* Printer Status (Added) */}
+                    <div className={`grid grid-cols-2 gap-2 mt-1 ${isCollapsed ? 'hidden' : 'block'}`}>
+                        <SidebarPrinterStatus type="kitchen" status={kitchenStatus} onClick={() => checkPrinter('kitchen')} isCollapsed={isCollapsed} />
+                        <SidebarPrinterStatus type="cashier" status={cashierStatus} onClick={() => checkPrinter('cashier')} isCollapsed={isCollapsed} />
                     </div>
 
                     {/* Order Notification Toggle */}

@@ -1,8 +1,8 @@
 
-import { functions } from '../firebaseConfig';
+import { functions } from '@/firebaseConfig';
 // FIX: Switched to Firebase v8 compatibility API. This uses functions.httpsCallable() instead of v9 modular function.
 // import { httpsCallable } from 'firebase/functions';
-import type { PaymentDetails, OrderItem, LeaveRequest, StockItem } from '../types';
+import type { PaymentDetails, OrderItem, LeaveRequest, StockItem } from '@/types';
 
 /*
 --------------------------------------------------------------------------------
@@ -23,7 +23,7 @@ export interface PlaceOrderPayload {
     floor: string;
     customerCount: number;
     items: OrderItem[]; // Use full OrderItem for now to support the fallback logic
-    orderType: 'dine-in' | 'takeaway';
+    orderType: 'dine-in' | 'takeaway' | 'lineman';
     taxRate: number;
     placedBy: string;
     sendToKitchen: boolean;
