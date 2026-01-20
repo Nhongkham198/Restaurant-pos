@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import type { User, View } from '../types';
+import type { User, View, SystemPrinterStatus, PrinterConfig } from '../types';
 import Swal from 'sweetalert2';
 
 interface HeaderProps {
@@ -15,7 +15,7 @@ interface HeaderProps {
     vacantTablesBadgeCount: number;
     leaveBadgeCount: number; 
     stockBadgeCount: number; 
-    maintenanceBadgeCount: number; // Added maintenance badge
+    maintenanceBadgeCount: number;
     currentUser: User | null;
     onLogout: () => void;
     onOpenUserManager: () => void;
@@ -26,6 +26,10 @@ interface HeaderProps {
     branchName: string;
     onChangeBranch: () => void;
     onManageBranches: () => void;
+    // New Props for Printer Status
+    printerStatus?: SystemPrinterStatus;
+    printerConfig?: PrinterConfig | null;
+    onCheckPrinterStatus?: () => void;
 }
 
 const NavButton: React.FC<{
@@ -68,7 +72,8 @@ export const Header: React.FC<HeaderProps> = ({
     cookingBadgeCount, waitingBadgeCount, tablesBadgeCount, vacantTablesBadgeCount, leaveBadgeCount, stockBadgeCount, maintenanceBadgeCount,
     currentUser, onLogout, onOpenUserManager,
     logoUrl, onLogoChangeClick, restaurantName, onRestaurantNameChange,
-    branchName, onChangeBranch, onManageBranches
+    branchName, onChangeBranch, onManageBranches,
+    printerStatus, printerConfig, onCheckPrinterStatus
 }) => {
     
     const isAdmin = currentUser?.role === 'admin';
@@ -86,6 +91,29 @@ export const Header: React.FC<HeaderProps> = ({
             default: return '';
         }
     }, [currentUser]);
+
+    // Calculate Printer Status Color
+    const printerStatusColor = useMemo(() => {
+        if (!printerConfig) return 'text-gray-300'; // No config loaded yet
+        
+        const kIp = printerConfig.kitchen?.ipAddress;
+        const cIp = printerConfig.cashier?.ipAddress;
+
+        if (!kIp && !cIp) return 'text-gray-300'; // Not configured
+
+        // Check for failures
+        const kError = kIp && printerStatus && !printerStatus.kitchen.online;
+        const cError = cIp && printerStatus && !printerStatus.cashier.online;
+
+        if (kError || cError) return 'text-red-500 animate-pulse'; // Error state
+        
+        // Check for checking state (optional, can just show green if last status was green)
+        if (printerStatus?.kitchen.message === 'Checking...' || printerStatus?.cashier.message === 'Checking...') {
+            return 'text-yellow-500';
+        }
+
+        return 'text-green-500'; // All Good
+    }, [printerConfig, printerStatus]);
 
     const handleProfileClick = () => {
         Swal.fire({
@@ -160,6 +188,43 @@ export const Header: React.FC<HeaderProps> = ({
                 </nav>
 
                 <div className="flex items-center gap-4">
+                    {/* Printer Status Icon with Tooltip */}
+                    <div className="relative group cursor-pointer" onClick={onCheckPrinterStatus} title="สถานะเครื่องพิมพ์ (คลิกเพื่อรีเฟรช)">
+                        <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 transition-colors ${printerStatusColor}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                        </svg>
+                        
+                        <div className="absolute right-0 top-full mt-2 w-64 bg-white p-3 rounded-lg shadow-xl border border-gray-200 z-50 hidden group-hover:block text-sm">
+                            <div className="space-y-2">
+                                <h4 className="font-bold text-gray-800 border-b pb-1">สถานะเครื่องพิมพ์</h4>
+                                
+                                <div className="flex justify-between items-center">
+                                    <span className="text-gray-600">ครัว (Kitchen):</span>
+                                    {printerConfig?.kitchen?.ipAddress ? (
+                                        <span className={printerStatus?.kitchen.online ? 'text-green-600 font-medium' : 'text-red-600 font-medium'}>
+                                            {printerStatus?.kitchen.online ? 'Online' : 'Offline'}
+                                        </span>
+                                    ) : (
+                                        <span className="text-gray-400">ไม่ได้ตั้งค่า</span>
+                                    )}
+                                </div>
+                                <div className="flex justify-between items-center">
+                                    <span className="text-gray-600">แคชเชียร์ (Receipt):</span>
+                                    {printerConfig?.cashier?.ipAddress ? (
+                                        <span className={printerStatus?.cashier.online ? 'text-green-600 font-medium' : 'text-red-600 font-medium'}>
+                                            {printerStatus?.cashier.online ? 'Online' : 'Offline'}
+                                        </span>
+                                    ) : (
+                                        <span className="text-gray-400">ไม่ได้ตั้งค่า</span>
+                                    )}
+                                </div>
+                                <div className="text-xs text-gray-400 pt-1 text-right">
+                                    แตะไอคอนเพื่อตรวจสอบ
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     {(currentUser.role === 'admin' || currentUser.role === 'branch-admin') && (
                         <div className="relative group">
                             <label className="relative inline-flex items-center cursor-pointer">

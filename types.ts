@@ -191,6 +191,17 @@ export interface PrinterConfig {
     cashier: CashierPrinterSettings | null;
 }
 
+export interface PrinterStatusData {
+    online: boolean;
+    message: string;
+    lastChecked: number;
+}
+
+export interface SystemPrinterStatus {
+    kitchen: PrinterStatusData;
+    cashier: PrinterStatusData;
+}
+
 export interface StockItem {
     id: number;
     name: string;
