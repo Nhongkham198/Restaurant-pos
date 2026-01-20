@@ -24,9 +24,10 @@ const generateReceiptImage = async (lines: string[], paperWidth: '58mm' | '80mm'
 
         let htmlContent = '';
         
-        // Add Logo if URL provided - IMPROVED CENTERING
+        // Add Logo if URL provided - IMPROVED CENTERING & SPACING
         if (logoUrl) {
-            htmlContent += `<div style="text-align: center; width: 100%; margin-bottom: 10px; display: block;"><img src="${logoUrl}" style="display: inline-block; max-width: 60%; height: auto;" crossOrigin="anonymous" /></div>`;
+            // margin: 0 auto on img ensures centering. margin-bottom: 0px brings text closer.
+            htmlContent += `<div style="width: 100%; margin-bottom: 0px; display: block;"><img src="${logoUrl}" style="display: block; margin: 0 auto; max-width: 60%; height: auto;" crossOrigin="anonymous" /></div>`;
         }
 
         lines.forEach(line => {
@@ -42,7 +43,8 @@ const generateReceiptImage = async (lines: string[], paperWidth: '58mm' | '80mm'
                 style = 'height: 2px;';
             } else if (line.startsWith('RESTAURANT_NAME:')) {
                 text = line.replace('RESTAURANT_NAME:', '');
-                style = 'font-weight: 900; font-size: 42px; text-align: center; display: block; margin-bottom: 5px;';
+                // Added margin-top: 5px to keep it tight but readable, line-height: 1.1
+                style = 'font-weight: 900; font-size: 42px; text-align: center; display: block; margin-bottom: 5px; margin-top: 5px; line-height: 1.1;';
             } else if (line.startsWith('CENTER:')) {
                 text = line.replace('CENTER:', '');
                 style = 'text-align: center; display: block;';
@@ -184,6 +186,9 @@ export const printerService = {
         if (opts.showPhoneNumber && opts.phoneNumber) {
             lines.push(`CENTER:Tel: ${opts.phoneNumber}`);
         }
+
+        // Add a blank line between Tel and Title
+        lines.push(' ');
 
         // Title
         lines.push('CENTER:ใบเสร็จรับเงิน');

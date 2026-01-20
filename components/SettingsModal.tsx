@@ -382,13 +382,87 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                         <input type="checkbox" checked={receiptOpts.showLogo} onChange={(e) => handleReceiptOptionChange('showLogo', e.target.checked)} className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
                                         <span className="text-sm font-medium text-gray-700">โลโก้ร้าน</span>
                                     </label>
-                                    {/* ... existing checkboxes ... */}
+                                    
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input type="checkbox" checked={receiptOpts.showAddress} onChange={(e) => handleReceiptOptionChange('showAddress', e.target.checked)} className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                                        <span className="text-sm font-medium text-gray-700">ที่อยู่</span>
+                                    </label>
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input type="checkbox" checked={receiptOpts.showPhoneNumber} onChange={(e) => handleReceiptOptionChange('showPhoneNumber', e.target.checked)} className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                                        <span className="text-sm font-medium text-gray-700">เบอร์โทร</span>
+                                    </label>
+                                    
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input type="checkbox" checked={receiptOpts.showTable} onChange={(e) => handleReceiptOptionChange('showTable', e.target.checked)} className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                                        <span className="text-sm font-medium text-gray-700">โต๊ะ</span>
+                                    </label>
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input type="checkbox" checked={receiptOpts.showDateTime} onChange={(e) => handleReceiptOptionChange('showDateTime', e.target.checked)} className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                                        <span className="text-sm font-medium text-gray-700">วัน/เวลา</span>
+                                    </label>
+                                    
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input type="checkbox" checked={receiptOpts.showItems} onChange={(e) => handleReceiptOptionChange('showItems', e.target.checked)} className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                                        <span className="text-sm font-medium text-gray-700">รายการอาหาร</span>
+                                    </label>
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input type="checkbox" checked={receiptOpts.showSubtotal} onChange={(e) => handleReceiptOptionChange('showSubtotal', e.target.checked)} className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                                        <span className="text-sm font-medium text-gray-700">ยอดรวม</span>
+                                    </label>
+                                    
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input type="checkbox" checked={receiptOpts.showTax} onChange={(e) => handleReceiptOptionChange('showTax', e.target.checked)} className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                                        <span className="text-sm font-medium text-gray-700">ภาษี</span>
+                                    </label>
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input type="checkbox" checked={receiptOpts.showTotal} onChange={(e) => handleReceiptOptionChange('showTotal', e.target.checked)} className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                                        <span className="text-sm font-medium text-gray-700">ยอดสุทธิ</span>
+                                    </label>
+
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input type="checkbox" checked={receiptOpts.showPaymentMethod} onChange={(e) => handleReceiptOptionChange('showPaymentMethod', e.target.checked)} className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                                        <span className="text-sm font-medium text-gray-700">การชำระเงิน</span>
+                                    </label>
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input type="checkbox" checked={receiptOpts.showThankYouMessage} onChange={(e) => handleReceiptOptionChange('showThankYouMessage', e.target.checked)} className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                                        <span className="text-sm font-medium text-gray-700">ข้อความขอบคุณ</span>
+                                    </label>
                                 </div>
 
-                                <div className="space-y-4 pt-4 border-t border-gray-200">
-                                    {/* ... existing address inputs ... */}
+                                {/* Text Inputs */}
+                                <div className="space-y-3 pt-4 border-t border-gray-200">
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-500 mb-1">ที่อยู่ร้าน</label>
+                                        <textarea 
+                                            value={receiptOpts.address} 
+                                            onChange={(e) => handleReceiptOptionChange('address', e.target.value)} 
+                                            rows={2} 
+                                            className="w-full text-sm border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 p-2"
+                                            placeholder="ที่อยู่..."
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-500 mb-1">เบอร์โทรศัพท์</label>
+                                        <input 
+                                            type="text"
+                                            value={receiptOpts.phoneNumber} 
+                                            onChange={(e) => handleReceiptOptionChange('phoneNumber', e.target.value)} 
+                                            className="w-full text-sm border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 p-2"
+                                            placeholder="02-xxx-xxxx"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-500 mb-1">ข้อความขอบคุณ</label>
+                                        <input 
+                                            type="text"
+                                            value={receiptOpts.thankYouMessage} 
+                                            onChange={(e) => handleReceiptOptionChange('thankYouMessage', e.target.value)} 
+                                            className="w-full text-sm border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 p-2"
+                                            placeholder="ขอบคุณที่ใช้บริการ"
+                                        />
+                                    </div>
                                     
-                                    <div className="flex justify-between items-center bg-blue-50 p-2 rounded border border-blue-100">
+                                    <div className="flex justify-between items-center bg-blue-50 p-2 rounded border border-blue-100 mt-2">
                                         <span className="text-xs text-blue-800">คืนค่าเริ่มต้น</span>
                                         <button 
                                             type="button" 
@@ -440,8 +514,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
                                     {/* Totals Preview */}
                                     <div className="w-full space-y-1">
+                                        {receiptOpts.showSubtotal && (
+                                            <div className="flex justify-between mt-1"><span>รวมเงิน</span><span>75.00</span></div>
+                                        )}
+                                        {receiptOpts.showTax && (
+                                            <div className="flex justify-between mt-1"><span>ภาษี (7%)</span><span>5.25</span></div>
+                                        )}
                                         {receiptOpts.showTotal && (
                                             <div className="flex justify-between font-bold text-base mt-1"><span>ยอดสุทธิ</span><span>80.25</span></div>
+                                        )}
+                                        {receiptOpts.showPaymentMethod && (
+                                             <div className="text-center mt-2 text-xs">ชำระโดย: เงินสด</div>
                                         )}
                                     </div>
 
