@@ -1804,7 +1804,31 @@ const App: React.FC = () => {
             />
             <PaymentModal isOpen={modalState.isPayment} order={orderForModal as ActiveOrder | null} onClose={handleModalClose} onConfirmPayment={handleConfirmPayment} qrCodeUrl={qrCodeUrl} isEditMode={isEditMode} onOpenSettings={() => setModalState(prev => ({...prev, isSettings: true}))} isConfirmingPayment={isConfirmingPayment} />
             <PaymentSuccessModal isOpen={modalState.isPaymentSuccess} onClose={handlePaymentSuccessClose} orderNumber={(orderForModal as CompletedOrder)?.orderNumber || 0} />
-            <SettingsModal isOpen={modalState.isSettings} onClose={handleModalClose} onSave={(qr, sound, staffSound, printer, open, close) => { setQrCodeUrl(qr); setNotificationSoundUrl(sound); setStaffCallSoundUrl(staffSound); setPrinterConfig(printer); setOpeningTime(open); setClosingTime(close); handleModalClose(); }} currentQrCodeUrl={qrCodeUrl} currentNotificationSoundUrl={notificationSoundUrl} currentStaffCallSoundUrl={staffCallSoundUrl} currentPrinterConfig={printerConfig} currentOpeningTime={openingTime} currentClosingTime={closingTime} onSavePrinterConfig={setPrinterConfig} menuItems={menuItems} currentRecommendedMenuItemIds={recommendedMenuItemIds} onSaveRecommendedItems={setRecommendedMenuItemIds} />
+            <SettingsModal 
+                isOpen={modalState.isSettings} 
+                onClose={handleModalClose} 
+                onSave={(newLogo, qr, sound, staffSound, printer, open, close) => { 
+                    setLogoUrl(newLogo); // Save Logo
+                    setQrCodeUrl(qr); 
+                    setNotificationSoundUrl(sound); 
+                    setStaffCallSoundUrl(staffSound); 
+                    setPrinterConfig(printer); 
+                    setOpeningTime(open); 
+                    setClosingTime(close); 
+                    handleModalClose(); 
+                }} 
+                currentLogoUrl={logoUrl} // Pass logo URL
+                currentQrCodeUrl={qrCodeUrl} 
+                currentNotificationSoundUrl={notificationSoundUrl} 
+                currentStaffCallSoundUrl={staffCallSoundUrl} 
+                currentPrinterConfig={printerConfig} 
+                currentOpeningTime={openingTime} 
+                currentClosingTime={closingTime} 
+                onSavePrinterConfig={setPrinterConfig} 
+                menuItems={menuItems} 
+                currentRecommendedMenuItemIds={recommendedMenuItemIds} 
+                onSaveRecommendedItems={setRecommendedMenuItemIds} 
+            />
             <EditCompletedOrderModal isOpen={modalState.isEditCompleted} order={orderForModal as CompletedOrder | null} onClose={handleModalClose} onSave={async ({id, items}) => { if(newCompletedOrders.some(o => o.id === id)) { await newCompletedOrdersActions.update(id, { items }); } else { setLegacyCompletedOrders(prev => prev.map(o => o.id === id ? {...o, items} : o)); } }} menuItems={menuItems} />
             <UserManagerModal isOpen={modalState.isUserManager} onClose={handleModalClose} users={users} setUsers={setUsers} currentUser={currentUser!} branches={branches} isEditMode={isEditMode} />
             <BranchManagerModal isOpen={modalState.isBranchManager} onClose={handleModalClose} branches={branches} setBranches={setBranches} currentUser={currentUser} />

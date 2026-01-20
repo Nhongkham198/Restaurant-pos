@@ -24,9 +24,9 @@ const generateReceiptImage = async (lines: string[], paperWidth: '58mm' | '80mm'
 
         let htmlContent = '';
         
-        // Add Logo if URL provided
+        // Add Logo if URL provided - IMPROVED CENTERING
         if (logoUrl) {
-            htmlContent += `<div style="text-align: center; margin-bottom: 10px;"><img src="${logoUrl}" style="max-width: 60%; height: auto;" crossOrigin="anonymous" /></div>`;
+            htmlContent += `<div style="text-align: center; width: 100%; margin-bottom: 10px; display: block;"><img src="${logoUrl}" style="display: inline-block; max-width: 60%; height: auto;" crossOrigin="anonymous" /></div>`;
         }
 
         lines.forEach(line => {
@@ -242,6 +242,7 @@ export const printerService = {
         }
 
         try {
+            // Pass undefined if logoUrl is null to match optional type
             const base64Image = await generateReceiptImage(lines, config.paperWidth, logoUrl || undefined);
             
             const res = await fetch(url, {
