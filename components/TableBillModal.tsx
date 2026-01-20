@@ -142,7 +142,7 @@ export const TableBillModal: React.FC<TableBillModalProps> = ({
     const itemsToRender = isEditMode ? editedItems : order.items;
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4" onClick={onClose}>
             <div className="bg-white rounded-lg shadow-xl w-full max-w-md transform transition-all flex flex-col" style={{maxHeight: '90vh'}} onClick={e => e.stopPropagation()}>
                 <header className={`p-4 border-b rounded-t-lg transition-colors ${isVoidMode ? 'bg-red-50' : 'bg-gray-50'}`}>
                     <h3 className={`text-2xl font-bold text-center ${isVoidMode ? 'text-red-700' : 'text-gray-800'}`}>

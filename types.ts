@@ -162,7 +162,6 @@ export interface ReceiptPrintSettings {
     printTotal: boolean;
     printPaymentDetails: boolean;
     printThankYouMessage: boolean;
-    restaurantAddress?: string;
 }
 
 export type PrinterConnectionType = 'network' | 'usb';
@@ -189,17 +188,6 @@ export interface CashierPrinterSettings {
 export interface PrinterConfig {
     kitchen: KitchenPrinterSettings | null;
     cashier: CashierPrinterSettings | null;
-}
-
-export interface PrinterStatusData {
-    online: boolean;
-    message: string;
-    lastChecked: number;
-}
-
-export interface SystemPrinterStatus {
-    kitchen: PrinterStatusData;
-    cashier: PrinterStatusData;
 }
 
 export interface StockItem {

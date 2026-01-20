@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import type { StockItem } from '../types';
 import Swal from 'sweetalert2';
@@ -71,7 +70,7 @@ export const UnitManagerModal: React.FC<UnitManagerModalProps> = ({ isOpen, onCl
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[70] p-4">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[70] p-4" onClick={onClose}>
             <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full flex flex-col" style={{maxHeight: '80vh'}} onClick={e => e.stopPropagation()}>
                 <h2 className="text-xl font-bold mb-4 text-gray-900">จัดการหน่วยนับ</h2>
                 

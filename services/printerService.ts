@@ -157,118 +157,17 @@ export const printerService = {
         if (!config.ipAddress) throw new Error("ไม่ได้ตั้งค่า IP ของ Print Server");
 
         const url = `http://${config.ipAddress}:${config.port || 3000}/print-image`;
-        const options = config.receiptOptions || {
-            printRestaurantName: true,
-            printOrderId: true,
-            printTableInfo: true,
-            printDateTime: true,
-            printPlacedBy: true,
-            printItems: true,
-            printSubtotal: true,
-            printTax: true,
-            printTotal: true,
-            printPaymentDetails: true,
-            printThankYouMessage: true,
-            restaurantAddress: ''
-        };
-
-        const lines: string[] = [];
-
-        // 1. Header (Restaurant Name)
-        if (options.printRestaurantName) {
-            lines.push(`<div style="text-align: center; font-weight: 900; font-size: 42px; margin-bottom: 8px; line-height: 1.1;">${restaurantName}</div>`);
-        }
+        const lines: string[] = [restaurantName, 'ใบเสร็จรับเงิน', '--------------------------------'];
         
-        // 2. Address (Centered, Wrapped)
-        if (options.restaurantAddress) {
-            lines.push(`<div style="text-align: center; font-size: 26px; font-weight: normal; margin-bottom: 10px; line-height: 1.3; white-space: pre-wrap; word-wrap: break-word;">${options.restaurantAddress}</div>`);
-        }
-
-        // 3. Receipt Label
-        lines.push(`<div style="text-align: center; font-size: 32px; font-weight: 800; margin-bottom: 5px;">ใบเสร็จรับเงิน</div>`);
-        
-        lines.push('--------------------------------');
-
-        // 2. Info
-        if (options.printTableInfo) {
-            lines.push(`โต๊ะ: ${order.tableName} (${order.floor})`);
-        }
-        
-        // Check if printOrderId is explicitly false, otherwise default to true (backward compatibility)
-        if (options.printOrderId !== false) {
-            // Check if it's a LineMan order with a manual number
-            const orderIdText = order.manualOrderNumber ? order.manualOrderNumber : String(order.orderNumber).padStart(3, '0');
-            lines.push(`ออเดอร์: #${orderIdText}`);
-        }
-        if (options.printDateTime) {
-            lines.push(`วันที่: ${new Date(order.completionTime).toLocaleString('th-TH')}`);
-        }
-        if (options.printPlacedBy && order.placedBy) {
-            lines.push(`พนักงาน: ${order.placedBy}`);
-        }
-        
-        lines.push('--------------------------------');
-
-        // 3. Items
-        if (options.printItems) {
-            order.items.forEach(item => {
-                 const itemHtml = `
-                <div style="display: flex; justify-content: space-between; margin-bottom: 2px; font-size: 28px;">
-                    <div style="flex: 1;">${item.quantity} x ${item.name}</div>
-                    <div style="width: 100px; text-align: right;">${(item.finalPrice * item.quantity).toFixed(2)}</div>
-                </div>`;
-                lines.push(itemHtml);
-            });
-            lines.push('--------------------------------');
-        }
-
-        // 4. Totals
-        const subtotal = order.items.reduce((sum, item) => sum + item.finalPrice * item.quantity, 0);
-        const total = subtotal + order.taxAmount;
-
-        if (options.printSubtotal) {
-             const subtotalHtml = `
-            <div style="display: flex; justify-content: space-between; font-size: 28px;">
-                <div>ราคารวม</div>
-                <div>${subtotal.toFixed(2)}</div>
+        // Use simpler layout for receipt
+        order.items.forEach(item => {
+             const itemHtml = `
+            <div style="display: flex; justify-content: space-between; margin-bottom: 2px; font-size: 28px;">
+                <div style="flex: 1;">${item.quantity} x ${item.name}</div>
+                <div style="width: 100px; text-align: right;">${(item.finalPrice * item.quantity).toFixed(2)}</div>
             </div>`;
-            lines.push(subtotalHtml);
-        }
-
-        if (options.printTax && order.taxAmount > 0) {
-             const taxHtml = `
-            <div style="display: flex; justify-content: space-between; font-size: 28px;">
-                <div>ภาษี (${order.taxRate}%)</div>
-                <div>${order.taxAmount.toFixed(2)}</div>
-            </div>`;
-            lines.push(taxHtml);
-        }
-
-        if (options.printTotal) {
-             const totalHtml = `
-            <div style="display: flex; justify-content: space-between; font-size: 40px; font-weight: 800; margin-top: 5px;">
-                <div>ยอดสุทธิ</div>
-                <div>${total.toFixed(2)}</div>
-            </div>`;
-            lines.push(totalHtml);
-        }
-
-        // 5. Payment Details
-        if (options.printPaymentDetails) {
-            lines.push('--------------------------------');
-            const methodText = order.paymentDetails.method === 'cash' ? 'เงินสด' : 'โอนจ่าย';
-            lines.push(`ชำระโดย: ${methodText}`);
-            if (order.paymentDetails.method === 'cash') {
-                lines.push(`รับเงิน: ${order.paymentDetails.cashReceived?.toFixed(2)}`);
-                lines.push(`เงินทอน: ${order.paymentDetails.changeGiven?.toFixed(2)}`);
-            }
-        }
-
-        // 6. Footer
-        if (options.printThankYouMessage) {
-            lines.push('--------------------------------');
-            lines.push(`<div style="text-align: center; margin-top: 10px;">ขอบคุณที่ใช้บริการ</div>`);
-        }
+            lines.push(itemHtml);
+        });
 
         try {
             const base64Image = await generateReceiptImage(lines, config.paperWidth);
