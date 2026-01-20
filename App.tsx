@@ -244,6 +244,7 @@ const App: React.FC = () => {
 
     // --- GENERAL SETTINGS STATE ---
     const [logoUrl, setLogoUrl] = useFirestoreSync<string | null>(branchId, 'logoUrl', null);
+    const [appLogoUrl, setAppLogoUrl] = useFirestoreSync<string | null>(branchId, 'appLogoUrl', null); // NEW: App Display Logo
     const [restaurantName, setRestaurantName] = useFirestoreSync<string>(branchId, 'restaurantName', 'ชื่อร้านอาหาร');
     const [qrCodeUrl, setQrCodeUrl] = useFirestoreSync<string | null>(branchId, 'qrCodeUrl', null);
     const [notificationSoundUrl, setNotificationSoundUrl] = useFirestoreSync<string | null>(branchId, 'notificationSoundUrl', null);
@@ -1140,7 +1141,8 @@ const App: React.FC = () => {
         handleModalClose();
         if (shouldPrint && order && printerConfig?.cashier) {
              try {
-                // UPDATE: Pass logoUrl to printReceipt
+                // UPDATE: Pass logoUrl (receipt one) to printReceipt
+                // App Logo is ONLY for display, Receipt Logo is for printing
                 await printerService.printReceipt(order, printerConfig.cashier, restaurantName, logoUrl);
             } catch (printError: any) {
                 console.error("Receipt print failed:", printError);
@@ -1548,7 +1550,7 @@ const App: React.FC = () => {
                     onPlaceOrder={(items, name) => handlePlaceOrder(items, name, 1, customerTable)}
                     onStaffCall={(table, custName) => setStaffCalls(prev => [...prev, {id: Date.now(), tableId: table.id, tableName: `${table.name} (${table.floor})`, customerName: custName, branchId: selectedBranch!.id, timestamp: Date.now()}])}
                     recommendedMenuItemIds={recommendedMenuItemIds}
-                    logoUrl={logoUrl}
+                    logoUrl={appLogoUrl || logoUrl} // Use App Logo for Customer View if available, else Receipt Logo
                     restaurantName={restaurantName}
                 />
              );
@@ -1631,7 +1633,8 @@ const App: React.FC = () => {
             {isAdminViewOnDesktop && (
                 <AdminSidebar 
                    isCollapsed={isAdminSidebarCollapsed} onToggleCollapse={() => setIsAdminSidebarCollapsed(!isAdminSidebarCollapsed)}
-                   logoUrl={logoUrl} restaurantName={restaurantName} branchName={selectedBranch.name} currentUser={currentUser}
+                   logoUrl={appLogoUrl || logoUrl} // Use App Logo if available
+                   restaurantName={restaurantName} branchName={selectedBranch.name} currentUser={currentUser}
                    onViewChange={setCurrentView} currentView={currentView} onToggleEditMode={() => setIsEditMode(!isEditMode)} isEditMode={isEditMode}
                    onOpenSettings={() => setModalState(prev => ({...prev, isSettings: true}))} onOpenUserManager={() => setModalState(prev => ({...prev, isUserManager: true}))}
                    onManageBranches={() => setModalState(prev => ({...prev, isBranchManager: true}))} onChangeBranch={() => setSelectedBranch(null)} onLogout={handleLogout}
@@ -1651,7 +1654,9 @@ const App: React.FC = () => {
                         onOpenSettings={() => setModalState(prev => ({ ...prev, isSettings: true }))} cookingBadgeCount={cookingBadgeCount} waitingBadgeCount={waitingBadgeCount}
                         tablesBadgeCount={tablesBadgeCount} vacantTablesBadgeCount={vacantTablesCount} leaveBadgeCount={leaveBadgeCount} stockBadgeCount={stockBadgeCount} 
                         maintenanceBadgeCount={maintenanceBadgeCount} currentUser={currentUser} onLogout={handleLogout}
-                        onOpenUserManager={() => setModalState(prev => ({ ...prev, isUserManager: true }))} logoUrl={logoUrl} onLogoChangeClick={() => {}}
+                        onOpenUserManager={() => setModalState(prev => ({ ...prev, isUserManager: true }))} 
+                        logoUrl={appLogoUrl || logoUrl} // Use App Logo if available
+                        onLogoChangeClick={() => {}}
                         restaurantName={restaurantName} onRestaurantNameChange={setRestaurantName} branchName={selectedBranch.name}
                         onChangeBranch={() => setSelectedBranch(null)} onManageBranches={() => setModalState(prev => ({ ...prev, isBranchManager: true }))}
                         printerConfig={printerConfig} // Pass printer config
@@ -1807,8 +1812,9 @@ const App: React.FC = () => {
             <SettingsModal 
                 isOpen={modalState.isSettings} 
                 onClose={handleModalClose} 
-                onSave={(newLogo, qr, sound, staffSound, printer, open, close) => { 
-                    setLogoUrl(newLogo); // Save Logo
+                onSave={(newLogo, newAppLogo, qr, sound, staffSound, printer, open, close) => { 
+                    setLogoUrl(newLogo); // Save Receipt Logo
+                    setAppLogoUrl(newAppLogo); // Save App Logo (NEW)
                     setQrCodeUrl(qr); 
                     setNotificationSoundUrl(sound); 
                     setStaffCallSoundUrl(staffSound); 
@@ -1817,7 +1823,8 @@ const App: React.FC = () => {
                     setClosingTime(close); 
                     handleModalClose(); 
                 }} 
-                currentLogoUrl={logoUrl} // Pass logo URL
+                currentLogoUrl={logoUrl} // Pass receipt logo URL
+                currentAppLogoUrl={appLogoUrl} // Pass app logo URL (NEW)
                 currentQrCodeUrl={qrCodeUrl} 
                 currentNotificationSoundUrl={notificationSoundUrl} 
                 currentStaffCallSoundUrl={staffCallSoundUrl} 

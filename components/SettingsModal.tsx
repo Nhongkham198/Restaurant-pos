@@ -8,8 +8,9 @@ import { MenuItemImage } from './MenuItemImage';
 interface SettingsModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onSave: (newLogoUrl: string, newQrCodeUrl: string, newSoundUrl: string, newStaffCallSoundUrl: string, newPrinterConfig: PrinterConfig, newOpeningTime: string, newClosingTime: string) => void;
-    currentLogoUrl: string | null; // Added prop
+    onSave: (newLogoUrl: string, newAppLogoUrl: string, newQrCodeUrl: string, newSoundUrl: string, newStaffCallSoundUrl: string, newPrinterConfig: PrinterConfig, newOpeningTime: string, newClosingTime: string) => void;
+    currentLogoUrl: string | null; 
+    currentAppLogoUrl: string | null; // Added new prop
     currentQrCodeUrl: string | null;
     currentNotificationSoundUrl: string | null;
     currentStaffCallSoundUrl: string | null;
@@ -112,7 +113,7 @@ const StatusIndicator: React.FC<{ status: ConnectionStatus, label: string }> = (
 };
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ 
-    isOpen, onClose, onSave, currentLogoUrl, currentQrCodeUrl, currentNotificationSoundUrl, currentStaffCallSoundUrl,
+    isOpen, onClose, onSave, currentLogoUrl, currentAppLogoUrl, currentQrCodeUrl, currentNotificationSoundUrl, currentStaffCallSoundUrl,
     currentPrinterConfig, currentOpeningTime, currentClosingTime, onSavePrinterConfig,
     menuItems, currentRecommendedMenuItemIds, onSaveRecommendedItems,
 }) => {
@@ -120,6 +121,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     const [activeTab, setActiveTab] = useState<'general' | 'sound' | 'staffCallSound' | 'qrcode' | 'kitchen' | 'cashier' | 'recommended'>('general');
     const [settingsForm, setSettingsForm] = useState({
         logoUrl: '',
+        appLogoUrl: '',
         qrCodeUrl: '',
         soundDataUrl: '',
         soundFileName: 'ไม่ได้เลือกไฟล์',
@@ -138,6 +140,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     const [recommendSearchTerm, setRecommendSearchTerm] = useState('');
 
     const logoFileInputRef = useRef<HTMLInputElement>(null);
+    const appLogoFileInputRef = useRef<HTMLInputElement>(null);
     const soundFileInputRef = useRef<HTMLInputElement>(null);
     const staffCallSoundFileInputRef = useRef<HTMLInputElement>(null);
     const qrCodeFileInputRef = useRef<HTMLInputElement>(null);
@@ -161,6 +164,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
             setSettingsForm({
                 logoUrl: currentLogoUrl || '',
+                appLogoUrl: currentAppLogoUrl || '',
                 qrCodeUrl: currentQrCodeUrl || '',
                 soundDataUrl: currentNotificationSoundUrl || '',
                 soundFileName: currentNotificationSoundUrl ? 'ไฟล์ปัจจุบัน' : 'ไม่ได้เลือกไฟล์',
@@ -174,7 +178,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 }
             });
         }
-    }, [isOpen, currentLogoUrl, currentQrCodeUrl, currentNotificationSoundUrl, currentStaffCallSoundUrl, currentPrinterConfig, currentOpeningTime, currentClosingTime, currentRecommendedMenuItemIds]);
+    }, [isOpen, currentLogoUrl, currentAppLogoUrl, currentQrCodeUrl, currentNotificationSoundUrl, currentStaffCallSoundUrl, currentPrinterConfig, currentOpeningTime, currentClosingTime, currentRecommendedMenuItemIds]);
 
     const handlePrinterChange = (type: 'kitchen' | 'cashier', field: string, value: any) => {
         setSettingsForm(prev => ({
@@ -246,7 +250,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         }
     };
 
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, type: 'logo' | 'sound' | 'staffCallSound' | 'qrcode') => {
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, type: 'logo' | 'appLogo' | 'sound' | 'staffCallSound' | 'qrcode') => {
         const file = e.target.files?.[0];
         if (file) {
             const reader = new FileReader();
@@ -254,6 +258,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 const dataUrl = event.target?.result as string;
                 if (type === 'logo') {
                     setSettingsForm(prev => ({ ...prev, logoUrl: dataUrl }));
+                } else if (type === 'appLogo') {
+                    setSettingsForm(prev => ({ ...prev, appLogoUrl: dataUrl }));
                 } else if (type === 'sound') {
                     setSettingsForm(prev => ({ ...prev, soundDataUrl: dataUrl, soundFileName: file.name }));
                 } else if (type === 'staffCallSound') {
@@ -298,6 +304,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         onSaveRecommendedItems(Array.from(localRecommendedIds));
         onSave(
             settingsForm.logoUrl,
+            settingsForm.appLogoUrl,
             settingsForm.qrCodeUrl,
             settingsForm.soundDataUrl,
             settingsForm.staffCallSoundDataUrl,
@@ -586,7 +593,43 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                         <input type="time" value={settingsForm.closingTime} onChange={(e) => setSettingsForm(prev => ({ ...prev, closingTime: e.target.value }))} className="w-full border border-gray-300 p-2 rounded-lg text-gray-900" />
                                     </div>
                                     
-                                    {/* Logo Upload Section */}
+                                    {/* App Logo Upload Section (New) */}
+                                    <div className="pt-4 border-t border-gray-200">
+                                        <h5 className="text-md font-semibold text-gray-700 mb-2">โลโก้ร้านค้า (สำหรับแสดงในแอป)</h5>
+                                        <div className="flex flex-col md:flex-row gap-6 items-start bg-blue-50 p-4 rounded-lg border border-blue-200">
+                                            {/* Preview */}
+                                            <div className="flex-shrink-0 flex items-center justify-center bg-white w-32 h-32 border border-gray-300 rounded-lg shadow-sm">
+                                                {settingsForm.appLogoUrl ? (
+                                                    <img src={settingsForm.appLogoUrl} alt="App Logo" className="max-w-full max-h-full object-contain" />
+                                                ) : (
+                                                    <span className="text-gray-400 text-xs">ไม่มีโลโก้แอป</span>
+                                                )}
+                                            </div>
+                                            
+                                            <div className="flex-1 space-y-3">
+                                                <input 
+                                                    type="file" 
+                                                    accept="image/*" 
+                                                    ref={appLogoFileInputRef}
+                                                    onChange={(e) => handleFileChange(e, 'appLogo')}
+                                                    className="hidden"
+                                                />
+                                                <button 
+                                                    type="button" 
+                                                    onClick={() => appLogoFileInputRef.current?.click()}
+                                                    className="px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-md hover:bg-blue-700 shadow-sm"
+                                                >
+                                                    อัปโหลดโลโก้แอป
+                                                </button>
+                                                
+                                                <div className="text-xs text-gray-600">
+                                                    <p>โลโก้นี้จะแสดงที่มุมซ้ายบนของหน้าจอโปรแกรม</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Receipt Logo Upload Section */}
                                     <div className="pt-4 border-t border-gray-200">
                                         <h5 className="text-md font-semibold text-gray-700 mb-2">โลโก้ร้านค้า (สำหรับใบเสร็จ)</h5>
                                         <div className="flex flex-col md:flex-row gap-6 items-start bg-gray-50 p-4 rounded-lg border border-gray-200">
@@ -610,13 +653,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                                 <button 
                                                     type="button" 
                                                     onClick={() => logoFileInputRef.current?.click()}
-                                                    className="px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-md hover:bg-blue-700 shadow-sm"
+                                                    className="px-4 py-2 bg-gray-600 text-white text-sm font-semibold rounded-md hover:bg-gray-700 shadow-sm"
                                                 >
-                                                    อัปโหลดโลโก้ใหม่
+                                                    อัปโหลดโลโก้ใบเสร็จ
                                                 </button>
                                                 
-                                                <div className="text-xs text-gray-600 bg-blue-50 p-3 rounded border border-blue-100">
-                                                    <p className="font-bold text-blue-800 mb-1">คำแนะนำรูปภาพ:</p>
+                                                <div className="text-xs text-gray-600 bg-gray-100 p-3 rounded border border-gray-200">
+                                                    <p className="font-bold text-gray-800 mb-1">คำแนะนำรูปภาพใบเสร็จ:</p>
                                                     <ul className="list-disc list-inside space-y-1">
                                                         <li>ประเภท: <strong>.PNG (พื้นหลังโปร่งใส)</strong> หรือ .JPG</li>
                                                         <li>สี: <strong>ขาว-ดำ (Monochrome)</strong> หรือสีเข้มจัด เพื่อความคมชัดสูงสุด</li>
