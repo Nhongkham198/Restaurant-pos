@@ -85,8 +85,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
     const [isDelivery, setIsDelivery] = useState(false);
     const [selectedProvider, setSelectedProvider] = useState<DeliveryProvider | null>(null);
     
-    // New state for Numpad
+    // New state for Numpad & Delivery Selection
     const [isNumpadOpen, setIsNumpadOpen] = useState(false);
+    const [isDeliverySelectionOpen, setIsDeliverySelectionOpen] = useState(false);
     const [deliveryOrderNumber, setDeliveryOrderNumber] = useState('');
 
     const activeProviders = useMemo(() => {
@@ -378,7 +379,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     </div>
                 </div>
 
-                {/* Delivery Provider Buttons (Dynamic) */}
+                {/* Delivery Provider Buttons (Dynamic) - NOW HIDDEN ON MOBILE */}
                 {!isMobilePage && activeProviders.length > 0 && (
                     <div className="bg-gray-800 p-2 rounded-lg border border-gray-700">
                         <div className="grid grid-cols-2 gap-2">
@@ -391,7 +392,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                                         className={`flex items-center gap-2 p-2 rounded-lg border transition-all ${
                                             isSelected 
                                                 ? 'bg-gray-700 border-green-500 shadow-sm' 
-                                                : 'bg-transparent border-gray-600 hover:bg-gray-700 hover:border-gray-500'
+                                                : 'bg-transparent border-gray-600 hover:bg-gray-700 hover:border-gray-50'
                                         }`}
                                     >
                                         <div className={`w-5 h-5 rounded-md flex items-center justify-center overflow-hidden flex-shrink-0 bg-white ${isSelected ? 'ring-2 ring-green-500' : ''}`}>
@@ -402,7 +403,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                                             )}
                                         </div>
                                         <span className={`text-sm font-semibold truncate ${isSelected ? 'text-green-400' : 'text-gray-300'}`}>
-                                            {provider.name} {isSelected && deliveryOrderNumber ? `#${deliveryOrderNumber}` : '(เดลิเวอรี่)'}
+                                            {provider.name} {isSelected && deliveryOrderNumber ? `#${deliveryOrderNumber}` : ''}
                                         </span>
                                     </button>
                                 );
@@ -480,17 +481,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     {isMobilePage ? (
                         <button
                             onClick={() => {
-                                // For mobile, assume LineMan as default or implement a picker
-                                // Keeping simple for now as requested by user context (Sidebar on desktop was main focus)
                                 if (!isDelivery) {
-                                    setIsNumpadOpen(true);
-                                    // Default to first enabled provider for mobile logic simplicity if needed
-                                    const defaultProvider = activeProviders.length > 0 ? activeProviders[0] : null;
-                                    setSelectedProvider(defaultProvider);
+                                    if (activeProviders.length > 1) {
+                                        setIsDeliverySelectionOpen(true);
+                                    } else if (activeProviders.length === 1) {
+                                        setSelectedProvider(activeProviders[0]);
+                                        setIsNumpadOpen(true);
+                                    } else {
+                                        Swal.fire({
+                                            title: 'ไม่พบผู้ให้บริการ',
+                                            text: 'กรุณาเปิดใช้งาน Delivery Provider ในหน้าตั้งค่า',
+                                            icon: 'warning',
+                                            confirmButtonText: 'ตกลง'
+                                        });
+                                    }
                                 } else {
                                     setIsDelivery(false);
                                     setDeliveryOrderNumber('');
                                     onCustomerNameChange('');
+                                    setSelectedProvider(null);
                                 }
                             }}
                             className={`col-span-1 flex flex-col items-center justify-center p-2 rounded-xl font-bold transition-all border leading-none gap-1 active:scale-95 ${
@@ -568,6 +577,40 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     onCustomerNameChange(`${selectedProvider?.name || 'Delivery'} #${numStr}`); // Auto-fill customer name with provider
                 }}
             />
+
+            {/* Delivery Provider Selection Modal (Mobile) */}
+            {isDeliverySelectionOpen && (
+                <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[60] p-4" onClick={() => setIsDeliverySelectionOpen(false)}>
+                    <div className="bg-white rounded-lg shadow-xl w-full max-w-sm overflow-hidden" onClick={e => e.stopPropagation()}>
+                        <div className="p-4 border-b bg-gray-50 flex justify-between items-center">
+                            <h3 className="font-bold text-gray-800">เลือกบริการ Delivery</h3>
+                            <button onClick={() => setIsDeliverySelectionOpen(false)} className="text-gray-500 hover:text-gray-700">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                            </button>
+                        </div>
+                        <div className="p-4 grid grid-cols-2 gap-3 max-h-[60vh] overflow-y-auto">
+                            {activeProviders.map(provider => (
+                                <button
+                                    key={provider.id}
+                                    onClick={() => {
+                                        setIsDeliverySelectionOpen(false);
+                                        setSelectedProvider(provider);
+                                        setIsNumpadOpen(true);
+                                    }}
+                                    className="flex flex-col items-center justify-center p-4 border rounded-xl hover:bg-blue-50 hover:border-blue-300 transition-all gap-2"
+                                >
+                                    {provider.iconUrl ? (
+                                        <img src={provider.iconUrl} alt={provider.name} className="w-12 h-12 object-cover rounded-md" onError={(e) => e.currentTarget.style.display = 'none'} />
+                                    ) : (
+                                        <div className="w-12 h-12 rounded-md bg-gray-200 flex items-center justify-center text-gray-500 font-bold text-xl">{provider.name.charAt(0)}</div>
+                                    )}
+                                    <span className="font-semibold text-gray-800 text-sm text-center">{provider.name}</span>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

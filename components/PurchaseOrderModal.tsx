@@ -26,6 +26,9 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, 
     const [addedItemIds, setAddedItemIds] = useState<number[]>([]);
     const [isAdding, setIsAdding] = useState(false);
     
+    // NEW: Filter State (Show only ordered items)
+    const [showOnlyOrdered, setShowOnlyOrdered] = useState(false);
+    
     // Search states
     const [searchTerm, setSearchTerm] = useState('');
     const [showDropdown, setShowDropdown] = useState(false);
@@ -56,6 +59,7 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, 
             setIsAdding(false);
             setSearchTerm('');
             setShowDropdown(false);
+            setShowOnlyOrdered(false); // Reset filter on open
         }
     }, [isOpen]);
 
@@ -77,14 +81,12 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, 
     }, []);
 
     // Filter items that are low in stock OR manually added
-    // UPDATE: Logic updated to include items within 30% range of reorder point
     const itemsToOrder = useMemo(() => {
         const autoLowStock = stockItems.filter(item => {
             const qty = Number(item.quantity) || 0;
             const reorder = Number(item.reorderPoint) || 0;
             
             // Logic: If quantity is less than or equal to ReorderPoint + 30% Buffer
-            // Example: Reorder = 10. Alert if Qty <= 13.
             const threshold = reorder + (reorder * 0.30);
             
             return qty <= threshold;
@@ -102,6 +104,15 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, 
 
         return combined.sort((a, b) => a.category.localeCompare(b.category));
     }, [stockItems, addedItemIds]);
+
+    // Apply "Show Only Ordered" Filter
+    const visibleItems = useMemo(() => {
+        if (!showOnlyOrdered) return itemsToOrder;
+        return itemsToOrder.filter(item => {
+            const qty = quantities[item.id];
+            return qty && parseFloat(qty) > 0;
+        });
+    }, [itemsToOrder, quantities, showOnlyOrdered]);
 
     // Items available to add (not currently in the order list)
     const availableToAdd = useMemo(() => {
@@ -139,7 +150,6 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, 
         setAddedItemIds(prev => [...prev, item.id]);
         setSearchTerm('');
         setShowDropdown(false);
-        // setIsAdding(false); // Keep adding mode open for multiple adds if desired, or close it.
         
         Swal.fire({
             icon: 'success',
@@ -185,6 +195,69 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, 
 
     const handlePrint = () => {
         window.print();
+    };
+
+    const handleGenerateSummary = () => {
+        // Filter items that have a quantity entered (and quantity > 0)
+        const itemsToSummary = itemsToOrder.filter(item => {
+            const qtyStr = quantities[item.id];
+            return qtyStr && parseFloat(qtyStr) > 0;
+        });
+
+        if (itemsToSummary.length === 0) {
+            Swal.fire('ไม่มีรายการ', 'กรุณาระบุ "จำนวนที่สั่งสินค้า" อย่างน้อย 1 รายการ', 'warning');
+            return;
+        }
+
+        // Generate Text
+        const now = new Date();
+        // UPDATED: Added year: 'numeric' to include B.E. year (e.g., 2568)
+        const dateStr = now.toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' });
+        
+        let text = `รายการสั่งซื้อสินค้า\nวันที่: ${dateStr}\n-------------------------\n`;
+        
+        itemsToSummary.forEach((item, index) => {
+            const qty = quantities[item.id];
+            const note = notes[item.id] ? ` (${notes[item.id]})` : '';
+            text += `${index + 1}. ${item.name} : ${qty} ${item.unit}${note}\n`;
+        });
+        
+        text += `-------------------------\nรวมทั้งหมด ${itemsToSummary.length} รายการ`;
+
+        // Show Modal with Textarea for copying
+        Swal.fire({
+            title: 'สรุปรายการ (สำหรับส่งไลน์)',
+            html: `
+                <div class="text-left">
+                    <p class="text-sm text-gray-500 mb-2">กดปุ่ม "คัดลอก" เพื่อนำไปวางใน LINE</p>
+                    <textarea id="line-summary-text" class="w-full h-64 p-3 border rounded-lg bg-gray-50 text-gray-800 font-mono text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" readonly>${text}</textarea>
+                </div>
+            `,
+            showCancelButton: true,
+            confirmButtonText: 'คัดลอกข้อความ',
+            cancelButtonText: 'ปิด',
+            confirmButtonColor: '#00C300', // LINE Green color
+            cancelButtonColor: '#6b7280',
+            didOpen: () => {
+                // Auto-select text for convenience
+                const textarea = document.getElementById('line-summary-text') as HTMLTextAreaElement;
+                if (textarea) textarea.select();
+            }
+        }).then((result) => {
+            if (result.isConfirmed) {
+                const textarea = document.getElementById('line-summary-text') as HTMLTextAreaElement;
+                if (textarea) {
+                    navigator.clipboard.writeText(textarea.value);
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'คัดลอกแล้ว!',
+                        text: 'นำไปวางใน LINE ได้เลย',
+                        timer: 1500,
+                        showConfirmButton: false
+                    });
+                }
+            }
+        });
     };
 
     const handleSaveAsImage = async () => {
@@ -451,7 +524,7 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, 
 
                 {/* Content Area - ID added for capture */}
                 <div id="purchase-order-capture-area" className="flex-1 overflow-y-auto p-8 bg-white">
-                    {itemsToOrder.length > 0 ? (
+                    {visibleItems.length > 0 ? (
                         <table className="w-full border-collapse border border-gray-300 text-sm">
                             <thead className="bg-gray-100 text-gray-700">
                                 <tr>
@@ -461,13 +534,13 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, 
                                     <th className="border border-gray-300 p-2 w-24 text-right">คงเหลือ</th>
                                     <th className="border border-gray-300 p-2 w-24 text-right">จุดสั่งซื้อ</th>
                                     <th className="border border-gray-300 p-2 w-24 text-center">หน่วย</th>
-                                    <th className="border border-gray-300 p-2 w-32 text-center">จำนวนที่สั่ง</th>
+                                    <th className="border border-gray-300 p-2 w-32 text-center">จำนวนที่สั่งสินค้า</th>
                                     <th className="border border-gray-300 p-2 w-48 text-center">หมายเหตุ</th>
                                     <th className="border border-gray-300 p-1 w-8 text-center no-print"></th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {itemsToOrder.map((item, index) => {
+                                {visibleItems.map((item, index) => {
                                     const isManual = addedItemIds.includes(item.id);
                                     return (
                                         <tr key={item.id} className={isManual ? 'bg-blue-50/30' : ''}>
@@ -515,7 +588,9 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, 
                         </table>
                     ) : (
                         <div className="text-center py-10 border-2 border-dashed border-gray-200 rounded-lg">
-                            <p className="text-gray-500 text-lg">ไม่มีสินค้าที่ต้องสั่งซื้อในขณะนี้</p>
+                            <p className="text-gray-500 text-lg">
+                                {showOnlyOrdered ? 'ไม่มีรายการที่มียอดสั่งซื้อ' : 'ไม่มีสินค้าที่ต้องสั่งซื้อในขณะนี้'}
+                            </p>
                         </div>
                     )}
                     
@@ -630,7 +705,38 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, 
                         )}
                     </div>
 
+                    {/* Filter Toggle - Added as requested */}
+                    <button
+                        onClick={() => setShowOnlyOrdered(!showOnlyOrdered)}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-lg border font-medium text-sm transition-colors shadow-sm ${
+                            showOnlyOrdered 
+                            ? 'bg-blue-100 text-blue-700 border-blue-300' 
+                            : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                        }`}
+                    >
+                        <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
+                            showOnlyOrdered ? 'bg-blue-600 border-blue-600' : 'bg-white border-gray-400'
+                        }`}>
+                            {showOnlyOrdered && (
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-white" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                </svg>
+                            )}
+                        </div>
+                        แสดงเฉพาะยอดสั่ง
+                    </button>
+
                     <div className="flex gap-3 w-full md:w-auto justify-end">
+                        <button 
+                            onClick={handleGenerateSummary}
+                            className="px-6 py-2 bg-green-500 text-white font-semibold rounded-lg hover:bg-green-600 transition-colors shadow flex items-center gap-2"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                            </svg>
+                            สรุปรายการ (Copy)
+                        </button>
+
                         <button 
                             onClick={handleSaveDraft}
                             className="px-6 py-2 bg-yellow-500 text-white font-semibold rounded-lg hover:bg-yellow-600 transition-colors shadow flex items-center gap-2"
