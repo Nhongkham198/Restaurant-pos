@@ -13,6 +13,14 @@ export interface LeaveQuotas {
     vacation: number;
 }
 
+export interface DeliveryProvider {
+    id: string;
+    name: string;
+    iconUrl: string; // URL for the logo
+    isEnabled: boolean;
+    isDefault?: boolean; // System defaults like LineMan
+}
+
 export interface User {
     id: number;
     username: string;

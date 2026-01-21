@@ -1,6 +1,6 @@
 
 import React, { useMemo, useState } from 'react';
-import type { OrderItem, Table, TakeawayCutleryOption, Reservation, User, View } from '../types';
+import type { OrderItem, Table, TakeawayCutleryOption, Reservation, User, View, DeliveryProvider } from '../types';
 import { OrderListItem } from './OrderListItem';
 import { NumpadModal } from './NumpadModal'; // Import NumpadModal
 import Swal from 'sweetalert2';
@@ -40,6 +40,7 @@ interface SidebarProps {
     onToggleAvailability: (id: number) => void;
     isOrderNotificationsEnabled: boolean;
     onToggleOrderNotifications: () => void;
+    deliveryProviders: DeliveryProvider[];
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -77,18 +78,27 @@ export const Sidebar: React.FC<SidebarProps> = ({
     onToggleAvailability,
     isOrderNotificationsEnabled,
     onToggleOrderNotifications,
+    deliveryProviders
 }) => {
-    const [isLineMan, setIsLineMan] = useState(false);
-    // New state for LineMan Numpad
-    const [isLineManNumpadOpen, setIsLineManNumpadOpen] = useState(false);
-    const [lineManNumber, setLineManNumber] = useState('');
+    // We treat "isLineMan" as "isDelivery" in the backend logic, so we keep the name for compatibility
+    // but locally we track which provider is selected.
+    const [isDelivery, setIsDelivery] = useState(false);
+    const [selectedProvider, setSelectedProvider] = useState<DeliveryProvider | null>(null);
+    
+    // New state for Numpad
+    const [isNumpadOpen, setIsNumpadOpen] = useState(false);
+    const [deliveryOrderNumber, setDeliveryOrderNumber] = useState('');
+
+    const activeProviders = useMemo(() => {
+        return deliveryProviders.filter(p => p.isEnabled);
+    }, [deliveryProviders]);
 
     const total = useMemo(() => {
         return currentOrderItems.reduce((sum, item) => sum + item.finalPrice * item.quantity, 0);
     }, [currentOrderItems]);
 
-    // If LineMan is checked, we allow placing order without a selected table
-    const canPlaceOrder = currentOrderItems.length > 0 && (selectedTable !== null || isLineMan);
+    // If Delivery is active, we allow placing order without a selected table
+    const canPlaceOrder = currentOrderItems.length > 0 && (selectedTable !== null || isDelivery);
     
     const availableTables = useMemo(() => {
         return tables.filter(t => t.floor === selectedFloor).sort((a, b) => {
@@ -117,23 +127,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
     };
 
     const handleConfirmPlaceOrder = () => {
-        if (!isLineMan && selectedTable === null) {
-            Swal.fire('กรุณาเลือกโต๊ะ', 'ต้องเลือกโต๊ะสำหรับออเดอร์ หรือเลือก LineMan', 'warning');
+        if (!isDelivery && selectedTable === null) {
+            Swal.fire('กรุณาเลือกโต๊ะ', 'ต้องเลือกโต๊ะสำหรับออเดอร์ หรือเลือก Delivery', 'warning');
             return;
         }
         if (!canPlaceOrder) return;
 
-        // If LineMan, we pass a dummy table object or let App.tsx handle it.
-        // We pass the isLineMan flag and the manual lineManNumber
-        onPlaceOrder(currentOrderItems, customerName, customerCount, selectedTable, isLineMan, isLineMan ? lineManNumber : undefined);
+        // If Delivery, we pass isLineMan=true (mapping general delivery to existing backend logic)
+        // and the manual order number.
+        onPlaceOrder(currentOrderItems, customerName, customerCount, selectedTable, isDelivery, isDelivery ? deliveryOrderNumber : undefined);
         
-        // Reset local state after order is placed (though parent usually handles clearing order items)
-        if (isLineMan) {
-            setIsLineMan(false);
-            setLineManNumber('');
-            if (customerName.startsWith('LineMan #')) {
-                onCustomerNameChange('');
-            }
+        // Reset local state after order is placed
+        if (isDelivery) {
+            setIsDelivery(false);
+            setDeliveryOrderNumber('');
+            setSelectedProvider(null);
+            onCustomerNameChange('');
         }
     };
     
@@ -257,6 +266,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
         }
     };
 
+    const handleProviderClick = (provider: DeliveryProvider) => {
+        if (selectedProvider?.id === provider.id) {
+            // Deselect
+            setIsDelivery(false);
+            setSelectedProvider(null);
+            setDeliveryOrderNumber('');
+            onCustomerNameChange('');
+        } else {
+            // Select and Open Numpad
+            setSelectedProvider(provider);
+            setIsNumpadOpen(true);
+        }
+    };
+
     return (
         <div className="bg-gray-900 text-white w-full h-full flex flex-col shadow-2xl overflow-hidden border-l border-gray-800 transition-all duration-200">
             {isMobilePage && currentUser && (
@@ -307,8 +330,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     />
                 </div>
 
-                {/* Floor Selection (Disable if LineMan) */}
-                <div className={isLineMan ? "opacity-50 pointer-events-none" : ""}>
+                {/* Floor Selection (Disable if Delivery) */}
+                <div className={isDelivery ? "opacity-50 pointer-events-none" : ""}>
                     <label className="text-xs font-medium text-gray-400">เลือกชั้น:</label>
                     <div className="mt-1 grid grid-cols-2 gap-2">
                         {floors.map(floor => (
@@ -325,7 +348,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
                 {/* Table and Customer Count */}
                 <div className="grid grid-cols-2 gap-4">
-                    <div className={isLineMan ? "opacity-50 pointer-events-none" : ""}>
+                    <div className={isDelivery ? "opacity-50 pointer-events-none" : ""}>
                         <label htmlFor="table-select" className="block text-xs font-medium text-gray-400 mb-1">เลือกโต๊ะ:</label>
                         <select
                             id="table-select"
@@ -355,38 +378,41 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     </div>
                 </div>
 
-                {/* LineMan Checkbox - Hide on mobile (use footer button instead) */}
-                {!isMobilePage && (
+                {/* Delivery Provider Buttons (Dynamic) */}
+                {!isMobilePage && activeProviders.length > 0 && (
                     <div className="bg-gray-800 p-2 rounded-lg border border-gray-700">
-                        <label className="flex items-center gap-3 cursor-pointer">
-                            <div className="relative flex items-center">
-                                <input
-                                    type="checkbox"
-                                    checked={isLineMan}
-                                    onChange={(e) => {
-                                        if (e.target.checked) {
-                                            setIsLineManNumpadOpen(true);
-                                        } else {
-                                            setIsLineMan(false);
-                                            setLineManNumber('');
-                                            onCustomerNameChange('');
-                                        }
-                                    }}
-                                    className="peer h-6 w-6 cursor-pointer appearance-none rounded border border-gray-500 bg-gray-700 checked:bg-green-500 checked:border-green-500 transition-all"
-                                />
-                                <svg className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-4 h-4 text-white opacity-0 peer-checked:opacity-100 pointer-events-none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
-                                    <polyline points="20 6 9 17 4 12"></polyline>
-                                </svg>
-                            </div>
-                            <span className={`font-bold text-lg ${isLineMan ? 'text-green-400' : 'text-gray-300'}`}>
-                                LineMan {lineManNumber ? `#${lineManNumber}` : '(เดลิเวอรี่)'}
-                            </span>
-                        </label>
+                        <div className="grid grid-cols-2 gap-2">
+                            {activeProviders.map(provider => {
+                                const isSelected = selectedProvider?.id === provider.id;
+                                return (
+                                    <button
+                                        key={provider.id}
+                                        onClick={() => handleProviderClick(provider)}
+                                        className={`flex items-center gap-2 p-2 rounded-lg border transition-all ${
+                                            isSelected 
+                                                ? 'bg-gray-700 border-green-500 shadow-sm' 
+                                                : 'bg-transparent border-gray-600 hover:bg-gray-700 hover:border-gray-500'
+                                        }`}
+                                    >
+                                        <div className={`w-5 h-5 rounded-md flex items-center justify-center overflow-hidden flex-shrink-0 bg-white ${isSelected ? 'ring-2 ring-green-500' : ''}`}>
+                                            {provider.iconUrl ? (
+                                                <img src={provider.iconUrl} alt={provider.name} className="w-full h-full object-cover" onError={(e) => e.currentTarget.style.display = 'none'} />
+                                            ) : (
+                                                <span className="text-xs text-gray-800 font-bold">{provider.name.charAt(0)}</span>
+                                            )}
+                                        </div>
+                                        <span className={`text-sm font-semibold truncate ${isSelected ? 'text-green-400' : 'text-gray-300'}`}>
+                                            {provider.name} {isSelected && deliveryOrderNumber ? `#${deliveryOrderNumber}` : '(เดลิเวอรี่)'}
+                                        </span>
+                                    </button>
+                                );
+                            })}
+                        </div>
                     </div>
                 )}
 
                 {/* Reservation button */}
-                {selectedTable && !isMobilePage && !isLineMan && (
+                {selectedTable && !isMobilePage && !isDelivery && (
                     <div>
                         <button
                             onClick={handleReservationClick}
@@ -450,25 +476,31 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 </div>
 
                 <div className="grid grid-cols-3 gap-3">
+                    {/* Mobile Delivery Button (Simplified) */}
                     {isMobilePage ? (
                         <button
                             onClick={() => {
-                                if (!isLineMan) {
-                                    setIsLineManNumpadOpen(true);
+                                // For mobile, assume LineMan as default or implement a picker
+                                // Keeping simple for now as requested by user context (Sidebar on desktop was main focus)
+                                if (!isDelivery) {
+                                    setIsNumpadOpen(true);
+                                    // Default to first enabled provider for mobile logic simplicity if needed
+                                    const defaultProvider = activeProviders.length > 0 ? activeProviders[0] : null;
+                                    setSelectedProvider(defaultProvider);
                                 } else {
-                                    setIsLineMan(false);
-                                    setLineManNumber('');
+                                    setIsDelivery(false);
+                                    setDeliveryOrderNumber('');
                                     onCustomerNameChange('');
                                 }
                             }}
                             className={`col-span-1 flex flex-col items-center justify-center p-2 rounded-xl font-bold transition-all border leading-none gap-1 active:scale-95 ${
-                                isLineMan 
+                                isDelivery 
                                     ? 'bg-green-600 text-white border-green-500 shadow-lg shadow-green-900/50' 
                                     : 'bg-gray-800 text-gray-400 border-gray-700 hover:bg-gray-700 hover:text-white'
                             }`}
                         >
-                            <span>LineMan</span>
-                            <div className={`w-1.5 h-1.5 rounded-full ${isLineMan ? 'bg-white' : 'bg-gray-600'}`}></div>
+                            <span>Delivery</span>
+                            <div className={`w-1.5 h-1.5 rounded-full ${isDelivery ? 'bg-white' : 'bg-gray-600'}`}></div>
                         </button>
                     ) : (
                         <button
@@ -483,7 +515,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         onClick={handleConfirmPlaceOrder}
                         disabled={isPlacingOrder}
                         className={`col-span-2 flex-grow p-3 rounded-xl text-white font-bold shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-all transform active:scale-95 ${
-                            isLineMan 
+                            isDelivery 
                                 ? 'bg-green-600 hover:bg-green-700 shadow-green-900/30' 
                                 : 'bg-blue-600 hover:bg-blue-700 shadow-blue-900/30'
                         }`}
@@ -496,7 +528,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         ) : !canPlaceOrder ? (
                             'กรุณาเลือกโต๊ะ'
                         ) : (
-                            isLineMan ? `ยืนยัน (LineMan #${lineManNumber})` : 'ยืนยันออเดอร์'
+                            isDelivery ? `ยืนยัน (${selectedProvider?.name || 'Delivery'} #${deliveryOrderNumber})` : 'ยืนยันออเดอร์'
                         )}
                     </button>
                 </div>
@@ -517,17 +549,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
 
             <NumpadModal
-                isOpen={isLineManNumpadOpen}
-                onClose={() => setIsLineManNumpadOpen(false)}
-                title="ระบุหมายเลข LineMan"
-                initialValue="" // Start with empty to allow typing '0' as first char without it being treated as numeric replacement
-                allowLeadingZeros={true} // Enable leading zeros mode
+                isOpen={isNumpadOpen}
+                onClose={() => {
+                    setIsNumpadOpen(false);
+                    // If closed without submitting and no delivery set yet, clear selection
+                    if (!isDelivery) {
+                        setSelectedProvider(null);
+                    }
+                }}
+                title={`ระบุหมายเลข ${selectedProvider?.name || 'Order'}`}
+                initialValue="" 
+                allowLeadingZeros={true} 
                 onSubmit={(value) => {
                     const numStr = value || '0';
-                    setLineManNumber(numStr);
-                    setIsLineMan(true);
-                    onSelectTable(null); // Clear table selection when entering LineMan mode
-                    onCustomerNameChange(`LineMan #${numStr}`); // Auto-fill customer name
+                    setDeliveryOrderNumber(numStr);
+                    setIsDelivery(true);
+                    onSelectTable(null); // Clear table selection
+                    onCustomerNameChange(`${selectedProvider?.name || 'Delivery'} #${numStr}`); // Auto-fill customer name with provider
                 }}
             />
         </div>

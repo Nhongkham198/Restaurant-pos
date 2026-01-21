@@ -1,5 +1,5 @@
 
-import type { MenuItem, Table, Branch, User, StockItem, MaintenanceItem } from './types';
+import type { MenuItem, Table, Branch, User, StockItem, MaintenanceItem, DeliveryProvider } from './types';
 
 export const DEFAULT_BRANCHES: Branch[] = [
     { id: 1, name: 'สาขากาฬสินธุ์', location: 'กาฬสินธุ์' },
@@ -13,6 +13,37 @@ export const DEFAULT_USERS: User[] = [
     { id: 4, username: 'manager', password: 'password', role: 'branch-admin', allowedBranchIds: [1] },
     { id: 5, username: 'Sam', password: '198', role: 'admin' },
     { id: 6, username: 'auditor', password: 'password', role: 'auditor', allowedBranchIds: [1] },
+];
+
+export const DEFAULT_DELIVERY_PROVIDERS: DeliveryProvider[] = [
+    { 
+        id: 'lineman', 
+        name: 'LineMan', 
+        iconUrl: 'https://play-lh.googleusercontent.com/9t-Q8WmwJ8zXjHhEAgqM5f5zZk3G7y7yX9y3y3y3y3y3y3y3y3y3y3y3y3y3y3', // Placeholder, user will provide real ones usually
+        isEnabled: true,
+        isDefault: true 
+    },
+    { 
+        id: 'shopeefood', 
+        name: 'ShopeeFood', 
+        iconUrl: 'https://play-lh.googleusercontent.com/1-1-1-1-1-1-1-1-1-1-1-1-1-1-1-1-1-1-1-1-1-1-1-1', // Placeholder
+        isEnabled: false,
+        isDefault: true 
+    },
+    { 
+        id: 'grabfood', 
+        name: 'GrabFood', 
+        iconUrl: '', 
+        isEnabled: false,
+        isDefault: true 
+    },
+    { 
+        id: 'robinhood', 
+        name: 'Robinhood', 
+        iconUrl: '', 
+        isEnabled: false,
+        isDefault: true 
+    }
 ];
 
 export const DEFAULT_MENU_ITEMS: MenuItem[] = [

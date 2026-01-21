@@ -12,8 +12,9 @@ import {
     DEFAULT_STOCK_CATEGORIES, 
     DEFAULT_STOCK_UNITS, 
     DEFAULT_STOCK_ITEMS, 
-    DEFAULT_FLOORS,
-    DEFAULT_MAINTENANCE_ITEMS
+    DEFAULT_FLOORS, 
+    DEFAULT_MAINTENANCE_ITEMS,
+    DEFAULT_DELIVERY_PROVIDERS // Import this
 } from './constants';
 import type { 
     MenuItem, 
@@ -37,7 +38,8 @@ import type {
     CancellationReason, 
     OrderCounter,
     MaintenanceItem,
-    MaintenanceLog
+    MaintenanceLog,
+    DeliveryProvider // Import this
 } from './types';
 // FIX: Use relative import instead of alias to ensure module resolution works properly
 import { useFirestoreSync, useFirestoreCollection } from './hooks/useFirestoreSync';
@@ -256,6 +258,7 @@ const App: React.FC = () => {
     const [taxRate, setTaxRate] = useFirestoreSync<number>(branchId, 'taxRate', 7);
     const [sendToKitchen, setSendToKitchen] = useFirestoreSync<boolean>(branchId, 'sendToKitchen', true);
     const [recommendedMenuItemIds, setRecommendedMenuItemIds] = useFirestoreSync<number[]>(branchId, 'recommendedMenuItemIds', []);
+    const [deliveryProviders, setDeliveryProviders] = useFirestoreSync<DeliveryProvider[]>(branchId, 'deliveryProviders', DEFAULT_DELIVERY_PROVIDERS);
 
     // --- MODAL STATES ---
     const [modalState, setModalState] = useState({
@@ -1534,6 +1537,31 @@ const App: React.FC = () => {
     const handleToggleAvailability = (id: number) => {
         setMenuItems(prev => prev.map(i => i.id === id ? { ...i, isAvailable: i.isAvailable === false ? true : false } : i));
     };
+
+    // --- NEW: Handle Update Order from Modal with Auto-Cancel ---
+    const handleUpdateOrderFromModal = async (orderId: number, items: OrderItem[], customerCount: number) => {
+        if (!isOnline) return; 
+
+        if (items.length === 0) {
+            const orderToCancel = activeOrders.find(o => o.id === orderId);
+            if (orderToCancel) {
+                // Keep the items in the cancelled record so history shows what was deleted
+                await handleConfirmCancelOrder(orderToCancel, 'อื่นๆ', 'ยกเลิกอัตโนมัติ (รายการอาหารถูกลบหมด)');
+                Swal.fire({
+                    icon: 'info',
+                    title: 'ยกเลิกบิลอัตโนมัติ',
+                    text: 'บิลถูกยกเลิกเนื่องจากไม่มีรายการอาหารเหลืออยู่',
+                    timer: 2000,
+                    showConfirmButton: false
+                });
+            } else {
+                handleModalClose();
+            }
+        } else {
+            await activeOrdersActions.update(orderId, { items, customerCount });
+            handleModalClose();
+        }
+    };
     
     // ... (Render Logic) ...
     if (isCustomerMode) {
@@ -1692,6 +1720,8 @@ const App: React.FC = () => {
                                         onToggleAvailability={handleToggleAvailability}
                                         isOrderNotificationsEnabled={isOrderNotificationsEnabled}
                                         onToggleOrderNotifications={toggleOrderNotifications}
+                                        // NEW PROPS
+                                        deliveryProviders={deliveryProviders}
                                     />
                                 )}
                             </aside>
@@ -1722,6 +1752,8 @@ const App: React.FC = () => {
                                         onToggleAvailability={handleToggleAvailability}
                                         isOrderNotificationsEnabled={isOrderNotificationsEnabled}
                                         onToggleOrderNotifications={toggleOrderNotifications}
+                                        // NEW PROPS
+                                        deliveryProviders={deliveryProviders}
                                     />
                                 </div>
                             ) : (
@@ -1799,7 +1831,7 @@ const App: React.FC = () => {
                 onInitiatePayment={(order) => { setOrderForModal(order); setModalState(prev => ({...prev, isPayment: true, isTableBill: false})); }} 
                 onInitiateMove={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isMoveTable: true, isTableBill: false})); }} 
                 onSplit={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isSplitBill: true, isTableBill: false})); }} 
-                onUpdateOrder={(id, items, count) => activeOrdersActions.update(id, { items, customerCount: count }).then(handleModalClose)} 
+                onUpdateOrder={(id, items, count) => handleUpdateOrderFromModal(id, items, count)}
                 isEditMode={isEditMode} 
                 currentUser={currentUser} 
                 onInitiateCancel={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isCancelOrder: true, isTableBill: false}))}} 
@@ -1835,6 +1867,9 @@ const App: React.FC = () => {
                 menuItems={menuItems} 
                 currentRecommendedMenuItemIds={recommendedMenuItemIds} 
                 onSaveRecommendedItems={setRecommendedMenuItemIds} 
+                // NEW PROPS
+                deliveryProviders={deliveryProviders}
+                onSaveDeliveryProviders={setDeliveryProviders}
             />
             <EditCompletedOrderModal isOpen={modalState.isEditCompleted} order={orderForModal as CompletedOrder | null} onClose={handleModalClose} onSave={async ({id, items}) => { if(newCompletedOrders.some(o => o.id === id)) { await newCompletedOrdersActions.update(id, { items }); } else { setLegacyCompletedOrders(prev => prev.map(o => o.id === id ? {...o, items} : o)); } }} menuItems={menuItems} />
             <UserManagerModal isOpen={modalState.isUserManager} onClose={handleModalClose} users={users} setUsers={setUsers} currentUser={currentUser!} branches={branches} isEditMode={isEditMode} />

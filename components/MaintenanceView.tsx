@@ -741,7 +741,7 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
 
             {/* Manage Item Modal */}
             {isManageModalOpen && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setIsManageModalOpen(false)}>
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
                     <div className="bg-white w-full max-w-lg rounded-xl shadow-2xl p-6" onClick={e => e.stopPropagation()}>
                         <h2 className="text-xl font-bold mb-4">{editingItem ? 'แก้ไขเครื่องจักร' : 'เพิ่มเครื่องจักรใหม่'}</h2>
                         <div className="space-y-3">
@@ -794,7 +794,7 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
 
             {/* Perform Maintenance Modal */}
             {isPerformModalOpen && performingItem && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setIsPerformModalOpen(false)}>
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
                     <div className="bg-white w-full max-w-lg rounded-xl shadow-2xl p-6 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
                         <h2 className="text-xl font-bold mb-2">บันทึกการบำรุงรักษา</h2>
                         <p className="text-gray-600 mb-4">{performingItem.name}</p>
@@ -862,7 +862,7 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
 
             {/* Edit Log Modal (Admin Only) */}
             {isEditLogModalOpen && editingLog && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setIsEditLogModalOpen(false)}>
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
                     <div className="bg-white w-full max-w-lg rounded-xl shadow-2xl p-6 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
                         <h2 className="text-xl font-bold mb-2">แก้ไขประวัติการบำรุงรักษา</h2>
                         

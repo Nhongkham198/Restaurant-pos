@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import type { PrinterConfig, ReceiptPrintSettings, KitchenPrinterSettings, CashierPrinterSettings, MenuItem } from '../types';
+import type { PrinterConfig, ReceiptPrintSettings, KitchenPrinterSettings, CashierPrinterSettings, MenuItem, DeliveryProvider } from '../types';
 import { printerService } from '../services/printerService';
 import Swal from 'sweetalert2';
 import { MenuItemImage } from './MenuItemImage';
@@ -21,6 +21,9 @@ interface SettingsModalProps {
     menuItems: MenuItem[];
     currentRecommendedMenuItemIds: number[] | null;
     onSaveRecommendedItems: (ids: number[]) => void;
+    // NEW Props
+    deliveryProviders: DeliveryProvider[];
+    onSaveDeliveryProviders: (providers: DeliveryProvider[]) => void;
 }
 
 // Updated Default Settings based on request
@@ -116,9 +119,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     isOpen, onClose, onSave, currentLogoUrl, currentAppLogoUrl, currentQrCodeUrl, currentNotificationSoundUrl, currentStaffCallSoundUrl,
     currentPrinterConfig, currentOpeningTime, currentClosingTime, onSavePrinterConfig,
     menuItems, currentRecommendedMenuItemIds, onSaveRecommendedItems,
+    deliveryProviders, onSaveDeliveryProviders
 }) => {
     
-    const [activeTab, setActiveTab] = useState<'general' | 'sound' | 'staffCallSound' | 'qrcode' | 'kitchen' | 'cashier' | 'recommended'>('general');
+    const [activeTab, setActiveTab] = useState<'general' | 'sound' | 'staffCallSound' | 'qrcode' | 'kitchen' | 'cashier' | 'recommended' | 'delivery'>('general');
     const [settingsForm, setSettingsForm] = useState({
         logoUrl: '',
         appLogoUrl: '',
@@ -138,6 +142,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     const [printerStatus, setPrinterStatus] = useState<{kitchen: ConnectionStatus, cashier: ConnectionStatus}>({ kitchen: 'idle', cashier: 'idle' });
     const [localRecommendedIds, setLocalRecommendedIds] = useState(new Set<number>());
     const [recommendSearchTerm, setRecommendSearchTerm] = useState('');
+    
+    // Delivery State
+    const [localDeliveryProviders, setLocalDeliveryProviders] = useState<DeliveryProvider[]>([]);
+    const [newProviderName, setNewProviderName] = useState('');
+    const [newProviderLogoUrl, setNewProviderLogoUrl] = useState('');
 
     const logoFileInputRef = useRef<HTMLInputElement>(null);
     const appLogoFileInputRef = useRef<HTMLInputElement>(null);
@@ -148,6 +157,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     useEffect(() => {
         if (isOpen) {
             setLocalRecommendedIds(new Set(currentRecommendedMenuItemIds || []));
+            setLocalDeliveryProviders(JSON.parse(JSON.stringify(deliveryProviders))); // Deep copy
             
             const finalKitchenConf: KitchenPrinterSettings = {
                 ...DEFAULT_KITCHEN_PRINTER,
@@ -178,7 +188,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 }
             });
         }
-    }, [isOpen, currentLogoUrl, currentAppLogoUrl, currentQrCodeUrl, currentNotificationSoundUrl, currentStaffCallSoundUrl, currentPrinterConfig, currentOpeningTime, currentClosingTime, currentRecommendedMenuItemIds]);
+    }, [isOpen, currentLogoUrl, currentAppLogoUrl, currentQrCodeUrl, currentNotificationSoundUrl, currentStaffCallSoundUrl, currentPrinterConfig, currentOpeningTime, currentClosingTime, currentRecommendedMenuItemIds, deliveryProviders]);
 
     const handlePrinterChange = (type: 'kitchen' | 'cashier', field: string, value: any) => {
         setSettingsForm(prev => ({
@@ -299,9 +309,103 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         );
     }, [menuItems, recommendSearchTerm]);
 
+    // --- Delivery Provider Handlers ---
+    const handleToggleProvider = (id: string) => {
+        setLocalDeliveryProviders(prev => prev.map(p => 
+            p.id === id ? { ...p, isEnabled: !p.isEnabled } : p
+        ));
+    };
+
+    const handleAddProvider = () => {
+        if (!newProviderName.trim()) {
+            Swal.fire('ข้อมูลไม่ครบ', 'กรุณากรอกชื่อผู้ให้บริการ', 'warning');
+            return;
+        }
+        
+        const newProvider: DeliveryProvider = {
+            id: `custom_${Date.now()}`,
+            name: newProviderName.trim(),
+            iconUrl: newProviderLogoUrl.trim(),
+            isEnabled: true,
+            isDefault: false
+        };
+
+        setLocalDeliveryProviders(prev => [...prev, newProvider]);
+        setNewProviderName('');
+        setNewProviderLogoUrl('');
+    };
+
+    const handleDeleteProvider = (id: string) => {
+        setLocalDeliveryProviders(prev => prev.filter(p => p.id !== id));
+    };
+
+    // --- NEW: Handle Edit Provider ---
+    const handleEditProvider = async (provider: DeliveryProvider) => {
+        const confirmResult = await Swal.fire({
+            title: 'ต้องการแก้ไขข้อมูล?',
+            text: `คุณต้องการแก้ไขข้อมูลของ "${provider.name}" ใช่หรือไม่?`,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'ใช่, แก้ไข',
+            cancelButtonText: 'ยกเลิก',
+            confirmButtonColor: '#3085d6',
+            cancelButtonColor: '#d33'
+        });
+
+        if (confirmResult.isConfirmed) {
+            const { value: formValues } = await Swal.fire({
+                title: 'แก้ไขผู้ให้บริการ',
+                html: `
+                    <div class="space-y-3 text-left">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">ชื่อผู้ให้บริการ</label>
+                            <input id="swal-input-name" class="swal2-input w-full m-0 mt-1" placeholder="ชื่อ" value="${provider.name}">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">URL โลโก้</label>
+                            <input id="swal-input-logo" class="swal2-input w-full m-0 mt-1" placeholder="https://..." value="${provider.iconUrl || ''}">
+                        </div>
+                    </div>
+                `,
+                focusConfirm: false,
+                showCancelButton: true,
+                confirmButtonText: 'บันทึก',
+                cancelButtonText: 'ยกเลิก',
+                preConfirm: () => {
+                    const name = (document.getElementById('swal-input-name') as HTMLInputElement).value;
+                    const logoUrl = (document.getElementById('swal-input-logo') as HTMLInputElement).value;
+                    
+                    if (!name) {
+                        Swal.showValidationMessage('กรุณากรอกชื่อผู้ให้บริการ');
+                        return false;
+                    }
+                    return { name, logoUrl };
+                }
+            });
+
+            if (formValues) {
+                setLocalDeliveryProviders(prev => prev.map(p => 
+                    p.id === provider.id 
+                        ? { ...p, name: formValues.name, iconUrl: formValues.logoUrl } 
+                        : p
+                ));
+
+                Swal.fire({
+                    icon: 'success',
+                    title: 'บันทึกเรียบร้อย',
+                    toast: true,
+                    position: 'top-end',
+                    showConfirmButton: false,
+                    timer: 1500
+                });
+            }
+        }
+    };
+
     const handleFinalSave = (e: React.FormEvent) => {
         e.preventDefault();
         onSaveRecommendedItems(Array.from(localRecommendedIds));
+        onSaveDeliveryProviders(localDeliveryProviders);
         onSave(
             settingsForm.logoUrl,
             settingsForm.appLogoUrl,
@@ -326,6 +430,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     // --- Render Components ---
 
     const renderPrinterSettings = (type: 'kitchen' | 'cashier') => {
+        // ... (No changes here)
         const conf = settingsForm.printerConfig[type];
         if (!conf) return null;
         
@@ -571,6 +676,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         <nav className="-mb-px flex space-x-4 sm:space-x-6">
                             <TabButton label="ทั่วไป" isActive={activeTab === 'general'} onClick={() => setActiveTab('general')} />
                             <TabButton label="เมนูแนะนำ" isActive={activeTab === 'recommended'} onClick={() => setActiveTab('recommended')} />
+                            <TabButton label="Delivery" isActive={activeTab === 'delivery'} onClick={() => setActiveTab('delivery')} />
                             <TabButton label="เสียงแจ้งเตือน" isActive={activeTab === 'sound'} onClick={() => setActiveTab('sound')} />
                             <TabButton label="เสียงเรียกพนักงาน" isActive={activeTab === 'staffCallSound'} onClick={() => setActiveTab('staffCallSound')} />
                             <TabButton label="QR Code" isActive={activeTab === 'qrcode'} onClick={() => setActiveTab('qrcode')} />
@@ -668,6 +774,83 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                                 </div>
                                             </div>
                                         </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {activeTab === 'delivery' && (
+                            <div className="space-y-6">
+                                <div className="flex flex-col gap-1">
+                                    <h4 className="text-lg font-semibold text-gray-700">จัดการ Delivery</h4>
+                                    <p className="text-sm text-gray-500">เลือกผู้ให้บริการ Delivery ที่ต้องการให้แสดงปุ่มในหน้า POS (คลิกที่รายการเพื่อแก้ไข)</p>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                    {localDeliveryProviders.map(provider => (
+                                        <div 
+                                            key={provider.id} 
+                                            onClick={() => handleEditProvider(provider)}
+                                            className={`p-4 border rounded-lg flex items-center justify-between transition-colors cursor-pointer hover:bg-gray-50 ${provider.isEnabled ? 'bg-blue-50 border-blue-200 hover:bg-blue-100' : 'bg-white border-gray-200 hover:bg-gray-50'}`}
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                {provider.iconUrl ? (
+                                                    <img src={provider.iconUrl} alt={provider.name} className="w-10 h-10 rounded-md object-cover bg-white" onError={(e) => e.currentTarget.style.display = 'none'} />
+                                                ) : (
+                                                    <div className="w-10 h-10 rounded-md bg-gray-200 flex items-center justify-center text-gray-500 font-bold text-xs">{provider.name.charAt(0)}</div>
+                                                )}
+                                                <span className={`font-bold ${provider.isEnabled ? 'text-blue-800' : 'text-gray-600'}`}>{provider.name}</span>
+                                            </div>
+                                            <div className="flex items-center gap-3" onClick={e => e.stopPropagation()}>
+                                                <label className="relative inline-flex items-center cursor-pointer">
+                                                    <input 
+                                                        type="checkbox" 
+                                                        checked={provider.isEnabled} 
+                                                        onChange={() => handleToggleProvider(provider.id)}
+                                                        className="sr-only peer" 
+                                                    />
+                                                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
+                                                </label>
+                                                {!provider.isDefault && (
+                                                    <button onClick={(e) => { e.stopPropagation(); handleDeleteProvider(provider.id); }} className="text-red-500 hover:text-red-700 p-1">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clipRule="evenodd" /></svg>
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                <div className="border-t pt-4">
+                                    <h5 className="font-semibold text-gray-700 mb-3">เพิ่มผู้ให้บริการใหม่</h5>
+                                    <div className="flex flex-col md:flex-row gap-4 items-end bg-gray-50 p-4 rounded-lg">
+                                        <div className="flex-1 w-full">
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">ชื่อผู้ให้บริการ</label>
+                                            <input 
+                                                type="text" 
+                                                value={newProviderName} 
+                                                onChange={(e) => setNewProviderName(e.target.value)} 
+                                                placeholder="เช่น GrabFood" 
+                                                className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 outline-none"
+                                            />
+                                        </div>
+                                        <div className="flex-1 w-full">
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">URL โลโก้ (ถ้ามี)</label>
+                                            <input 
+                                                type="text" 
+                                                value={newProviderLogoUrl} 
+                                                onChange={(e) => setNewProviderLogoUrl(e.target.value)} 
+                                                placeholder="https://example.com/logo.png" 
+                                                className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 outline-none"
+                                            />
+                                        </div>
+                                        <button 
+                                            type="button" 
+                                            onClick={handleAddProvider}
+                                            className="px-6 py-2 bg-blue-600 text-white font-bold rounded-md hover:bg-blue-700 shadow-sm"
+                                        >
+                                            เพิ่ม
+                                        </button>
                                     </div>
                                 </div>
                             </div>
