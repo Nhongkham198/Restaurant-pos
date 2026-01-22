@@ -323,6 +323,21 @@ export const CashBillModal: React.FC<CashBillModalProps> = ({
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[60] p-4" onClick={onClose}>
+            {/* CSS injection for continuous 80mm printing */}
+            {!isA4 && (
+                <style>{`
+                    @media print {
+                        @page {
+                            size: auto; /* Force continuous roll */
+                            margin: 0mm;
+                        }
+                        body {
+                            margin: 0mm;
+                        }
+                    }
+                `}</style>
+            )}
+
             <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl flex flex-col h-[90vh]" onClick={e => e.stopPropagation()}>
                 {/* Modal Header */}
                 <div className="p-4 border-b flex justify-between items-center bg-gray-50 rounded-t-lg no-print">
@@ -523,9 +538,9 @@ export const CashBillModal: React.FC<CashBillModalProps> = ({
                                 </div>
                             </div>
                             <div className={`${isA4 ? 'w-1/3' : 'w-full'} text-center relative`}>
-                                <div className="h-16 w-full flex items-end justify-center mb-1 relative">
+                                <div className={`w-full flex items-end justify-center relative ${isA4 ? 'h-16 mb-1' : 'h-auto mt-6 mb-10'}`}>
                                     {signatureUrl ? (
-                                        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-48 h-28 flex items-end justify-center">
+                                        <div className={`${isA4 ? 'absolute bottom-0 left-1/2 -translate-x-1/2 w-48 h-28' : 'relative w-48 h-28'} flex items-end justify-center`}>
                                             <img 
                                                 src={signatureUrl} 
                                                 alt="Authorized Signature" 
