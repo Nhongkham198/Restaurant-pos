@@ -323,21 +323,6 @@ export const CashBillModal: React.FC<CashBillModalProps> = ({
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[60] p-4" onClick={onClose}>
-            {/* CSS injection for continuous 80mm printing */}
-            {!isA4 && (
-                <style>{`
-                    @media print {
-                        @page {
-                            size: auto; /* Force continuous roll */
-                            margin: 0mm;
-                        }
-                        body {
-                            margin: 0mm;
-                        }
-                    }
-                `}</style>
-            )}
-
             <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl flex flex-col h-[90vh]" onClick={e => e.stopPropagation()}>
                 {/* Modal Header */}
                 <div className="p-4 border-b flex justify-between items-center bg-gray-50 rounded-t-lg no-print">
@@ -370,6 +355,26 @@ export const CashBillModal: React.FC<CashBillModalProps> = ({
                         }`}
                         style={{ fontFamily: 'Sarabun, sans-serif' }}
                     >
+                        {/* CSS injection for continuous 80mm printing INSIDE componentRef */}
+                        {!isA4 && (
+                            <style>{`
+                                @media print {
+                                    @page {
+                                        size: 80mm auto; /* Force continuous roll width and auto height */
+                                        margin: 0mm;
+                                    }
+                                    html, body {
+                                        margin: 0px;
+                                        height: auto; /* Ensure it doesn't try to fill page height */
+                                        overflow: visible;
+                                    }
+                                    /* Additional safety to avoid breaks */
+                                    .printable-content {
+                                        page-break-inside: avoid;
+                                    }
+                                }
+                            `}</style>
+                        )}
                         
                         {/* Header */}
                         <div className={`flex ${isA4 ? 'justify-between items-start flex-row' : 'flex-col items-center text-center'} mb-6`}>
@@ -395,17 +400,17 @@ export const CashBillModal: React.FC<CashBillModalProps> = ({
                                     <EditableField value={docTitle} onChange={setDocTitle} className={isA4 ? "text-right w-full" : "text-center w-full"} align={isA4 ? 'right' : 'center'} />
                                 </div>
                                 <div className="text-sm space-y-1">
-                                    <div className={`flex ${isA4 ? 'justify-end' : 'justify-center'} gap-2`}>
-                                        <strong>เลขที่:</strong> 
-                                        <EditableField value={invNo} onChange={setInvNo} className={`${isA4 ? 'text-right w-28' : 'text-left w-24'}`} align={isA4 ? 'right' : 'left'} />
+                                    <div className={`flex ${isA4 ? 'justify-end' : 'justify-center items-center'} gap-2`}>
+                                        <strong className="whitespace-nowrap">เลขที่:</strong> 
+                                        <EditableField value={invNo} onChange={setInvNo} className={`${isA4 ? 'text-right w-28' : 'text-left w-32'}`} align={isA4 ? 'right' : 'left'} />
                                     </div>
-                                    <div className={`flex ${isA4 ? 'justify-end' : 'justify-center'} gap-2`}>
-                                        <strong>วันที่:</strong>
-                                        <EditableField value={billDate} onChange={setBillDate} className={`${isA4 ? 'text-right w-28' : 'text-left w-24'}`} align={isA4 ? 'right' : 'left'} />
+                                    <div className={`flex ${isA4 ? 'justify-end' : 'justify-center items-center'} gap-2`}>
+                                        <strong className="whitespace-nowrap">วันที่:</strong>
+                                        <EditableField value={billDate} onChange={setBillDate} className={`${isA4 ? 'text-right w-28' : 'text-left w-32'}`} align={isA4 ? 'right' : 'left'} />
                                     </div>
-                                    <div className={`flex ${isA4 ? 'justify-end' : 'justify-center'} gap-2`}>
-                                        <strong>เวลา:</strong>
-                                        <EditableField value={billTime} onChange={setBillTime} className={`${isA4 ? 'text-right w-28' : 'text-left w-24'}`} align={isA4 ? 'right' : 'left'} />
+                                    <div className={`flex ${isA4 ? 'justify-end' : 'justify-center items-center'} gap-2`}>
+                                        <strong className="whitespace-nowrap">เวลา:</strong>
+                                        <EditableField value={billTime} onChange={setBillTime} className={`${isA4 ? 'text-right w-28' : 'text-left w-32'}`} align={isA4 ? 'right' : 'left'} />
                                     </div>
                                 </div>
                             </div>
