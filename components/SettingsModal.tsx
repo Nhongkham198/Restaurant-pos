@@ -8,9 +8,10 @@ import { MenuItemImage } from './MenuItemImage';
 interface SettingsModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onSave: (newLogoUrl: string, newAppLogoUrl: string, newQrCodeUrl: string, newSoundUrl: string, newStaffCallSoundUrl: string, newPrinterConfig: PrinterConfig, newOpeningTime: string, newClosingTime: string) => void;
+    // Updated onSave signature
+    onSave: (newLogoUrl: string, newAppLogoUrl: string, newQrCodeUrl: string, newSoundUrl: string, newStaffCallSoundUrl: string, newPrinterConfig: PrinterConfig, newOpeningTime: string, newClosingTime: string, newAddress: string, newPhone: string, newTaxId: string, newSignatureUrl: string) => void;
     currentLogoUrl: string | null; 
-    currentAppLogoUrl: string | null; // Added new prop
+    currentAppLogoUrl: string | null;
     currentQrCodeUrl: string | null;
     currentNotificationSoundUrl: string | null;
     currentStaffCallSoundUrl: string | null;
@@ -21,12 +22,17 @@ interface SettingsModalProps {
     menuItems: MenuItem[];
     currentRecommendedMenuItemIds: number[] | null;
     onSaveRecommendedItems: (ids: number[]) => void;
-    // NEW Props
     deliveryProviders: DeliveryProvider[];
     onSaveDeliveryProviders: (providers: DeliveryProvider[]) => void;
+    // New Props for General Settings
+    currentRestaurantAddress: string;
+    currentRestaurantPhone: string;
+    currentTaxId: string;
+    currentSignatureUrl: string | null;
 }
 
-// Updated Default Settings based on request
+// ... existing constants (DEFAULT_RECEIPT_OPTIONS, etc.) ...
+// (Keeping constants identical)
 const DEFAULT_RECEIPT_OPTIONS: ReceiptPrintSettings = {
     showLogo: true,
     showRestaurantName: true,
@@ -119,7 +125,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     isOpen, onClose, onSave, currentLogoUrl, currentAppLogoUrl, currentQrCodeUrl, currentNotificationSoundUrl, currentStaffCallSoundUrl,
     currentPrinterConfig, currentOpeningTime, currentClosingTime, onSavePrinterConfig,
     menuItems, currentRecommendedMenuItemIds, onSaveRecommendedItems,
-    deliveryProviders, onSaveDeliveryProviders
+    deliveryProviders, onSaveDeliveryProviders,
+    currentRestaurantAddress, currentRestaurantPhone, currentTaxId, currentSignatureUrl
 }) => {
     
     const [activeTab, setActiveTab] = useState<'general' | 'sound' | 'staffCallSound' | 'qrcode' | 'kitchen' | 'cashier' | 'recommended' | 'delivery'>('general');
@@ -133,6 +140,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         staffCallSoundFileName: 'ไม่ได้เลือกไฟล์',
         openingTime: '10:00',
         closingTime: '22:00',
+        restaurantAddress: '',
+        restaurantPhone: '',
+        taxId: '',
+        signatureUrl: '',
         printerConfig: { 
             kitchen: { ...DEFAULT_KITCHEN_PRINTER }, 
             cashier: { ...DEFAULT_CASHIER_PRINTER }
@@ -143,7 +154,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     const [localRecommendedIds, setLocalRecommendedIds] = useState(new Set<number>());
     const [recommendSearchTerm, setRecommendSearchTerm] = useState('');
     
-    // Delivery State
     const [localDeliveryProviders, setLocalDeliveryProviders] = useState<DeliveryProvider[]>([]);
     const [newProviderName, setNewProviderName] = useState('');
     const [newProviderLogoUrl, setNewProviderLogoUrl] = useState('');
@@ -153,11 +163,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     const soundFileInputRef = useRef<HTMLInputElement>(null);
     const staffCallSoundFileInputRef = useRef<HTMLInputElement>(null);
     const qrCodeFileInputRef = useRef<HTMLInputElement>(null);
+    const signatureFileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         if (isOpen) {
             setLocalRecommendedIds(new Set(currentRecommendedMenuItemIds || []));
-            setLocalDeliveryProviders(JSON.parse(JSON.stringify(deliveryProviders))); // Deep copy
+            setLocalDeliveryProviders(JSON.parse(JSON.stringify(deliveryProviders)));
             
             const finalKitchenConf: KitchenPrinterSettings = {
                 ...DEFAULT_KITCHEN_PRINTER,
@@ -182,14 +193,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 staffCallSoundFileName: currentStaffCallSoundUrl ? 'ไฟล์ปัจจุบัน' : 'ไม่ได้เลือกไฟล์',
                 openingTime: currentOpeningTime || '10:00',
                 closingTime: currentClosingTime || '22:00',
+                restaurantAddress: currentRestaurantAddress || '',
+                restaurantPhone: currentRestaurantPhone || '',
+                taxId: currentTaxId || '',
+                signatureUrl: currentSignatureUrl || '',
                 printerConfig: {
                     kitchen: finalKitchenConf,
                     cashier: finalCashierConf
                 }
             });
         }
-    }, [isOpen, currentLogoUrl, currentAppLogoUrl, currentQrCodeUrl, currentNotificationSoundUrl, currentStaffCallSoundUrl, currentPrinterConfig, currentOpeningTime, currentClosingTime, currentRecommendedMenuItemIds, deliveryProviders]);
+    }, [isOpen, currentLogoUrl, currentAppLogoUrl, currentQrCodeUrl, currentNotificationSoundUrl, currentStaffCallSoundUrl, currentPrinterConfig, currentOpeningTime, currentClosingTime, currentRecommendedMenuItemIds, deliveryProviders, currentRestaurantAddress, currentRestaurantPhone, currentTaxId, currentSignatureUrl]);
 
+    // ... (Keep existing handlers for printer, sound, delivery etc.) ...
     const handlePrinterChange = (type: 'kitchen' | 'cashier', field: string, value: any) => {
         setSettingsForm(prev => ({
             ...prev,
@@ -260,7 +276,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         }
     };
 
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, type: 'logo' | 'appLogo' | 'sound' | 'staffCallSound' | 'qrcode') => {
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, type: 'logo' | 'appLogo' | 'sound' | 'staffCallSound' | 'qrcode' | 'signature') => {
         const file = e.target.files?.[0];
         if (file) {
             const reader = new FileReader();
@@ -276,6 +292,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     setSettingsForm(prev => ({ ...prev, staffCallSoundDataUrl: dataUrl, staffCallSoundFileName: file.name }));
                 } else if (type === 'qrcode') {
                     setSettingsForm(prev => ({ ...prev, qrCodeUrl: dataUrl }));
+                } else if (type === 'signature') {
+                    setSettingsForm(prev => ({ ...prev, signatureUrl: dataUrl }));
                 }
             };
             reader.readAsDataURL(file);
@@ -309,7 +327,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         );
     }, [menuItems, recommendSearchTerm]);
 
-    // --- Delivery Provider Handlers ---
     const handleToggleProvider = (id: string) => {
         setLocalDeliveryProviders(prev => prev.map(p => 
             p.id === id ? { ...p, isEnabled: !p.isEnabled } : p
@@ -321,7 +338,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             Swal.fire('ข้อมูลไม่ครบ', 'กรุณากรอกชื่อผู้ให้บริการ', 'warning');
             return;
         }
-        
         const newProvider: DeliveryProvider = {
             id: `custom_${Date.now()}`,
             name: newProviderName.trim(),
@@ -329,7 +345,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             isEnabled: true,
             isDefault: false
         };
-
         setLocalDeliveryProviders(prev => [...prev, newProvider]);
         setNewProviderName('');
         setNewProviderLogoUrl('');
@@ -339,8 +354,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         setLocalDeliveryProviders(prev => prev.filter(p => p.id !== id));
     };
 
-    // --- NEW: Handle Edit Provider ---
     const handleEditProvider = async (provider: DeliveryProvider) => {
+        // ... (Same implementation)
         const confirmResult = await Swal.fire({
             title: 'ต้องการแก้ไขข้อมูล?',
             text: `คุณต้องการแก้ไขข้อมูลของ "${provider.name}" ใช่หรือไม่?`,
@@ -374,7 +389,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 preConfirm: () => {
                     const name = (document.getElementById('swal-input-name') as HTMLInputElement).value;
                     const logoUrl = (document.getElementById('swal-input-logo') as HTMLInputElement).value;
-                    
                     if (!name) {
                         Swal.showValidationMessage('กรุณากรอกชื่อผู้ให้บริการ');
                         return false;
@@ -389,7 +403,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         ? { ...p, name: formValues.name, iconUrl: formValues.logoUrl } 
                         : p
                 ));
-
                 Swal.fire({
                     icon: 'success',
                     title: 'บันทึกเรียบร้อย',
@@ -414,7 +427,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             settingsForm.staffCallSoundDataUrl,
             settingsForm.printerConfig,
             settingsForm.openingTime,
-            settingsForm.closingTime
+            settingsForm.closingTime,
+            settingsForm.restaurantAddress,
+            settingsForm.restaurantPhone,
+            settingsForm.taxId,
+            settingsForm.signatureUrl
         );
         Swal.fire({
             icon: 'success',
@@ -427,37 +444,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
     if (!isOpen) return null;
 
-    // --- Render Components ---
-
+    // --- Render Printer Settings (Reused) ---
     const renderPrinterSettings = (type: 'kitchen' | 'cashier') => {
-        // ... (No changes here)
         const conf = settingsForm.printerConfig[type];
         if (!conf) return null;
-        
         const receiptOpts = (type === 'cashier' && 'receiptOptions' in conf) ? (conf as CashierPrinterSettings).receiptOptions : undefined;
-        
         return (
             <div className="space-y-4">
                 <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
                     <label className="block text-sm font-bold text-gray-700 mb-2">ประเภทการเชื่อมต่อ</label>
                     <div className="flex gap-4">
-                        <button 
-                            type="button" 
-                            onClick={() => handlePrinterChange(type, 'connectionType', 'network')}
-                            className={`flex-1 py-2 rounded-md font-bold border-2 transition-all ${conf.connectionType === 'network' ? 'bg-blue-600 text-white border-blue-700 shadow-inner' : 'bg-white text-gray-600 border-gray-300'}`}
-                        >
-                            WiFi / Network
-                        </button>
-                        <button 
-                            type="button" 
-                            onClick={() => handlePrinterChange(type, 'connectionType', 'usb')}
-                            className={`flex-1 py-2 rounded-md font-bold border-2 transition-all ${conf.connectionType === 'usb' ? 'bg-orange-600 text-white border-orange-700 shadow-inner' : 'bg-white text-gray-600 border-gray-300'}`}
-                        >
-                            USB (ต่อตรง)
-                        </button>
+                        <button type="button" onClick={() => handlePrinterChange(type, 'connectionType', 'network')} className={`flex-1 py-2 rounded-md font-bold border-2 transition-all ${conf.connectionType === 'network' ? 'bg-blue-600 text-white border-blue-700 shadow-inner' : 'bg-white text-gray-600 border-gray-300'}`}>WiFi / Network</button>
+                        <button type="button" onClick={() => handlePrinterChange(type, 'connectionType', 'usb')} className={`flex-1 py-2 rounded-md font-bold border-2 transition-all ${conf.connectionType === 'usb' ? 'bg-orange-600 text-white border-orange-700 shadow-inner' : 'bg-white text-gray-600 border-gray-300'}`}>USB (ต่อตรง)</button>
                     </div>
                 </div>
-
                 <div className="grid grid-cols-12 gap-4">
                     <div className="col-span-8 md:col-span-9">
                         <label className="block text-sm font-bold text-blue-700">Print Server IP (เครื่องที่รัน Node.js)</label>
@@ -467,7 +467,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         <label className="block text-sm font-bold text-blue-700">Port</label>
                         <input type="text" value={conf.port} onChange={(e) => handlePrinterChange(type, 'port', e.target.value)} placeholder="3000" className="mt-1 block w-full border border-gray-300 p-2 rounded-md shadow-sm text-gray-900" />
                     </div>
-                    
                     {conf.connectionType === 'network' && (
                         <div className="col-span-12">
                             <label className="block text-sm font-bold text-green-700">Printer IP (ตัวเครื่องพิมพ์)</label>
@@ -475,183 +474,66 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         </div>
                     )}
                 </div>
-
-                {/* --- Live Preview & Checkboxes for Cashier Printer --- */}
                 {type === 'cashier' && receiptOpts && (
                     <div className="mt-6 pt-6 border-t border-gray-200">
                         <h4 className="text-lg font-bold text-gray-800 mb-4">รายละเอียดบนใบเสร็จ</h4>
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                            
-                            {/* Left Column: Settings */}
                             <div className="space-y-6">
-                                {/* Checkbox Grid */}
                                 <div className="grid grid-cols-2 gap-4">
-                                    <label className="flex items-center gap-2 cursor-pointer">
-                                        <input type="checkbox" checked={receiptOpts.showRestaurantName} onChange={(e) => handleReceiptOptionChange('showRestaurantName', e.target.checked)} className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
-                                        <span className="text-sm font-medium text-gray-700">ชื่อร้าน</span>
-                                    </label>
-                                    <label className="flex items-center gap-2 cursor-pointer">
-                                        <input type="checkbox" checked={receiptOpts.showLogo} onChange={(e) => handleReceiptOptionChange('showLogo', e.target.checked)} className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
-                                        <span className="text-sm font-medium text-gray-700">โลโก้ร้าน</span>
-                                    </label>
-                                    
-                                    <label className="flex items-center gap-2 cursor-pointer">
-                                        <input type="checkbox" checked={receiptOpts.showAddress} onChange={(e) => handleReceiptOptionChange('showAddress', e.target.checked)} className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
-                                        <span className="text-sm font-medium text-gray-700">ที่อยู่</span>
-                                    </label>
-                                    <label className="flex items-center gap-2 cursor-pointer">
-                                        <input type="checkbox" checked={receiptOpts.showPhoneNumber} onChange={(e) => handleReceiptOptionChange('showPhoneNumber', e.target.checked)} className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
-                                        <span className="text-sm font-medium text-gray-700">เบอร์โทร</span>
-                                    </label>
-                                    
-                                    <label className="flex items-center gap-2 cursor-pointer">
-                                        <input type="checkbox" checked={receiptOpts.showTable} onChange={(e) => handleReceiptOptionChange('showTable', e.target.checked)} className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
-                                        <span className="text-sm font-medium text-gray-700">โต๊ะ</span>
-                                    </label>
-                                    <label className="flex items-center gap-2 cursor-pointer">
-                                        <input type="checkbox" checked={receiptOpts.showDateTime} onChange={(e) => handleReceiptOptionChange('showDateTime', e.target.checked)} className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
-                                        <span className="text-sm font-medium text-gray-700">วัน/เวลา</span>
-                                    </label>
-                                    
-                                    <label className="flex items-center gap-2 cursor-pointer">
-                                        <input type="checkbox" checked={receiptOpts.showItems} onChange={(e) => handleReceiptOptionChange('showItems', e.target.checked)} className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
-                                        <span className="text-sm font-medium text-gray-700">รายการอาหาร</span>
-                                    </label>
-                                    <label className="flex items-center gap-2 cursor-pointer">
-                                        <input type="checkbox" checked={receiptOpts.showSubtotal} onChange={(e) => handleReceiptOptionChange('showSubtotal', e.target.checked)} className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
-                                        <span className="text-sm font-medium text-gray-700">ยอดรวม</span>
-                                    </label>
-                                    
-                                    <label className="flex items-center gap-2 cursor-pointer">
-                                        <input type="checkbox" checked={receiptOpts.showTax} onChange={(e) => handleReceiptOptionChange('showTax', e.target.checked)} className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
-                                        <span className="text-sm font-medium text-gray-700">ภาษี</span>
-                                    </label>
-                                    <label className="flex items-center gap-2 cursor-pointer">
-                                        <input type="checkbox" checked={receiptOpts.showTotal} onChange={(e) => handleReceiptOptionChange('showTotal', e.target.checked)} className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
-                                        <span className="text-sm font-medium text-gray-700">ยอดสุทธิ</span>
-                                    </label>
-
-                                    <label className="flex items-center gap-2 cursor-pointer">
-                                        <input type="checkbox" checked={receiptOpts.showPaymentMethod} onChange={(e) => handleReceiptOptionChange('showPaymentMethod', e.target.checked)} className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
-                                        <span className="text-sm font-medium text-gray-700">การชำระเงิน</span>
-                                    </label>
-                                    <label className="flex items-center gap-2 cursor-pointer">
-                                        <input type="checkbox" checked={receiptOpts.showThankYouMessage} onChange={(e) => handleReceiptOptionChange('showThankYouMessage', e.target.checked)} className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
-                                        <span className="text-sm font-medium text-gray-700">ข้อความขอบคุณ</span>
-                                    </label>
+                                    <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={receiptOpts.showRestaurantName} onChange={(e) => handleReceiptOptionChange('showRestaurantName', e.target.checked)} className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500" /><span className="text-sm font-medium text-gray-700">ชื่อร้าน</span></label>
+                                    <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={receiptOpts.showLogo} onChange={(e) => handleReceiptOptionChange('showLogo', e.target.checked)} className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500" /><span className="text-sm font-medium text-gray-700">โลโก้ร้าน</span></label>
+                                    <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={receiptOpts.showAddress} onChange={(e) => handleReceiptOptionChange('showAddress', e.target.checked)} className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500" /><span className="text-sm font-medium text-gray-700">ที่อยู่</span></label>
+                                    <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={receiptOpts.showPhoneNumber} onChange={(e) => handleReceiptOptionChange('showPhoneNumber', e.target.checked)} className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500" /><span className="text-sm font-medium text-gray-700">เบอร์โทร</span></label>
+                                    <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={receiptOpts.showTable} onChange={(e) => handleReceiptOptionChange('showTable', e.target.checked)} className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500" /><span className="text-sm font-medium text-gray-700">โต๊ะ</span></label>
+                                    <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={receiptOpts.showDateTime} onChange={(e) => handleReceiptOptionChange('showDateTime', e.target.checked)} className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500" /><span className="text-sm font-medium text-gray-700">วัน/เวลา</span></label>
+                                    <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={receiptOpts.showItems} onChange={(e) => handleReceiptOptionChange('showItems', e.target.checked)} className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500" /><span className="text-sm font-medium text-gray-700">รายการอาหาร</span></label>
+                                    <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={receiptOpts.showSubtotal} onChange={(e) => handleReceiptOptionChange('showSubtotal', e.target.checked)} className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500" /><span className="text-sm font-medium text-gray-700">ยอดรวม</span></label>
+                                    <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={receiptOpts.showTax} onChange={(e) => handleReceiptOptionChange('showTax', e.target.checked)} className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500" /><span className="text-sm font-medium text-gray-700">ภาษี</span></label>
+                                    <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={receiptOpts.showTotal} onChange={(e) => handleReceiptOptionChange('showTotal', e.target.checked)} className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500" /><span className="text-sm font-medium text-gray-700">ยอดสุทธิ</span></label>
+                                    <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={receiptOpts.showPaymentMethod} onChange={(e) => handleReceiptOptionChange('showPaymentMethod', e.target.checked)} className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500" /><span className="text-sm font-medium text-gray-700">การชำระเงิน</span></label>
+                                    <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={receiptOpts.showThankYouMessage} onChange={(e) => handleReceiptOptionChange('showThankYouMessage', e.target.checked)} className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500" /><span className="text-sm font-medium text-gray-700">ข้อความขอบคุณ</span></label>
                                 </div>
-
-                                {/* Text Inputs */}
                                 <div className="space-y-3 pt-4 border-t border-gray-200">
                                     <div>
-                                        <label className="block text-xs font-bold text-gray-500 mb-1">ที่อยู่ร้าน</label>
-                                        <textarea 
-                                            value={receiptOpts.address} 
-                                            onChange={(e) => handleReceiptOptionChange('address', e.target.value)} 
-                                            rows={2} 
-                                            className="w-full text-sm border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 p-2"
-                                            placeholder="ที่อยู่..."
-                                        />
+                                        <label className="block text-xs font-bold text-gray-500 mb-1">ที่อยู่ร้าน (จะถูกแทนที่ด้วยค่าในหน้าทั่วไปหากมีการตั้งค่า)</label>
+                                        <textarea value={receiptOpts.address} onChange={(e) => handleReceiptOptionChange('address', e.target.value)} rows={2} className="w-full text-sm border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 p-2" placeholder="ที่อยู่..." />
                                     </div>
                                     <div>
                                         <label className="block text-xs font-bold text-gray-500 mb-1">เบอร์โทรศัพท์</label>
-                                        <input 
-                                            type="text"
-                                            value={receiptOpts.phoneNumber} 
-                                            onChange={(e) => handleReceiptOptionChange('phoneNumber', e.target.value)} 
-                                            className="w-full text-sm border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 p-2"
-                                            placeholder="02-xxx-xxxx"
-                                        />
+                                        <input type="text" value={receiptOpts.phoneNumber} onChange={(e) => handleReceiptOptionChange('phoneNumber', e.target.value)} className="w-full text-sm border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 p-2" placeholder="02-xxx-xxxx" />
                                     </div>
                                     <div>
                                         <label className="block text-xs font-bold text-gray-500 mb-1">ข้อความขอบคุณ</label>
-                                        <input 
-                                            type="text"
-                                            value={receiptOpts.thankYouMessage} 
-                                            onChange={(e) => handleReceiptOptionChange('thankYouMessage', e.target.value)} 
-                                            className="w-full text-sm border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 p-2"
-                                            placeholder="ขอบคุณที่ใช้บริการ"
-                                        />
+                                        <input type="text" value={receiptOpts.thankYouMessage} onChange={(e) => handleReceiptOptionChange('thankYouMessage', e.target.value)} className="w-full text-sm border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 p-2" placeholder="ขอบคุณที่ใช้บริการ" />
                                     </div>
-                                    
                                     <div className="flex justify-between items-center bg-blue-50 p-2 rounded border border-blue-100 mt-2">
                                         <span className="text-xs text-blue-800">คืนค่าเริ่มต้น</span>
-                                        <button 
-                                            type="button" 
-                                            onClick={() => setSettingsForm(prev => ({
-                                                ...prev,
-                                                printerConfig: {
-                                                    ...prev.printerConfig,
-                                                    cashier: {
-                                                        ...prev.printerConfig.cashier!,
-                                                        receiptOptions: { ...DEFAULT_RECEIPT_OPTIONS }
-                                                    }
-                                                }
-                                            }))}
-                                            className="text-xs text-blue-600 underline hover:text-blue-800"
-                                        >
-                                            Reset Defaults
-                                        </button>
+                                        <button type="button" onClick={() => setSettingsForm(prev => ({...prev, printerConfig: {...prev.printerConfig, cashier: {...prev.printerConfig.cashier!, receiptOptions: { ...DEFAULT_RECEIPT_OPTIONS }}} }))} className="text-xs text-blue-600 underline hover:text-blue-800">Reset Defaults</button>
                                     </div>
                                 </div>
                             </div>
-
-                            {/* Right Column: Live Preview */}
                             <div className="bg-gray-200 p-4 rounded-xl flex items-center justify-center min-h-[500px]">
                                 <div className="bg-white shadow-lg w-[300px] p-4 text-black font-mono text-sm leading-snug flex flex-col items-center">
-                                    {/* Logo */}
-                                    {receiptOpts.showLogo && settingsForm.logoUrl && (
-                                        <img src={settingsForm.logoUrl} alt="Logo" className="h-16 w-auto object-contain mb-2 opacity-100" />
-                                    )}
-                                    {receiptOpts.showLogo && !settingsForm.logoUrl && (
-                                        <div className="h-16 w-16 bg-gray-200 flex items-center justify-center mb-2 text-xs text-gray-500 rounded text-center p-1">No Logo Selected</div>
-                                    )}
-
-                                    {/* Header Info */}
+                                    {receiptOpts.showLogo && settingsForm.logoUrl && <img src={settingsForm.logoUrl} alt="Logo" className="h-16 w-auto object-contain mb-2 opacity-100" />}
+                                    {receiptOpts.showLogo && !settingsForm.logoUrl && <div className="h-16 w-16 bg-gray-200 flex items-center justify-center mb-2 text-xs text-gray-500 rounded text-center p-1">No Logo Selected</div>}
                                     {receiptOpts.showRestaurantName && <div className="font-bold text-lg mb-1">ร้านอาหารตัวอย่าง</div>}
-                                    {receiptOpts.showAddress && <div className="text-center whitespace-pre-wrap mb-1 text-xs">{receiptOpts.address}</div>}
-                                    {receiptOpts.showPhoneNumber && <div className="text-center text-xs mb-2">Tel: {receiptOpts.phoneNumber}</div>}
-                                    
+                                    {receiptOpts.showAddress && <div className="text-center whitespace-pre-wrap mb-1 text-xs">{settingsForm.restaurantAddress || receiptOpts.address}</div>}
+                                    {receiptOpts.showPhoneNumber && <div className="text-center text-xs mb-2">Tel: {settingsForm.restaurantPhone || receiptOpts.phoneNumber}</div>}
                                     <div className="w-full border-b border-dashed border-gray-400 my-2"></div>
-                                    
-                                    {/* Items Preview */}
-                                    {receiptOpts.showItems && (
-                                        <div className="w-full space-y-1 mb-2">
-                                            <div className="flex justify-between"><span>1. ข้าวกะเพรา</span><span>60.00</span></div>
-                                            <div className="flex justify-between"><span>2. น้ำเปล่า</span><span>15.00</span></div>
-                                        </div>
-                                    )}
-
+                                    {receiptOpts.showItems && <div className="w-full space-y-1 mb-2"><div className="flex justify-between"><span>1. ข้าวกะเพรา</span><span>60.00</span></div><div className="flex justify-between"><span>2. น้ำเปล่า</span><span>15.00</span></div></div>}
                                     <div className="w-full border-b border-dashed border-gray-400 my-2"></div>
-
-                                    {/* Totals Preview */}
                                     <div className="w-full space-y-1">
-                                        {receiptOpts.showSubtotal && (
-                                            <div className="flex justify-between mt-1"><span>รวมเงิน</span><span>75.00</span></div>
-                                        )}
-                                        {receiptOpts.showTax && (
-                                            <div className="flex justify-between mt-1"><span>ภาษี (7%)</span><span>5.25</span></div>
-                                        )}
-                                        {receiptOpts.showTotal && (
-                                            <div className="flex justify-between font-bold text-base mt-1"><span>ยอดสุทธิ</span><span>80.25</span></div>
-                                        )}
-                                        {receiptOpts.showPaymentMethod && (
-                                             <div className="text-center mt-2 text-xs">ชำระโดย: เงินสด</div>
-                                        )}
+                                        {receiptOpts.showSubtotal && <div className="flex justify-between mt-1"><span>รวมเงิน</span><span>75.00</span></div>}
+                                        {receiptOpts.showTax && <div className="flex justify-between mt-1"><span>ภาษี (7%)</span><span>5.25</span></div>}
+                                        {receiptOpts.showTotal && <div className="flex justify-between font-bold text-base mt-1"><span>ยอดสุทธิ</span><span>80.25</span></div>}
+                                        {receiptOpts.showPaymentMethod && <div className="text-center mt-2 text-xs">ชำระโดย: เงินสด</div>}
                                     </div>
-
-                                    {/* Footer */}
-                                    {receiptOpts.showThankYouMessage && (
-                                        <div className="mt-4 text-center font-bold text-xs">
-                                            *** {receiptOpts.thankYouMessage} ***
-                                        </div>
-                                    )}
+                                    {receiptOpts.showThankYouMessage && <div className="mt-4 text-center font-bold text-xs">*** {receiptOpts.thankYouMessage} ***</div>}
                                 </div>
                             </div>
                         </div>
                     </div>
                 )}
-
                 <div className="flex flex-wrap gap-2 pt-4">
                     <StatusIndicator status={printerStatus[type]} label="สถานะเครื่องพิมพ์" />
                     <button type="button" onClick={() => handleCheckPrinterStatus(type)} className="px-4 py-2 bg-teal-600 text-white text-sm font-medium rounded-md hover:bg-teal-700">ตรวจสอบสถานะ</button>
@@ -690,13 +572,111 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                             <div className="space-y-4">
                                 <h4 className="text-lg font-semibold text-gray-700">ตั้งค่าร้านค้า</h4>
                                 <div className="space-y-4">
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">เวลาเปิดร้าน</label>
-                                        <input type="time" value={settingsForm.openingTime} onChange={(e) => setSettingsForm(prev => ({ ...prev, openingTime: e.target.value }))} className="w-full border border-gray-300 p-2 rounded-lg text-gray-900" />
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">เวลาเปิดร้าน</label>
+                                            <input type="time" value={settingsForm.openingTime} onChange={(e) => setSettingsForm(prev => ({ ...prev, openingTime: e.target.value }))} className="w-full border border-gray-300 p-2 rounded-lg text-gray-900" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">เวลาปิดร้าน</label>
+                                            <input type="time" value={settingsForm.closingTime} onChange={(e) => setSettingsForm(prev => ({ ...prev, closingTime: e.target.value }))} className="w-full border border-gray-300 p-2 rounded-lg text-gray-900" />
+                                        </div>
                                     </div>
+
+                                    {/* Additional General Info */}
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">เวลาปิดร้าน</label>
-                                        <input type="time" value={settingsForm.closingTime} onChange={(e) => setSettingsForm(prev => ({ ...prev, closingTime: e.target.value }))} className="w-full border border-gray-300 p-2 rounded-lg text-gray-900" />
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">ที่อยู่ร้าน</label>
+                                        <textarea 
+                                            value={settingsForm.restaurantAddress} 
+                                            onChange={(e) => setSettingsForm(prev => ({...prev, restaurantAddress: e.target.value}))} 
+                                            rows={3} 
+                                            className="w-full border border-gray-300 p-2 rounded-lg text-gray-900" 
+                                            placeholder="กรอกที่อยู่ร้าน..."
+                                        />
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">เบอร์โทรศัพท์</label>
+                                            <input 
+                                                type="text" 
+                                                value={settingsForm.restaurantPhone} 
+                                                onChange={(e) => setSettingsForm(prev => ({...prev, restaurantPhone: e.target.value}))} 
+                                                className="w-full border border-gray-300 p-2 rounded-lg text-gray-900" 
+                                                placeholder="02-xxx-xxxx"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">หมายเลขผู้เสียภาษี</label>
+                                            <input 
+                                                type="text" 
+                                                value={settingsForm.taxId} 
+                                                onChange={(e) => setSettingsForm(prev => ({...prev, taxId: e.target.value}))} 
+                                                className="w-full border border-gray-300 p-2 rounded-lg text-gray-900" 
+                                                placeholder="เลขประจำตัวผู้เสียภาษี 13 หลัก"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Signature / ID Card Upload */}
+                                    <div className="pt-4 border-t border-gray-200">
+                                        <h5 className="text-md font-semibold text-gray-700 mb-2">ภาพถ่ายบัตรประชาชน/ลายเซ็น (สำหรับใบเสร็จ)</h5>
+                                        <div className="flex flex-col md:flex-row gap-6 items-start bg-gray-50 p-4 rounded-lg border border-gray-200">
+                                            {/* Preview */}
+                                            <div className="flex-shrink-0 flex items-center justify-center bg-white w-full md:w-64 h-32 border border-gray-300 rounded-lg shadow-sm overflow-hidden">
+                                                {settingsForm.signatureUrl ? (
+                                                    <img 
+                                                        src={settingsForm.signatureUrl} 
+                                                        alt="Signature" 
+                                                        className="w-full h-full object-contain" 
+                                                        style={{ filter: 'grayscale(100%) contrast(120%)' }} // Show preview with filter effect
+                                                    />
+                                                ) : (
+                                                    <span className="text-gray-400 text-xs">ไม่มีรูปภาพ</span>
+                                                )}
+                                            </div>
+                                            
+                                            <div className="flex-1 space-y-3 w-full">
+                                                <input 
+                                                    type="file" 
+                                                    accept="image/*" 
+                                                    ref={signatureFileInputRef}
+                                                    onChange={(e) => handleFileChange(e, 'signature')}
+                                                    className="hidden"
+                                                />
+                                                <div className="flex flex-col gap-2">
+                                                    <div className="flex gap-2">
+                                                        <button 
+                                                            type="button" 
+                                                            onClick={() => signatureFileInputRef.current?.click()}
+                                                            className="px-4 py-2 bg-gray-600 text-white text-sm font-semibold rounded-md hover:bg-gray-700 shadow-sm whitespace-nowrap"
+                                                        >
+                                                            เลือกรูปภาพ
+                                                        </button>
+                                                        {settingsForm.signatureUrl && (
+                                                            <button 
+                                                                type="button" 
+                                                                onClick={() => setSettingsForm(prev => ({...prev, signatureUrl: ''}))}
+                                                                className="px-4 py-2 bg-red-100 text-red-600 text-sm font-semibold rounded-md hover:bg-red-200 shadow-sm"
+                                                            >
+                                                                ลบรูป
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                    <input 
+                                                        type="text" 
+                                                        value={settingsForm.signatureUrl || ''} 
+                                                        onChange={(e) => setSettingsForm(prev => ({...prev, signatureUrl: e.target.value}))}
+                                                        placeholder="หรือใส่ URL ของรูปภาพ..."
+                                                        className="w-full border border-gray-300 p-2 rounded-lg text-sm"
+                                                    />
+                                                </div>
+                                                
+                                                <div className="text-xs text-gray-600">
+                                                    <p>รูปภาพนี้จะแสดงเหนือชื่อ "ผู้มีอำนาจลงนาม" ในใบเสร็จรับเงินแบบเต็มรูปแบบ</p>
+                                                    <p className="mt-1 font-medium text-gray-500">* ระบบจะปรับสีให้เป็นขาว-ดำอัตโนมัติ</p>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
                                     
                                     {/* App Logo Upload Section (New) */}
@@ -780,6 +760,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         )}
 
                         {activeTab === 'delivery' && (
+                            // ... (Existing delivery tab code)
                             <div className="space-y-6">
                                 <div className="flex flex-col gap-1">
                                     <h4 className="text-lg font-semibold text-gray-700">จัดการ Delivery</h4>
@@ -857,6 +838,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         )}
 
                         {activeTab === 'recommended' && (
+                            // ... (Existing recommended tab code)
                             <div className="space-y-4">
                                 <div className="flex flex-col gap-1">
                                     <h4 className="text-lg font-semibold text-gray-700">จัดการเมนูแนะนำ</h4>
@@ -892,6 +874,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         )}
 
                         {(activeTab === 'sound' || activeTab === 'staffCallSound') && (
+                            // ... (Existing sound tab code)
                             <div className="space-y-4">
                                 <h4 className="text-lg font-semibold text-gray-700">
                                     {activeTab === 'sound' ? 'เสียงแจ้งเตือนออเดอร์ใหม่' : 'เสียงแจ้งเตือนเรียกพนักงาน'}
@@ -934,6 +917,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         )}
 
                         {activeTab === 'qrcode' && (
+                            // ... (Existing qr code tab code)
                             <div className="space-y-4 text-center">
                                 <h4 className="text-lg font-semibold text-gray-700">QR Code สำหรับรับชำระเงิน</h4>
                                 <div className="p-4 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300 inline-block mx-auto min-w-[250px]">

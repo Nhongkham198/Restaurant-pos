@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import type { CompletedOrder } from '../types';
 
@@ -81,9 +82,17 @@ interface CashBillModalProps {
     onClose: () => void;
     restaurantName: string;
     logoUrl: string | null;
+    // New props for dynamic data
+    restaurantAddress: string;
+    restaurantPhone: string;
+    taxId: string;
+    signatureUrl: string | null;
 }
 
-export const CashBillModal: React.FC<CashBillModalProps> = ({ isOpen, order, onClose, restaurantName, logoUrl }) => {
+export const CashBillModal: React.FC<CashBillModalProps> = ({ 
+    isOpen, order, onClose, restaurantName, logoUrl,
+    restaurantAddress, restaurantPhone, taxId, signatureUrl
+}) => {
     const [billData, setBillData] = useState<BillData>({
         sellerName: '', sellerAddress: '', sellerTaxId: '', sellerPhone: '',
         docTitle: 'ใบเสร็จรับเงิน / ใบกำกับภาษีอย่างย่อ', docNumber: '', docDate: '',
@@ -96,11 +105,12 @@ export const CashBillModal: React.FC<CashBillModalProps> = ({ isOpen, order, onC
             const dateStr = `${today.getDate()}/${today.getMonth() + 1}/${today.getFullYear() + 543}`;
             const docNum = `RE${today.getFullYear()}${String(today.getMonth()+1).padStart(2,'0')}${String(today.getDate()).padStart(2,'0')}-${String(order.id).padStart(4,'0')}`;
             
+            // Use props instead of hardcoded strings
             setBillData({
                 sellerName: restaurantName,
-                sellerAddress: '123 ถนนสุขุมวิท แขวงคลองเตย\nเขตคลองเตย กรุงเทพมหานคร 10110',
-                sellerTaxId: '0-1234-56789-01-2',
-                sellerPhone: '02-123-4567',
+                sellerAddress: restaurantAddress || '123 ถนนตัวอย่าง แขวงตัวอย่าง\nเขตตัวอย่าง กรุงเทพมหานคร 10xxx',
+                sellerTaxId: taxId || '0-1234-56789-01-2',
+                sellerPhone: restaurantPhone || '02-123-4567',
                 docTitle: 'ใบเสร็จรับเงิน / ใบกำกับภาษีอย่างย่อ',
                 docNumber: docNum,
                 docDate: dateStr,
@@ -115,7 +125,7 @@ export const CashBillModal: React.FC<CashBillModalProps> = ({ isOpen, order, onC
                 }))
             });
         }
-    }, [order, restaurantName]);
+    }, [order, restaurantName, restaurantAddress, restaurantPhone, taxId]);
 
     const { subtotal, vat, grandTotal, grandTotalInWords } = useMemo(() => {
         const sub = billData.items.reduce((acc, item) => acc + (item.quantity * item.unitPrice), 0);
@@ -139,7 +149,7 @@ export const CashBillModal: React.FC<CashBillModalProps> = ({ isOpen, order, onC
     };
     
     const handleAddItem = () => {
-        const newId = Math.max(0, ...billData.items.map(i => i.id)) + 1000; // Use a high starting number to avoid collision
+        const newId = Math.max(0, ...billData.items.map(i => i.id)) + 1000;
         setBillData(prev => ({
             ...prev,
             items: [...prev.items, {id: newId, description: '', quantity: 1, unitPrice: 0}]
@@ -265,13 +275,34 @@ export const CashBillModal: React.FC<CashBillModalProps> = ({ isOpen, order, onC
                             ( <EditableField value={grandTotalInWords} onChange={() => {}} /> )
                         </div>
 
-                        {/* Footer */}
-                         <div className="flex justify-between items-end mt-16 text-sm">
+                        {/* Footer - With Signature Image */}
+                         <div className="flex justify-between items-end mt-8 text-sm">
                             <div className="text-center w-1/3">
-                                <p className="pt-8 border-t border-dotted border-gray-400">ผู้รับเงิน</p>
+                                <div className="h-20 w-full flex items-end justify-center mb-1">
+                                    {/* Empty space or cashier signature could go here */}
+                                </div>
+                                <p className="pt-2 border-t border-dotted border-gray-400">ผู้รับเงิน</p>
                             </div>
-                            <div className="text-center w-1/3">
-                                <p className="pt-8 border-t border-dotted border-gray-400">ผู้มีอำนาจลงนาม</p>
+                            <div className="text-center w-1/3 relative">
+                                <div className="h-20 w-full flex items-end justify-center mb-1 relative">
+                                    {signatureUrl ? (
+                                        <div className="absolute bottom-0 w-32 h-20">
+                                            <img 
+                                                src={signatureUrl} 
+                                                alt="Authorized Signature" 
+                                                className="w-full h-full object-contain"
+                                                style={{ 
+                                                    filter: 'grayscale(100%) contrast(150%) brightness(1.1)', 
+                                                    mixBlendMode: 'multiply' 
+                                                }} 
+                                            />
+                                        </div>
+                                    ) : (
+                                        // Optional: placeholder for manual signature box
+                                        <div className="w-32 h-16 border border-gray-200 bg-white/50" />
+                                    )}
+                                </div>
+                                <p className="pt-2 border-t border-dotted border-gray-400">ผู้มีอำนาจลงนาม</p>
                             </div>
                         </div>
                     </div>

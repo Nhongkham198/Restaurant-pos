@@ -250,6 +250,13 @@ const App: React.FC = () => {
     const [logoUrl, setLogoUrl] = useFirestoreSync<string | null>(branchId, 'logoUrl', null);
     const [appLogoUrl, setAppLogoUrl] = useFirestoreSync<string | null>(branchId, 'appLogoUrl', null); // NEW: App Display Logo
     const [restaurantName, setRestaurantName] = useFirestoreSync<string>(branchId, 'restaurantName', 'ชื่อร้านอาหาร');
+    
+    // NEW: Additional Settings Fields
+    const [restaurantAddress, setRestaurantAddress] = useFirestoreSync<string>(branchId, 'restaurantAddress', '');
+    const [restaurantPhone, setRestaurantPhone] = useFirestoreSync<string>(branchId, 'restaurantPhone', '');
+    const [taxId, setTaxId] = useFirestoreSync<string>(branchId, 'taxId', '');
+    const [signatureUrl, setSignatureUrl] = useFirestoreSync<string | null>(branchId, 'signatureUrl', null);
+
     const [qrCodeUrl, setQrCodeUrl] = useFirestoreSync<string | null>(branchId, 'qrCodeUrl', null);
     const [notificationSoundUrl, setNotificationSoundUrl] = useFirestoreSync<string | null>(branchId, 'notificationSoundUrl', null);
     const [staffCallSoundUrl, setStaffCallSoundUrl] = useFirestoreSync<string | null>(branchId, 'staffCallSoundUrl', null);
@@ -284,6 +291,7 @@ const App: React.FC = () => {
     const imageCacheTriggeredRef = useRef(false);
     const [isAudioUnlocked, setIsAudioUnlocked] = useState(false);
 
+    // ... (Computed Values and Effects - Unchanged) ...
     // --- REFS ---
     const prevActiveOrdersRef = useRef<ActiveOrder[] | undefined>(undefined);
     const staffCallAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -296,7 +304,7 @@ const App: React.FC = () => {
     const notifiedDailyStockRef = useRef<string>(''); // For daily 16:00 alert
     const notifiedMaintenanceRef = useRef<Set<number>>(new Set()); // For maintenance alert
 
-    // ... (Computed Values and Effects) ...
+    // ... (Computed Values) ...
     // (Keeping them collapsed as they are not changing)
     const waitingBadgeCount = useMemo(() => activeOrders.filter(o => o.status === 'waiting').length, [activeOrders]);
     const cookingBadgeCount = useMemo(() => activeOrders.filter(o => o.status === 'cooking').length, [activeOrders]);
@@ -1147,19 +1155,24 @@ const App: React.FC = () => {
             <SettingsModal 
                 isOpen={modalState.isSettings} 
                 onClose={handleModalClose} 
-                onSave={(newLogo, newAppLogo, qr, sound, staffSound, printer, open, close) => { 
-                    setLogoUrl(newLogo); // Save Receipt Logo
-                    setAppLogoUrl(newAppLogo); // Save App Logo (NEW)
+                onSave={(newLogo, newAppLogo, qr, sound, staffSound, printer, open, close, address, phone, tax, signature) => { 
+                    setLogoUrl(newLogo); 
+                    setAppLogoUrl(newAppLogo); 
                     setQrCodeUrl(qr); 
                     setNotificationSoundUrl(sound); 
                     setStaffCallSoundUrl(staffSound); 
                     setPrinterConfig(printer); 
                     setOpeningTime(open); 
                     setClosingTime(close); 
+                    // NEW: Save additional fields
+                    setRestaurantAddress(address);
+                    setRestaurantPhone(phone);
+                    setTaxId(tax);
+                    setSignatureUrl(signature);
                     handleModalClose(); 
                 }} 
-                currentLogoUrl={logoUrl} // Pass receipt logo URL
-                currentAppLogoUrl={appLogoUrl} // Pass app logo URL (NEW)
+                currentLogoUrl={logoUrl} 
+                currentAppLogoUrl={appLogoUrl} 
                 currentQrCodeUrl={qrCodeUrl} 
                 currentNotificationSoundUrl={notificationSoundUrl} 
                 currentStaffCallSoundUrl={staffCallSoundUrl} 
@@ -1170,16 +1183,31 @@ const App: React.FC = () => {
                 menuItems={menuItems} 
                 currentRecommendedMenuItemIds={recommendedMenuItemIds} 
                 onSaveRecommendedItems={setRecommendedMenuItemIds} 
-                // NEW PROPS
                 deliveryProviders={deliveryProviders}
                 onSaveDeliveryProviders={setDeliveryProviders}
+                // NEW: Pass current values
+                currentRestaurantAddress={restaurantAddress}
+                currentRestaurantPhone={restaurantPhone}
+                currentTaxId={taxId}
+                currentSignatureUrl={signatureUrl}
             />
             <EditCompletedOrderModal isOpen={modalState.isEditCompleted} order={orderForModal as CompletedOrder | null} onClose={handleModalClose} onSave={async ({id, items}) => { if(newCompletedOrders.some(o => o.id === id)) { await newCompletedOrdersActions.update(id, { items }); } else { setLegacyCompletedOrders(prev => prev.map(o => o.id === id ? {...o, items} : o)); } }} menuItems={menuItems} />
             <UserManagerModal isOpen={modalState.isUserManager} onClose={handleModalClose} users={users} setUsers={setUsers} currentUser={currentUser!} branches={branches} isEditMode={isEditMode} />
             <BranchManagerModal isOpen={modalState.isBranchManager} onClose={handleModalClose} branches={branches} setBranches={setBranches} currentUser={currentUser} />
             <MoveTableModal isOpen={modalState.isMoveTable} onClose={handleModalClose} order={orderForModal as ActiveOrder | null} tables={tables} activeOrders={activeOrders} onConfirmMove={handleConfirmMoveTable} floors={floors} />
             <CancelOrderModal isOpen={modalState.isCancelOrder} onClose={handleModalClose} order={orderForModal as ActiveOrder | null} onConfirm={handleConfirmCancelOrder} />
-            <CashBillModal isOpen={modalState.isCashBill} order={orderForModal as CompletedOrder | null} onClose={handleModalClose} restaurantName={restaurantName} logoUrl={logoUrl} />
+            <CashBillModal 
+                isOpen={modalState.isCashBill} 
+                order={orderForModal as CompletedOrder | null} 
+                onClose={handleModalClose} 
+                restaurantName={restaurantName} 
+                logoUrl={logoUrl}
+                // NEW: Pass bill details
+                restaurantAddress={restaurantAddress}
+                restaurantPhone={restaurantPhone}
+                taxId={taxId}
+                signatureUrl={signatureUrl}
+            />
             <SplitCompletedBillModal isOpen={modalState.isSplitCompleted} order={orderForModal as CompletedOrder | null} onClose={handleModalClose} onConfirmSplit={() => {}} />
             <ItemCustomizationModal isOpen={modalState.isCustomization} onClose={handleModalClose} item={itemToCustomize} onConfirm={handleConfirmCustomization} orderItemToEdit={orderItemToEdit} />
             <LeaveRequestModal isOpen={modalState.isLeaveRequest} onClose={handleModalClose} currentUser={currentUser} onSave={(req) => {const newId = Math.max(0, ...leaveRequests.map(r => r.id)) + 1; setLeaveRequests(prev => [...prev, {...req, id: newId, status: 'pending', branchId: selectedBranch!.id}]); handleModalClose(); }} leaveRequests={leaveRequests} initialDate={leaveRequestInitialDate} />
