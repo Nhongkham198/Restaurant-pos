@@ -167,6 +167,95 @@ export const printerService = {
         }
     },
 
+    // New method for printing preliminary bills (Check Bill)
+    printBill: async (order: ActiveOrder, config: CashierPrinterSettings, restaurantName: string, logoUrl?: string | null): Promise<void> => {
+        if (!config.ipAddress) throw new Error("ไม่ได้ตั้งค่า IP ของ Print Server");
+
+        const opts = config.receiptOptions;
+        const url = `http://${config.ipAddress}:${config.port || 3000}/print-image`;
+        const lines: string[] = [];
+
+        // 1. Header Section
+        if (opts.showRestaurantName) {
+            lines.push(`RESTAURANT_NAME:${restaurantName}`);
+        }
+        
+        // Address & Phone (Reuse options from receipt settings for consistency)
+        if (opts.showAddress && opts.address) {
+            lines.push(`CENTER:${opts.address}`);
+        }
+        if (opts.showPhoneNumber && opts.phoneNumber) {
+            lines.push(`CENTER:Tel: ${opts.phoneNumber}`);
+        }
+
+        lines.push(' ');
+        lines.push('CENTER:ใบแจ้งหนี้ / CHECK BILL'); // Distinct title
+        lines.push('--------------------------------');
+        
+        // 2. Meta Section
+        if (opts.showTable) lines.push(`โต๊ะ: ${order.tableName}`);
+        lines.push(`Order: #${order.orderNumber}`);
+        lines.push(`วันที่: ${new Date().toLocaleString('th-TH')}`); // Use current time for check bill
+        if (opts.showStaff && order.placedBy) {
+            lines.push(`พนักงาน: ${order.placedBy}`);
+        }
+
+        if (opts.showItems) lines.push('--------------------------------');
+
+        // 3. Items Section
+        if (opts.showItems) {
+            order.items.forEach(item => {
+                 const itemHtml = `
+                <div style="display: flex; justify-content: space-between; margin-bottom: 2px; font-size: 28px;">
+                    <div style="flex: 1;">${item.quantity} x ${item.name}</div>
+                    <div style="width: 100px; text-align: right;">${(item.finalPrice * item.quantity).toFixed(2)}</div>
+                </div>`;
+                lines.push(itemHtml);
+            });
+            lines.push('--------------------------------');
+        }
+
+        // 4. Totals Section
+        const subtotal = order.items.reduce((sum, item) => sum + item.finalPrice * item.quantity, 0);
+        
+        if (opts.showSubtotal) {
+                lines.push(`<div style="display: flex; justify-content: space-between;"><div>รวมเงิน</div><div>${subtotal.toFixed(2)}</div></div>`);
+        }
+        if (opts.showTax) {
+                lines.push(`<div style="display: flex; justify-content: space-between;"><div>ภาษี (${order.taxRate}%)</div><div>${order.taxAmount.toFixed(2)}</div></div>`);
+        }
+        // Always show total
+        const total = subtotal + order.taxAmount;
+        lines.push(`<div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 32px; margin-top: 5px;"><div>ยอดสุทธิ</div><div>${total.toFixed(2)}</div></div>`);
+        
+        // Footer
+        lines.push(' ');
+        lines.push('CENTER:(ยังไม่ได้ชำระเงิน / Unpaid)');
+
+        try {
+            const base64Image = await generateReceiptImage(lines, config.paperWidth, logoUrl || undefined);
+            
+            const res = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    image: base64Image,
+                    connectionType: config.connectionType,
+                    targetPrinter: {
+                        ip: config.targetPrinterIp || '',
+                        port: config.targetPrinterPort || '9100'
+                    }
+                })
+            });
+            if (!res.ok) {
+                const errData = await res.json().catch(() => ({}));
+                throw new Error(errData.error || `Server returned ${res.status}`);
+            }
+        } catch (error: any) {
+            throw new Error("พิมพ์ล้มเหลว: " + error.message);
+        }
+    },
+
     printReceipt: async (order: CompletedOrder, config: CashierPrinterSettings, restaurantName: string, logoUrl?: string | null): Promise<void> => {
         if (!config.ipAddress) throw new Error("ไม่ได้ตั้งค่า IP ของ Print Server");
 

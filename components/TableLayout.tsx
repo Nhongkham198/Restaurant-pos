@@ -13,16 +13,26 @@ interface TableCardProps {
     currentUser: User | null;
     printerConfig: PrinterConfig | null;
     selectedBranch: Branch | null;
+    restaurantName: string;
+    logoUrl: string | null;
 }
 
-const TableCard: React.FC<TableCardProps> = ({ table, orders, onTableSelect, onShowBill, onGeneratePin, currentUser, printerConfig, selectedBranch }) => {
+const TableCard: React.FC<TableCardProps> = ({ 
+    table, 
+    orders, 
+    onTableSelect, 
+    onShowBill, 
+    onGeneratePin, 
+    currentUser, 
+    printerConfig, 
+    selectedBranch,
+    restaurantName,
+    logoUrl
+}) => {
     const isOccupied = orders.length > 0;
     const hasSplitBill = orders.some(o => o.isSplitChild || o.splitCount);
     const mainOrder = orders[0];
     const isReserved = !!table.reservation && !isOccupied;
-
-    // REMOVED: const isAdminOrManager = currentUser?.role === 'admin' || currentUser?.role === 'branch-admin';
-    // We want everyone to see the QR button now.
 
     // --- Table Timer Logic ---
     const [durationText, setDurationText] = useState<string>('');
@@ -110,8 +120,6 @@ const TableCard: React.FC<TableCardProps> = ({ table, orders, onTableSelect, onS
             return;
         }
 
-        // FIX: Use window.location.origin + window.location.pathname to get the clean base URL.
-        // Clean up any trailing slashes or index.html to ensure the link works perfectly
         let baseUrl = window.location.origin + window.location.pathname;
         baseUrl = baseUrl.replace(/\/index\.html$/, '').replace(/\/$/, '');
 
@@ -193,16 +201,53 @@ const TableCard: React.FC<TableCardProps> = ({ table, orders, onTableSelect, onS
         });
     };
 
+    const handlePrintBill = async (order: ActiveOrder, e: React.MouseEvent) => {
+        e.stopPropagation();
+        
+        if (!printerConfig?.cashier) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'ไม่พบเครื่องพิมพ์ใบเสร็จ',
+                text: 'กรุณาตั้งค่าเครื่องพิมพ์ใบเสร็จในเมนู "ตั้งค่า" ก่อนใช้งาน',
+            });
+            return;
+        }
+
+        try {
+            Swal.fire({
+                title: 'กำลังส่งพิมพ์ใบแจ้งหนี้...',
+                text: `ออเดอร์ #${order.orderNumber}`,
+                didOpen: () => { Swal.showLoading(); }
+            });
+
+            await printerService.printBill(order, printerConfig.cashier, restaurantName, logoUrl);
+
+            Swal.fire({
+                icon: 'success',
+                title: 'ส่งคำสั่งพิมพ์แล้ว',
+                timer: 1500,
+                showConfirmButton: false
+            });
+        } catch (error) {
+            console.error("Print Bill Error:", error);
+            Swal.fire({
+                icon: 'error',
+                title: 'พิมพ์ไม่สำเร็จ',
+                text: error instanceof Error ? error.message : 'ไม่สามารถเชื่อมต่อเครื่องพิมพ์ได้',
+            });
+        }
+    };
+
     const getBillButtonText = (order: ActiveOrder) => {
         if (order.mergedOrderNumbers && order.mergedOrderNumbers.length > 0) {
             const allNumbers = [...new Set([order.orderNumber, ...order.mergedOrderNumbers])].sort((a,b) => a - b);
             return `บิล #${allNumbers.map(n => String(n).padStart(3, '0')).join('+')}`;
         }
         if (order.isSplitChild && order.parentOrderId && order.splitIndex) {
-            return `บิล #${String(order.parentOrderId).padStart(3, '0')}.${order.splitIndex} (บิลย่อย)`;
+            return `บิล #${String(order.parentOrderId).padStart(3, '0')}.${order.splitIndex}`;
         }
         if (order.splitCount && order.splitCount > 0) {
-            return `บิล #${String(order.orderNumber).padStart(3, '0')} (บิลหลัก)`;
+            return `บิล #${String(order.orderNumber).padStart(3, '0')} (หลัก)`;
         }
         return `ดูบิล #${String(order.orderNumber).padStart(3, '0')}`;
     };
@@ -273,13 +318,23 @@ const TableCard: React.FC<TableCardProps> = ({ table, orders, onTableSelect, onS
             <div className="mt-4 flex flex-col gap-2">
                 {isOccupied ? (
                     orders.sort((a,b) => a.id - b.id).map((order) => (
-                        <button
-                            key={order.id}
-                            onClick={() => onShowBill(order.id)}
-                            className={`w-full text-white font-bold py-2 px-4 rounded-lg transition-colors text-base bg-blue-500 hover:bg-blue-600`}
-                        >
-                           {getBillButtonText(order)}
-                        </button>
+                        <div key={order.id} className="flex gap-2">
+                            <button
+                                onClick={() => onShowBill(order.id)}
+                                className={`flex-1 text-white font-bold py-2 px-4 rounded-lg transition-colors text-base bg-blue-500 hover:bg-blue-600 truncate`}
+                            >
+                               {getBillButtonText(order)}
+                            </button>
+                            <button
+                                onClick={(e) => handlePrintBill(order, e)}
+                                className="w-12 bg-gray-200 text-gray-700 rounded-lg flex items-center justify-center hover:bg-gray-300 transition-colors"
+                                title="พิมพ์ใบแจ้งหนี้ (Check Bill)"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                                </svg>
+                            </button>
+                        </div>
                     ))
                 ) : (
                     <button
@@ -304,9 +359,23 @@ interface TableLayoutProps {
     printerConfig: PrinterConfig | null;
     floors: string[];
     selectedBranch: Branch | null;
+    restaurantName: string; // New prop
+    logoUrl: string | null; // New prop
 }
 
-export const TableLayout: React.FC<TableLayoutProps> = ({ tables, activeOrders, onTableSelect, onShowBill, onGeneratePin, currentUser, printerConfig, floors, selectedBranch }) => {
+export const TableLayout: React.FC<TableLayoutProps> = ({ 
+    tables, 
+    activeOrders, 
+    onTableSelect, 
+    onShowBill, 
+    onGeneratePin, 
+    currentUser, 
+    printerConfig, 
+    floors, 
+    selectedBranch,
+    restaurantName,
+    logoUrl
+}) => {
     const [selectedFloor, setSelectedFloor] = useState<string>('');
 
     useEffect(() => {
@@ -360,6 +429,8 @@ export const TableLayout: React.FC<TableLayoutProps> = ({ tables, activeOrders, 
                                 currentUser={currentUser}
                                 printerConfig={printerConfig}
                                 selectedBranch={selectedBranch}
+                                restaurantName={restaurantName}
+                                logoUrl={logoUrl}
                             />
                         );
                     })}
