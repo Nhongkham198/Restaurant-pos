@@ -253,6 +253,9 @@ export const CashBillModal: React.FC<CashBillModalProps> = ({
     // Signatures
     const [receiverLabel, setReceiverLabel] = useState('ผู้รับเงิน');
     const [authorityLabel, setAuthorityLabel] = useState('ผู้มีอำนาจลงนาม');
+    
+    // NEW: Base64 state for signature
+    const [signatureBase64, setSignatureBase64] = useState<string | null>(null);
 
     // Helper to calculate totals
     const recalculateTotals = (items: EditableItem[]) => {
@@ -280,6 +283,39 @@ export const CashBillModal: React.FC<CashBillModalProps> = ({
         
         return updatedItems;
     };
+
+    // --- Convert Signature URL to Base64 ---
+    useEffect(() => {
+        const processImage = async () => {
+            if (!signatureUrl) {
+                setSignatureBase64(null);
+                return;
+            }
+            
+            // If already base64, use it directly
+            if (signatureUrl.startsWith('data:image')) {
+                setSignatureBase64(signatureUrl);
+                return;
+            }
+
+            try {
+                // Attempt to fetch and convert to base64
+                const response = await fetch(signatureUrl, { mode: 'cors' });
+                const blob = await response.blob();
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    setSignatureBase64(reader.result as string);
+                };
+                reader.readAsDataURL(blob);
+            } catch (e) {
+                console.error("Failed to convert signature image to Base64 for printing:", e);
+                // Fallback: Use original URL and hope html2canvas handles it
+                setSignatureBase64(signatureUrl);
+            }
+        };
+
+        processImage();
+    }, [signatureUrl]);
 
     // --- Initialize Data when Order Opens ---
     useEffect(() => {
@@ -640,10 +676,10 @@ export const CashBillModal: React.FC<CashBillModalProps> = ({
                                     {signatureUrl ? (
                                         <div className={`${isA4 ? 'absolute bottom-0 left-1/2 -translate-x-1/2 w-48 h-28' : 'relative w-48 h-28'} flex items-end justify-center`}>
                                             <img 
-                                                src={signatureUrl} 
+                                                src={signatureBase64 || signatureUrl} 
                                                 alt="Authorized Signature" 
                                                 className="w-full h-full object-contain"
-                                                crossOrigin="anonymous" 
+                                                // Removed crossOrigin as it may conflict with base64, but left fetch handling it
                                             />
                                         </div>
                                     ) : (
