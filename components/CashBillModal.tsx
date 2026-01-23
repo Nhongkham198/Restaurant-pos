@@ -301,8 +301,9 @@ export const CashBillModal: React.FC<CashBillModalProps> = ({
             setCustomerTaxId('');
 
             // Items
+            // MODIFIED: Do not include selectedOptions (modifiers) as per user request
             const items = order.items.map(item => ({
-                name: `${item.name} ${item.selectedOptions.length > 0 ? `(${item.selectedOptions.map(o => o.name).join(', ')})` : ''}`,
+                name: item.name, 
                 qty: String(item.quantity),
                 price: item.finalPrice.toLocaleString(undefined, { minimumFractionDigits: 2 }),
                 total: (item.finalPrice * item.quantity).toLocaleString(undefined, { minimumFractionDigits: 2 })
@@ -468,7 +469,7 @@ export const CashBillModal: React.FC<CashBillModalProps> = ({
                         {/* Header */}
                         <div className={`flex ${isA4 ? 'justify-between items-start flex-row' : 'flex-col items-center text-center'} mb-6`}>
                             <div className={`flex ${isA4 ? 'gap-4 w-2/3' : 'flex-col items-center gap-2 w-full'}`}>
-                                {logoUrl && <img src={logoUrl} alt="Logo" className={`${isA4 ? 'h-20 w-20' : 'h-16 w-16'} object-contain`} />}
+                                {logoUrl && <img src={logoUrl} alt="Logo" className={`${isA4 ? 'h-20 w-20' : 'h-16 w-16'} object-contain`} crossOrigin="anonymous" />}
                                 <div className="flex-1">
                                     <div className={`${isA4 ? 'text-2xl' : 'text-lg'} font-bold mb-1`}>
                                         <EditableField value={shopName} onChange={setShopName} align={isA4 ? 'left' : 'center'} />
@@ -484,7 +485,7 @@ export const CashBillModal: React.FC<CashBillModalProps> = ({
                                     </div>
                                 </div>
                             </div>
-                            <div className={`${isA4 ? 'text-right w-1/3' : 'text-center w-full mt-4 border-t border-dashed pt-2'}`}>
+                            <div className={`${isA4 ? 'text-right w-1/3' : 'text-center w-full mt-4 border-t border-dashed border-black pt-2'}`}>
                                 <div className={`${isA4 ? 'text-xl' : 'text-base'} font-bold mb-2`}>
                                     <EditableField value={docTitle} onChange={setDocTitle} className={isA4 ? "text-right w-full" : "text-center w-full"} align={isA4 ? 'right' : 'center'} />
                                 </div>
@@ -505,29 +506,29 @@ export const CashBillModal: React.FC<CashBillModalProps> = ({
                             </div>
                         </div>
 
-                        {/* Customer Info Input */}
-                        <div className={`mb-6 p-2 border rounded-lg bg-gray-50 border-gray-200 ${isA4 ? 'p-4' : ''}`}>
-                            <h3 className="font-bold border-b border-gray-300 mb-2 pb-1">ข้อมูลลูกค้า</h3>
-                            <div className={`grid ${isA4 ? 'grid-cols-2' : 'grid-cols-1'} gap-2`}>
+                        {/* Customer Info Input - MODIFIED: Remove box/border styles */}
+                        <div className={`mb-4 ${isA4 ? 'p-4 border rounded-lg' : 'pt-2 border-t border-dashed border-black'}`}>
+                            <h3 className="font-bold mb-1 text-sm">ข้อมูลลูกค้า</h3>
+                            <div className={`grid ${isA4 ? 'grid-cols-2' : 'grid-cols-1'} gap-1`}>
                                 <div>
-                                    <label className="block text-xs text-gray-500">ชื่อลูกค้า / บริษัท</label>
-                                    <EditableField value={customerName} onChange={setCustomerName} placeholder="-" className="w-full font-medium" />
+                                    <label className="block text-xs font-bold text-black">ชื่อลูกค้า / บริษัท</label>
+                                    <EditableField value={customerName} onChange={setCustomerName} placeholder="-" className="w-full" />
                                 </div>
                                 <div>
-                                    <label className="block text-xs text-gray-500">เลขประจำตัวผู้เสียภาษี</label>
-                                    <EditableField value={customerTaxId} onChange={setCustomerTaxId} placeholder="-" className="w-full font-medium" />
+                                    <label className="block text-xs font-bold text-black">เลขประจำตัวผู้เสียภาษี</label>
+                                    <EditableField value={customerTaxId} onChange={setCustomerTaxId} placeholder="-" className="w-full" />
                                 </div>
                                 <div className={isA4 ? "col-span-2" : ""}>
-                                    <label className="block text-xs text-gray-500">ที่อยู่</label>
-                                    <EditableField value={customerAddress} onChange={setCustomerAddress} placeholder="-" className="w-full font-medium" />
+                                    <label className="block text-xs font-bold text-black">ที่อยู่</label>
+                                    <EditableField value={customerAddress} onChange={setCustomerAddress} placeholder="-" className="w-full" />
                                 </div>
                             </div>
                         </div>
 
                         {/* Items Table */}
-                        <table className="w-full text-sm border-collapse mb-6">
+                        <table className="w-full text-sm border-collapse mb-4">
                             <thead>
-                                <tr className="bg-gray-100 border-t border-b border-gray-300">
+                                <tr className="border-t border-b border-black">
                                     {isA4 && <th className="py-2 text-center w-12">#</th>}
                                     <th className="py-2 text-left">รายการ</th>
                                     <th className="py-2 text-center w-12">จำนวน</th>
@@ -538,7 +539,7 @@ export const CashBillModal: React.FC<CashBillModalProps> = ({
                             </thead>
                             <tbody>
                                 {editableItems.map((item, index) => (
-                                    <tr key={index} className="border-b border-gray-200 hover:bg-gray-50 group">
+                                    <tr key={index} className="border-b border-gray-200 group">
                                         {isA4 && <td className="py-2 text-center">{index + 1}</td>}
                                         <td className="py-2 align-top">
                                             {/* Name Field with Autocomplete */}
@@ -549,11 +550,7 @@ export const CashBillModal: React.FC<CashBillModalProps> = ({
                                                 suggestions={menuItems}
                                                 onSelectSuggestion={(selectedItem) => handleSuggestionSelect(index, selectedItem)}
                                             />
-                                            {!isA4 && (
-                                                <div className="text-[10px] text-gray-500">
-                                                    @{item.price}
-                                                </div>
-                                            )}
+                                            {/* MODIFIED: Removed the price-per-unit display for Thermal mode to reduce clutter/extra lines */}
                                         </td>
                                         <td className="py-2 text-center align-top">
                                             <EditableField value={item.qty} onChange={(v) => handleItemChange(index, 'qty', v)} className="text-center w-full" align="center" />
@@ -629,7 +626,7 @@ export const CashBillModal: React.FC<CashBillModalProps> = ({
                         </div>
 
                         {/* Footer - With Signature Image */}
-                         <div className={`flex ${isA4 ? 'justify-between flex-row' : 'flex-col items-center gap-8'} items-end mt-12 text-sm`}>
+                         <div className={`flex ${isA4 ? 'justify-between flex-row' : 'flex-col items-center gap-4'} items-end mt-4 text-sm`}>
                             <div className={`${isA4 ? 'w-1/3' : 'w-full'} text-center`}>
                                 <div className="h-16 w-full flex items-end justify-center mb-1">
                                     {/* Empty space or cashier signature could go here */}
@@ -639,22 +636,21 @@ export const CashBillModal: React.FC<CashBillModalProps> = ({
                                 </div>
                             </div>
                             <div className={`${isA4 ? 'w-1/3' : 'w-full'} text-center relative`}>
-                                <div className={`w-full flex items-end justify-center relative ${isA4 ? 'h-16 mb-1' : 'h-auto mt-6 mb-10'}`}>
+                                <div className={`w-full flex items-end justify-center relative ${isA4 ? 'h-16 mb-1' : 'h-auto mt-2 mb-2'}`}>
                                     {signatureUrl ? (
                                         <div className={`${isA4 ? 'absolute bottom-0 left-1/2 -translate-x-1/2 w-48 h-28' : 'relative w-48 h-28'} flex items-end justify-center`}>
                                             <img 
                                                 src={signatureUrl} 
                                                 alt="Authorized Signature" 
                                                 className="w-full h-full object-contain"
-                                                // Removed aggressive filters: filter: 'grayscale(100%) contrast(200%)'
-                                                // This ensures the ID card photo is clear and readable as per user request.
+                                                crossOrigin="anonymous" 
                                             />
                                         </div>
                                     ) : (
                                         <div className="w-32 h-16 border border-gray-200 bg-white/50 hidden" />
                                     )}
                                 </div>
-                                <div className="pt-2 border-t border-dotted border-gray-400">
+                                <div className="pt-2 border-t border-dotted border-gray-400 w-full">
                                     <EditableField value={authorityLabel} onChange={setAuthorityLabel} className="text-center w-full" align="center" />
                                 </div>
                             </div>
