@@ -1,5 +1,14 @@
+
 import React, { useState, useRef, useMemo, useEffect } from 'react';
-import type { CompletedOrder } from '../types';
+import type { CompletedOrder, MenuItem, PrinterConfig } from '../types';
+import { printerService } from '../services/printerService';
+import Swal from 'sweetalert2';
+
+declare global {
+    interface Window {
+        html2canvas: any;
+    }
+}
 
 // Helper to convert number to Thai Baht text
 const moneyToThaiText = (amount: number): string => {
@@ -76,12 +85,15 @@ interface EditableFieldProps {
     className?: string;
     placeholder?: string;
     align?: 'left' | 'center' | 'right';
+    suggestions?: MenuItem[]; // Autocomplete suggestions
+    onSelectSuggestion?: (item: MenuItem) => void;
 }
 
-const EditableField: React.FC<EditableFieldProps> = ({ value, onChange, className = "", placeholder = "", align = 'left' }) => {
+const EditableField: React.FC<EditableFieldProps> = ({ value, onChange, className = "", placeholder = "", align = 'left', suggestions, onSelectSuggestion }) => {
     const [isEditing, setIsEditing] = useState(false);
     const inputRef = useRef<HTMLInputElement>(null);
     const [localValue, setLocalValue] = useState(String(value));
+    const [showSuggestions, setShowSuggestions] = useState(false);
 
     useEffect(() => {
         setLocalValue(String(value));
@@ -94,8 +106,12 @@ const EditableField: React.FC<EditableFieldProps> = ({ value, onChange, classNam
     };
 
     const handleBlur = () => {
-        setIsEditing(false);
-        onChange(localValue);
+        // Small delay to allow click on suggestion to register
+        setTimeout(() => {
+            setIsEditing(false);
+            setShowSuggestions(false);
+            onChange(localValue);
+        }, 150);
     };
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -104,17 +120,55 @@ const EditableField: React.FC<EditableFieldProps> = ({ value, onChange, classNam
         }
     };
 
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setLocalValue(e.target.value);
+        if (suggestions && suggestions.length > 0) {
+            setShowSuggestions(true);
+        }
+    };
+
+    const handleSuggestionClick = (item: MenuItem) => {
+        if (onSelectSuggestion) {
+            onSelectSuggestion(item);
+            setIsEditing(false);
+            setShowSuggestions(false);
+        }
+    };
+
+    // Filter suggestions based on input
+    const filteredSuggestions = useMemo(() => {
+        if (!suggestions || !showSuggestions || !localValue) return [];
+        return suggestions.filter(item => 
+            item.name.toLowerCase().includes(localValue.toLowerCase())
+        ).slice(0, 5); // Limit to 5
+    }, [suggestions, showSuggestions, localValue]);
+
     if (isEditing) {
         return (
-            <input
-                ref={inputRef}
-                value={localValue}
-                onChange={e => setLocalValue(e.target.value)}
-                onBlur={handleBlur}
-                onKeyDown={handleKeyDown}
-                className={`border-b border-blue-400 focus:outline-none bg-white w-full ${align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : 'text-left'} ${className}`}
-                placeholder={placeholder}
-            />
+            <div className="relative w-full">
+                <input
+                    ref={inputRef}
+                    value={localValue}
+                    onChange={handleInputChange}
+                    onBlur={handleBlur}
+                    onKeyDown={handleKeyDown}
+                    className={`border-b border-blue-400 focus:outline-none bg-white w-full ${align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : 'text-left'} ${className}`}
+                    placeholder={placeholder}
+                />
+                {filteredSuggestions.length > 0 && (
+                    <ul className="absolute left-0 right-0 top-full mt-1 bg-white border border-gray-300 shadow-lg rounded-md z-50 max-h-40 overflow-y-auto">
+                        {filteredSuggestions.map(item => (
+                            <li 
+                                key={item.id} 
+                                onMouseDown={(e) => { e.preventDefault(); handleSuggestionClick(item); }} // Use onMouseDown to trigger before onBlur
+                                className="p-2 hover:bg-blue-50 cursor-pointer text-sm text-gray-800 border-b last:border-0 text-left"
+                            >
+                                <span className="font-bold">{item.name}</span> <span className="text-gray-500">- {item.price.toLocaleString()} ฿</span>
+                            </li>
+                        ))}
+                    </ul>
+                )}
+            </div>
         );
     }
 
@@ -139,6 +193,8 @@ interface CashBillModalProps {
     restaurantPhone: string;
     taxId: string;
     signatureUrl: string | null;
+    menuItems: MenuItem[];
+    printerConfig: PrinterConfig | null;
 }
 
 interface EditableItem {
@@ -157,7 +213,9 @@ export const CashBillModal: React.FC<CashBillModalProps> = ({
     restaurantAddress,
     restaurantPhone,
     taxId,
-    signatureUrl
+    signatureUrl,
+    menuItems,
+    printerConfig
 }) => {
     const componentRef = useRef<HTMLDivElement>(null);
     const [paperSize, setPaperSize] = useState<'a4' | '80mm'>('80mm');
@@ -283,6 +341,18 @@ export const CashBillModal: React.FC<CashBillModalProps> = ({
         }
     };
 
+    const handleSuggestionSelect = (index: number, item: MenuItem) => {
+        const newItems = [...editableItems];
+        // Auto-fill name and price
+        newItems[index] = { 
+            ...newItems[index], 
+            name: item.name,
+            price: item.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+        };
+        const recalculated = recalculateTotals(newItems);
+        setEditableItems(recalculated);
+    };
+
     const handleAddItem = () => {
         const newItem: EditableItem = {
             name: 'รายการใหม่',
@@ -301,23 +371,54 @@ export const CashBillModal: React.FC<CashBillModalProps> = ({
         setEditableItems(recalculated);
     };
 
-    if (!isOpen || !order) return null;
+    const handlePrint = async () => {
+        if (!printerConfig?.cashier) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'ไม่พบเครื่องพิมพ์ใบเสร็จ',
+                text: 'กรุณาตั้งค่าเครื่องพิมพ์ใบเสร็จในเมนู "ตั้งค่า" ก่อนใช้งาน',
+            });
+            return;
+        }
 
-    const handlePrint = () => {
         const printContent = componentRef.current;
-        if (printContent) {
-            const printWindow = window.open('', '', 'height=600,width=800');
-            if (printWindow) {
-                printWindow.document.write('<html><head><title>Print Bill</title>');
-                printWindow.document.write('<link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">');
-                printWindow.document.write('</head><body >');
-                printWindow.document.write(printContent.innerHTML);
-                printWindow.document.write('</body></html>');
-                printWindow.document.close();
-                printWindow.print();
-            }
+        if (!printContent || !window.html2canvas) return;
+
+        Swal.fire({
+            title: 'กำลังส่งพิมพ์...',
+            text: 'กรุณารอสักครู่',
+            allowOutsideClick: false,
+            didOpen: () => { Swal.showLoading(); }
+        });
+
+        try {
+            // Use scale 2 for sharper text
+            const canvas = await window.html2canvas(printContent, { 
+                scale: 2,
+                useCORS: true,
+                backgroundColor: '#ffffff' // Ensure white background
+            });
+            const base64Image = canvas.toDataURL('image/png');
+
+            await printerService.printCustomImage(base64Image, printerConfig.cashier);
+
+            Swal.fire({
+                icon: 'success',
+                title: 'ส่งคำสั่งพิมพ์แล้ว',
+                timer: 1500,
+                showConfirmButton: false
+            });
+        } catch (error) {
+            console.error("Print Error:", error);
+            Swal.fire({
+                icon: 'error',
+                title: 'พิมพ์ไม่สำเร็จ',
+                text: error instanceof Error ? error.message : 'ไม่สามารถเชื่อมต่อเครื่องพิมพ์ได้',
+            });
         }
     };
+
+    if (!isOpen || !order) return null;
 
     const isA4 = paperSize === 'a4';
 
@@ -340,7 +441,7 @@ export const CashBillModal: React.FC<CashBillModalProps> = ({
                     <div className="flex gap-2">
                         <button onClick={handlePrint} className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 font-bold flex items-center gap-2">
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
-                            พิมพ์
+                            พิมพ์ (เครื่องใบเสร็จ)
                         </button>
                         <button onClick={onClose} className="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 font-bold">ปิด</button>
                     </div>
@@ -358,20 +459,8 @@ export const CashBillModal: React.FC<CashBillModalProps> = ({
                         {/* CSS injection for continuous 80mm printing INSIDE componentRef */}
                         {!isA4 && (
                             <style>{`
-                                @media print {
-                                    @page {
-                                        size: 80mm auto; /* Force continuous roll width and auto height */
-                                        margin: 0mm;
-                                    }
-                                    html, body {
-                                        margin: 0px;
-                                        height: auto; /* Ensure it doesn't try to fill page height */
-                                        overflow: visible;
-                                    }
-                                    /* Additional safety to avoid breaks */
-                                    .printable-content {
-                                        page-break-inside: avoid;
-                                    }
+                                .printable-content {
+                                    page-break-inside: avoid;
                                 }
                             `}</style>
                         )}
@@ -452,7 +541,14 @@ export const CashBillModal: React.FC<CashBillModalProps> = ({
                                     <tr key={index} className="border-b border-gray-200 hover:bg-gray-50 group">
                                         {isA4 && <td className="py-2 text-center">{index + 1}</td>}
                                         <td className="py-2 align-top">
-                                            <EditableField value={item.name} onChange={(v) => handleItemChange(index, 'name', v)} className="w-full" />
+                                            {/* Name Field with Autocomplete */}
+                                            <EditableField 
+                                                value={item.name} 
+                                                onChange={(v) => handleItemChange(index, 'name', v)} 
+                                                className="w-full" 
+                                                suggestions={menuItems}
+                                                onSelectSuggestion={(selectedItem) => handleSuggestionSelect(index, selectedItem)}
+                                            />
                                             {!isA4 && (
                                                 <div className="text-[10px] text-gray-500">
                                                     @{item.price}
@@ -527,8 +623,8 @@ export const CashBillModal: React.FC<CashBillModalProps> = ({
                             </tfoot>
                         </table>
 
-                        {/* Total in words */}
-                        <div className="mt-2 p-2 bg-gray-100 text-sm font-bold text-center text-gray-800 border-b border-dashed border-gray-300 pb-4">
+                        {/* Total in words - Background changed to white */}
+                        <div className="mt-2 p-2 bg-white text-sm font-bold text-center text-gray-800 border-b border-dashed border-gray-300 pb-4">
                             ( <EditableField value={grandTotalInWords} onChange={setGrandTotalInWords} className="text-center w-full" align="center" /> )
                         </div>
 
@@ -550,10 +646,8 @@ export const CashBillModal: React.FC<CashBillModalProps> = ({
                                                 src={signatureUrl} 
                                                 alt="Authorized Signature" 
                                                 className="w-full h-full object-contain"
-                                                style={{ 
-                                                    filter: 'grayscale(100%) contrast(150%) brightness(1.1)', 
-                                                    mixBlendMode: 'multiply' 
-                                                }} 
+                                                // Removed aggressive filters: filter: 'grayscale(100%) contrast(200%)'
+                                                // This ensures the ID card photo is clear and readable as per user request.
                                             />
                                         </div>
                                     ) : (

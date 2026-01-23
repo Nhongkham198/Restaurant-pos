@@ -360,6 +360,34 @@ export const printerService = {
         }
     },
 
+    // New method to print any pre-generated base64 image (used by CashBillModal)
+    printCustomImage: async (base64Image: string, config: CashierPrinterSettings): Promise<void> => {
+        if (!config.ipAddress) throw new Error("ไม่ได้ตั้งค่า IP ของ Print Server");
+
+        const url = `http://${config.ipAddress}:${config.port || 3000}/print-image`;
+
+        try {
+            const res = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    image: base64Image,
+                    connectionType: config.connectionType,
+                    targetPrinter: {
+                        ip: config.targetPrinterIp || '',
+                        port: config.targetPrinterPort || '9100'
+                    }
+                })
+            });
+            if (!res.ok) {
+                const errData = await res.json().catch(() => ({}));
+                throw new Error(errData.error || `Server returned ${res.status}`);
+            }
+        } catch (error: any) {
+            throw new Error("พิมพ์ล้มเหลว: " + error.message);
+        }
+    },
+
     printTest: async (ip: string, paperWidth: string, port: string, targetPrinterIp?: string, targetPrinterPort?: string, connectionType: PrinterConnectionType = 'network'): Promise<boolean> => {
         const url = `http://${ip}:${port || 3000}/print-image`;
         const lines = ["--- ทดสอบการพิมพ์ ---", `โหมด: ${connectionType.toUpperCase()}`, new Date().toLocaleString('th-TH')];

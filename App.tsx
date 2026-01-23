@@ -1207,6 +1207,10 @@ const App: React.FC = () => {
                 restaurantPhone={restaurantPhone}
                 taxId={taxId}
                 signatureUrl={signatureUrl}
+                // Pass menuItems for autocomplete
+                menuItems={menuItems}
+                // Pass printerConfig for printing
+                printerConfig={printerConfig}
             />
             <SplitCompletedBillModal isOpen={modalState.isSplitCompleted} order={orderForModal as CompletedOrder | null} onClose={handleModalClose} onConfirmSplit={() => {}} />
             <ItemCustomizationModal isOpen={modalState.isCustomization} onClose={handleModalClose} item={itemToCustomize} onConfirm={handleConfirmCustomization} orderItemToEdit={orderItemToEdit} />
