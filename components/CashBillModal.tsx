@@ -219,6 +219,10 @@ export const CashBillModal: React.FC<CashBillModalProps> = ({
 }) => {
     const componentRef = useRef<HTMLDivElement>(null);
     const [paperSize, setPaperSize] = useState<'a4' | '80mm'>('80mm');
+    const [zoomLevel, setZoomLevel] = useState(1);
+    
+    // NEW: Bottom Padding / Margin Adjustment State
+    const [bottomPadding, setBottomPadding] = useState(60); // Default 60px
 
     // --- Local State for ALL Editable Fields ---
     
@@ -250,9 +254,14 @@ export const CashBillModal: React.FC<CashBillModalProps> = ({
     const [grandTotalStr, setGrandTotalStr] = useState('');
     const [grandTotalInWords, setGrandTotalInWords] = useState('');
     
-    // Signatures
+    // Signatures & Names (Smart Fields)
     const [receiverLabel, setReceiverLabel] = useState('ผู้รับเงิน');
     const [authorityLabel, setAuthorityLabel] = useState('ผู้มีอำนาจลงนาม');
+    const [receiverName, setReceiverName] = useState('');
+    const [authorityName, setAuthorityName] = useState('');
+    
+    // NEW: Base64 state for signature
+    const [signatureBase64, setSignatureBase64] = useState<string | null>(null);
 
     // Helper to calculate totals
     const recalculateTotals = (items: EditableItem[]) => {
@@ -280,6 +289,39 @@ export const CashBillModal: React.FC<CashBillModalProps> = ({
         
         return updatedItems;
     };
+
+    // --- Convert Signature URL to Base64 ---
+    useEffect(() => {
+        const processImage = async () => {
+            if (!signatureUrl) {
+                setSignatureBase64(null);
+                return;
+            }
+            
+            // If already base64, use it directly
+            if (signatureUrl.startsWith('data:image')) {
+                setSignatureBase64(signatureUrl);
+                return;
+            }
+
+            try {
+                // Attempt to fetch and convert to base64
+                const response = await fetch(signatureUrl, { mode: 'cors' });
+                const blob = await response.blob();
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    setSignatureBase64(reader.result as string);
+                };
+                reader.readAsDataURL(blob);
+            } catch (e) {
+                console.error("Failed to convert signature image to Base64 for printing:", e);
+                // Fallback: Use original URL and hope html2canvas handles it
+                setSignatureBase64(signatureUrl);
+            }
+        };
+
+        processImage();
+    }, [signatureUrl]);
 
     // --- Initialize Data when Order Opens ---
     useEffect(() => {
@@ -326,6 +368,11 @@ export const CashBillModal: React.FC<CashBillModalProps> = ({
             setGrandTotalLabel('ยอดสุทธิ');
             setReceiverLabel('ผู้รับเงิน');
             setAuthorityLabel('ผู้มีอำนาจลงนาม');
+            // Auto-fill Names
+            setReceiverName(order.completedBy ? `(${order.completedBy})` : '(..................................................)');
+            setAuthorityName('(..................................................)');
+            // Reset Zoom
+            setZoomLevel(1);
         }
     }, [isOpen, order, restaurantName, restaurantAddress, restaurantPhone, taxId]);
 
@@ -372,6 +419,11 @@ export const CashBillModal: React.FC<CashBillModalProps> = ({
         setEditableItems(recalculated);
     };
 
+    const handleZoomIn = () => setZoomLevel(prev => Math.min(prev + 0.1, 2.0));
+    const handleZoomOut = () => setZoomLevel(prev => Math.max(prev - 0.1, 0.5));
+    const handleZoomReset = () => setZoomLevel(1);
+
+    // --- ENHANCED PRINT HANDLER WITH CLONING ---
     const handlePrint = async () => {
         if (!printerConfig?.cashier) {
             Swal.fire({
@@ -387,20 +439,61 @@ export const CashBillModal: React.FC<CashBillModalProps> = ({
 
         Swal.fire({
             title: 'กำลังส่งพิมพ์...',
-            text: 'กรุณารอสักครู่',
+            text: 'กรุณารอสักครู่ (กำลังประมวลผลรูปภาพ)',
             allowOutsideClick: false,
             didOpen: () => { Swal.showLoading(); }
         });
 
+        // 1. CLONE the element to ensure full height is captured
+        // We clone it and append it to body but hidden, so it renders fully without scroll bars
+        const clone = printContent.cloneNode(true) as HTMLElement;
+        
+        // Style the clone to ensure it's fully expanded and visible for the capture engine
+        clone.style.position = 'absolute';
+        clone.style.top = '-9999px';
+        clone.style.left = '-9999px';
+        clone.style.width = isA4 ? '210mm' : '80mm'; // Maintain width
+        // Explicitly un-constrain height
+        clone.style.height = 'auto'; 
+        clone.style.minHeight = 'auto';
+        clone.style.maxHeight = 'none';
+        clone.style.overflow = 'visible'; // No internal scrolling
+        clone.style.transform = 'none'; // Reset transforms so print output is 1:1, not zoomed
+        
+        // Manually copy input values as cloneNode doesn't copy current value of inputs
+        const originalInputs = printContent.querySelectorAll('input');
+        const cloneInputs = clone.querySelectorAll('input');
+        originalInputs.forEach((input, index) => {
+            if (cloneInputs[index]) cloneInputs[index].value = input.value;
+        });
+
+        // Append to body temporarily
+        document.body.appendChild(clone);
+
         try {
-            // Use scale 2 for sharper text
-            const canvas = await window.html2canvas(printContent, { 
-                scale: 2,
+            // Get accurate height of the clone
+            const fullHeight = clone.scrollHeight;
+            const fullWidth = clone.scrollWidth;
+
+            // 2. Capture the clone with explicit height
+            const canvas = await window.html2canvas(clone, { 
+                scale: 2, // High resolution
                 useCORS: true,
-                backgroundColor: '#ffffff' // Ensure white background
+                backgroundColor: '#ffffff',
+                logging: false,
+                // CRITICAL FIX: Explicitly set height and windowHeight to capture full content
+                height: fullHeight + 50, // Add buffer
+                windowHeight: fullHeight + 100, // Ensure window context is tall enough
+                width: fullWidth,
+                windowWidth: fullWidth + 50
             });
+            
             const base64Image = canvas.toDataURL('image/png');
 
+            // 3. Remove clone
+            document.body.removeChild(clone);
+
+            // 4. Send to printer
             await printerService.printCustomImage(base64Image, printerConfig.cashier);
 
             Swal.fire({
@@ -411,6 +504,9 @@ export const CashBillModal: React.FC<CashBillModalProps> = ({
             });
         } catch (error) {
             console.error("Print Error:", error);
+            // Ensure clone is removed even if error
+            if (document.body.contains(clone)) document.body.removeChild(clone);
+            
             Swal.fire({
                 icon: 'error',
                 title: 'พิมพ์ไม่สำเร็จ',
@@ -439,23 +535,69 @@ export const CashBillModal: React.FC<CashBillModalProps> = ({
                             <option value="a4">กระดาษ A4</option>
                         </select>
                     </div>
-                    <div className="flex gap-2">
-                        <button onClick={handlePrint} className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 font-bold flex items-center gap-2">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
-                            พิมพ์ (เครื่องใบเสร็จ)
-                        </button>
-                        <button onClick={onClose} className="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 font-bold">ปิด</button>
+                    
+                    {/* Actions Group */}
+                    <div className="flex items-center gap-4">
+                        
+                        {/* NEW: Bottom Margin Slider (Only for 80mm) */}
+                        {!isA4 && (
+                            <div className="flex items-center gap-2 bg-yellow-50 p-1.5 rounded-lg border border-yellow-200">
+                                <span className="text-xs font-bold text-yellow-800 flex items-center gap-1">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 13l-7 7-7-7m14-8l-7 7-7-7" /></svg>
+                                    ระยะตัดท้าย:
+                                </span>
+                                <input 
+                                    type="range" 
+                                    min="0" 
+                                    max="300" 
+                                    step="10"
+                                    value={bottomPadding} 
+                                    onChange={(e) => setBottomPadding(Number(e.target.value))}
+                                    className="w-24 h-2 bg-yellow-200 rounded-lg appearance-none cursor-pointer accent-yellow-600"
+                                    title="เลื่อนเพื่อเพิ่มพื้นที่ว่างท้ายใบเสร็จ (ป้องกันรูปขาด)"
+                                />
+                                <span className="text-xs font-mono font-bold text-yellow-800 w-8">{bottomPadding}px</span>
+                            </div>
+                        )}
+
+                        {/* Zoom Controls */}
+                        <div className="flex bg-gray-200 rounded-lg p-1 gap-1">
+                            <button onClick={handleZoomOut} className="p-1.5 hover:bg-white rounded-md transition-colors text-gray-600" title="ย่อภาพ">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clipRule="evenodd" />
+                                </svg>
+                            </button>
+                            <button onClick={handleZoomReset} className="px-2 text-xs font-bold text-gray-600 hover:bg-white rounded-md transition-colors" title="มุมมองปกติ">
+                                {Math.round(zoomLevel * 100)}%
+                            </button>
+                            <button onClick={handleZoomIn} className="p-1.5 hover:bg-white rounded-md transition-colors text-gray-600" title="ขยายภาพ">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+                                </svg>
+                            </button>
+                        </div>
+
+                        <div className="flex gap-2">
+                            <button onClick={handlePrint} className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 font-bold flex items-center gap-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+                                พิมพ์ (เครื่องใบเสร็จ)
+                            </button>
+                            <button onClick={onClose} className="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 font-bold">ปิด</button>
+                        </div>
                     </div>
                 </div>
 
-                {/* Printable Area */}
+                {/* Printable Area Container */}
                 <main className="flex-1 overflow-y-auto p-8 bg-gray-100 flex justify-center">
                     <div 
                         ref={componentRef} 
-                        className={`bg-white shadow-sm relative text-black ${
-                            isA4 ? 'p-8 max-w-[210mm] min-h-[297mm] w-full' : 'p-2 w-[80mm] min-h-0 text-xs'
+                        className={`bg-white shadow-sm relative text-black origin-top transition-transform duration-200 ease-out ${
+                            isA4 ? 'p-8 max-w-[210mm] w-full' : 'p-2 pb-4 w-[80mm] h-auto text-xs'
                         }`}
-                        style={{ fontFamily: 'Sarabun, sans-serif' }}
+                        style={{ 
+                            fontFamily: 'Sarabun, sans-serif',
+                            transform: `scale(${zoomLevel})`
+                        }}
                     >
                         {/* CSS injection for continuous 80mm printing INSIDE componentRef */}
                         {!isA4 && (
@@ -625,25 +767,26 @@ export const CashBillModal: React.FC<CashBillModalProps> = ({
                             ( <EditableField value={grandTotalInWords} onChange={setGrandTotalInWords} className="text-center w-full" align="center" /> )
                         </div>
 
-                        {/* Footer - With Signature Image */}
+                        {/* Footer - With Signature Image & Names */}
                          <div className={`flex ${isA4 ? 'justify-between flex-row' : 'flex-col items-center gap-4'} items-end mt-4 text-sm`}>
                             <div className={`${isA4 ? 'w-1/3' : 'w-full'} text-center`}>
                                 <div className="h-16 w-full flex items-end justify-center mb-1">
                                     {/* Empty space or cashier signature could go here */}
                                 </div>
                                 <div className="pt-2 border-t border-dotted border-gray-400">
-                                    <EditableField value={receiverLabel} onChange={setReceiverLabel} className="text-center w-full" align="center" />
+                                    <EditableField value={receiverName} onChange={setReceiverName} className="text-center w-full mb-1 font-medium" align="center" />
+                                    <EditableField value={receiverLabel} onChange={setReceiverLabel} className="text-center w-full text-sm" align="center" />
                                 </div>
                             </div>
                             <div className={`${isA4 ? 'w-1/3' : 'w-full'} text-center relative`}>
-                                <div className={`w-full flex items-end justify-center relative ${isA4 ? 'h-16 mb-1' : 'h-auto mt-2 mb-2'}`}>
+                                <div className={`w-full flex items-end justify-center relative ${isA4 ? 'h-auto mb-1' : 'h-auto mt-2 mb-2'}`}>
                                     {signatureUrl ? (
-                                        <div className={`${isA4 ? 'absolute bottom-0 left-1/2 -translate-x-1/2 w-48 h-28' : 'relative w-48 h-28'} flex items-end justify-center`}>
+                                        <div className="relative w-48 h-28 flex items-end justify-center">
                                             <img 
-                                                src={signatureUrl} 
+                                                src={signatureBase64 || signatureUrl} 
                                                 alt="Authorized Signature" 
                                                 className="w-full h-full object-contain"
-                                                crossOrigin="anonymous" 
+                                                crossOrigin="anonymous"
                                             />
                                         </div>
                                     ) : (
@@ -651,10 +794,24 @@ export const CashBillModal: React.FC<CashBillModalProps> = ({
                                     )}
                                 </div>
                                 <div className="pt-2 border-t border-dotted border-gray-400 w-full">
-                                    <EditableField value={authorityLabel} onChange={setAuthorityLabel} className="text-center w-full" align="center" />
+                                    <EditableField value={authorityName} onChange={setAuthorityName} className="text-center w-full mb-1 font-medium" align="center" />
+                                    <EditableField value={authorityLabel} onChange={setAuthorityLabel} className="text-center w-full text-sm" align="center" />
                                 </div>
                             </div>
                         </div>
+
+                        {/* Dynamic Spacer for Thermal Printer Cut Margin */}
+                        {!isA4 && (
+                            <div 
+                                style={{ height: `${bottomPadding}px` }} 
+                                className="w-full relative transition-all duration-200 border-l-2 border-dashed border-gray-300"
+                            >
+                                {/* Visual guide for the user on screen */}
+                                <div className="absolute inset-x-0 bottom-0 border-b border-red-300 text-[10px] text-red-400 text-center opacity-70 no-print">
+                                    --- จุดตัดกระดาษ (โดยประมาณ) ---
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </main>
             </div>
