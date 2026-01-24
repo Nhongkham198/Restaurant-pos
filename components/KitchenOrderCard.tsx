@@ -6,6 +6,7 @@ interface KitchenOrderCardProps {
     order: ActiveOrder;
     onCompleteOrder: (orderId: number) => void;
     onStartCooking: (orderId: number) => void;
+    onPrintOrder: (orderId: number) => void;
 }
 
 const formatTime = (totalSeconds: number) => {
@@ -14,7 +15,7 @@ const formatTime = (totalSeconds: number) => {
     return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 };
 
-export const KitchenOrderCard: React.FC<KitchenOrderCardProps> = ({ order, onCompleteOrder, onStartCooking }) => {
+export const KitchenOrderCard: React.FC<KitchenOrderCardProps> = ({ order, onCompleteOrder, onStartCooking, onPrintOrder }) => {
     const [elapsedSeconds, setElapsedSeconds] = useState(0);
     
     // Checklist state: Persist to localStorage to survive page refreshes
@@ -186,18 +187,31 @@ export const KitchenOrderCard: React.FC<KitchenOrderCardProps> = ({ order, onCom
             </div>
 
             {/* Footer Action */}
-            <div className="p-2 bg-gray-800 border-t border-gray-700">
+            <div className="p-2 bg-gray-800 border-t border-gray-700 flex gap-2">
+                <button
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onPrintOrder(order.id);
+                    }}
+                    className="px-3 rounded bg-gray-700 hover:bg-gray-600 text-white border-2 border-gray-600 transition-colors flex items-center justify-center"
+                    title="พิมพ์ใบออเดอร์อีกครั้ง"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                    </svg>
+                </button>
+
                 {isCooking ? (
                     <button
                         onClick={handleComplete}
-                        className="w-full bg-gray-700 hover:bg-green-600 text-white font-bold py-3 rounded text-xl uppercase tracking-widest transition-colors border-2 border-gray-600 hover:border-green-500"
+                        className="flex-1 bg-gray-700 hover:bg-green-600 text-white font-bold py-3 rounded text-xl uppercase tracking-widest transition-colors border-2 border-gray-600 hover:border-green-500"
                     >
                         {isLineMan ? 'COMPLETE (จบงาน)' : 'BUMP (เสิร์ฟ)'}
                     </button>
                 ) : (
                     <button
                         onClick={() => onStartCooking(order.id)}
-                        className="w-full bg-gray-700 hover:bg-blue-600 text-white font-bold py-3 rounded text-xl uppercase tracking-widest transition-colors border-2 border-gray-600 hover:border-blue-500"
+                        className="flex-1 bg-gray-700 hover:bg-blue-600 text-white font-bold py-3 rounded text-xl uppercase tracking-widest transition-colors border-2 border-gray-600 hover:border-blue-500"
                     >
                         START (เริ่ม)
                     </button>

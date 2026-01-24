@@ -7,9 +7,10 @@ interface KitchenViewProps {
     activeOrders: ActiveOrder[];
     onCompleteOrder: (orderId: number) => void;
     onStartCooking: (orderId: number) => void;
+    onPrintOrder: (orderId: number) => void; // New prop for re-printing
 }
 
-export const KitchenView: React.FC<KitchenViewProps> = ({ activeOrders, onCompleteOrder, onStartCooking }) => {
+export const KitchenView: React.FC<KitchenViewProps> = ({ activeOrders, onCompleteOrder, onStartCooking, onPrintOrder }) => {
 
     const { waitingOrders, cookingOrders } = useMemo(() => {
         const waiting = activeOrders
@@ -51,6 +52,7 @@ export const KitchenView: React.FC<KitchenViewProps> = ({ activeOrders, onComple
                                         order={order}
                                         onCompleteOrder={onCompleteOrder}
                                         onStartCooking={onStartCooking}
+                                        onPrintOrder={onPrintOrder}
                                     />
                                 ))}
                             </div>
@@ -73,6 +75,7 @@ export const KitchenView: React.FC<KitchenViewProps> = ({ activeOrders, onComple
                                         order={order}
                                         onCompleteOrder={onCompleteOrder}
                                         onStartCooking={onStartCooking}
+                                        onPrintOrder={onPrintOrder}
                                     />
                                 ))}
                             </div>

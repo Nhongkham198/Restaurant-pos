@@ -305,7 +305,6 @@ const App: React.FC = () => {
     const notifiedMaintenanceRef = useRef<Set<number>>(new Set()); // For maintenance alert
 
     // ... (Computed Values) ...
-    // (Keeping them collapsed as they are not changing)
     const waitingBadgeCount = useMemo(() => activeOrders.filter(o => o.status === 'waiting').length, [activeOrders]);
     const cookingBadgeCount = useMemo(() => activeOrders.filter(o => o.status === 'cooking').length, [activeOrders]);
     const totalKitchenBadgeCount = waitingBadgeCount + cookingBadgeCount;
@@ -357,7 +356,6 @@ const App: React.FC = () => {
     }, [maintenanceItems]);
 
     const mobileNavItems = useMemo(() => {
-        // ... (Mobile Nav logic)
         const items: NavItem[] = [
             {id: 'pos', label: 'POS', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4z" /><path fillRule="evenodd" d="M18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h2a1 1 0 100-2H9z" clipRule="evenodd" /></svg>, view: 'pos'},
             {id: 'tables', label: 'ผังโต๊ะ', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M2 5a2 2 0 012-2h12a2 2 0 012 2v10a2 2 0 01-2-2H4a2 2 0 01-2-2V5zm2 1v8h8V6H4z" /></svg>, view: 'tables', badge: tablesBadgeCount},
@@ -414,8 +412,7 @@ const App: React.FC = () => {
     }, [currentOrderItems]);
 
     // ... (Effects for Online, Auto-Correct, Resize, Sound Cache, Overdue, Low Stock, Maintenance, Customer Mode, Notification, Staff Call, Leave, User Persistence)
-    // (Keeping them collapsed as they are not changing)
-    // ... [Code omitted for brevity, identical to previous App.tsx] ...
+    // [Code omitted for brevity, identical to previous App.tsx] ...
     useEffect(() => {
         const handleOnline = () => setIsOnline(true);
         const handleOffline = () => { setIsOnline(false); Swal.fire({ icon: 'warning', title: 'ขาดการเชื่อมต่อ', text: 'อินเทอร์เน็ตของคุณหลุด ระบบจะป้องกันการบันทึกข้อมูลเพื่อความปลอดภัย กรุณาตรวจสอบอินเทอร์เน็ต', toast: true, position: 'top-end', showConfirmButton: false, timer: 5000 }); };
@@ -435,8 +432,8 @@ const App: React.FC = () => {
     }, [activeOrders, tables, isOnline]);
     useEffect(() => { const handleResize = () => setIsDesktop(window.innerWidth >= 1024); window.addEventListener('resize', handleResize); return () => window.removeEventListener('resize', handleResize); }, []);
     useEffect(() => { if ('serviceWorker' in navigator && navigator.serviceWorker.controller) { const soundsToCache = []; if (notificationSoundUrl) soundsToCache.push(notificationSoundUrl); if (staffCallSoundUrl) soundsToCache.push(staffCallSoundUrl); if (soundsToCache.length > 0) { soundsToCache.forEach(url => fetch(url, { mode: 'no-cors' }).catch(() => {})); } } }, [notificationSoundUrl, staffCallSoundUrl]);
+    
     // ... other effects ... (Overdue, Low Stock, Maintenance, Customer Mode, Notifications, Staff Call, Leave, User Persistence, Image Cache)
-    // Re-paste ALL existing effects here exactly as they were to ensure no functionality is lost
     useEffect(() => {
         const fifteenMinutes = 15 * 60 * 1000;
         activeOrders.forEach(order => {
@@ -826,6 +823,31 @@ const App: React.FC = () => {
         } else { activeOrdersActions.update(orderId, { status: 'served' }); }
     };
     
+    // NEW: Handle Print Kitchen Order (Re-print)
+    const handlePrintKitchenOrder = async (orderId: number) => {
+        const order = activeOrders.find(o => o.id === orderId);
+        if (!order) return;
+        
+        if (!printerConfig?.kitchen) {
+             Swal.fire('ไม่พบเครื่องพิมพ์', 'กรุณาตั้งค่าเครื่องพิมพ์ครัวก่อน', 'warning');
+             return;
+        }
+
+        try {
+            Swal.fire({
+                title: 'กำลังส่งพิมพ์...',
+                text: 'กรุณารอสักครู่',
+                timer: 1000,
+                showConfirmButton: false,
+                didOpen: () => { Swal.showLoading(); }
+            });
+            await printerService.printKitchenOrder(order, printerConfig.kitchen);
+        } catch (error: any) {
+            console.error("Reprint failed:", error);
+            Swal.fire('พิมพ์ไม่สำเร็จ', error.message || 'ไม่สามารถเชื่อมต่อเครื่องพิมพ์ได้', 'error');
+        }
+    };
+
     const handleShowBill = (orderId: number) => { const order = activeOrders.find(o => o.id === orderId); if (order) { setOrderForModal(order); setModalState(prev => ({ ...prev, isTableBill: true })); } };
 
     const handleConfirmPayment = async (orderId: number, paymentDetails: PaymentDetails) => {
@@ -1078,7 +1100,7 @@ const App: React.FC = () => {
                                         onToggleOrderNotifications={toggleOrderNotifications}
                                     />
                                     <div className="flex-1 overflow-y-auto">
-                                        {currentView === 'kitchen' && <KitchenView activeOrders={activeOrders} onCompleteOrder={handleCompleteOrder} onStartCooking={handleStartCooking} />}
+                                        {currentView === 'kitchen' && <KitchenView activeOrders={activeOrders} onCompleteOrder={handleCompleteOrder} onStartCooking={handleStartCooking} onPrintOrder={handlePrintKitchenOrder} />}
                                         {currentView === 'tables' && <TableLayout tables={tables} activeOrders={activeOrders} onTableSelect={(id) => { setSelectedTableId(id); setCurrentView('pos'); }} onShowBill={handleShowBill} onGeneratePin={handleGeneratePin} currentUser={currentUser} printerConfig={printerConfig} floors={floors} selectedBranch={selectedBranch} restaurantName={restaurantName} logoUrl={logoUrl} />}
                                         {currentView === 'dashboard' && <Dashboard completedOrders={completedOrders} cancelledOrders={cancelledOrders} openingTime={openingTime || '10:00'} closingTime={closingTime || '22:00'} currentUser={currentUser} />}
                                         {currentView === 'history' && <SalesHistory completedOrders={completedOrders} cancelledOrders={cancelledOrders} printHistory={printHistory} onReprint={() => {}} onSplitOrder={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isSplitCompleted: true}))}} isEditMode={isEditMode} onEditOrder={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isEditCompleted: true}))}} onInitiateCashBill={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isCashBill: true}))}} onDeleteHistory={handleDeleteHistory} currentUser={currentUser} onReprintReceipt={handleReprintReceipt} />}
@@ -1105,7 +1127,7 @@ const App: React.FC = () => {
                     {/* Desktop Other Views */}
                     {isDesktop && currentView !== 'pos' && (
                         <>
-                            {currentView === 'kitchen' && <KitchenView activeOrders={activeOrders} onCompleteOrder={handleCompleteOrder} onStartCooking={handleStartCooking} />}
+                            {currentView === 'kitchen' && <KitchenView activeOrders={activeOrders} onCompleteOrder={handleCompleteOrder} onStartCooking={handleStartCooking} onPrintOrder={handlePrintKitchenOrder} />}
                             {currentView === 'tables' && <TableLayout tables={tables} activeOrders={activeOrders} onTableSelect={(id) => { setSelectedTableId(id); setCurrentView('pos'); }} onShowBill={handleShowBill} onGeneratePin={handleGeneratePin} currentUser={currentUser} printerConfig={printerConfig} floors={floors} selectedBranch={selectedBranch} restaurantName={restaurantName} logoUrl={logoUrl} />}
                             {currentView === 'dashboard' && <Dashboard completedOrders={completedOrders} cancelledOrders={cancelledOrders} openingTime={openingTime || '10:00'} closingTime={closingTime || '22:00'} currentUser={currentUser} />}
                             {currentView === 'history' && <SalesHistory completedOrders={completedOrders} cancelledOrders={cancelledOrders} printHistory={printHistory} onReprint={() => {}} onSplitOrder={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isSplitCompleted: true}))}} isEditMode={isEditMode} onEditOrder={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isEditCompleted: true}))}} onInitiateCashBill={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isCashBill: true}))}} onDeleteHistory={handleDeleteHistory} currentUser={currentUser} onReprintReceipt={handleReprintReceipt} />}
