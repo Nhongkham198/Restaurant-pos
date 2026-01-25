@@ -40,9 +40,22 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
         }
     };
 
+    // Numpad Handlers
+    const handleNumpadInput = (value: string) => {
+        setPassword(prev => prev + value);
+    };
+
+    const handleBackspace = () => {
+        setPassword(prev => prev.slice(0, -1));
+    };
+
+    const handleClear = () => {
+        setPassword('');
+    };
+
     return (
         <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-red-600 to-orange-500 p-4">
-            <div className="max-w-md w-full bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl p-8 space-y-8 animate-fade-in-up">
+            <div className="max-w-md w-full bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl p-8 space-y-6 animate-fade-in-up">
                 <div className="text-center">
                     <div className="flex justify-center mb-2">
                         <img 
@@ -98,6 +111,41 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                                     required
                                 />
                             </div>
+                        </div>
+
+                        {/* Numpad for Touchscreen */}
+                        <div className="grid grid-cols-3 gap-2 pt-2">
+                            {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
+                                <button
+                                    key={num}
+                                    type="button"
+                                    onClick={() => handleNumpadInput(String(num))}
+                                    className="bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold py-3 rounded-lg text-xl shadow-sm active:bg-gray-300 transition-colors"
+                                >
+                                    {num}
+                                </button>
+                            ))}
+                            <button
+                                type="button"
+                                onClick={handleClear}
+                                className="bg-red-100 hover:bg-red-200 text-red-600 font-bold py-3 rounded-lg text-xl shadow-sm active:bg-red-300 transition-colors"
+                            >
+                                C
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => handleNumpadInput('0')}
+                                className="bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold py-3 rounded-lg text-xl shadow-sm active:bg-gray-300 transition-colors"
+                            >
+                                0
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleBackspace}
+                                className="bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold py-3 rounded-lg text-xl shadow-sm active:bg-gray-300 transition-colors flex items-center justify-center"
+                            >
+                                ⌫
+                            </button>
                         </div>
                     </div>
                     
