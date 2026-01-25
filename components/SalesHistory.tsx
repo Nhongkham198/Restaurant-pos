@@ -174,15 +174,48 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({
 
     // ... Export functions ...
     const handleExportHistory = () => {
-        const data = filteredCompleted.map(order => ({
-            'Order #': order.orderNumber,
-            'Date': new Date(order.completionTime).toLocaleDateString(),
-            'Time': new Date(order.completionTime).toLocaleTimeString(),
-            'Table': order.tableName,
-            'Total': order.items.reduce((s, i) => s + i.finalPrice * i.quantity, 0) + order.taxAmount,
-            'Payment': order.paymentDetails.method,
-            'Cashier': order.completedBy || '-'
-        }));
+        // Expand orders to item level rows
+        const data: any[] = [];
+        
+        filteredCompleted.forEach(order => {
+            const orderTotal = order.items.reduce((s, i) => s + i.finalPrice * i.quantity, 0) + order.taxAmount;
+            
+            if (order.items && order.items.length > 0) {
+                order.items.forEach(item => {
+                    data.push({
+                        'Order #': order.orderNumber,
+                        'Date': new Date(order.completionTime).toLocaleDateString('th-TH'),
+                        'Time': new Date(order.completionTime).toLocaleTimeString('th-TH'),
+                        'Table': order.tableName,
+                        'Customer': order.customerName || '-',
+                        'Menu Item': item.name + (item.isTakeaway ? ' (กลับบ้าน)' : ''),
+                        'Quantity': item.quantity,
+                        'Unit Price': item.finalPrice,
+                        'Item Total': item.finalPrice * item.quantity,
+                        'Order Subtotal': orderTotal,
+                        'Payment': order.paymentDetails.method,
+                        'Cashier': order.completedBy || '-'
+                    });
+                });
+            } else {
+                // Fallback for empty orders
+                data.push({
+                    'Order #': order.orderNumber,
+                    'Date': new Date(order.completionTime).toLocaleDateString('th-TH'),
+                    'Time': new Date(order.completionTime).toLocaleTimeString('th-TH'),
+                    'Table': order.tableName,
+                    'Customer': order.customerName || '-',
+                    'Menu Item': '(No Items)',
+                    'Quantity': 0,
+                    'Unit Price': 0,
+                    'Item Total': 0,
+                    'Order Subtotal': orderTotal,
+                    'Payment': order.paymentDetails.method,
+                    'Cashier': order.completedBy || '-'
+                });
+            }
+        });
+
         const ws = XLSX.utils.json_to_sheet(data);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "Sales");
@@ -192,8 +225,8 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({
     const handleExportCancellations = () => {
         const data = filteredCancelled.map(order => ({
             'Order #': order.orderNumber,
-            'Date': new Date(order.cancellationTime).toLocaleDateString(),
-            'Time': new Date(order.cancellationTime).toLocaleTimeString(),
+            'Date': new Date(order.cancellationTime).toLocaleDateString('th-TH'),
+            'Time': new Date(order.cancellationTime).toLocaleTimeString('th-TH'),
             'Table': order.tableName,
             'Reason': order.cancellationReason,
             'Notes': order.cancellationNotes,
