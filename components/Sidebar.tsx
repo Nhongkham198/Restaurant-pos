@@ -41,6 +41,7 @@ interface SidebarProps {
     isOrderNotificationsEnabled: boolean;
     onToggleOrderNotifications: () => void;
     deliveryProviders: DeliveryProvider[];
+    onToggleEditMode?: () => void; // Added prop
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -78,7 +79,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
     onToggleAvailability,
     isOrderNotificationsEnabled,
     onToggleOrderNotifications,
-    deliveryProviders
+    deliveryProviders,
+    onToggleEditMode
 }) => {
     // We treat "isLineMan" as "isDelivery" in the backend logic, so we keep the name for compatibility
     // but locally we track which provider is selected.
@@ -296,14 +298,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
                             <span className="text-xs bg-gray-700 text-gray-300 px-1.5 py-0.5 rounded font-mono">{currentUser.role}</span>
                         </div>
                     </div>
-                    <h1 className="text-xl font-bold text-red-500 absolute left-1/2 -translate-x-1/2 whitespace-nowrap overflow-hidden max-w-[35%] text-ellipsis">
+                    {/* Centered Title */}
+                    <h1 className="text-xl font-bold text-red-500 absolute left-1/2 -translate-x-1/2 whitespace-nowrap overflow-hidden max-w-[20%] text-ellipsis">
                         {restaurantName}
                     </h1>
                     <div className="flex items-center gap-3">
-                        <label className="relative inline-flex items-center cursor-pointer" title="เปิด/ปิด เสียงแจ้งเตือน">
-                            <input type="checkbox" checked={isOrderNotificationsEnabled} onChange={onToggleOrderNotifications} className="sr-only peer" />
-                            <div className="w-9 h-5 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-green-500"></div>
-                        </label>
+                        {/* Edit Mode Toggle for Admin/Manager */}
+                        {(currentUser.role === 'admin' || currentUser.role === 'branch-admin') && onToggleEditMode && (
+                            <button
+                                onClick={onToggleEditMode}
+                                className={`p-2 rounded-full transition-colors ${isEditMode ? 'bg-yellow-500 text-black' : 'text-gray-300 hover:bg-gray-700'}`}
+                                title="โหมดแก้ไข"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                            </button>
+                        )}
                         <button 
                             onClick={onOpenSearch} 
                             className="p-2 text-gray-300 rounded-full hover:bg-gray-700"

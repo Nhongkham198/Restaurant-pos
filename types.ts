@@ -59,6 +59,7 @@ export interface MenuItem {
     cookingTime?: number; // in minutes
     optionGroups?: MenuOptionGroup[];
     isAvailable?: boolean; // New property for stock status
+    isVisible?: boolean; // New property for visibility on customer screen
 }
 
 export type TakeawayCutleryOption = 'spoon-fork' | 'chopsticks' | 'other' | 'none';

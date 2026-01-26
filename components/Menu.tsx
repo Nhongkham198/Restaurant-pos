@@ -21,6 +21,7 @@ interface MenuProps {
     onAddCategory: (name: string) => void;
     onImportMenu: (importedItems: MenuItem[], newCategories: string[]) => void;
     recommendedMenuItemIds: number[];
+    onToggleVisibility?: (id: number) => void; // New Prop
 }
 
 export const Menu: React.FC<MenuProps> = ({ 
@@ -37,6 +38,7 @@ export const Menu: React.FC<MenuProps> = ({
     onAddCategory,
     onImportMenu,
     recommendedMenuItemIds,
+    onToggleVisibility
 }) => {
     const [selectedCategory, setSelectedCategory] = useState('ทั้งหมด');
     const [searchTerm, setSearchTerm] = useState('');
@@ -563,6 +565,7 @@ export const Menu: React.FC<MenuProps> = ({
                         onDragEnd={handleDragSort}
                         isRecommended={recommendedMenuItemIds.includes(item.id)}
                         onToggleAvailability={() => handleToggleAvailability(item.id)}
+                        onToggleVisibility={() => onToggleVisibility && onToggleVisibility(item.id)} // Pass handler
                     />
                 ))}
             </div>

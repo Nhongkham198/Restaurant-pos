@@ -892,6 +892,7 @@ const App: React.FC = () => {
     const handleConfirmMerge = async (sourceOrderIds: number[], targetOrderId: number) => { if (!isOnline) return; const sourceOrders = activeOrders.filter(o => sourceOrderIds.includes(o.id)); const targetOrder = activeOrders.find(o => o.id === targetOrderId); if (!targetOrder || sourceOrders.length === 0) return; const allItemsToMerge = sourceOrders.flatMap(o => o.items.map(item => ({ ...item, originalOrderNumber: item.originalOrderNumber ?? o.orderNumber, cartItemId: `${item.cartItemId}_m_${o.orderNumber}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}` }))); const sourceNumbers = sourceOrders.map(o => o.orderNumber); const newItems = [...targetOrder.items, ...allItemsToMerge]; const newMergedNumbers = Array.from(new Set([...(targetOrder.mergedOrderNumbers || []), ...sourceNumbers])).sort((a, b) => a - b); const batch = db.batch(); const targetRef = db.collection(`branches/${branchId}/activeOrders`).doc(targetOrderId.toString()); batch.update(targetRef, { items: newItems, mergedOrderNumbers: newMergedNumbers, lastUpdated: firebase.firestore.FieldValue.serverTimestamp() }); for (const sourceId of sourceOrderIds) { const sourceRef = db.collection(`branches/${branchId}/activeOrders`).doc(sourceId.toString()); batch.update(sourceRef, { status: 'cancelled', cancellationReason: 'อื่นๆ', cancellationNotes: `Merged into Order #${targetOrder.orderNumber}`, lastUpdated: firebase.firestore.FieldValue.serverTimestamp() }); } try { await batch.commit(); handleModalClose(); } catch (error) { console.error("Merge failed", error); Swal.fire('Error', 'Failed to merge bills. Please try again.', 'error'); } };
     const handleMergeAndPay = async (sourceOrderIds: number[], targetOrderId: number) => { if (!isOnline) return; const sourceOrders = activeOrders.filter(o => sourceOrderIds.includes(o.id)); const targetOrder = activeOrders.find(o => o.id === targetOrderId); if (!targetOrder || sourceOrders.length === 0) return; const allItemsToMerge = sourceOrders.flatMap(o => o.items.map(item => ({ ...item, originalOrderNumber: item.originalOrderNumber ?? o.orderNumber, cartItemId: `${item.cartItemId}_m_${o.orderNumber}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}` }))); const sourceNumbers = sourceOrders.map(o => o.orderNumber); const newItems = [...targetOrder.items, ...allItemsToMerge]; const newMergedNumbers = Array.from(new Set([...(targetOrder.mergedOrderNumbers || []), ...sourceNumbers])).sort((a, b) => a - b); const batch = db.batch(); const targetRef = db.collection(`branches/${branchId}/activeOrders`).doc(targetOrderId.toString()); batch.update(targetRef, { items: newItems, mergedOrderNumbers: newMergedNumbers, lastUpdated: firebase.firestore.FieldValue.serverTimestamp() }); for (const sourceId of sourceOrderIds) { const sourceRef = db.collection(`branches/${branchId}/activeOrders`).doc(sourceId.toString()); batch.update(sourceRef, { status: 'cancelled', cancellationReason: 'อื่นๆ', cancellationNotes: `Merged into Order #${targetOrder.orderNumber}`, lastUpdated: firebase.firestore.FieldValue.serverTimestamp() }); } try { await batch.commit(); const updatedTargetOrder: ActiveOrder = { ...targetOrder, items: newItems, mergedOrderNumbers: newMergedNumbers }; setOrderForModal(updatedTargetOrder); setModalState(prev => ({ ...prev, isPayment: true, isTableBill: false })); } catch (error) { console.error("Merge and Pay failed", error); Swal.fire('Error', 'Failed to merge bills. Please try again.', 'error'); } };
     const handleToggleAvailability = (id: number) => { setMenuItems(prev => prev.map(i => i.id === id ? { ...i, isAvailable: i.isAvailable === false ? true : false } : i)); };
+    const handleToggleVisibility = (id: number) => { setMenuItems(prev => prev.map(i => i.id === id ? { ...i, isVisible: i.isVisible === false ? true : false } : i)); };
     const handleUpdateOrderFromModal = async (orderId: number, items: OrderItem[], customerCount: number) => { if (!isOnline) return; if (items.length === 0) { const orderToCancel = activeOrders.find(o => o.id === orderId); if (orderToCancel) { await handleConfirmCancelOrder(orderToCancel, 'อื่นๆ', 'ยกเลิกอัตโนมัติ (รายการอาหารถูกลบหมด)'); Swal.fire({ icon: 'info', title: 'ยกเลิกบิลอัตโนมัติ', text: 'บิลถูกยกเลิกเนื่องจากไม่มีรายการอาหารเหลืออยู่', timer: 2000, showConfirmButton: false }); } else { handleModalClose(); } } else { await activeOrdersActions.update(orderId, { items, customerCount }); handleModalClose(); } };
     
     // ... (Render Logic) ...
@@ -900,10 +901,13 @@ const App: React.FC = () => {
     if (isCustomerMode) {
         const customerTable = tables.find(t => t.id === customerTableId);
         if (customerTable) {
+             // Filter menu items for customer view based on isVisible property
+             const visibleMenuItems = menuItems.filter(item => item.isVisible !== false);
+
              return (
                 <CustomerView 
                     table={customerTable}
-                    menuItems={menuItems}
+                    menuItems={visibleMenuItems} // Pass filtered items
                     categories={categories}
                     activeOrders={activeOrders.filter(o => o.tableId === customerTableId)}
                     allBranchOrders={activeOrders}
@@ -1036,6 +1040,7 @@ const App: React.FC = () => {
                                     onDeleteItem={handleDeleteMenuItem} onUpdateCategory={handleUpdateCategory} onDeleteCategory={handleDeleteCategory}
                                     onAddCategory={handleAddCategory} onImportMenu={(items, cats) => { setMenuItems(items); setCategories(prev => Array.from(new Set([...prev, ...cats]))); }}
                                     recommendedMenuItemIds={recommendedMenuItemIds}
+                                    onToggleVisibility={handleToggleVisibility}
                                 />
                             </div>
                             <aside className={`flex-shrink-0 transition-all duration-300 overflow-hidden ${isOrderSidebarVisible ? 'w-96' : 'w-0'}`}>
@@ -1087,6 +1092,7 @@ const App: React.FC = () => {
                                         onToggleOrderNotifications={toggleOrderNotifications}
                                         // NEW PROPS
                                         deliveryProviders={deliveryProviders}
+                                        onToggleEditMode={() => setIsEditMode(!isEditMode)} // Pass toggle function
                                     />
                                 </div>
                             ) : (

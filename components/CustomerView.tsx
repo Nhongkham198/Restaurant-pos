@@ -8,6 +8,80 @@ import Swal from 'sweetalert2';
 
 declare var html2canvas: any;
 
+// --- TRANSLATION DICTIONARY ---
+const DICTIONARY: Record<string, string> = {
+    // UI Elements
+    'เมนูอาหาร 🍽️': 'Menu 🍽️',
+    'โต๊ะ': 'Table',
+    'คุณ': 'Guest: ',
+    'เรียกพนักงาน': 'Call Staff',
+    'เรียก': 'Call',
+    'ยอดของฉัน': 'My Total',
+    'ดูตะกร้า': 'View Cart',
+    'ยังไม่รวมกับยอดบิล': 'Not ordered yet',
+    'รายการในตะกร้า (ยังไม่สั่ง)': 'Cart (Not Ordered)',
+    'ไม่มีสินค้าในตะกร้า': 'Cart is empty',
+    'ยอดในตะกร้า': 'Cart Total',
+    'ยืนยันสั่งอาหาร 🚀': 'Confirm Order 🚀',
+    'ลบ': 'Remove',
+    'บันทึกรายการของฉัน': 'Save My Items',
+    'ปิด': 'Close',
+    'รายการของฉัน': 'My Orders',
+    'ยังไม่มีรายการที่สั่ง': 'No orders yet',
+    'รายการของคุณ': 'Your Items',
+    'รายการของเพื่อนร่วมโต๊ะ': 'Table Items',
+    'ยอดรวมทั้งโต๊ะ': 'Table Total',
+    '* ราคานี้เป็นเฉพาะรายการที่คุณสั่ง': '* Price for your items only',
+    'ยืนยันการสั่งอาหาร?': 'Confirm Order?',
+    'สั่งอาหาร': 'Order',
+    'รายการ': 'items',
+    'สั่งเลย': 'Order Now',
+    'ตรวจสอบก่อน': 'Check First',
+    'กำลังส่งรายการ...': 'Sending order...',
+    'สั่งอาหารสำเร็จ!': 'Order Success!',
+    'รายการอาหารถูกส่งเข้าครัวแล้ว': 'Your order has been sent to the kitchen',
+    'เกิดข้อผิดพลาด': 'Error',
+    'ไม่สามารถสั่งอาหารได้ กรุณาลองใหม่อีกครั้ง': 'Cannot place order. Please try again.',
+    'ส่งสัญญาณเรียกพนักงานแล้ว': 'Staff called',
+    'กรุณารอสักครู่...': 'Please wait...',
+    'กำลังสร้างรูปภาพ...': 'Generating image...',
+    'กรุณารอสักครู่': 'Please wait',
+    'ไม่สามารถสร้างรูปภาพได้': 'Cannot generate image',
+    'เพิ่มลงตะกร้าแล้ว': 'Added to cart',
+    'รอคิว': 'Waiting',
+    'กำลังปรุง... 🍳': 'Cooking... 🍳',
+    'เสิร์ฟครบแล้ว 😋': 'Served 😋',
+    'คิวที่ 1': '1st Queue',
+    'อีก': 'More',
+    'คิว': 'Queues',
+    'บันทึกสำเร็จ!': 'Saved!',
+    'ขอบคุณที่ใช้บริการ...': 'Thank you...',
+    'ไม่สามารถบันทึกบิลได้': 'Cannot save bill',
+    'ไม่ระบุชื่อ': 'Anonymous',
+    'ราคาเริ่มต้น': 'Starts at',
+    'หมายเหตุ (ถ้ามี):': 'Note (Optional):',
+    'รับเครื่องใช้': 'Cutlery',
+    'รับช้อนส้อม': 'Spoon & Fork',
+    'รับตะเกียบ': 'Chopsticks',
+    'อื่นๆ (ระบุ)': 'Other (Specify)',
+    'ไม่รับ': 'No Cutlery',
+    'สั่งกลับบ้าน': 'Take Away',
+    'เพิ่มOrder': 'Add to Cart',
+    'บันทึกการแก้ไข': 'Save Changes',
+    'ล้างที่เลือก': 'Clear',
+    'จำนวน': 'Qty',
+    
+    // Categories (Add specific translations here)
+    'ทั้งหมด': 'All',
+    'อาหารจานเดียว': 'Rice Dishes',
+    'อาหารเกาหลี': 'Korean Food',
+    'ของทานเล่น': 'Appetizers',
+    'เครื่องดื่ม': 'Beverages',
+    'ของสด': 'Fresh Food',
+    'ของแห้ง': 'Dry Food',
+    'เครื่องปรุง': 'Seasonings'
+};
+
 interface CustomerViewProps {
     table: Table;
     menuItems: MenuItem[];
@@ -35,7 +109,9 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     logoUrl,
     restaurantName,
 }) => {
-    // ... state ...
+    // --- LANGUAGE STATE ---
+    const [lang, setLang] = useState<'TH' | 'EN'>('TH');
+
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [customerName, setCustomerName] = useState('ลูกค้า'); // Default to generic name
     
@@ -69,13 +145,35 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         }
     });
 
-    // Prepare menu items with English names for display in the Menu component (and Item Customization)
-    const displayMenuItems = useMemo(() => {
+    // --- TRANSLATION HELPER ---
+    const t = useCallback((text: string) => {
+        if (lang === 'TH') return text;
+        return DICTIONARY[text] || text;
+    }, [lang]);
+
+    // --- LOCALIZED DATA COMPUTATION ---
+    // 1. Localize Categories
+    const localizedCategories = useMemo(() => {
+        return categories.map(c => t(c));
+    }, [categories, t]);
+
+    // 2. Localize Menu Items (Name, Category, Option Groups)
+    const localizedMenuItems = useMemo(() => {
         return menuItems.map(item => ({
             ...item,
-            name: item.nameEn ? `${item.name} (${item.nameEn})` : item.name
+            name: lang === 'EN' ? (item.nameEn || item.name) : item.name,
+            // Translate the category on the item so filtering works with the translated category list
+            category: t(item.category),
+            optionGroups: item.optionGroups?.map(group => ({
+                ...group,
+                name: lang === 'EN' ? (group.nameEn || group.name) : group.name,
+                options: group.options.map(opt => ({
+                    ...opt,
+                    name: lang === 'EN' ? (opt.nameEn || opt.name) : opt.name
+                }))
+            }))
         }));
-    }, [menuItems]);
+    }, [menuItems, lang, t]);
 
     useEffect(() => {
         localStorage.setItem(cartKey, JSON.stringify(cartItems));
@@ -152,8 +250,6 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         setIsSessionCompleted(true);
     };
 
-    const t = (text: string) => text;
-
     // --- IDENTIFY ITEMS (Mine vs Others) ---
     const { myItems, otherItems } = useMemo(() => {
         const mine: OrderItem[] = [];
@@ -178,16 +274,28 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                 const originId = item.originalOrderNumber ?? order.orderNumber;
                 const isMyItemById = myOrderSet.has(originId);
 
+                // Need to match item with localized version to display correct name
+                // Find original item by ID to know if it has nameEn, then translate locally
+                const originalItem = menuItems.find(m => m.id === item.id);
+                const displayItem = {
+                    ...item,
+                    name: lang === 'EN' ? (originalItem?.nameEn || item.name) : item.name,
+                    selectedOptions: item.selectedOptions.map(opt => ({
+                        ...opt,
+                        name: lang === 'EN' ? (opt.nameEn || opt.name) : opt.name
+                    }))
+                };
+
                 if (isMyItemById || isMyOrderByName) {
-                    mine.push(item);
+                    mine.push(displayItem);
                 } else {
-                    others.push({ item, owner: orderName });
+                    others.push({ item: displayItem, owner: orderName });
                 }
             });
         });
 
         return { myItems: mine, otherItems: others };
-    }, [allBranchOrders, myOrderNumbers, isAuthenticated, customerName, table.id]);
+    }, [allBranchOrders, myOrderNumbers, isAuthenticated, customerName, table.id, lang, menuItems, t]);
 
     // Calculate totals
     const myTotal = useMemo(() => {
@@ -372,7 +480,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         isProcessingPaymentRef.current = false;
         prevMyItemsCountRef.current = currentCount;
 
-    }, [myItems.length, isAuthenticated, completedOrders, myOrderNumbers, logoUrl, restaurantName, customerName, isSessionCompleted]);
+    }, [myItems.length, isAuthenticated, completedOrders, myOrderNumbers, logoUrl, restaurantName, customerName, isSessionCompleted, t]);
     
 
     const handleSelectItem = (item: MenuItem) => {
@@ -427,15 +535,25 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                 // Revert names to Thai-only for the backend order (so Kitchen sees standard names)
                 // We use the ID to find the original item in the original `menuItems` array (which has Thai names by default)
                 // Note: The `menuItems` prop passed to CustomerView might have nameEn, but `item.name` in `menuItems` is usually Thai.
-                // `displayMenuItems` created above modifies the name for display. 
-                // `cartItems` are created from `displayMenuItems` via `onSelectItem`, so they have English names.
-                // We need to restore the original name to avoid confusing kitchen staff.
+                // `displayMenuItems` (now localizedMenuItems) modifies the name for display. 
+                // `cartItems` are created from localizedMenuItems via `onSelectItem`, so they have translated names.
+                // We need to restore the original Thai name to avoid confusing kitchen staff.
                 const itemsToSend = cartItems.map(cartItem => {
                     const originalItem = menuItems.find(m => m.id === cartItem.id);
                     return {
                         ...cartItem,
                         name: originalItem ? originalItem.name : cartItem.name, // Revert to original name (Thai)
-                        nameEn: originalItem?.nameEn // Preserve English name in data if needed
+                        nameEn: originalItem?.nameEn, // Preserve English name in data if needed
+                        // Revert Option Names to Thai
+                        selectedOptions: cartItem.selectedOptions.map(opt => {
+                            // Find original option group and option
+                            const originalGroup = originalItem?.optionGroups?.find(g => g.options.some(o => o.id === opt.id));
+                            const originalOpt = originalGroup?.options.find(o => o.id === opt.id);
+                            return {
+                                ...opt,
+                                name: originalOpt ? originalOpt.name : opt.name
+                            };
+                        })
                     };
                 });
 
@@ -589,7 +707,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
             // Fallback on error if we know we have items
             return myItems.length > 0 ? { text: t('รอคิว'), color: 'bg-blue-600 text-white border-blue-700' } : null;
         }
-    }, [allBranchOrders, isAuthenticated, table.id, myItems.length]);
+    }, [allBranchOrders, isAuthenticated, table.id, myItems.length, t]);
 
     
     // --- 1. SESSION COMPLETED SCREEN (THANK YOU) ---
@@ -604,7 +722,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                     </div>
                     
                     <h2 className="text-2xl font-bold text-gray-800 mb-2">{restaurantName}</h2>
-                    <h3 className="text-xl font-semibold text-gray-700 mb-4">ขอบคุณที่ใช้บริการ</h3>
+                    <h3 className="text-xl font-semibold text-gray-700 mb-4">{t('ขอบคุณที่ใช้บริการ')}</h3>
                     
                     <div className="space-y-2 text-gray-500 text-sm mb-8">
                         <p>การชำระเงินของคุณเสร็จสมบูรณ์แล้ว</p>
@@ -621,8 +739,6 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     }
 
     // --- 2. LOADING/LOGIN SCREEN ---
-    // If not authenticated (though effect above should catch this instantly),
-    // show a simple loading state or a fallback.
     if (!isAuthenticated) {
         return (
             <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center">
@@ -642,6 +758,21 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                     <h1 className="font-bold text-gray-800 text-lg flex items-center gap-2">
                         {t('เมนูอาหาร 🍽️')}
                     </h1>
+                    {/* Language Switcher */}
+                    <div className="flex bg-gray-200 rounded-lg p-1">
+                        <button 
+                            onClick={() => setLang('TH')}
+                            className={`px-3 py-1 rounded-md text-sm font-bold transition-all ${lang === 'TH' ? 'bg-white shadow text-blue-600' : 'text-gray-500'}`}
+                        >
+                            🇹🇭 TH
+                        </button>
+                        <button 
+                            onClick={() => setLang('EN')}
+                            className={`px-3 py-1 rounded-md text-sm font-bold transition-all ${lang === 'EN' ? 'bg-white shadow text-blue-600' : 'text-gray-500'}`}
+                        >
+                            🇬🇧 EN
+                        </button>
+                    </div>
                 </div>
 
                 {/* Main Header Content */}
@@ -652,14 +783,13 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                                 {t('โต๊ะ')} <span className="text-gray-900 font-bold">{table.name} ({table.floor})</span>
                             </span>
                             
-                            {/* STATUS BADGE - NOW INLINE and RELAXED LOGIC */}
+                            {/* STATUS BADGE */}
                             {orderStatus && (
                                 <span className={`text-xs font-bold px-3 py-1 rounded-full border shadow-sm ${orderStatus.color} whitespace-nowrap flex items-center gap-1 z-10`}>
                                     {orderStatus.text}
                                 </span>
                             )}
                         </div>
-                        {/* Optionally allow editing name, but kept simple for now */}
                         <p className="text-xs text-gray-400 pl-1">{t('คุณ')}{customerName}</p>
                     </div>
 
@@ -675,7 +805,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                             </svg>
                             <span className="text-[10px] font-bold mt-0.5">{t('เรียก')}</span>
                         </button>
-                         {/* Right Side: Bill Only (Status moved to left) */}
+                         {/* Right Side: Bill Only */}
                         <div 
                             className="flex flex-col items-end gap-1 cursor-pointer hover:opacity-80 transition-opacity group bg-white p-1 rounded"
                             onClick={() => { setIsActiveOrderListOpen(true); }}
@@ -699,12 +829,12 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                 </div>
             </header>
             
-            {/* Menu Content - Using displayMenuItems (Combined Names) */}
+            {/* Menu Content - Using localizedMenuItems and localizedCategories */}
             <div className="flex-1 overflow-hidden relative">
                 <Menu 
-                    menuItems={displayMenuItems}
+                    menuItems={localizedMenuItems}
                     setMenuItems={() => {}} // Read-only
-                    categories={categories}
+                    categories={localizedCategories}
                     onSelectItem={handleSelectItem}
                     isEditMode={false}
                     onEditItem={() => {}}
@@ -765,25 +895,20 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                                                     {t('รายการของคุณ')} <span className="text-xs font-normal text-blue-600">({customerName})</span> 👤
                                                 </h4>
                                                 <ul className="space-y-3">
-                                                    {myItems.map((item, idx) => {
-                                                        const originalItem = menuItems.find(m => m.id === item.id);
-                                                        const displayName = originalItem?.nameEn ? `${item.name} (${originalItem.nameEn})` : item.name;
-                                                        
-                                                        return (
-                                                            <li key={`mine-${idx}`} className="flex justify-between text-sm text-gray-700 border-b border-blue-100 pb-2 last:border-0">
-                                                                <div>
-                                                                    <span className="font-medium">{item.quantity}x {t(displayName)}</span>
-                                                                    {item.isTakeaway && <span className="text-purple-600 text-xs ml-1">(กลับบ้าน)</span>}
-                                                                    {item.selectedOptions.length > 0 && (
-                                                                        <div className="text-xs text-gray-500 ml-1">
-                                                                            {item.selectedOptions.map(o => o.nameEn ? `${o.name} (${o.nameEn})` : o.name).join(', ')}
-                                                                        </div>
-                                                                    )}
-                                                                </div>
-                                                                <span className="font-mono text-gray-600 font-bold">{(item.finalPrice * item.quantity).toLocaleString()}</span>
-                                                            </li>
-                                                        );
-                                                    })}
+                                                    {myItems.map((item, idx) => (
+                                                        <li key={`mine-${idx}`} className="flex justify-between text-sm text-gray-700 border-b border-blue-100 pb-2 last:border-0">
+                                                            <div>
+                                                                <span className="font-medium">{item.quantity}x {item.name}</span>
+                                                                {item.isTakeaway && <span className="text-purple-600 text-xs ml-1">({t('สั่งกลับบ้าน')})</span>}
+                                                                {item.selectedOptions.length > 0 && (
+                                                                    <div className="text-xs text-gray-500 ml-1">
+                                                                        {item.selectedOptions.map(o => o.name).join(', ')}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                            <span className="font-mono text-gray-600 font-bold">{(item.finalPrice * item.quantity).toLocaleString()}</span>
+                                                        </li>
+                                                    ))}
                                                 </ul>
                                             </div>
                                         )}
@@ -793,28 +918,23 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                                             <div className="bg-gray-50 p-2 rounded-lg border border-gray-200 mt-2">
                                                 <h4 className="font-bold text-gray-600 text-sm mb-2">{t('รายการของเพื่อนร่วมโต๊ะ')} 👥</h4>
                                                 <ul className="space-y-3">
-                                                    {otherItems.map(({ item, owner }, idx) => {
-                                                        const originalItem = menuItems.find(m => m.id === item.id);
-                                                        const displayName = originalItem?.nameEn ? `${item.name} (${originalItem.nameEn})` : item.name;
-
-                                                        return (
-                                                            <li key={`other-${idx}`} className="flex justify-between text-sm text-gray-700 border-b border-gray-200 pb-2 last:border-0">
-                                                                <div>
-                                                                    <div className="flex items-center gap-2">
-                                                                        <span className="font-medium">{item.quantity}x {t(displayName)}</span>
-                                                                        <span className="text-[10px] bg-gray-200 px-1.5 rounded text-gray-600">{owner}</span>
-                                                                    </div>
-                                                                    {item.isTakeaway && <span className="text-purple-600 text-xs ml-1">(กลับบ้าน)</span>}
-                                                                    {item.selectedOptions.length > 0 && (
-                                                                        <div className="text-xs text-gray-500 ml-1">
-                                                                            {item.selectedOptions.map(o => o.nameEn ? `${o.name} (${o.nameEn})` : o.name).join(', ')}
-                                                                        </div>
-                                                                    )}
+                                                    {otherItems.map(({ item, owner }, idx) => (
+                                                        <li key={`other-${idx}`} className="flex justify-between text-sm text-gray-700 border-b border-gray-200 pb-2 last:border-0">
+                                                            <div>
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="font-medium">{item.quantity}x {item.name}</span>
+                                                                    <span className="text-[10px] bg-gray-200 px-1.5 rounded text-gray-600">{owner}</span>
                                                                 </div>
-                                                                <span className="font-mono text-gray-500">{(item.finalPrice * item.quantity).toLocaleString()}</span>
-                                                            </li>
-                                                        );
-                                                    })}
+                                                                {item.isTakeaway && <span className="text-purple-600 text-xs ml-1">({t('สั่งกลับบ้าน')})</span>}
+                                                                {item.selectedOptions.length > 0 && (
+                                                                    <div className="text-xs text-gray-500 ml-1">
+                                                                        {item.selectedOptions.map(o => o.name).join(', ')}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                            <span className="font-mono text-gray-500">{(item.finalPrice * item.quantity).toLocaleString()}</span>
+                                                        </li>
+                                                    ))}
                                                 </ul>
                                             </div>
                                         )}
@@ -876,9 +996,9 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                             {cartItems.map(item => (
                                 <div key={item.cartItemId} className="flex justify-between items-start border-b pb-4">
                                     <div className="flex-1">
-                                        <p className="font-bold text-gray-800">{t(item.name)}</p>
+                                        <p className="font-bold text-gray-800">{item.name}</p>
                                         <p className="text-sm text-gray-500">
-                                            {item.selectedOptions.map(o => o.nameEn ? `${o.name} (${o.nameEn})` : o.name).join(', ')}
+                                            {item.selectedOptions.map(o => o.name).join(', ')}
                                         </p>
                                         {item.notes && <p className="text-sm text-yellow-600">** {item.notes}</p>}
                                         <p className="text-blue-600 font-semibold mt-1">{item.finalPrice.toLocaleString()} ฿ x {item.quantity}</p>
@@ -917,18 +1037,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
             <ItemCustomizationModal 
                 isOpen={!!itemToCustomize} 
                 onClose={() => setItemToCustomize(null)} 
-                item={itemToCustomize ? {
-                    ...itemToCustomize,
-                    name: t(itemToCustomize.name), // This will use the combined name from displayMenuItems
-                    optionGroups: itemToCustomize.optionGroups?.map(g => ({
-                        ...g,
-                        name: t(g.name),
-                        options: g.options?.map(o => ({
-                            ...o,
-                            name: t(o.name)
-                        })) || []
-                    })) || []
-                } : null}
+                item={itemToCustomize} // This item already has translated names from localizedMenuItems
                 onConfirm={handleConfirmCustomization} 
             />
         </div>
