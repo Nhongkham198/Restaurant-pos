@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import type { MenuItem, MenuOption, MenuOptionGroup } from '../types';
 import Swal from 'sweetalert2';
@@ -13,6 +14,7 @@ interface MenuItemModalProps {
 
 const initialFormState: Omit<MenuItem, 'id'> = {
     name: '',
+    nameEn: '', // Added English name
     price: 0,
     category: '',
     imageUrl: '',
@@ -47,6 +49,7 @@ export const MenuItemModal: React.FC<MenuItemModalProps> = ({ isOpen, onClose, o
             if (itemToEdit) {
                 setFormState({ 
                     ...itemToEdit, 
+                    nameEn: itemToEdit.nameEn || '', // Handle edit case
                     cookingTime: itemToEdit.cookingTime ?? 15,
                     optionGroups: JSON.parse(JSON.stringify(itemToEdit.optionGroups || [])) 
                 });
@@ -84,6 +87,7 @@ export const MenuItemModal: React.FC<MenuItemModalProps> = ({ isOpen, onClose, o
         const newGroup: MenuOptionGroup = {
             id: `group_${Date.now()}`,
             name: '',
+            nameEn: '',
             selectionType: 'single',
             required: false,
             options: []
@@ -104,7 +108,7 @@ export const MenuItemModal: React.FC<MenuItemModalProps> = ({ isOpen, onClose, o
     };
 
     const handleAddOption = (groupIndex: number) => {
-        const newOption: MenuOption = { id: `option_${Date.now()}`, name: '', priceModifier: 0, isDefault: false };
+        const newOption: MenuOption = { id: `option_${Date.now()}`, name: '', nameEn: '', priceModifier: 0, isDefault: false };
         setFormState(prev => {
             const newGroups = JSON.parse(JSON.stringify(prev.optionGroups || []));
             newGroups[groupIndex].options.push(newOption);
@@ -171,6 +175,10 @@ export const MenuItemModal: React.FC<MenuItemModalProps> = ({ isOpen, onClose, o
                             <input type="text" value={formState.name} onChange={(e) => setFormState(prev => ({...prev, name: e.target.value}))} className={inputClasses} required />
                         </div>
                         <div>
+                            <label className="block text-sm font-medium text-gray-700">ชื่อภาษาอังกฤษ (Optional)</label>
+                            <input type="text" value={formState.nameEn} onChange={(e) => setFormState(prev => ({...prev, nameEn: e.target.value}))} className={inputClasses} placeholder="English Name" />
+                        </div>
+                        <div>
                             <label className="block text-sm font-medium text-gray-700">ราคา (บาท)</label>
                             <input type="text" inputMode="decimal" value={priceString} onChange={handlePriceChange} className={inputClasses} required />
                         </div>
@@ -204,7 +212,10 @@ export const MenuItemModal: React.FC<MenuItemModalProps> = ({ isOpen, onClose, o
                                 {(formState.optionGroups || []).map((group, groupIndex) => (
                                     <div key={group.id} className="p-4 bg-gray-50 border border-gray-200 rounded-lg space-y-4">
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
-                                            <input type="text" placeholder="ชื่อกลุ่ม (เช่น ประเภทเนื้อ)" value={group.name} onChange={(e) => handleGroupChange(groupIndex, 'name', e.target.value)} className={smallInputClasses} />
+                                            <div className="space-y-2">
+                                                <input type="text" placeholder="ชื่อกลุ่ม (เช่น ประเภทเนื้อ)" value={group.name} onChange={(e) => handleGroupChange(groupIndex, 'name', e.target.value)} className={smallInputClasses} />
+                                                <input type="text" placeholder="ชื่อกลุ่ม Eng (Optional)" value={group.nameEn || ''} onChange={(e) => handleGroupChange(groupIndex, 'nameEn', e.target.value)} className={smallInputClasses} />
+                                            </div>
                                             <div className="flex items-center justify-between gap-4">
                                                 <select value={group.selectionType} onChange={(e) => handleGroupChange(groupIndex, 'selectionType', e.target.value)} className={smallInputClasses}>
                                                     <option value="single">เลือกได้ 1 อย่าง</option>
@@ -219,7 +230,8 @@ export const MenuItemModal: React.FC<MenuItemModalProps> = ({ isOpen, onClose, o
                                             {group.options.map((option, optionIndex) => (
                                                 <div key={option.id} className="flex items-center gap-2">
                                                     <input type="text" placeholder="ชื่อตัวเลือก (เช่น ไก่)" value={option.name} onChange={e => handleOptionChange(groupIndex, optionIndex, 'name', e.target.value)} className={`${smallInputClasses} flex-1`} />
-                                                    <input type="number" placeholder="ราคาเพิ่ม" value={option.priceModifier} onChange={e => handleOptionChange(groupIndex, optionIndex, 'priceModifier', Number(e.target.value))} className={`${smallInputClasses} w-28`} />
+                                                    <input type="text" placeholder="Eng (Opt)" value={option.nameEn || ''} onChange={e => handleOptionChange(groupIndex, optionIndex, 'nameEn', e.target.value)} className={`${smallInputClasses} flex-1`} />
+                                                    <input type="number" placeholder="ราคาเพิ่ม" value={option.priceModifier} onChange={e => handleOptionChange(groupIndex, optionIndex, 'priceModifier', Number(e.target.value))} className={`${smallInputClasses} w-20`} />
                                                     <label className="flex items-center gap-1.5 text-xs text-gray-500" title="ตั้งเป็นค่าเริ่มต้น"><input type="checkbox" checked={option.isDefault} onChange={e => handleOptionChange(groupIndex, optionIndex, 'isDefault', e.target.checked)} className="rounded" />Default</label>
                                                     <button type="button" onClick={() => handleDeleteOption(groupIndex, optionIndex)} className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-full">&times;</button>
                                                 </div>

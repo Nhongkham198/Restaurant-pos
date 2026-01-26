@@ -35,6 +35,7 @@ export interface User {
 export interface MenuOption {
     id: string;
     name: string;
+    nameEn?: string; // Added English Name field for Option
     priceModifier: number;
     isDefault?: boolean;
 }
@@ -42,6 +43,7 @@ export interface MenuOption {
 export interface MenuOptionGroup {
     id: string;
     name: string;
+    nameEn?: string; // Added English Name field for Option Group
     selectionType: 'single' | 'multiple';
     required?: boolean;
     options: MenuOption[];
@@ -50,6 +52,7 @@ export interface MenuOptionGroup {
 export interface MenuItem {
     id: number;
     name: string;
+    nameEn?: string; // Added English Name field
     price: number;
     category: string;
     imageUrl: string;

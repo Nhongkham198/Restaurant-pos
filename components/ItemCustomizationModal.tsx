@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import type { MenuItem, MenuOption, OrderItem, MenuOptionGroup, TakeawayCutleryOption } from '../types';
 import Swal from 'sweetalert2';
@@ -177,7 +178,7 @@ export const ItemCustomizationModal: React.FC<ItemCustomizationModalProps> = ({ 
                     </div>
                     <button onClick={onClose} className="absolute top-2 right-2 p-2 rounded-full text-gray-500 hover:bg-gray-200 hover:text-gray-800 transition-colors" aria-label="Close">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                         </svg>
                     </button>
                 </header>
@@ -186,7 +187,7 @@ export const ItemCustomizationModal: React.FC<ItemCustomizationModalProps> = ({ 
                     {item.optionGroups?.map(group => (
                         <div key={group.id}>
                             <h4 className="text-lg font-semibold text-gray-800 border-b pb-1 mb-3">
-                                {group.name} {group.required && <span className="text-red-500 text-sm">*</span>}
+                                {group.name} {group.nameEn && <span className="text-gray-500 font-normal text-sm">({group.nameEn})</span>} {group.required && <span className="text-red-500 text-sm">*</span>}
                             </h4>
                             <div className="space-y-2">
                                 {group.options.map(option => {
@@ -199,7 +200,9 @@ export const ItemCustomizationModal: React.FC<ItemCustomizationModalProps> = ({ 
                                             ) : (
                                                 <input type="checkbox" checked={isSelected} readOnly className="h-5 w-5 rounded text-blue-600 border-gray-300 focus:ring-blue-500"/>
                                             )}
-                                            <span className="ml-3 flex-1 text-gray-800">{option.name}</span>
+                                            <span className="ml-3 flex-1 text-gray-800">
+                                                {option.name} {option.nameEn && <span className="text-gray-500 text-sm">({option.nameEn})</span>}
+                                            </span>
                                             {option.priceModifier > 0 && <span className="font-semibold text-gray-700">+ {option.priceModifier.toLocaleString()} ฿</span>}
                                         </div>
                                     );
@@ -263,7 +266,7 @@ export const ItemCustomizationModal: React.FC<ItemCustomizationModalProps> = ({ 
                         <button onClick={() => setQuantity(q => q + 1)} className="w-10 h-10 rounded-full bg-blue-500 hover:bg-blue-600 text-white text-2xl font-bold flex items-center justify-center">+</button>
                         <button type="button" onClick={handleResetSelections} className="p-2 bg-gray-200 text-gray-700 rounded-full hover:bg-gray-300 font-semibold" title="ล้างที่เลือก">
                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                             </svg>
                         </button>
                     </div>
