@@ -3,6 +3,7 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import type { MenuItem } from '../types';
 import { MenuItemCard } from './MenuItem';
 import Swal from 'sweetalert2';
+import { ThaiVirtualKeyboard } from './ThaiVirtualKeyboard';
 
 declare var XLSX: any;
 
@@ -45,6 +46,9 @@ export const Menu: React.FC<MenuProps> = ({
     const categoryScrollRef = useRef<HTMLDivElement>(null);
     const [showLeftArrow, setShowLeftArrow] = useState(false);
     const [showRightArrow, setShowRightArrow] = useState(false);
+    
+    // --- Keyboard State ---
+    const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
 
     const normalizedCategories = useMemo(() => {
         if (!Array.isArray(categories)) return [];
@@ -395,8 +399,21 @@ export const Menu: React.FC<MenuProps> = ({
         setMenuItems(updated);
     };
 
+    // --- Virtual Keyboard Handlers ---
+    const handleVirtualKeyPress = (key: string) => {
+        setSearchTerm(prev => prev + key);
+    };
+
+    const handleVirtualBackspace = () => {
+        setSearchTerm(prev => prev.slice(0, -1));
+    };
+
+    const handleVirtualClear = () => {
+        setSearchTerm('');
+    };
+
     return (
-        <div className="flex flex-col bg-white p-4 rounded-lg shadow-sm h-full">
+        <div className="flex flex-col bg-white p-4 rounded-lg shadow-sm h-full relative">
             <input
                 type="file"
                 ref={fileInputRef}
@@ -415,14 +432,24 @@ export const Menu: React.FC<MenuProps> = ({
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                             </svg>
                         </span>
-                        {/* Search input is full width on mobile, fixed width on desktop */}
+                        {/* Search input with padding right for keyboard button */}
                         <input
                             type="text"
                             placeholder="ค้นหาเมนู..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full md:w-64 pl-10 pr-4 py-2 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50 text-gray-900"
+                            className="w-full md:w-64 pl-10 pr-12 py-2 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50 text-gray-900"
                         />
+                        {/* Keyboard Toggle Button (Desktop only via parent hidden prop logic, but here we just render it, hiding it on mobile via CSS is cleaner or checking screen width) */}
+                        <button 
+                            className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-blue-600 transition-colors hidden md:flex"
+                            onClick={() => setIsKeyboardOpen(!isKeyboardOpen)}
+                            title={isKeyboardOpen ? "ปิดแป้นพิมพ์" : "เปิดแป้นพิมพ์ไทย"}
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                            </svg>
+                        </button>
                     </div>
                     {/* Category Filters - Takes full width available */}
                     <div className="flex-1 overflow-hidden relative w-full">
@@ -509,7 +536,7 @@ export const Menu: React.FC<MenuProps> = ({
             </div>
             
             {/* Menu Grid */}
-            <div className="flex-1 overflow-y-auto grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-4 content-start">
+            <div className="flex-1 overflow-y-auto grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-4 content-start pb-4">
                 {isEditMode && (
                     <div
                         onClick={onAddNewItem}
@@ -539,6 +566,16 @@ export const Menu: React.FC<MenuProps> = ({
                     />
                 ))}
             </div>
+
+            {/* Virtual Keyboard Overlay */}
+            {isKeyboardOpen && (
+                <ThaiVirtualKeyboard 
+                    onKeyPress={handleVirtualKeyPress}
+                    onBackspace={handleVirtualBackspace}
+                    onClear={handleVirtualClear}
+                    onClose={() => setIsKeyboardOpen(false)}
+                />
+            )}
         </div>
     );
 };
