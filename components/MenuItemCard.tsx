@@ -47,7 +47,7 @@ export const MenuItemCard: React.FC<MenuItemCardProps> = ({
             className={`relative group bg-white rounded-lg shadow-md overflow-hidden flex flex-col border border-gray-200 h-64 
                 ${!isEditMode && isAvailable ? 'cursor-pointer hover:shadow-lg hover:border-blue-400 transition-all' : ''} 
                 ${isEditMode ? 'cursor-grab' : ''} 
-                ${(!isAvailable || !isVisible) && !isEditMode ? 'grayscale opacity-80 cursor-not-allowed' : ''}
+                ${!isAvailable && !isEditMode ? 'grayscale opacity-80 cursor-not-allowed' : ''}
             `}
             onClick={handleCardClick}
             draggable={isEditMode}
@@ -69,24 +69,30 @@ export const MenuItemCard: React.FC<MenuItemCardProps> = ({
                         </span>
                     </div>
                 )}
-                {!isVisible && isEditMode && (
-                    <div className="absolute top-2 left-2 z-20">
-                        <span className="bg-gray-800 text-white text-xs font-bold px-2 py-1 rounded-md shadow-md border border-gray-600">
-                            ซ่อนจากลูกค้า
+                
+                {/* Visual Indicator for Hidden Items (Show in Edit Mode AND POS Mode so staff knows) */}
+                {!isVisible && (
+                    <div className="absolute top-0 right-0 bg-gray-800/80 text-white text-[10px] px-2 py-1 rounded-bl-md z-20 backdrop-blur-sm">
+                        <span className="flex items-center gap-1">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+                                <path fillRule="evenodd" d="M3.707 2.293a1 1 0 00-1.414 1.414l14 14a1 1 0 001.414-1.414l-1.473-1.473A10.014 10.014 0 0019.542 10C18.268 5.943 14.478 3 10 3a9.958 9.958 0 00-4.512 1.074l-1.78-1.781zm4.261 4.26l1.514 1.515a2.003 2.003 0 012.45 2.45l1.514 1.514a4 4 0 00-5.478-5.478z" clipRule="evenodd" />
+                                <path d="M12.454 16.697L9.75 13.992a4 4 0 01-3.742-3.741L2.335 6.578A9.98 9.98 0 00.458 10c1.274 4.057 5.065 7 9.542 7 .847 0 1.669-.105 2.454-.303z" />
+                            </svg>
+                            {isEditMode ? 'ซ่อนอยู่' : 'เฉพาะ POS'}
                         </span>
                     </div>
                 )}
             </div>
 
             <div className="p-2 flex flex-col flex-auto justify-between">
-                <h3 className="font-semibold text-gray-800 text-base leading-tight min-h-[40px]">{item.name}</h3>
+                <h3 className="font-semibold text-gray-800 text-base leading-tight min-h-[40px] line-clamp-2">{item.name}</h3>
                 <div className="flex justify-end items-baseline mt-1 pt-2 border-t border-gray-100">
                      <p className="text-lg font-bold text-blue-600">{item.price.toLocaleString()}<span className="text-sm font-medium"> ฿</span></p>
                 </div>
             </div>
 
             {isRecommended && (
-                <div className="absolute top-2 right-2 flex items-center justify-center w-8 h-8 z-20" title="เมนูแนะนำ">
+                <div className="absolute top-2 right-2 flex items-center justify-center w-8 h-8 z-20 pointer-events-none" title="เมนูแนะนำ">
                     <div className="absolute w-full h-full bg-yellow-400 rounded-full animate-ping opacity-75"></div>
                     <svg xmlns="http://www.w3.org/2000/svg" className="relative h-7 w-7 text-yellow-500 drop-shadow-lg" viewBox="0 0 20 20" fill="currentColor">
                         <path d="M9.049 2.927c.3-.921 1.603-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
@@ -95,10 +101,10 @@ export const MenuItemCard: React.FC<MenuItemCardProps> = ({
             )}
 
             {isEditMode && (
-                <div className="absolute inset-0 bg-black/70 backdrop-blur-[2px] flex flex-col items-center justify-center gap-3 z-30 transition-opacity p-2">
+                <div className="absolute inset-0 bg-black/70 backdrop-blur-[2px] flex flex-col items-center justify-center gap-2 z-30 transition-opacity p-2">
                     
                     {/* Toggle Stock Switch */}
-                    <div className="flex items-center justify-between gap-2 bg-white/90 px-3 py-1.5 rounded-full shadow-lg cursor-pointer w-36" onClick={(e) => { e.stopPropagation(); onToggleAvailability(); }}>
+                    <div className="flex items-center justify-between gap-2 bg-white/95 px-3 py-1.5 rounded-full shadow-lg cursor-pointer w-40 hover:bg-white transition-colors border border-gray-200" onClick={(e) => { e.stopPropagation(); onToggleAvailability(); }}>
                         <span className={`text-[10px] font-bold ${isAvailable ? 'text-green-600' : 'text-gray-400'}`}>มีของ</span>
                         <div className={`w-8 h-4 flex items-center rounded-full p-0.5 transition-colors duration-300 ${isAvailable ? 'bg-green-500' : 'bg-red-500'}`}>
                             <div className={`bg-white w-3 h-3 rounded-full shadow-md transform duration-300 ease-in-out ${isAvailable ? 'translate-x-4' : 'translate-x-0'}`}></div>
@@ -108,7 +114,7 @@ export const MenuItemCard: React.FC<MenuItemCardProps> = ({
 
                     {/* Toggle Visibility Switch (NEW) */}
                     {onToggleVisibility && (
-                        <div className="flex items-center justify-between gap-2 bg-white/90 px-3 py-1.5 rounded-full shadow-lg cursor-pointer w-36" onClick={(e) => { e.stopPropagation(); onToggleVisibility(); }}>
+                        <div className="flex items-center justify-between gap-2 bg-white/95 px-3 py-1.5 rounded-full shadow-lg cursor-pointer w-40 hover:bg-white transition-colors border border-gray-200" onClick={(e) => { e.stopPropagation(); onToggleVisibility(); }}>
                             <span className={`text-[10px] font-bold ${isVisible ? 'text-blue-600' : 'text-gray-400'}`}>ลูกค้าเห็น</span>
                             <div className={`w-8 h-4 flex items-center rounded-full p-0.5 transition-colors duration-300 ${isVisible ? 'bg-blue-500' : 'bg-gray-400'}`}>
                                 <div className={`bg-white w-3 h-3 rounded-full shadow-md transform duration-300 ease-in-out ${isVisible ? 'translate-x-4' : 'translate-x-0'}`}></div>
