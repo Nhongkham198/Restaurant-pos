@@ -22,6 +22,119 @@ interface CustomerViewProps {
     restaurantName: string;
 }
 
+// --- Translation Dictionary ---
+const translations: Record<string, string> = {
+    // Header
+    "เมนูอาหาร 🍽️": "Menu 🍽️",
+    "โต๊ะ": "Table",
+    "คุณ": "Hi, ",
+    "เรียก": "Call",
+    "เรียกพนักงาน": "Call Staff",
+    "ยอดของฉัน": "My Total",
+    
+    // Status
+    "รอคิว": "Waiting",
+    "กำลังปรุง... 🍳": "Cooking... 🍳",
+    "เสิร์ฟครบแล้ว 😋": "Served All 😋",
+    "คิวที่ 1": "1st Queue",
+    "คิว": "Q",
+    "อีก": "Next",
+    "คิวที่": "Queue #",
+    "รอคิว...": "Waiting...",
+    
+    // Cart / Buttons
+    "ดูตะกร้า": "View Cart",
+    "ยังไม่รวมกับยอดบิล": "Est. Total",
+    "รายการในตะกร้า (ยังไม่สั่ง)": "Cart (Not Ordered)",
+    "ไม่มีสินค้าในตะกร้า": "Cart is empty",
+    "ยอดในตะกร้า": "Cart Total",
+    "ยืนยันสั่งอาหาร 🚀": "Order Now 🚀",
+    "ลบ": "Remove",
+    
+    // Active Orders Modal
+    "รายการของฉัน": "My Orders",
+    "รายการของคุณ": "Your Orders",
+    "รายการของเพื่อนร่วมโต๊ะ": "Table Orders",
+    "ยอดรวมทั้งโต๊ะ": "Table Total",
+    "* ราคานี้เป็นเฉพาะรายการที่คุณสั่ง": "* Price includes only your items",
+    "บันทึกรายการของฉัน": "Save My Bill Image",
+    "ปิด": "Close",
+    "ยังไม่มีรายการที่สั่ง": "No orders placed yet",
+    "ไม่ระบุชื่อ": "Unknown",
+    
+    // Alerts & Confirmations
+    "ยืนยันการสั่งอาหาร?": "Confirm Order?",
+    "สั่งอาหาร": "Ordering",
+    "รายการ": "items",
+    "สั่งเลย": "Order",
+    "ตรวจสอบก่อน": "Review",
+    "กำลังส่งรายการ...": "Sending...",
+    "สั่งอาหารสำเร็จ!": "Order Placed!",
+    "รายการอาหารถูกส่งเข้าครัวแล้ว": "Sent to kitchen successfully",
+    "เกิดข้อผิดพลาด": "Error",
+    "ไม่สามารถสั่งอาหารได้ กรุณาลองใหม่อีกครั้ง": "Cannot place order. Please try again.",
+    "ส่งสัญญาณเรียกพนักงานแล้ว": "Staff Called",
+    "กรุณารอสักครู่...": "Please wait...",
+    "เพิ่มลงตะกร้าแล้ว": "Added to cart",
+    "บันทึกสำเร็จ!": "Saved!",
+    "ขอบคุณที่ใช้บริการ...": "Thank you...",
+    "กำลังสร้างรูปภาพ...": "Generating Image...",
+    "กรุณารอสักครู่": "Please wait",
+    "ไม่สามารถสร้างรูปภาพได้": "Cannot generate image",
+    
+    // Customization Modal
+    "เพิ่มOrder": "Add to Order",
+    "บันทึกการแก้ไข": "Update Item",
+    "สั่งกลับบ้าน": "Takeaway",
+    "รับเครื่องใช้": "Cutlery",
+    "รับช้อนส้อม": "Spoon & Fork",
+    "รับตะเกียบ": "Chopsticks",
+    "อื่นๆ (ระบุ)": "Other",
+    "ไม่รับ": "No Cutlery",
+    "หมายเหตุ (ถ้ามี):": "Note (Optional):",
+    "ราคาเริ่มต้น": "Price starts at",
+
+    // --- Menu Categories ---
+    "ทั้งหมด": "All",
+    "อาหารจานเดียว": "A La Carte",
+    "ของทานเล่น": "Appetizers",
+    "เครื่องดื่ม": "Beverages",
+    "อาหารเกาหลี": "Korean Food",
+
+    // --- Menu Items (Example Mapping) ---
+    "ข้าวกะเพรา": "Basil Pork Rice",
+    "ข้าวผัดหมู": "Fried Rice with Pork",
+    "เฟรนช์ฟรายส์": "French Fries",
+    "โค้ก": "Coke",
+    "น้ำเปล่า": "Water",
+    "ซุปกิมจิ": "Kimchi Soup",
+    "จาจังมยอน (บะหมี่ซอสดำ)": "Jajangmyeon",
+    "จาจังบับ (ข้าวหน้าซอสจาจัง)": "Jajangbap",
+    "ต๊อกบกกี (ต๊อกผัดซอสเกาหลี)": "Tteokbokki",
+    "คิมมาริ (สาหร่ายห่อวุ้นเส้นทอด)": "Kimmari",
+    "กุนมันดู (เกี๊ยวทอดเกาหลี)": "Gun Mandu",
+    "บิบิมบับ (ข้าวยำเกาหลี)": "Bibimbap",
+    "เจยุก บกกึม หมู/ไก่ผัดซอสโคชูจัง (กับข้าว)": "Jeyuk Bokkeum",
+    "ซาวครีม ชิ้กเก้น (ไก่ทอดซอสซาวครีม)": "Sour Cream Chicken",
+
+    // --- Options ---
+    "ประเภทเนื้อ (เลือก 1)": "Meat Selection",
+    "ไก่": "Chicken",
+    "หมูสับ": "Minced Pork",
+    "หมูกรอบ": "Crispy Pork",
+    "เนื้อ": "Beef",
+    "ความเผ็ด": "Spiciness",
+    "ไม่เผ็ด": "Non Spicy",
+    "เผ็ดน้อย": "Less Spicy",
+    "เผ็ดปกติ": "Normal Spicy",
+    "เผ็ดมาก": "Very Spicy",
+    "ท๊อปปิ้ง": "Toppings",
+    "พิเศษ": "Extra Size",
+    "ไข่ดาว (ไม่สุก)": "Fried Egg (Runny)",
+    "ไข่ดาว (สุก)": "Fried Egg (Cooked)",
+    "ไข่เจียว": "Omelette"
+};
+
 export const CustomerView: React.FC<CustomerViewProps> = ({
     table,
     menuItems,
@@ -39,6 +152,41 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [customerName, setCustomerName] = useState('ลูกค้า'); // Default to generic name
     
+    // --- LANGUAGE STATE ---
+    const [language, setLanguage] = useState<'th' | 'en'>('th');
+
+    // --- Translation Function ---
+    const t = useCallback((text: string) => {
+        if (language === 'en' && translations[text]) {
+            return translations[text];
+        }
+        return text;
+    }, [language]);
+
+    // --- TRANSLATED DATA (On-the-fly) ---
+    // This ensures the Menu component receives data that matches the selected language
+    // without modifying the original database or parent state.
+    const translatedMenuItems = useMemo(() => {
+        return menuItems.map(item => ({
+            ...item,
+            name: t(item.name),
+            category: t(item.category),
+            optionGroups: item.optionGroups?.map(g => ({
+                ...g,
+                name: t(g.name),
+                options: g.options.map(o => ({
+                    ...o,
+                    name: t(o.name)
+                }))
+            }))
+        }));
+    }, [menuItems, t]);
+
+    const translatedCategories = useMemo(() => {
+        return categories.map(c => t(c));
+    }, [categories, t]);
+
+
     // --- COMPLETED SESSION STATE ---
     // Check if this session is marked as completed (paid) in sessionStorage (clears on tab close/new scan)
     const [isSessionCompleted, setIsSessionCompleted] = useState(() => {
@@ -144,8 +292,6 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         setIsSessionCompleted(true);
     };
 
-    const t = (text: string) => text;
-
     // --- IDENTIFY ITEMS (Mine vs Others) ---
     const { myItems, otherItems } = useMemo(() => {
         const mine: OrderItem[] = [];
@@ -179,7 +325,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         });
 
         return { myItems: mine, otherItems: others };
-    }, [allBranchOrders, myOrderNumbers, isAuthenticated, customerName, table.id]);
+    }, [allBranchOrders, myOrderNumbers, isAuthenticated, customerName, table.id, t]);
 
     // Calculate totals
     const myTotal = useMemo(() => {
@@ -364,7 +510,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         isProcessingPaymentRef.current = false;
         prevMyItemsCountRef.current = currentCount;
 
-    }, [myItems.length, isAuthenticated, completedOrders, myOrderNumbers, logoUrl, restaurantName, customerName, isSessionCompleted]);
+    }, [myItems.length, isAuthenticated, completedOrders, myOrderNumbers, logoUrl, restaurantName, customerName, isSessionCompleted, t]);
     
 
     const handleSelectItem = (item: MenuItem) => {
@@ -566,7 +712,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
             // Fallback on error if we know we have items
             return myItems.length > 0 ? { text: t('รอคิว'), color: 'bg-blue-600 text-white border-blue-700' } : null;
         }
-    }, [allBranchOrders, isAuthenticated, table.id, myItems.length]);
+    }, [allBranchOrders, isAuthenticated, table.id, myItems.length, t]);
 
     
     // --- 1. SESSION COMPLETED SCREEN (THANK YOU) ---
@@ -619,6 +765,13 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                     <h1 className="font-bold text-gray-800 text-lg flex items-center gap-2">
                         {t('เมนูอาหาร 🍽️')}
                     </h1>
+                    {/* Language Toggle */}
+                    <button
+                        onClick={() => setLanguage(prev => prev === 'th' ? 'en' : 'th')}
+                        className="px-3 py-1 bg-white border border-gray-200 rounded-full text-xs font-bold text-gray-700 shadow-sm transition-colors hover:bg-gray-50 active:bg-gray-100"
+                    >
+                        {language === 'th' ? '🇬🇧 EN' : '🇹🇭 TH'}
+                    </button>
                 </div>
 
                 {/* Main Header Content */}
@@ -679,9 +832,9 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
             {/* Menu Content */}
             <div className="flex-1 overflow-hidden relative">
                 <Menu 
-                    menuItems={menuItems}
+                    menuItems={translatedMenuItems} // Use the translated items here
                     setMenuItems={() => {}} // Read-only
-                    categories={categories}
+                    categories={translatedCategories} // Use translated categories here
                     onSelectItem={handleSelectItem}
                     isEditMode={false}
                     onEditItem={() => {}}
@@ -746,7 +899,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                                                         <li key={`mine-${idx}`} className="flex justify-between text-sm text-gray-700 border-b border-blue-100 pb-2 last:border-0">
                                                             <div>
                                                                 <span className="font-medium">{item.quantity}x {t(item.name)}</span>
-                                                                {item.isTakeaway && <span className="text-purple-600 text-xs ml-1">(กลับบ้าน)</span>}
+                                                                {item.isTakeaway && <span className="text-purple-600 text-xs ml-1">({t('สั่งกลับบ้าน')})</span>}
                                                                 {item.selectedOptions.length > 0 && (
                                                                     <div className="text-xs text-gray-500 ml-1">
                                                                         {item.selectedOptions.map(o=>t(o.name)).join(', ')}
@@ -772,7 +925,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                                                                     <span className="font-medium">{item.quantity}x {t(item.name)}</span>
                                                                     <span className="text-[10px] bg-gray-200 px-1.5 rounded text-gray-600">{owner}</span>
                                                                 </div>
-                                                                {item.isTakeaway && <span className="text-purple-600 text-xs ml-1">(กลับบ้าน)</span>}
+                                                                {item.isTakeaway && <span className="text-purple-600 text-xs ml-1">({t('สั่งกลับบ้าน')})</span>}
                                                                 {item.selectedOptions.length > 0 && (
                                                                     <div className="text-xs text-gray-500 ml-1">
                                                                         {item.selectedOptions.map(o=>t(o.name)).join(', ')}
