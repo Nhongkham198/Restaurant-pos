@@ -54,6 +54,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
         return `${year}-${month}-${day}`;
     }, [selectedDate, viewMode]);
 
+    // Helper to extract provider name from delivery orders
+    const getDeliveryProviderName = (order: { orderType: string, customerName?: string }) => {
+        if (order.orderType !== 'lineman') return null;
+        if (order.customerName && order.customerName.includes('#')) {
+            // Assumes format "Provider #123"
+            return order.customerName.split('#')[0].trim();
+        }
+        return order.customerName || 'Delivery'; // Default fallback
+    };
+
     const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.value) {
             if (viewMode === 'monthly') {
@@ -122,21 +132,25 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
 
             if (!matchesDate) return false;
 
-            // Apply Order Type Filter (LineMan/Takeaway/Dine-in)
+            // Apply Order Type Filter (LineMan/Takeaway/Dine-in) with Provider Support
             if (selectedOrderTypeFilter) {
-                const isLineMan = order.orderType === 'lineman';
+                const isDelivery = order.orderType === 'lineman';
                 const isTakeawayOrder = order.orderType === 'takeaway';
                 // Check if any item is takeaway (hybrid order)
                 const hasTakeawayItems = order.items.some(i => i.isTakeaway);
 
-                if (selectedOrderTypeFilter === 'LineMan') {
-                    if (!isLineMan) return false;
-                } else if (selectedOrderTypeFilter === 'กลับบ้าน') {
+                if (selectedOrderTypeFilter === 'กลับบ้าน') {
                     // Include if order is strictly takeaway OR has takeaway items
                     if (!isTakeawayOrder && !hasTakeawayItems) return false;
                 } else if (selectedOrderTypeFilter === 'ทานที่ร้าน') {
                     // Strictly Dine-in order type
                     if (order.orderType !== 'dine-in') return false;
+                } else {
+                    // Delivery Provider Filter
+                    if (!isDelivery) return false;
+                    const provider = getDeliveryProviderName(order);
+                    // Match provider name (case-sensitive as charts use exact labels)
+                    if (provider !== selectedOrderTypeFilter) return false;
                 }
             }
 
@@ -178,11 +192,20 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
 
             if (!matchesDate) return false;
 
-            // Apply Order Type Filter
+            // Apply Order Type Filter with Provider Support
             if (selectedOrderTypeFilter) {
-                const isLineMan = order.orderType === 'lineman';
-                if (selectedOrderTypeFilter === 'LineMan' && !isLineMan) return false;
-                if (selectedOrderTypeFilter === 'ทานที่ร้าน' && (isLineMan || order.orderType === 'takeaway')) return false;
+                const isDelivery = order.orderType === 'lineman';
+                const isTakeawayOrder = order.orderType === 'takeaway';
+
+                if (selectedOrderTypeFilter === 'กลับบ้าน') {
+                    if (!isTakeawayOrder) return false;
+                } else if (selectedOrderTypeFilter === 'ทานที่ร้าน') {
+                    if (order.orderType !== 'dine-in') return false;
+                } else {
+                    if (!isDelivery) return false;
+                    const provider = getDeliveryProviderName(order);
+                    if (provider !== selectedOrderTypeFilter) return false;
+                }
             }
 
             return true;
@@ -295,14 +318,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
         }
     }, [ordersForCharts, openingTime, closingTime, viewMode, selectedDate, selectedCategoryFilter]);
 
-    // UPDATED: Order Item Type Data - Uses ordersForCharts (Filtered by Hour)
+    // UPDATED: Order Item Type Data - Breaks down delivery providers
     const orderItemTypeData = useMemo(() => {
         let dineInItems = 0;
         let takeawayItems = 0;
-        let linemanItems = 0;
+        const deliveryItemsMap: Record<string, number> = {};
         
         ordersForCharts.forEach(order => {
-            const isLineManOrder = order.orderType === 'lineman';
+            const isDelivery = order.orderType === 'lineman';
+            const providerName = isDelivery ? getDeliveryProviderName(order) : null;
             
             order.items.forEach(item => {
                 if (selectedCategoryFilter) {
@@ -310,8 +334,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
                     if (itemCategory !== selectedCategoryFilter) return;
                 }
 
-                if (isLineManOrder) {
-                    linemanItems += item.quantity;
+                if (isDelivery && providerName) {
+                    deliveryItemsMap[providerName] = (deliveryItemsMap[providerName] || 0) + item.quantity;
                 } else if (item.isTakeaway) {
                     takeawayItems += item.quantity;
                 } else {
@@ -320,11 +344,32 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
             });
         });
 
+        const labels = ['ทานที่ร้าน', 'กลับบ้าน'];
+        const data = [dineInItems, takeawayItems];
+        const colors = ['#3b82f6', '#8b5cf6']; // Blue, Purple
+
+        // Sort delivery providers by volume
+        const sortedProviders = Object.entries(deliveryItemsMap).sort((a, b) => b[1] - a[1]);
+
+        sortedProviders.forEach(([name, count]) => {
+            labels.push(name);
+            data.push(count);
+            
+            // Assign distinct colors based on name
+            const lowerName = name.toLowerCase();
+            if (lowerName.includes('lineman')) colors.push('#10b981'); // Emerald Green
+            else if (lowerName.includes('shopee')) colors.push('#f97316'); // Orange
+            else if (lowerName.includes('grab')) colors.push('#22c55e'); // Green
+            else if (lowerName.includes('robin')) colors.push('#a855f7'); // Purple
+            else if (lowerName.includes('panda')) colors.push('#ec4899'); // Pink
+            else colors.push('#64748b'); // Slate for unknown
+        });
+
         return {
-            title: selectedCategoryFilter ? `ประเภทรายการ: ${selectedCategoryFilter}` : 'ประเภทรายการ (ทานที่ร้าน / กลับบ้าน / LineMan)',
-            labels: ['ทานที่ร้าน', 'กลับบ้าน', 'LineMan'],
-            data: [dineInItems, takeawayItems, linemanItems],
-            colors: ['#3b82f6', '#8b5cf6', '#10b981'] // Blue, Purple, Green (LineMan)
+            title: selectedCategoryFilter ? `ประเภทรายการ: ${selectedCategoryFilter}` : 'ประเภทรายการ (แยกตามผู้ให้บริการ)',
+            labels,
+            data,
+            colors
         };
     }, [ordersForCharts, selectedCategoryFilter]);
 
@@ -515,7 +560,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
                         />
                     </div>
                     
-                    {/* Hourly Traffic Analytics Section (Moved here for better layout) */}
+                    {/* Hourly Traffic Analytics Section */}
                     <div className={`bg-white p-6 rounded-xl shadow-md border-t-4 border-orange-400 transition-colors ${selectedHourFilter !== null ? 'ring-2 ring-orange-300' : ''}`}>
                         <div className="flex flex-col sm:flex-row justify-between items-start mb-6">
                             <div>
