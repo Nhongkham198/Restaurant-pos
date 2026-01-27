@@ -35,7 +35,7 @@ export const Menu: React.FC<MenuProps> = ({
     onDeleteItem, 
     onUpdateCategory, 
     onDeleteCategory, 
-    onAddCategory,
+    onAddCategory, 
     onImportMenu,
     recommendedMenuItemIds,
     onToggleVisibility
@@ -64,6 +64,24 @@ export const Menu: React.FC<MenuProps> = ({
             return null;
         }).filter((catName): catName is string => typeof catName === 'string');
     }, [categories]);
+
+    // FIX: Sync selectedCategory when categories prop changes (e.g. language switch)
+    useEffect(() => {
+        // If the currently selected category is not in the new list...
+        if (!normalizedCategories.includes(selectedCategory)) {
+            // Check if it's the "All" category switching languages
+            if (selectedCategory === 'ทั้งหมด' && normalizedCategories.includes('All')) {
+                setSelectedCategory('All');
+            } else if (selectedCategory === 'All' && normalizedCategories.includes('ทั้งหมด')) {
+                setSelectedCategory('ทั้งหมด');
+            } else {
+                // Otherwise, reset to the first category if available
+                if (normalizedCategories.length > 0) {
+                    setSelectedCategory(normalizedCategories[0]);
+                }
+            }
+        }
+    }, [categories, normalizedCategories, selectedCategory]);
 
     const handleDragSort = () => {
         if (dragItem.current === null || dragOverItem.current === null || dragItem.current === dragOverItem.current) {
@@ -147,7 +165,8 @@ export const Menu: React.FC<MenuProps> = ({
         }
 
         // If no search term, filter by the selected category.
-        if (selectedCategory === 'ทั้งหมด') {
+        // Support both Thai 'ทั้งหมด' and English 'All' for the "Show All" logic
+        if (selectedCategory === 'ทั้งหมด' || selectedCategory === 'All') {
             return menuItems;
         }
         
@@ -480,7 +499,7 @@ export const Menu: React.FC<MenuProps> = ({
                                     >
                                         {category}
                                     </button>
-                                    {isEditMode && category !== 'ทั้งหมด' && (
+                                    {isEditMode && category !== 'ทั้งหมด' && category !== 'All' && (
                                         <div className="absolute -top-2 -right-2 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                                             <button onClick={() => handleEditCategory(category)} className="p-1.5 bg-white rounded-full shadow-md hover:bg-gray-200">
                                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L15.232 5.232z" /></svg>

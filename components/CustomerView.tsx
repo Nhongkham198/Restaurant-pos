@@ -73,10 +73,10 @@ const DICTIONARY: Record<string, string> = {
     
     // Categories (Add specific translations here)
     'ทั้งหมด': 'All',
-    'เมนู ซุป': 'Soup menu',
-    'เมนู ข้าว': 'Rice menu',
-    'เมนู เส้น': 'Noodle menu',
-    'อาหารจานหลัก': 'Main course',
+    'เมนู ซุป': 'Soup Menu', // Fixed
+    'เมนู ข้าว': 'Rice Menu', // Fixed
+    'เมนู เส้น': 'Noodle Menu', // Fixed
+    'อาหารจานหลัก': 'Main Course', // Fixed
     'เมนู ทานเล่น': 'Snack Menu',
     'เครื่องดื่ม': 'Drink',
     'เมนู เซต': 'Set Menu'
