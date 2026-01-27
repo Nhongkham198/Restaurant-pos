@@ -157,6 +157,22 @@ export const Menu: React.FC<MenuProps> = ({
 
 
     const filteredItems = useMemo(() => {
+        // Determine the "effective" category to use for filtering.
+        // If the state `selectedCategory` is not present in the current `normalizedCategories` list (e.g. during language switch),
+        // we fallback to the first category (usually "All" or "ทั้งหมด") to prevent an empty list.
+        const isSelectedValid = normalizedCategories.includes(selectedCategory);
+        let effectiveCategory = selectedCategory;
+        
+        if (!isSelectedValid) {
+             if (selectedCategory === 'ทั้งหมด' && normalizedCategories.includes('All')) {
+                 effectiveCategory = 'All';
+             } else if (selectedCategory === 'All' && normalizedCategories.includes('ทั้งหมด')) {
+                 effectiveCategory = 'ทั้งหมด';
+             } else if (normalizedCategories.length > 0) {
+                 effectiveCategory = normalizedCategories[0];
+             }
+        }
+
         // If there's a search term, filter all items regardless of category.
         if (searchTerm.trim()) {
             return menuItems.filter(item => 
@@ -164,15 +180,15 @@ export const Menu: React.FC<MenuProps> = ({
             );
         }
 
-        // If no search term, filter by the selected category.
+        // If no search term, filter by the effective category.
         // Support both Thai 'ทั้งหมด' and English 'All' for the "Show All" logic
-        if (selectedCategory === 'ทั้งหมด' || selectedCategory === 'All') {
+        if (effectiveCategory === 'ทั้งหมด' || effectiveCategory === 'All') {
             return menuItems;
         }
         
-        return menuItems.filter(item => item.category === selectedCategory);
+        return menuItems.filter(item => item.category === effectiveCategory);
 
-    }, [menuItems, selectedCategory, searchTerm]);
+    }, [menuItems, selectedCategory, searchTerm, normalizedCategories]);
     
     const handleEditCategory = (categoryName: string) => {
         Swal.fire({
@@ -433,6 +449,21 @@ export const Menu: React.FC<MenuProps> = ({
         setSearchTerm('');
     };
 
+    // Determine the "effective" category to highlight in the UI.
+    // This mirrors the logic in filteredItems to prevent UI mismatch.
+    const isSelectedValid = normalizedCategories.includes(selectedCategory);
+    let effectiveCategoryForUI = selectedCategory;
+    
+    if (!isSelectedValid) {
+            if (selectedCategory === 'ทั้งหมด' && normalizedCategories.includes('All')) {
+                effectiveCategoryForUI = 'All';
+            } else if (selectedCategory === 'All' && normalizedCategories.includes('ทั้งหมด')) {
+                effectiveCategoryForUI = 'ทั้งหมด';
+            } else if (normalizedCategories.length > 0) {
+                effectiveCategoryForUI = normalizedCategories[0];
+            }
+    }
+
     return (
         <div className="flex flex-col bg-white p-4 rounded-lg shadow-sm h-full relative">
             <input
@@ -492,7 +523,7 @@ export const Menu: React.FC<MenuProps> = ({
                                     <button
                                         onClick={() => setSelectedCategory(category)}
                                         className={`px-4 py-2 rounded-full text-sm font-semibold transition-colors ${
-                                            selectedCategory === category
+                                            effectiveCategoryForUI === category
                                                 ? 'bg-blue-600 text-white shadow'
                                                 : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                                         }`}

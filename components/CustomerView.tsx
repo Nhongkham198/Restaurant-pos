@@ -71,16 +71,18 @@ const DICTIONARY: Record<string, string> = {
     'ล้างที่เลือก': 'Clear',
     'จำนวน': 'Qty',
     
-    // Categories (Add specific translations here)
+    // Categories
     'ทั้งหมด': 'All',
-    'เมนู ซุป': 'Soup Menu', // Fixed
-    'เมนู ข้าว': 'Rice Menu', // Fixed
-    'เมนู เส้น': 'Noodle Menu', // Fixed
-    'อาหารจานหลัก': 'Main Course', // Fixed
-    'เมนู ทานเล่น': 'Snack Menu',
-    'เครื่องดื่ม': 'Drink',
-    'เมนู เซต': 'Set Menu',
-
+    'อาหารจานเดียว': 'A La Carte',
+    'อาหารเกาหลี': 'Korean Food',
+    'ของทานเล่น': 'Appetizers',
+    'เครื่องดื่ม': 'Drinks',
+    'เมนู ซุป': 'Soup Menu',
+    'เมนู ข้าว': 'Rice Menu',
+    'เมนู เส้น': 'Noodle Menu',
+    'อาหารจานหลัก': 'Main Course',
+    'เมนู ทานเล่น': 'Snacks',
+    'เมนู เซต': 'Set Menu'
 };
 
 interface CustomerViewProps {
