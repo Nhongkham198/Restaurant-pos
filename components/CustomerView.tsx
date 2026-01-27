@@ -73,13 +73,14 @@ const DICTIONARY: Record<string, string> = {
     
     // Categories (Add specific translations here)
     'ทั้งหมด': 'All',
-    'อาหารจานเดียว': 'Rice Dishes',
-    'อาหารเกาหลี': 'Korean Food',
-    'ของทานเล่น': 'Appetizers',
-    'เครื่องดื่ม': 'Beverages',
-    'ของสด': 'Fresh Food',
-    'ของแห้ง': 'Dry Food',
-    'เครื่องปรุง': 'Seasonings'
+    'เมนู ซุป': 'Soup menu',
+    'เมนู ข้าว': 'Rice menu',
+    'เมนู เส้น': 'Noodle menu',
+    'อาหารจานหลัก': 'Main course',
+    'เมนู ทานเล่น': 'Snack Menu',
+    'เครื่องดื่ม': 'Drink',
+    'เมนู เซต': 'Set Menu'
+
 };
 
 interface CustomerViewProps {
