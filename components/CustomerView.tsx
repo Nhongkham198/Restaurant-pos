@@ -160,8 +160,10 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     // --- TRANSLATION HELPER ---
     const t = useCallback((text: string) => {
         if (lang === 'TH') return text;
+        if (!text || typeof text !== 'string') return text; // Guard against non-string
+        
         // Trim whitespace before lookup to handle database inconsistencies
-        const cleanText = text?.trim();
+        const cleanText = text.trim();
         return DICTIONARY[cleanText] || text;
     }, [lang]);
 
@@ -181,7 +183,8 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
             optionGroups: item.optionGroups?.map(group => ({
                 ...group,
                 name: lang === 'EN' ? (group.nameEn || group.name) : group.name,
-                options: group.options.map(opt => ({
+                // SAFETY GUARD: Ensure options exists before mapping
+                options: (group.options || []).map(opt => ({
                     ...opt,
                     name: lang === 'EN' ? (opt.nameEn || opt.name) : opt.name
                 }))

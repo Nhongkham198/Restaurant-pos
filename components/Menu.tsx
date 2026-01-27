@@ -67,6 +67,9 @@ export const Menu: React.FC<MenuProps> = ({
 
     // FIX: Sync selectedCategory when categories prop changes (e.g. language switch)
     useEffect(() => {
+        // Safety check to ensure categories are loaded before forcing a switch
+        if (normalizedCategories.length === 0) return;
+
         // If the currently selected category is not in the new list...
         if (!normalizedCategories.includes(selectedCategory)) {
             // Check if it's the "All" category switching languages
