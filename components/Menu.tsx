@@ -65,6 +65,14 @@ export const Menu: React.FC<MenuProps> = ({
         }).filter((catName): catName is string => typeof catName === 'string');
     }, [categories]);
 
+    // --- FIX: Update selectedCategory if language changes (when the current selected category is no longer in the list) ---
+    useEffect(() => {
+        if (normalizedCategories.length > 0 && !normalizedCategories.includes(selectedCategory)) {
+            // Default to the first category (usually "All" / "ทั้งหมด")
+            setSelectedCategory(normalizedCategories[0]);
+        }
+    }, [normalizedCategories, selectedCategory]);
+
     const handleDragSort = () => {
         if (dragItem.current === null || dragOverItem.current === null || dragItem.current === dragOverItem.current) {
             return;
@@ -146,14 +154,19 @@ export const Menu: React.FC<MenuProps> = ({
             );
         }
 
-        // If no search term, filter by the selected category.
-        if (selectedCategory === 'ทั้งหมด') {
+        // --- FIX: Robust "All" category check ---
+        // Check for 'ทั้งหมด', 'All', or if it matches the first category in the list (which is usually All)
+        const isAllCategory = selectedCategory === 'ทั้งหมด' || 
+                              selectedCategory === 'All' || 
+                              (normalizedCategories.length > 0 && selectedCategory === normalizedCategories[0]);
+
+        if (isAllCategory) {
             return menuItems;
         }
         
         return menuItems.filter(item => item.category === selectedCategory);
 
-    }, [menuItems, selectedCategory, searchTerm]);
+    }, [menuItems, selectedCategory, searchTerm, normalizedCategories]);
     
     const handleEditCategory = (categoryName: string) => {
         Swal.fire({
