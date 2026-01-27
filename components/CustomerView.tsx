@@ -79,7 +79,7 @@ const DICTIONARY: Record<string, string> = {
     'อาหารจานหลัก': 'Main Course', // Fixed
     'เมนู ทานเล่น': 'Snack Menu',
     'เครื่องดื่ม': 'Drink',
-    'เมนู เซต': 'Set Menu'
+    'เมนู เซต': 'Set Menu',
 
 };
 
