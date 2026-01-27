@@ -77,12 +77,21 @@ const DICTIONARY: Record<string, string> = {
     'อาหารเกาหลี': 'Korean Food',
     'ของทานเล่น': 'Appetizers',
     'เครื่องดื่ม': 'Drinks',
+    // Variations to handle potential whitespace issues
     'เมนู ซุป': 'Soup Menu',
+    'เมนูซุป': 'Soup Menu',
+    'เมนู  ซุป': 'Soup Menu',
     'เมนู ข้าว': 'Rice Menu',
+    'เมนูข้าว': 'Rice Menu',
+    'เมนู  ข้าว': 'Rice Menu',
     'เมนู เส้น': 'Noodle Menu',
+    'เมนูเส้น': 'Noodle Menu',
+    'เมนู  เส้น': 'Noodle Menu',
     'อาหารจานหลัก': 'Main Course',
     'เมนู ทานเล่น': 'Snacks',
-    'เมนู เซต': 'Set Menu'
+    'เมนูทานเล่น': 'Snacks',
+    'เมนู เซต': 'Set Menu',
+    'เมนูเซต': 'Set Menu'
 };
 
 interface CustomerViewProps {
@@ -151,7 +160,9 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     // --- TRANSLATION HELPER ---
     const t = useCallback((text: string) => {
         if (lang === 'TH') return text;
-        return DICTIONARY[text] || text;
+        // Trim whitespace before lookup to handle database inconsistencies
+        const cleanText = text?.trim();
+        return DICTIONARY[cleanText] || text;
     }, [lang]);
 
     // --- LOCALIZED DATA COMPUTATION ---
