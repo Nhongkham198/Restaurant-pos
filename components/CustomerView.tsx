@@ -247,8 +247,8 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                         <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center text-xs font-bold text-gray-500">Logo</div>
                     )}
                     <div>
-                        <h1 className="font-bold text-gray-800 text-lg leading-none">
-                            {t('เมนูอาหาร')}
+                        <h1 className="font-bold text-gray-800 text-lg leading-none line-clamp-1">
+                            {restaurantName}
                         </h1>
                         <p className="text-xs text-gray-500 mt-0.5">
                             {t('โต๊ะ')} <span className="font-bold text-blue-600 text-sm">{table.name}</span>
