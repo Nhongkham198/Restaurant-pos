@@ -9,7 +9,7 @@ import Swal from 'sweetalert2';
 declare var html2canvas: any;
 
 // --- TRANSLATION DICTIONARY ---
-const DICTIONARY: Record<string, string> = {
+const RAW_DICTIONARY: Record<string, string> = {
     // UI Elements
     'เมนูอาหาร 🍽️': 'Menu 🍽️',
     'โต๊ะ': 'Table',
@@ -77,29 +77,34 @@ const DICTIONARY: Record<string, string> = {
     'อาหารเกาหลี': 'Korean Food',
     'ของทานเล่น': 'Appetizers',
     'เครื่องดื่ม': 'Drinks',
-    // Variations to handle potential whitespace issues
     'เมนู ซุป': 'Soup Menu',
-    'เมนูซุป': 'Soup Menu',
-    'เมนู  ซุป': 'Soup Menu',
     'เมนู ข้าว': 'Rice Menu',
-    'เมนูข้าว': 'Rice Menu',
-    'เมนู  ข้าว': 'Rice Menu',
     'เมนู เส้น': 'Noodle Menu',
-    'เมนูเส้น': 'Noodle Menu',
-    'เมนู  เส้น': 'Noodle Menu',
     'อาหารจานหลัก': 'Main Course',
     'เมนู ทานเล่น': 'Snacks',
-    'เมนูทานเล่น': 'Snacks',
     'เมนู เซต': 'Set Menu',
-    'เมนูเซต': 'Set Menu'
+    // Add specific known variations just in case
+    'เมนูข้าว': 'Rice Menu',
+    'เมนูซุป': 'Soup Menu',
+    'เมนูเส้น': 'Noodle Menu',
+    'เมนูเซต': 'Set Menu',
+    'เมนูทานเล่น': 'Snacks'
 };
+
+// Normalize dictionary keys (remove spaces) for robust matching
+const NORMALIZED_DICTIONARY = Object.keys(RAW_DICTIONARY).reduce((acc, key) => {
+    // Remove all whitespace from the key
+    const normalizedKey = key.replace(/\s+/g, '');
+    acc[normalizedKey] = RAW_DICTIONARY[key];
+    return acc;
+}, {} as Record<string, string>);
 
 interface CustomerViewProps {
     table: Table;
     menuItems: MenuItem[];
     categories: string[];
     activeOrders: ActiveOrder[];
-    allBranchOrders: ActiveOrder[]; // Added to calculate global queue position and find merged items
+    allBranchOrders: ActiveOrder[]; 
     completedOrders: CompletedOrder[];
     onPlaceOrder: (items: OrderItem[], customerName: string, customerCount: number) => Promise<void> | void;
     onStaffCall: (table: Table, customerName: string) => void;
@@ -125,10 +130,8 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     const [lang, setLang] = useState<'TH' | 'EN'>('TH');
 
     const [isAuthenticated, setIsAuthenticated] = useState(false);
-    const [customerName, setCustomerName] = useState('ลูกค้า'); // Default to generic name
+    const [customerName, setCustomerName] = useState('ลูกค้า'); 
     
-    // --- COMPLETED SESSION STATE ---
-    // Check if this session is marked as completed (paid) in sessionStorage (clears on tab close/new scan)
     const [isSessionCompleted, setIsSessionCompleted] = useState(() => {
         return sessionStorage.getItem(`customer_completed_${table.id}`) === 'true';
     });
@@ -146,7 +149,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         }
     });
 
-    // --- MY ORDERS PERSISTENCE (To track items even after merge) ---
+    // --- MY ORDERS PERSISTENCE ---
     const myOrdersKey = `customer_my_orders_${table.id}`;
     const [myOrderNumbers, setMyOrderNumbers] = useState<number[]>(() => {
         const saved = localStorage.getItem(myOrdersKey);
@@ -157,14 +160,21 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         }
     });
 
-    // --- TRANSLATION HELPER ---
+    // --- TRANSLATION HELPER (Space-Insensitive) ---
     const t = useCallback((text: string) => {
         if (lang === 'TH') return text;
-        if (!text || typeof text !== 'string') return text; // Guard against non-string
+        if (!text || typeof text !== 'string') return text;
         
-        // Trim whitespace before lookup to handle database inconsistencies
-        const cleanText = text.trim();
-        return DICTIONARY[cleanText] || text;
+        // 1. Try exact match first (optimization)
+        if (RAW_DICTIONARY[text]) return RAW_DICTIONARY[text];
+
+        // 2. Try trimmed match
+        const trimmed = text.trim();
+        if (RAW_DICTIONARY[trimmed]) return RAW_DICTIONARY[trimmed];
+
+        // 3. Try space-insensitive match (remove all spaces)
+        const normalized = text.replace(/\s+/g, '');
+        return NORMALIZED_DICTIONARY[normalized] || text;
     }, [lang]);
 
     // --- LOCALIZED DATA COMPUTATION ---
@@ -173,17 +183,15 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         return categories.map(c => t(c));
     }, [categories, t]);
 
-    // 2. Localize Menu Items (Name, Category, Option Groups)
+    // 2. Localize Menu Items
     const localizedMenuItems = useMemo(() => {
         return menuItems.map(item => ({
             ...item,
             name: lang === 'EN' ? (item.nameEn || item.name) : item.name,
-            // Translate the category on the item so filtering works with the translated category list
-            category: t(item.category),
+            category: t(item.category), // Translate item category to match category list
             optionGroups: item.optionGroups?.map(group => ({
                 ...group,
                 name: lang === 'EN' ? (group.nameEn || group.name) : group.name,
-                // SAFETY GUARD: Ensure options exists before mapping
                 options: (group.options || []).map(opt => ({
                     ...opt,
                     name: lang === 'EN' ? (opt.nameEn || opt.name) : opt.name
@@ -206,13 +214,11 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     const [itemToCustomize, setItemToCustomize] = useState<MenuItem | null>(null);
     const billContentRef = useRef<HTMLDivElement>(null);
     
-    // Used to detect when *all* my items are gone (paid)
     const prevMyItemsCountRef = useRef<number>(0);
     const isProcessingPaymentRef = useRef(false);
     
-    // --- Auto-Login / Session Logic (No PIN) ---
+    // --- Auto-Login / Session Logic ---
     useEffect(() => {
-        // If session is already completed, don't try to restore or create a new session logic yet
         if (isSessionCompleted) return;
 
         const sessionKey = `customer_session_${table.id}`;
@@ -224,17 +230,14 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                 setCustomerName(name || 'ลูกค้า');
                 setIsAuthenticated(true);
             } catch (e) {
-                // Invalid session, recreate
                 initializeSession(sessionKey);
             }
         } else {
-            // No session, create one automatically
             initializeSession(sessionKey);
         }
     }, [table.id, isSessionCompleted]);
 
     const initializeSession = (sessionKey: string) => {
-        // Generate a simple guest session
         const randomSuffix = Math.floor(Math.random() * 1000);
         const name = `Guest-${randomSuffix}`;
         localStorage.setItem(sessionKey, JSON.stringify({ name }));
@@ -242,39 +245,20 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         setIsAuthenticated(true);
     };
 
-    const handleLogout = () => {
-        const sessionKey = `customer_session_${table.id}`;
-        localStorage.removeItem(sessionKey);
-        localStorage.removeItem(cartKey);
-        localStorage.removeItem(myOrdersKey); // Clear my orders on explicit logout
-        localStorage.removeItem('customerSelectedBranch');
-
-        setIsAuthenticated(false);
-        // Page usually reloads or re-inits here, triggering auto-login again for a fresh session
-        window.location.reload(); 
-    };
-
-    // New handler for payment completion without full reload
     const handlePaymentCompleteLock = () => {
-        // Clear local data
         localStorage.removeItem(cartKey);
         localStorage.removeItem(myOrdersKey);
-        
-        // Mark session as completed in sessionStorage (survives refresh, dies on close/new scan)
         sessionStorage.setItem(`customer_completed_${table.id}`, 'true');
-        
-        // Update state to trigger "Thank You" view
         setIsSessionCompleted(true);
     };
 
-    // --- IDENTIFY ITEMS (Mine vs Others) ---
+    // --- IDENTIFY ITEMS ---
     const { myItems, otherItems } = useMemo(() => {
         const mine: OrderItem[] = [];
         const others: { item: OrderItem, owner: string }[] = [];
         const myOrderSet = new Set(myOrderNumbers);
         const currentNormName = customerName?.trim().toLowerCase();
 
-        // Filter for orders specifically for THIS table from the global list
         const tableOrders = Array.isArray(allBranchOrders) 
             ? allBranchOrders.filter(o => String(o.tableId) === String(table.id) && o.status !== 'cancelled' && o.status !== 'completed')
             : [];
@@ -282,18 +266,15 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         tableOrders.forEach(order => {
             const orderName = order.customerName || t('ไม่ระบุชื่อ');
             const orderNormName = order.customerName?.trim().toLowerCase();
-            
-            // Check if this whole order is "Mine" by name match (fallback)
-            // eslint-disable-next-line eqeqeq
             const isMyOrderByName = isAuthenticated && currentNormName && orderNormName === currentNormName;
 
             order.items.forEach(item => {
                 const originId = item.originalOrderNumber ?? order.orderNumber;
                 const isMyItemById = myOrderSet.has(originId);
 
-                // Need to match item with localized version to display correct name
-                // Find original item by ID to know if it has nameEn, then translate locally
+                // Find original item to get Name EN if needed
                 const originalItem = menuItems.find(m => m.id === item.id);
+                
                 const displayItem = {
                     ...item,
                     name: lang === 'EN' ? (originalItem?.nameEn || item.name) : item.name,
@@ -314,33 +295,23 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         return { myItems: mine, otherItems: others };
     }, [allBranchOrders, myOrderNumbers, isAuthenticated, customerName, table.id, lang, menuItems, t]);
 
-    // Calculate totals
     const myTotal = useMemo(() => {
         return myItems.reduce((sum, item) => sum + (item.finalPrice * item.quantity), 0);
     }, [myItems]);
 
-    const otherTotal = useMemo(() => {
-        return otherItems.reduce((sum, { item }) => sum + (item.finalPrice * item.quantity), 0);
-    }, [otherItems]);
+    const grandTotal = myTotal + otherItems.reduce((sum, { item }) => sum + (item.finalPrice * item.quantity), 0);
 
-    const grandTotal = myTotal + otherTotal;
-
-    // Auto-add new orders to "My Orders" if I placed them (based on name match from session)
     useEffect(() => {
         if (!isAuthenticated || !customerName) return;
-
         try {
             const currentNormName = customerName.trim().toLowerCase();
             const newMyOrderIds: number[] = [];
-            // activeOrders passed here are already filtered by tableId in App.tsx typically, 
-            // but we use the one passed via props which is strictly for this table.
             activeOrders.forEach(order => {
                 const orderNormName = order.customerName?.trim().toLowerCase();
                 if (order && orderNormName === currentNormName && !myOrderNumbers.includes(order.orderNumber)) {
                     newMyOrderIds.push(order.orderNumber);
                 }
             });
-
             if (newMyOrderIds.length > 0) {
                 setMyOrderNumbers(prev => [...prev, ...newMyOrderIds]);
             }
@@ -350,46 +321,30 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     }, [activeOrders, customerName, isAuthenticated, myOrderNumbers]);
 
 
-    // --- Detect Payment & Trigger Save Bill/Logout Flow ---
+    // --- Detect Payment & Trigger Save Bill ---
     useEffect(() => {
         if (!isAuthenticated || isSessionCompleted) return;
     
         const currentCount = myItems.length;
         const prevCount = prevMyItemsCountRef.current;
-        
-        // Detect if items have just been cleared (likely payment or cancel)
-        // OR if we are already in the "Waiting for Sync" state
         const isTransitioning = prevCount > 0 && currentCount === 0;
         
         if (isTransitioning || (isProcessingPaymentRef.current && currentCount === 0)) {
-            
             isProcessingPaymentRef.current = true;
     
-            // Try to find the completed order in the history
             const myJustCompletedOrders = completedOrders.filter(o =>
                 myOrderNumbers.some(myNum =>
                     o.orderNumber === myNum || (o.mergedOrderNumbers && o.mergedOrderNumbers.includes(myNum))
                 )
             );
     
-            if (myJustCompletedOrders.length === 0) {
-                // Not found yet (likely Firestore sync delay).
-                // We RETURN here to skip updating prevMyItemsCountRef.
-                // This keeps the "trigger condition" (prev > 0) alive for the next render.
-                return; 
-            }
+            if (myJustCompletedOrders.length === 0) return; 
 
-            // Found it! Proceed to show bill and logout.
             const latestCompletedOrder = myJustCompletedOrders.sort((a, b) => b.completionTime - a.completionTime)[0];
-            
-            // Safety check: Avoid processing the same completion multiple times in a single session
             const processedKey = `processed_complete_${latestCompletedOrder.id}`;
-            if (sessionStorage.getItem(processedKey)) {
-                return;
-            }
+            if (sessionStorage.getItem(processedKey)) return;
             sessionStorage.setItem(processedKey, 'true');
     
-            // Build the bill HTML for display and for html2canvas
             const subtotal = latestCompletedOrder.items.reduce((sum, item) => sum + item.finalPrice * item.quantity, 0);
             const total = subtotal + latestCompletedOrder.taxAmount;
     
@@ -441,7 +396,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                 confirmButtonColor: '#3085d6',
                 denyButtonColor: '#aaa',
                 allowOutsideClick: false,
-                timer: 15000, // 15 Seconds Auto-close
+                timer: 15000, 
                 timerProgressBar: true,
                 preConfirm: async () => {
                     const billElement = document.getElementById('customer-final-bill');
@@ -450,50 +405,28 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                             const canvas = await html2canvas(billElement, { scale: 2, useCORS: true });
                             return canvas.toDataURL('image/png');
                         } catch (err) {
-                            console.error('Failed to save bill as image', err);
                             return null;
                         }
                     }
                     return null;
                 }
             }).then((result) => {
-                if (result.isConfirmed) {
-                    const imageUrl = result.value;
-                    if (imageUrl) {
-                        const link = document.createElement('a');
-                        link.href = imageUrl;
-                        link.download = `bill-${latestCompletedOrder.tableName}-${customerName}-${new Date().toISOString().slice(0, 10)}.png`;
-                        document.body.appendChild(link);
-                        link.click();
-                        document.body.removeChild(link);
-
-                        Swal.fire({
-                            title: t('บันทึกสำเร็จ!'),
-                            text: t('ขอบคุณที่ใช้บริการ...'),
-                            icon: 'success',
-                            timer: 2000,
-                            timerProgressBar: true,
-                            showConfirmButton: false
-                        }).then(() => {
-                            handlePaymentCompleteLock();
-                        });
-                    } else {
-                        Swal.fire(t('เกิดข้อผิดพลาด'), t('ไม่สามารถบันทึกบิลได้'), 'error')
-                        .then(() => handlePaymentCompleteLock());
-                    }
-                } else {
-                    // This handles clicking "Deny" OR when the timer runs out
-                    handlePaymentCompleteLock();
+                if (result.isConfirmed && result.value) {
+                    const link = document.createElement('a');
+                    link.href = result.value;
+                    link.download = `bill-${latestCompletedOrder.tableName}-${customerName}.png`;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
                 }
+                handlePaymentCompleteLock();
             });
             
-            // Clean up state
             isProcessingPaymentRef.current = false;
             prevMyItemsCountRef.current = 0;
             return;
         }
     
-        // Normal update if NOT in the middle of a payment wait
         isProcessingPaymentRef.current = false;
         prevMyItemsCountRef.current = currentCount;
 
@@ -513,14 +446,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
             return [...prev, itemToAdd];
         });
         setItemToCustomize(null);
-        Swal.fire({
-            toast: true,
-            position: 'top-end',
-            icon: 'success',
-            title: t('เพิ่มลงตะกร้าแล้ว'),
-            showConfirmButton: false,
-            timer: 1500
-        });
+        Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: t('เพิ่มลงตะกร้าแล้ว'), showConfirmButton: false, timer: 1500 });
     };
 
     const handleRemoveItem = (cartItemId: string) => {
@@ -541,211 +467,103 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         });
 
         if (result.isConfirmed) {
-            
-            Swal.fire({
-                title: t('กำลังส่งรายการ...'),
-                allowOutsideClick: false,
-                didOpen: () => { Swal.showLoading(); }
-            });
+            Swal.fire({ title: t('กำลังส่งรายการ...'), allowOutsideClick: false, didOpen: () => { Swal.showLoading(); } });
 
             try {
-                // Revert names to Thai-only for the backend order (so Kitchen sees standard names)
-                // We use the ID to find the original item in the original `menuItems` array (which has Thai names by default)
-                // Note: The `menuItems` prop passed to CustomerView might have nameEn, but `item.name` in `menuItems` is usually Thai.
-                // `displayMenuItems` (now localizedMenuItems) modifies the name for display. 
-                // `cartItems` are created from localizedMenuItems via `onSelectItem`, so they have translated names.
-                // We need to restore the original Thai name to avoid confusing kitchen staff.
+                // Revert names to Thai for backend
                 const itemsToSend = cartItems.map(cartItem => {
                     const originalItem = menuItems.find(m => m.id === cartItem.id);
                     return {
                         ...cartItem,
-                        name: originalItem ? originalItem.name : cartItem.name, // Revert to original name (Thai)
-                        nameEn: originalItem?.nameEn, // Preserve English name in data if needed
-                        // Revert Option Names to Thai
+                        name: originalItem ? originalItem.name : cartItem.name, 
+                        nameEn: originalItem?.nameEn, 
                         selectedOptions: cartItem.selectedOptions.map(opt => {
-                            // Find original option group and option
                             const originalGroup = originalItem?.optionGroups?.find(g => g.options.some(o => o.id === opt.id));
                             const originalOpt = originalGroup?.options.find(o => o.id === opt.id);
-                            return {
-                                ...opt,
-                                name: originalOpt ? originalOpt.name : opt.name
-                            };
+                            return { ...opt, name: originalOpt ? originalOpt.name : opt.name };
                         })
                     };
                 });
 
-                // Force customerCount to 1 as strict tracking isn't critical in this flow, 
-                // or we could add a simple prompt if needed.
                 await onPlaceOrder(itemsToSend, customerName, 1); 
                 setCartItems([]);
                 setIsCartOpen(false);
 
-                await Swal.fire({
-                    icon: 'success',
-                    title: t('สั่งอาหารสำเร็จ!'),
-                    text: t('รายการอาหารถูกส่งเข้าครัวแล้ว'),
-                    timer: 2500,
-                    showConfirmButton: false
-                });
+                await Swal.fire({ icon: 'success', title: t('สั่งอาหารสำเร็จ!'), text: t('รายการอาหารถูกส่งเข้าครัวแล้ว'), timer: 2500, showConfirmButton: false });
 
             } catch (error) {
-                console.error("Order failed", error);
-                Swal.fire({
-                    icon: 'error',
-                    title: t('เกิดข้อผิดพลาด'),
-                    text: t('ไม่สามารถสั่งอาหารได้ กรุณาลองใหม่อีกครั้ง'),
-                });
+                Swal.fire({ icon: 'error', title: t('เกิดข้อผิดพลาด'), text: t('ไม่สามารถสั่งอาหารได้ กรุณาลองใหม่อีกครั้ง') });
             }
         }
     };
 
     const handleCallStaffClick = () => {
         onStaffCall(table, customerName);
-        Swal.fire({
-            toast: true,
-            position: 'top-end',
-            icon: 'success',
-            title: t('ส่งสัญญาณเรียกพนักงานแล้ว'),
-            text: t('กรุณารอสักครู่...'),
-            showConfirmButton: false,
-            timer: 3000
-        });
+        Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: t('ส่งสัญญาณเรียกพนักงานแล้ว'), text: t('กรุณารอสักครู่...'), showConfirmButton: false, timer: 3000 });
     };
 
     const handleSaveBillAsImage = async () => {
         if (!billContentRef.current) return;
-    
-        Swal.fire({
-            title: t('กำลังสร้างรูปภาพ...'),
-            text: t('กรุณารอสักครู่'),
-            allowOutsideClick: false,
-            didOpen: () => {
-                Swal.showLoading();
-            }
-        });
-    
+        Swal.fire({ title: t('กำลังสร้างรูปภาพ...'), text: t('กรุณารอสักครู่'), allowOutsideClick: false, didOpen: () => { Swal.showLoading(); } });
         try {
-            const canvas = await html2canvas(billContentRef.current, {
-                scale: 2, 
-                useCORS: true, 
-            });
+            const canvas = await html2canvas(billContentRef.current, { scale: 2, useCORS: true });
             const image = canvas.toDataURL('image/png');
             const link = document.createElement('a');
             link.href = image;
-            link.download = `bill-table-${table.name}-${customerName}-${new Date().toISOString().slice(0, 10)}.png`;
+            link.download = `bill-table-${table.name}.png`;
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
-            
             Swal.close();
-            return Promise.resolve(); 
         } catch (error) {
-            console.error('Error generating bill image:', error);
-            Swal.fire({
-                icon: 'error',
-                title: t('เกิดข้อผิดพลาด'),
-                text: t('ไม่สามารถสร้างรูปภาพได้'),
-            });
-            return Promise.reject();
+            Swal.fire({ icon: 'error', title: t('เกิดข้อผิดพลาด'), text: t('ไม่สามารถสร้างรูปภาพได้') });
         }
     };
 
-    // Calculate Cart Totals
-    const cartTotalAmount = useMemo(() => {
-        try {
-            return cartItems.reduce((sum, i) => sum + (i.finalPrice * i.quantity), 0);
-        } catch (e) {
-            console.error("Error calculating cartTotalAmount:", e);
-            return 0;
-        }
-    }, [cartItems]);
-    
-    const totalCartItemsCount = useMemo(() => {
-        try {
-            return cartItems.reduce((sum, i) => sum + i.quantity, 0);
-        } catch (e) {
-            console.error("Error calculating totalCartItemsCount:", e);
-            return 0;
-        }
-    }, [cartItems]);
+    const cartTotalAmount = useMemo(() => cartItems.reduce((sum, i) => sum + (i.finalPrice * i.quantity), 0), [cartItems]);
+    const totalCartItemsCount = useMemo(() => cartItems.reduce((sum, i) => sum + i.quantity, 0), [cartItems]);
 
-    // --- [REWORKED] Dynamic Order Status Logic (GLOBAL QUEUE) ---
+    // --- Order Status Logic ---
     const orderStatus = useMemo(() => {
         try {
-            // 1. Check if user has active items they placed
             if (myItems.length === 0) return null;
-
-            // 2. Try to find these orders in the branch data
-            // Safety check: allBranchOrders might be undefined during initial load or error
             if (!Array.isArray(allBranchOrders)) return null;
 
             const myTableOrders = allBranchOrders.filter(o => String(o.tableId) === String(table.id));
+            if (myTableOrders.length === 0) return { text: t('รอคิว'), color: 'bg-blue-600 text-white border-blue-700' };
 
-            // 3. Fallback: If I have items locally but branch orders are empty (sync delay),
-            //    SHOW WAITING STATUS IMMEDIATELY. Do not return null.
-            if (myTableOrders.length === 0) {
-                 return { text: t('รอคิว'), color: 'bg-blue-600 text-white border-blue-700' };
-            }
+            if (myTableOrders.some(o => o.status === 'cooking')) return { text: t('กำลังปรุง... 🍳'), color: 'bg-orange-500 text-white border-orange-600' };
 
-            // 4. PRIORITY 1: COOKING
-            if (myTableOrders.some(o => o.status === 'cooking')) {
-                 return { text: t('กำลังปรุง... 🍳'), color: 'bg-orange-500 text-white border-orange-600' };
-            }
-
-            // 5. PRIORITY 2: WAITING
             const waitingOrders = myTableOrders.filter(o => o.status === 'waiting');
             if (waitingOrders.length > 0) {
                 const myEarliestOrderTime = Math.min(...waitingOrders.map(o => o.orderTime));
-
-                // Count how many orders in the WHOLE BRANCH are waiting/cooking AND came before me
-                const queueCount = allBranchOrders.filter(o => 
-                    (o.status === 'waiting' || o.status === 'cooking') && 
-                    o.orderTime < myEarliestOrderTime
-                ).length;
-
-                if (queueCount === 0) {
-                    return { text: `${t('รอคิว')} (${t('คิวที่ 1')} ☝️)`, color: 'bg-blue-600 text-white border-blue-700' };
-                }
-
+                const queueCount = allBranchOrders.filter(o => (o.status === 'waiting' || o.status === 'cooking') && o.orderTime < myEarliestOrderTime).length;
+                if (queueCount === 0) return { text: `${t('รอคิว')} (${t('คิวที่ 1')} ☝️)`, color: 'bg-blue-600 text-white border-blue-700' };
                 return { text: `${t('รอคิว...')} (${t('อีก')} ${queueCount} ${t('คิว')}) ⏳`, color: 'bg-blue-600 text-white border-blue-700' };
             }
 
-            // 6. PRIORITY 3: SERVED
-            const allServed = myTableOrders.every(o => o.status === 'served');
-            if (allServed) {
-                 return { text: t('เสิร์ฟครบแล้ว 😋'), color: 'bg-green-500 text-white border-green-600' };
-            }
+            if (myTableOrders.every(o => o.status === 'served')) return { text: t('เสิร์ฟครบแล้ว 😋'), color: 'bg-green-500 text-white border-green-600' };
 
-            // Default fallback
             return { text: t('รอคิว'), color: 'bg-blue-600 text-white border-blue-700' };
-
         } catch (e) {
-            console.error("Status Calc Error", e);
-            // Fallback on error if we know we have items
             return myItems.length > 0 ? { text: t('รอคิว'), color: 'bg-blue-600 text-white border-blue-700' } : null;
         }
     }, [allBranchOrders, isAuthenticated, table.id, myItems.length, t]);
 
     
-    // --- 1. SESSION COMPLETED SCREEN (THANK YOU) ---
     if (isSessionCompleted) {
         return (
             <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6 text-center animate-fade-in">
                 <div className="bg-white p-10 rounded-2xl shadow-xl w-full max-w-sm border-t-8 border-green-500">
                     <div className="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                        </svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
                     </div>
-                    
                     <h2 className="text-2xl font-bold text-gray-800 mb-2">{restaurantName}</h2>
                     <h3 className="text-xl font-semibold text-gray-700 mb-4">{t('ขอบคุณที่ใช้บริการ')}</h3>
-                    
                     <div className="space-y-2 text-gray-500 text-sm mb-8">
                         <p>การชำระเงินของคุณเสร็จสมบูรณ์แล้ว</p>
                         <p>หวังว่าคุณจะมีความสุขกับมื้ออาหาร</p>
                     </div>
-
                     <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 text-blue-800 text-sm">
                         <p className="font-semibold mb-1">ต้องการสั่งอาหารเพิ่ม?</p>
                         <p className="opacity-80">กรุณาสแกน QR Code ที่โต๊ะใหม่อีกครั้ง</p>
@@ -755,7 +573,6 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         );
     }
 
-    // --- 2. LOADING/LOGIN SCREEN ---
     if (!isAuthenticated) {
         return (
             <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center">
@@ -765,42 +582,26 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         );
     }
 
-    // --- 3. MENU SCREEN (Main UI) ---
+    // --- MAIN RENDER ---
     return (
         <div className="h-screen flex flex-col bg-gray-50 overflow-hidden">
-            {/* Header */}
             <header className="bg-white shadow-md z-30 relative">
-                {/* Top Row: Language & Title (Mobile Friendly) */}
                 <div className="flex justify-between items-center px-4 py-2 border-b border-gray-100 bg-gray-50/50">
                     <h1 className="font-bold text-gray-800 text-lg flex items-center gap-2">
                         {t('เมนูอาหาร 🍽️')}
                     </h1>
-                    {/* Language Switcher */}
                     <div className="flex bg-gray-200 rounded-lg p-1">
-                        <button 
-                            onClick={() => setLang('TH')}
-                            className={`px-3 py-1 rounded-md text-sm font-bold transition-all ${lang === 'TH' ? 'bg-white shadow text-blue-600' : 'text-gray-500'}`}
-                        >
-                            🇹🇭 TH
-                        </button>
-                        <button 
-                            onClick={() => setLang('EN')}
-                            className={`px-3 py-1 rounded-md text-sm font-bold transition-all ${lang === 'EN' ? 'bg-white shadow text-blue-600' : 'text-gray-500'}`}
-                        >
-                            🇬🇧 EN
-                        </button>
+                        <button onClick={() => setLang('TH')} className={`px-3 py-1 rounded-md text-sm font-bold transition-all ${lang === 'TH' ? 'bg-white shadow text-blue-600' : 'text-gray-500'}`}>🇹🇭 TH</button>
+                        <button onClick={() => setLang('EN')} className={`px-3 py-1 rounded-md text-sm font-bold transition-all ${lang === 'EN' ? 'bg-white shadow text-blue-600' : 'text-gray-500'}`}>🇬🇧 EN</button>
                     </div>
                 </div>
 
-                {/* Main Header Content */}
                 <div className="px-4 py-3 flex justify-between items-start">
                     <div className="flex-1">
                         <div className="flex flex-wrap items-center gap-2 mb-1">
                             <span className="text-sm font-medium text-gray-600 bg-gray-100 px-3 py-1 rounded-full border border-gray-200 whitespace-nowrap">
                                 {t('โต๊ะ')} <span className="text-gray-900 font-bold">{table.name} ({table.floor})</span>
                             </span>
-                            
-                            {/* STATUS BADGE */}
                             {orderStatus && (
                                 <span className={`text-xs font-bold px-3 py-1 rounded-full border shadow-sm ${orderStatus.color} whitespace-nowrap flex items-center gap-1 z-10`}>
                                     {orderStatus.text}
@@ -811,34 +612,19 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                     </div>
 
                     <div className="flex items-start gap-2 flex-shrink-0">
-                        {/* Only show Call Staff button */}
-                        <button
-                            onClick={handleCallStaffClick}
-                            className="flex flex-col items-center justify-center p-2 bg-yellow-50 text-yellow-700 border border-yellow-200 rounded-lg shadow-sm hover:bg-yellow-100 active:bg-yellow-200 transition-colors"
-                            title={t('เรียกพนักงาน')}
-                        >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z" />
-                            </svg>
+                        <button onClick={handleCallStaffClick} className="flex flex-col items-center justify-center p-2 bg-yellow-50 text-yellow-700 border border-yellow-200 rounded-lg shadow-sm hover:bg-yellow-100 transition-colors" title={t('เรียกพนักงาน')}>
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z" /></svg>
                             <span className="text-[10px] font-bold mt-0.5">{t('เรียก')}</span>
                         </button>
-                         {/* Right Side: Bill Only */}
-                        <div 
-                            className="flex flex-col items-end gap-1 cursor-pointer hover:opacity-80 transition-opacity group bg-white p-1 rounded"
-                            onClick={() => { setIsActiveOrderListOpen(true); }}
-                        >
+                        <div className="flex flex-col items-end gap-1 cursor-pointer hover:opacity-80 transition-opacity group bg-white p-1 rounded" onClick={() => setIsActiveOrderListOpen(true)}>
                             <div className="text-right">
                                 <div className="flex items-center justify-end gap-1 text-gray-400 text-[10px]">
                                     <span>{t('ยอดของฉัน')}</span>
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                    </svg>
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                                 </div>
                                 <div className="flex items-center gap-1 justify-end">
                                     <span className="text-base font-bold text-blue-600 leading-none border-b border-dashed border-blue-300 group-hover:text-blue-700 transition-colors">{myTotal.toLocaleString()} ฿</span>
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                                    </svg>
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
                                 </div>
                             </div>
                         </div>
@@ -846,11 +632,10 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                 </div>
             </header>
             
-            {/* Menu Content - Using localizedMenuItems and localizedCategories */}
             <div className="flex-1 overflow-hidden relative">
                 <Menu 
                     menuItems={localizedMenuItems}
-                    setMenuItems={() => {}} // Read-only
+                    setMenuItems={() => {}}
                     categories={localizedCategories}
                     onSelectItem={handleSelectItem}
                     isEditMode={false}
@@ -868,14 +653,9 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
             {/* Float Cart Button */}
             {totalCartItemsCount > 0 && (
                 <div className="absolute bottom-6 left-4 right-4 z-20">
-                    <button 
-                        onClick={() => { setIsCartOpen(true); }}
-                        className="w-full bg-blue-600 text-white shadow-xl rounded-xl p-4 flex justify-between items-center animate-bounce-in"
-                    >
+                    <button onClick={() => setIsCartOpen(true)} className="w-full bg-blue-600 text-white shadow-xl rounded-xl p-4 flex justify-between items-center animate-bounce-in">
                         <div className="flex items-center gap-3">
-                            <span className="bg-white text-blue-600 font-bold w-8 h-8 rounded-full flex items-center justify-center">
-                                {totalCartItemsCount}
-                            </span>
+                            <span className="bg-white text-blue-600 font-bold w-8 h-8 rounded-full flex items-center justify-center">{totalCartItemsCount}</span>
                             <div className="text-left leading-tight">
                                 <span className="font-bold text-lg block">{t('ดูตะกร้า')}</span>
                                 <span className="text-xs font-light text-blue-100">{t('ยังไม่รวมกับยอดบิล')}</span>
@@ -890,38 +670,27 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
             {isActiveOrderListOpen && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-end sm:items-center" onClick={() => setIsActiveOrderListOpen(false)}>
                     <div className="bg-white w-full sm:max-w-md h-[80vh] sm:h-auto sm:max-h-[90vh] rounded-t-2xl sm:rounded-xl shadow-2xl flex flex-col overflow-hidden animate-slide-up" onClick={e => e.stopPropagation()}>
-                        
                         <div ref={billContentRef} className="flex-grow overflow-y-auto">
                             <div className="p-4 border-b bg-gray-50 flex flex-col items-center sticky top-0 z-10">
-                                {logoUrl && (
-                                    <img src={logoUrl} alt="Logo" className="h-16 w-auto object-contain mb-2" crossOrigin="anonymous" />
-                                )}
+                                {logoUrl && <img src={logoUrl} alt="Logo" className="h-16 w-auto object-contain mb-2" crossOrigin="anonymous" />}
                                 <h3 className="font-bold text-gray-800 text-lg">{t('รายการของฉัน')} ({t('คุณ')}{customerName}) 🧾</h3>
                                 <p className="text-sm text-gray-600">{t('โต๊ะ')} {table.name} ({table.floor})</p>
                             </div>
-                            
                             <div className="p-4 space-y-4">
                                 {myItems.length === 0 && otherItems.length === 0 ? (
                                     <div className="text-center text-gray-400 py-10">{t('ยังไม่มีรายการที่สั่ง')}</div>
                                 ) : (
                                     <>
-                                        {/* SECTION 1: MY ITEMS */}
                                         {myItems.length > 0 && (
                                             <div className="bg-blue-50/50 p-2 rounded-lg border border-blue-100">
-                                                <h4 className="font-bold text-blue-800 text-sm mb-2 flex items-center gap-1">
-                                                    {t('รายการของคุณ')} <span className="text-xs font-normal text-blue-600">({customerName})</span> 👤
-                                                </h4>
+                                                <h4 className="font-bold text-blue-800 text-sm mb-2 flex items-center gap-1">{t('รายการของคุณ')} <span className="text-xs font-normal text-blue-600">({customerName})</span> 👤</h4>
                                                 <ul className="space-y-3">
                                                     {myItems.map((item, idx) => (
                                                         <li key={`mine-${idx}`} className="flex justify-between text-sm text-gray-700 border-b border-blue-100 pb-2 last:border-0">
                                                             <div>
                                                                 <span className="font-medium">{item.quantity}x {item.name}</span>
                                                                 {item.isTakeaway && <span className="text-purple-600 text-xs ml-1">({t('สั่งกลับบ้าน')})</span>}
-                                                                {item.selectedOptions.length > 0 && (
-                                                                    <div className="text-xs text-gray-500 ml-1">
-                                                                        {item.selectedOptions.map(o => o.name).join(', ')}
-                                                                    </div>
-                                                                )}
+                                                                {item.selectedOptions.length > 0 && <div className="text-xs text-gray-500 ml-1">{item.selectedOptions.map(o => o.name).join(', ')}</div>}
                                                             </div>
                                                             <span className="font-mono text-gray-600 font-bold">{(item.finalPrice * item.quantity).toLocaleString()}</span>
                                                         </li>
@@ -929,8 +698,6 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                                                 </ul>
                                             </div>
                                         )}
-
-                                        {/* SECTION 2: OTHERS ITEMS */}
                                         {otherItems.length > 0 && (
                                             <div className="bg-gray-50 p-2 rounded-lg border border-gray-200 mt-2">
                                                 <h4 className="font-bold text-gray-600 text-sm mb-2">{t('รายการของเพื่อนร่วมโต๊ะ')} 👥</h4>
@@ -943,11 +710,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                                                                     <span className="text-[10px] bg-gray-200 px-1.5 rounded text-gray-600">{owner}</span>
                                                                 </div>
                                                                 {item.isTakeaway && <span className="text-purple-600 text-xs ml-1">({t('สั่งกลับบ้าน')})</span>}
-                                                                {item.selectedOptions.length > 0 && (
-                                                                    <div className="text-xs text-gray-500 ml-1">
-                                                                        {item.selectedOptions.map(o => o.name).join(', ')}
-                                                                    </div>
-                                                                )}
+                                                                {item.selectedOptions.length > 0 && <div className="text-xs text-gray-500 ml-1">{item.selectedOptions.map(o => o.name).join(', ')}</div>}
                                                             </div>
                                                             <span className="font-mono text-gray-500">{(item.finalPrice * item.quantity).toLocaleString()}</span>
                                                         </li>
@@ -958,7 +721,6 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                                     </>
                                 )}
                             </div>
-
                             <div className="p-4 bg-gray-50 border-t sticky bottom-0">
                                 <div className="space-y-2">
                                     <div className="flex justify-between items-center text-base text-gray-600">
@@ -970,82 +732,50 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                                         <span>{grandTotal.toLocaleString()} ฿</span>
                                     </div>
                                 </div>
-                                <p className="text-xs text-gray-500 text-center mt-2">
-                                    {t('* ราคานี้เป็นเฉพาะรายการที่คุณสั่ง')}
-                                </p>
+                                <p className="text-xs text-gray-500 text-center mt-2">{t('* ราคานี้เป็นเฉพาะรายการที่คุณสั่ง')}</p>
                             </div>
                         </div>
-
                         <div className="p-3 bg-white border-t flex flex-col gap-2">
-                            <button
-                                onClick={handleSaveBillAsImage}
-                                disabled={myItems.length === 0}
-                                className="w-full bg-green-600 text-white font-bold py-3 rounded-xl shadow-lg hover:bg-green-700 transition-colors text-base flex items-center justify-center gap-2 disabled:bg-gray-400"
-                            >
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                    <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 9.293a1 1 0 011.414 0L10 11.586l2.293-2.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
-                                    <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 011.414-1.414L9 9.586V4a1 1 0 011-1z" clipRule="evenodd" />
-                                </svg>
+                            <button onClick={handleSaveBillAsImage} disabled={myItems.length === 0} className="w-full bg-green-600 text-white font-bold py-3 rounded-xl shadow-lg hover:bg-green-700 transition-colors text-base flex items-center justify-center gap-2 disabled:bg-gray-400">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 9.293a1 1 0 011.414 0L10 11.586l2.293-2.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" /><path fillRule="evenodd" d="M10 3a1 1 0 011 1v5.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 011.414-1.414L9 9.586V4a1 1 0 011-1z" clipRule="evenodd" /></svg>
                                 {t('บันทึกรายการของฉัน')}
                             </button>
-                            <button onClick={() => setIsActiveOrderListOpen(false)} className="w-full py-2 text-gray-700 font-semibold rounded-lg hover:bg-gray-100">
-                                {t('ปิด')}
-                            </button>
+                            <button onClick={() => setIsActiveOrderListOpen(false)} className="w-full py-2 text-gray-700 font-semibold rounded-lg hover:bg-gray-100">{t('ปิด')}</button>
                         </div>
                     </div>
                 </div>
             )}
 
-            {/* Cart Modal (Full Screen on Mobile) */}
+            {/* Cart Modal */}
             {isCartOpen && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-end sm:justify-center items-end sm:items-center">
                     <div className="bg-white w-full sm:max-w-md h-[90vh] sm:h-[80vh] rounded-t-2xl sm:rounded-2xl shadow-2xl flex flex-col animate-slide-up">
                         <div className="p-4 border-b flex justify-between items-center">
                             <h2 className="text-xl font-bold text-gray-800">{t('รายการในตะกร้า (ยังไม่สั่ง)')}</h2>
                             <button onClick={() => setIsCartOpen(false)} className="p-2 bg-gray-100 rounded-full hover:bg-gray-200">
-                                <svg className="w-6 h-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                </svg>
+                                <svg className="w-6 h-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                             </button>
                         </div>
-                        
                         <div className="flex-1 overflow-y-auto p-4 space-y-4">
                             {cartItems.map(item => (
                                 <div key={item.cartItemId} className="flex justify-between items-start border-b pb-4">
                                     <div className="flex-1">
                                         <p className="font-bold text-gray-800">{item.name}</p>
-                                        <p className="text-sm text-gray-500">
-                                            {item.selectedOptions.map(o => o.name).join(', ')}
-                                        </p>
+                                        <p className="text-sm text-gray-500">{item.selectedOptions.map(o => o.name).join(', ')}</p>
                                         {item.notes && <p className="text-sm text-yellow-600">** {item.notes}</p>}
                                         <p className="text-blue-600 font-semibold mt-1">{item.finalPrice.toLocaleString()} ฿ x {item.quantity}</p>
                                     </div>
-                                    <button 
-                                        onClick={() => handleRemoveItem(item.cartItemId)}
-                                        className="text-red-500 p-2"
-                                    >
-                                        {t('ลบ')}
-                                    </button>
+                                    <button onClick={() => handleRemoveItem(item.cartItemId)} className="text-red-500 p-2">{t('ลบ')}</button>
                                 </div>
                             ))}
-                            {cartItems.length === 0 && (
-                                <div className="text-center text-gray-400 py-10">
-                                    {t('ไม่มีสินค้าในตะกร้า')}
-                                </div>
-                            )}
+                            {cartItems.length === 0 && <div className="text-center text-gray-400 py-10">{t('ไม่มีสินค้าในตะกร้า')}</div>}
                         </div>
-
                         <div className="p-4 border-t bg-gray-50">
                             <div className="flex justify-between mb-4 text-lg font-bold">
                                 <span>{t('ยอดในตะกร้า')}</span>
                                 <span>{cartTotalAmount.toLocaleString()} ฿</span>
                             </div>
-                            <button 
-                                onClick={handleSubmitOrder}
-                                className="w-full bg-green-600 text-white font-bold py-4 rounded-xl shadow-lg hover:bg-green-700 transition-colors text-lg"
-                            >
-                                {t('ยืนยันสั่งอาหาร 🚀')}
-                            </button>
+                            <button onClick={handleSubmitOrder} className="w-full bg-green-600 text-white font-bold py-4 rounded-xl shadow-lg hover:bg-green-700 transition-colors text-lg">{t('ยืนยันสั่งอาหาร 🚀')}</button>
                         </div>
                     </div>
                 </div>
@@ -1054,7 +784,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
             <ItemCustomizationModal 
                 isOpen={!!itemToCustomize} 
                 onClose={() => setItemToCustomize(null)} 
-                item={itemToCustomize} // This item already has translated names from localizedMenuItems
+                item={itemToCustomize} 
                 onConfirm={handleConfirmCustomization} 
             />
         </div>
