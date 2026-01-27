@@ -902,10 +902,7 @@ const App: React.FC = () => {
         const customerTable = tables.find(t => t.id === customerTableId);
         if (customerTable) {
              // Filter menu items for customer view based on isVisible property
-             // FIX: Safeguard against menuItems being null/undefined to prevent white screen crash
-             const visibleMenuItems = Array.isArray(menuItems) 
-                ? menuItems.filter(item => item && item.isVisible !== false)
-                : [];
+             const visibleMenuItems = menuItems.filter(item => item.isVisible !== false);
 
              return (
                 <CustomerView 
@@ -923,10 +920,7 @@ const App: React.FC = () => {
                 />
              );
         }
-        return <div className="p-4 text-center flex flex-col items-center justify-center h-full">
-            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mb-4"></div>
-            <p className="text-gray-500">กำลังโหลดข้อมูลร้านอาหาร...</p>
-        </div>;
+        return <div className="p-4 text-center">Loading customer view...</div>;
     }
 
     if (!currentUser) return <LoginScreen onLogin={handleLogin} />;
