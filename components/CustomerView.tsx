@@ -647,6 +647,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                     onAddCategory={() => {}}
                     onImportMenu={() => {}}
                     recommendedMenuItemIds={recommendedMenuItemIds}
+                    hideCategories={true}
                 />
             </div>
 

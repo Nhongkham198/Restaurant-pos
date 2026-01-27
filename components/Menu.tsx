@@ -21,7 +21,8 @@ interface MenuProps {
     onAddCategory: (name: string) => void;
     onImportMenu: (importedItems: MenuItem[], newCategories: string[]) => void;
     recommendedMenuItemIds: number[];
-    onToggleVisibility?: (id: number) => void; // New Prop
+    onToggleVisibility?: (id: number) => void;
+    hideCategories?: boolean; // New prop to hide category tabs
 }
 
 export const Menu: React.FC<MenuProps> = ({ 
@@ -38,7 +39,8 @@ export const Menu: React.FC<MenuProps> = ({
     onAddCategory, 
     onImportMenu,
     recommendedMenuItemIds,
-    onToggleVisibility
+    onToggleVisibility,
+    hideCategories = false // Default to false
 }) => {
     const [selectedCategory, setSelectedCategory] = useState('ทั้งหมด');
     const [searchTerm, setSearchTerm] = useState('');
@@ -133,7 +135,7 @@ export const Menu: React.FC<MenuProps> = ({
     
     useEffect(() => {
         const el = categoryScrollRef.current;
-        if (el) {
+        if (el && !hideCategories) {
             const debouncedCheck = debounce(checkCategoryScroll, 100);
             checkCategoryScroll();
             window.addEventListener('resize', debouncedCheck);
@@ -147,7 +149,7 @@ export const Menu: React.FC<MenuProps> = ({
                 observer.disconnect();
             };
         }
-    }, [categories]);
+    }, [categories, hideCategories]);
 
     const scrollCategories = (direction: 'left' | 'right') => {
         const el = categoryScrollRef.current;
@@ -160,6 +162,16 @@ export const Menu: React.FC<MenuProps> = ({
 
 
     const filteredItems = useMemo(() => {
+        // If categories are hidden, force "All" behavior (show everything) unless searching
+        if (hideCategories) {
+             if (searchTerm.trim()) {
+                return menuItems.filter(item => 
+                    item.name.toLowerCase().includes(searchTerm.toLowerCase())
+                );
+            }
+            return menuItems;
+        }
+
         // Determine the "effective" category to use for filtering.
         // If the state `selectedCategory` is not present in the current `normalizedCategories` list (e.g. during language switch),
         // we fallback to the first category (usually "All" or "ทั้งหมด") to prevent an empty list.
@@ -191,7 +203,7 @@ export const Menu: React.FC<MenuProps> = ({
         
         return menuItems.filter(item => item.category === effectiveCategory);
 
-    }, [menuItems, selectedCategory, searchTerm, normalizedCategories]);
+    }, [menuItems, selectedCategory, searchTerm, normalizedCategories, hideCategories]);
     
     const handleEditCategory = (categoryName: string) => {
         Swal.fire({
@@ -453,7 +465,6 @@ export const Menu: React.FC<MenuProps> = ({
     };
 
     // Determine the "effective" category to highlight in the UI.
-    // This mirrors the logic in filteredItems to prevent UI mismatch.
     const isSelectedValid = normalizedCategories.includes(selectedCategory);
     let effectiveCategoryForUI = selectedCategory;
     
@@ -481,7 +492,7 @@ export const Menu: React.FC<MenuProps> = ({
                 <h2 className="text-2xl font-bold text-gray-800">เมนูอาหาร</h2>
                 {/* MODIFIED: Changed layout to flex-col on mobile, flex-row on desktop */}
                 <div className="mt-2 flex flex-col md:flex-row items-stretch md:items-center gap-4">
-                    <div className="relative w-full md:w-auto">
+                    <div className={`relative ${hideCategories ? 'w-full' : 'w-full md:w-auto'}`}>
                          <span className="absolute inset-y-0 left-0 flex items-center pl-3">
                             <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -493,7 +504,7 @@ export const Menu: React.FC<MenuProps> = ({
                             placeholder="ค้นหาเมนู..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full md:w-64 pl-10 pr-12 py-2 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50 text-gray-900"
+                            className={`w-full ${hideCategories ? '' : 'md:w-64'} pl-10 pr-12 py-2 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50 text-gray-900`}
                         />
                         {/* Keyboard Toggle Button (Desktop only via parent hidden prop logic, but here we just render it, hiding it on mobile via CSS is cleaner or checking screen width) */}
                         <button 
@@ -506,87 +517,89 @@ export const Menu: React.FC<MenuProps> = ({
                             </svg>
                         </button>
                     </div>
-                    {/* Category Filters - Takes full width available */}
-                    <div className="flex-1 overflow-hidden relative w-full">
-                        {showLeftArrow && (
-                            <button
-                                onClick={() => scrollCategories('left')}
-                                className="absolute left-0 top-1/2 -translate-y-1/2 bg-white/80 backdrop-blur-sm text-gray-700 rounded-full w-8 h-8 flex items-center justify-center z-10 shadow-md hover:bg-gray-100 border border-gray-200"
-                                aria-label="Scroll categories left"
+                    {/* Category Filters - Hide if hideCategories is true */}
+                    {!hideCategories && (
+                        <div className="flex-1 overflow-hidden relative w-full">
+                            {showLeftArrow && (
+                                <button
+                                    onClick={() => scrollCategories('left')}
+                                    className="absolute left-0 top-1/2 -translate-y-1/2 bg-white/80 backdrop-blur-sm text-gray-700 rounded-full w-8 h-8 flex items-center justify-center z-10 shadow-md hover:bg-gray-100 border border-gray-200"
+                                    aria-label="Scroll categories left"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 19l-7-7 7-7" /></svg>
+                                </button>
+                            )}
+                            <div 
+                                ref={categoryScrollRef}
+                                className="flex overflow-x-auto whitespace-nowrap gap-2 items-center py-2 custom-scrollbar"
                             >
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 19l-7-7 7-7" /></svg>
-                            </button>
-                        )}
-                        <div 
-                            ref={categoryScrollRef}
-                            className="flex overflow-x-auto whitespace-nowrap gap-2 items-center py-2 custom-scrollbar"
-                        >
-                            {normalizedCategories.map(category => (
-                                <div key={category} className="relative group flex-shrink-0">
-                                    <button
-                                        onClick={() => setSelectedCategory(category)}
-                                        className={`px-4 py-2 rounded-full text-sm font-semibold transition-colors ${
-                                            effectiveCategoryForUI === category
-                                                ? 'bg-blue-600 text-white shadow'
-                                                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                                        }`}
-                                    >
-                                        {category}
-                                    </button>
-                                    {isEditMode && category !== 'ทั้งหมด' && category !== 'All' && (
-                                        <div className="absolute -top-2 -right-2 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                                            <button onClick={() => handleEditCategory(category)} className="p-1.5 bg-white rounded-full shadow-md hover:bg-gray-200">
-                                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L15.232 5.232z" /></svg>
-                                            </button>
-                                            <button onClick={() => handleDeleteCategory(category)} className="p-1.5 bg-white rounded-full shadow-md hover:bg-gray-200">
-                                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
-                                            </button>
-                                        </div>
-                                    )}
-                                </div>
-                            ))}
-                            {isEditMode && (
-                                <>
-                                    <button
-                                        onClick={handleAddCategory}
-                                        className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white font-semibold rounded-full hover:bg-green-600 transition-colors text-sm flex-shrink-0"
-                                    >
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                                            <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
-                                        </svg>
-                                        <span>เพิ่มหมวดหมู่</span>
-                                    </button>
-                                    <button
-                                        onClick={handleExportMenu}
-                                        className="flex items-center gap-2 px-4 py-2 bg-teal-500 text-white font-semibold rounded-full hover:bg-teal-600 transition-colors text-sm flex-shrink-0"
-                                    >
-                                       <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                                        </svg>
-                                        <span>ดึงข้อมูลเมนู</span>
-                                    </button>
-                                    <button
-                                        onClick={() => fileInputRef.current?.click()}
-                                        className="flex items-center gap-2 px-4 py-2 bg-purple-500 text-white font-semibold rounded-full hover:bg-purple-600 transition-colors text-sm flex-shrink-0"
-                                    >
+                                {normalizedCategories.map(category => (
+                                    <div key={category} className="relative group flex-shrink-0">
+                                        <button
+                                            onClick={() => setSelectedCategory(category)}
+                                            className={`px-4 py-2 rounded-full text-sm font-semibold transition-colors ${
+                                                effectiveCategoryForUI === category
+                                                    ? 'bg-blue-600 text-white shadow'
+                                                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                                            }`}
+                                        >
+                                            {category}
+                                        </button>
+                                        {isEditMode && category !== 'ทั้งหมด' && category !== 'All' && (
+                                            <div className="absolute -top-2 -right-2 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                                                <button onClick={() => handleEditCategory(category)} className="p-1.5 bg-white rounded-full shadow-md hover:bg-gray-200">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L15.232 5.232z" /></svg>
+                                                </button>
+                                                <button onClick={() => handleDeleteCategory(category)} className="p-1.5 bg-white rounded-full shadow-md hover:bg-gray-200">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                                {isEditMode && (
+                                    <>
+                                        <button
+                                            onClick={handleAddCategory}
+                                            className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white font-semibold rounded-full hover:bg-green-600 transition-colors text-sm flex-shrink-0"
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                                <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+                                            </svg>
+                                            <span>เพิ่มหมวดหมู่</span>
+                                        </button>
+                                        <button
+                                            onClick={handleExportMenu}
+                                            className="flex items-center gap-2 px-4 py-2 bg-teal-500 text-white font-semibold rounded-full hover:bg-teal-600 transition-colors text-sm flex-shrink-0"
+                                        >
                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                                        </svg>
-                                        <span>นำเข้าข้อมูลเมนู</span>
-                                    </button>
-                                </>
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                                            </svg>
+                                            <span>ดึงข้อมูลเมนู</span>
+                                        </button>
+                                        <button
+                                            onClick={() => fileInputRef.current?.click()}
+                                            className="flex items-center gap-2 px-4 py-2 bg-purple-500 text-white font-semibold rounded-full hover:bg-purple-600 transition-colors text-sm flex-shrink-0"
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                            </svg>
+                                            <span>นำเข้าข้อมูลเมนู</span>
+                                        </button>
+                                    </>
+                                )}
+                            </div>
+                            {showRightArrow && (
+                                <button
+                                    onClick={() => scrollCategories('right')}
+                                    className="absolute right-0 top-1/2 -translate-y-1/2 bg-white/80 backdrop-blur-sm text-gray-700 rounded-full w-8 h-8 flex items-center justify-center z-10 shadow-md hover:bg-gray-100 border border-gray-200"
+                                    aria-label="Scroll categories right"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5l7 7-7 7" /></svg>
+                                </button>
                             )}
                         </div>
-                         {showRightArrow && (
-                             <button
-                                onClick={() => scrollCategories('right')}
-                                className="absolute right-0 top-1/2 -translate-y-1/2 bg-white/80 backdrop-blur-sm text-gray-700 rounded-full w-8 h-8 flex items-center justify-center z-10 shadow-md hover:bg-gray-100 border border-gray-200"
-                                aria-label="Scroll categories right"
-                            >
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5l7 7-7 7" /></svg>
-                            </button>
-                        )}
-                    </div>
+                    )}
                 </div>
             </div>
             
