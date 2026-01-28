@@ -1,4 +1,3 @@
-
 // ... existing imports
 // (Keeping all imports same as before, no changes needed for imports)
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
@@ -698,7 +697,8 @@ const App: React.FC = () => {
         custCount: number = customerCount,
         tableOverride: Table | null = selectedTable,
         isLineMan: boolean = false,
-        lineManNumber?: string // NEW: Optional manual number
+        lineManNumber?: string, // NEW: Optional manual number
+        deliveryProviderName?: string // NEW: Provider Name (e.g. ShopeeFood)
     ) => {
         // Validation: Must select table OR be LineMan
         if (!isLineMan && !tableOverride) {
@@ -737,8 +737,9 @@ const App: React.FC = () => {
                     originalOrderNumber: nextOrderId,
                 }));
 
-                // Handle Virtual Table for LineMan
-                const orderTableName = isLineMan ? 'LineMan' : (tableOverride ? tableOverride.name : 'Unknown');
+                // Handle Virtual Table for LineMan/Delivery
+                // If delivery, use the provider name (e.g. ShopeeFood), default to 'Delivery' if missing.
+                const orderTableName = isLineMan ? (deliveryProviderName || 'Delivery') : (tableOverride ? tableOverride.name : 'Unknown');
                 const orderFloor = isLineMan ? 'Delivery' : (tableOverride ? tableOverride.floor : 'Unknown');
                 const orderTableId = isLineMan ? -99 : (tableOverride ? tableOverride.id : 0); // Use negative ID for LineMan
 

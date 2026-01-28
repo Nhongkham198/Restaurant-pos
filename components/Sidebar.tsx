@@ -10,7 +10,7 @@ interface SidebarProps {
     onQuantityChange: (cartItemId: string, newQuantity: number) => void;
     onRemoveItem: (cartItemId: string) => void;
     onClearOrder: () => void;
-    onPlaceOrder: (items: OrderItem[], customerName: string, customerCount: number, tableOverride: Table | null, isLineMan: boolean, lineManNumber?: string) => void;
+    onPlaceOrder: (items: OrderItem[], customerName: string, customerCount: number, tableOverride: Table | null, isLineMan: boolean, lineManNumber?: string, deliveryProviderName?: string) => void;
     isPlacingOrder: boolean;
     tables: Table[];
     selectedTable: Table | null;
@@ -138,7 +138,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         // If Delivery, we pass isLineMan=true (mapping general delivery to existing backend logic)
         // and the manual order number.
-        onPlaceOrder(currentOrderItems, customerName, customerCount, selectedTable, isDelivery, isDelivery ? deliveryOrderNumber : undefined);
+        // FIX: Pass the selected provider name to update the header
+        onPlaceOrder(
+            currentOrderItems, 
+            customerName, 
+            customerCount, 
+            selectedTable, 
+            isDelivery, 
+            isDelivery ? deliveryOrderNumber : undefined,
+            isDelivery ? (selectedProvider?.name || 'Delivery') : undefined
+        );
         
         // Reset local state after order is placed
         if (isDelivery) {
