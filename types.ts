@@ -25,8 +25,9 @@ export interface User {
     id: number;
     username: string;
     password: string;
-    role: 'admin' | 'branch-admin' | 'pos' | 'kitchen' | 'auditor';
+    role: 'admin' | 'branch-admin' | 'pos' | 'kitchen' | 'auditor' | 'table'; // Added 'table' role
     allowedBranchIds?: number[];
+    assignedTableId?: number; // Added: Specific table assignment for 'table' role
     profilePictureUrl?: string;
     leaveQuotas?: LeaveQuotas; // Added specific quotas per user
     fcmTokens?: string[]; // For Push Notifications on multiple devices

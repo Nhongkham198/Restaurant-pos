@@ -556,7 +556,7 @@ const App: React.FC = () => {
                 staffCallAudioRef.current.play().catch(() => {});
             }
             activeCallRef.current = latestCall;
-            Swal.fire({ title: 'ลูกค้าเรียกพนักงาน!', html: `โต๊ะ <b>${latestCall.tableName}</b> (คุณ <b>${latestCall.customerName || 'ลูกค้า'}</b>) ต้องการความช่วยเหลือ`, icon: 'info', confirmButtonText: 'รับทราบ', timer: 30000, timerProgressBar: true, }).then(() => { setStaffCalls(prevCalls => prevCalls.filter(call => call.id !== latestCall.id)); activeCallRef.current = null; });
+            Swal.fire({ title: 'ลูกค้าเรียกพนักงาน!', html: `โต๊ะ <b>${latestCall.tableName}</b> (คุณ <b>${latestCall.customerName || 'ลูกค้า'}</b>) ต้องการความช่วยเหลือ`, icon: 'info', confirmButtonText: 'รับทราบ', timer: 30000, timerProgressBar: true, }).then((result) => { setStaffCalls(prevCalls => prevCalls.filter(call => call.id !== latestCall.id)); activeCallRef.current = null; });
         }
         const oneMinuteAgo = Date.now() - 60000;
         const freshAndValidCalls = staffCalls.filter(call => call.timestamp > oneMinuteAgo && call.tableName);
@@ -616,9 +616,26 @@ const App: React.FC = () => {
         if (user) {
             await requestNotificationPermission();
             setCurrentUser(user);
-            if (user.role === 'kitchen') setCurrentView('kitchen');
-            else if (user.role === 'pos') setCurrentView('pos');
-            else if (['admin', 'branch-admin', 'auditor'].includes(user.role)) setCurrentView('dashboard');
+            
+            // Check for 'table' role to force Customer Mode
+            if (user.role === 'table') {
+                setIsCustomerMode(true);
+                // Assign to specific table if set, otherwise potentially null (or handle Guest)
+                // Note: CustomerView handles null tableId gracefully or shows loading/error
+                if (user.assignedTableId) {
+                    setCustomerTableId(user.assignedTableId);
+                } else {
+                    // Fallback or warning if no table assigned?
+                    // For now, we assume user is correctly configured.
+                    setCustomerTableId(null); 
+                }
+            } else if (user.role === 'kitchen') {
+                setCurrentView('kitchen');
+            } else if (user.role === 'pos') {
+                setCurrentView('pos');
+            } else if (['admin', 'branch-admin', 'auditor'].includes(user.role)) {
+                setCurrentView('dashboard');
+            }
             return { success: true };
         }
         return { success: false, error: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง' };
@@ -646,7 +663,8 @@ const App: React.FC = () => {
         setItemToEdit(null); setOrderForModal(null); setItemToCustomize(null); setOrderItemToEdit(null);
     };
     
-    // --- Order & POS Handlers (Refactored) ---
+    // ... (rest of the file remains unchanged)
+    // Code omitted for brevity as it is unchanged from the previous version provided in the prompt context.
     const handleClearOrder = () => {
         setCurrentOrderItems([]); setCustomerName(''); setCustomerCount(1); setSelectedTableId(null);
     };
@@ -901,6 +919,7 @@ const App: React.FC = () => {
     // ... [Code omitted for brevity, identical to previous App.tsx] ...
     if (isCustomerMode) {
         const customerTable = tables.find(t => t.id === customerTableId);
+        // If customerTableId is set but table not found (maybe deleted), or null, handle gracefully
         if (customerTable) {
              // Filter menu items for customer view based on isVisible property
              const visibleMenuItems = menuItems.filter(item => item.isVisible !== false);
@@ -921,7 +940,15 @@ const App: React.FC = () => {
                 />
              );
         }
-        return <div className="p-4 text-center">Loading customer view...</div>;
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4 text-center">
+                <div>
+                    <h2 className="text-xl font-bold text-gray-800 mb-2">ไม่พบข้อมูลโต๊ะ</h2>
+                    <p className="text-gray-600">กรุณาติดต่อพนักงานเพื่อตรวจสอบการตั้งค่า (Table ID: {customerTableId || 'Not Set'})</p>
+                    <button onClick={handleLogout} className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg">กลับหน้า Login</button>
+                </div>
+            </div>
+        );
     }
 
     if (!currentUser) return <LoginScreen onLogin={handleLogin} />;
@@ -1221,7 +1248,7 @@ const App: React.FC = () => {
                 currentSignatureUrl={signatureUrl}
             />
             <EditCompletedOrderModal isOpen={modalState.isEditCompleted} order={orderForModal as CompletedOrder | null} onClose={handleModalClose} onSave={async ({id, items}) => { if(newCompletedOrders.some(o => o.id === id)) { await newCompletedOrdersActions.update(id, { items }); } else { setLegacyCompletedOrders(prev => prev.map(o => o.id === id ? {...o, items} : o)); } }} menuItems={menuItems} />
-            <UserManagerModal isOpen={modalState.isUserManager} onClose={handleModalClose} users={users} setUsers={setUsers} currentUser={currentUser!} branches={branches} isEditMode={isEditMode} />
+            <UserManagerModal isOpen={modalState.isUserManager} onClose={handleModalClose} users={users} setUsers={setUsers} currentUser={currentUser!} branches={branches} isEditMode={isEditMode} tables={tables} />
             <BranchManagerModal isOpen={modalState.isBranchManager} onClose={handleModalClose} branches={branches} setBranches={setBranches} currentUser={currentUser} />
             <MoveTableModal isOpen={modalState.isMoveTable} onClose={handleModalClose} order={orderForModal as ActiveOrder | null} tables={tables} activeOrders={activeOrders} onConfirmMove={handleConfirmMoveTable} floors={floors} />
             <CancelOrderModal isOpen={modalState.isCancelOrder} onClose={handleModalClose} order={orderForModal as ActiveOrder | null} onConfirm={handleConfirmCancelOrder} />

@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import type { User, Branch } from '../types';
+import type { User, Branch, Table } from '../types';
 import Swal from 'sweetalert2';
 
 interface UserManagerModalProps {
@@ -11,6 +11,7 @@ interface UserManagerModalProps {
     currentUser: User;
     branches: Branch[];
     isEditMode: boolean;
+    tables?: Table[]; // Added tables prop
 }
 
 const initialFormState: Omit<User, 'id'> = { 
@@ -19,10 +20,11 @@ const initialFormState: Omit<User, 'id'> = {
     role: 'pos' as const,
     allowedBranchIds: [],
     profilePictureUrl: '',
-    leaveQuotas: { sick: 30, personal: 6, vacation: 6 } // Default quotas
+    leaveQuotas: { sick: 30, personal: 6, vacation: 6 }, // Default quotas
+    assignedTableId: undefined
 };
 
-export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onClose, users, setUsers, currentUser, branches, isEditMode }) => {
+export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onClose, users, setUsers, currentUser, branches, isEditMode, tables = [] }) => {
     const [isAdding, setIsAdding] = useState(false);
     const [editingUser, setEditingUser] = useState<User | null>(null);
     const [formData, setFormData] = useState<Omit<User, 'id'>>(initialFormState);
@@ -65,10 +67,16 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
             groups['ผู้ดูแลระบบ'] = systemAdmins;
         }
 
-        // Group users by each visible branch
+        // Group Table Users (No branch specific logic yet, just group them)
+        const tableUsers = usersToDisplay.filter(u => u.role === 'table');
+        if (tableUsers.length > 0) {
+            groups['Tablets / โต๊ะลูกค้า'] = tableUsers;
+        }
+
+        // Group users by each visible branch (excluding tables/admins to avoid duplicates if possible, or just strict filter)
         visibleBranches.forEach(branch => {
             const usersInBranch = usersToDisplay.filter(user =>
-                user.role !== 'admin' && (user.allowedBranchIds || []).includes(branch.id)
+                user.role !== 'admin' && user.role !== 'table' && (user.allowedBranchIds || []).includes(branch.id)
             );
             if (usersInBranch.length > 0) {
                 groups[branch.name] = usersInBranch;
@@ -141,7 +149,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
             return;
         }
     
-        if (formData.role !== 'admin' && (!formData.allowedBranchIds || formData.allowedBranchIds.length === 0)) {
+        if (formData.role !== 'admin' && formData.role !== 'table' && (!formData.allowedBranchIds || formData.allowedBranchIds.length === 0)) {
             Swal.fire('ข้อมูลไม่ครบถ้วน', 'สำหรับพนักงาน POS, ผู้ดูแลสาขา, และพนักงานครัว กรุณากำหนดสิทธิ์สาขาอย่างน้อย 1 สาขา', 'warning');
             return;
         }
@@ -163,7 +171,8 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
                     ...u,
                     username: formData.username.trim(),
                     role: formData.role,
-                    leaveQuotas: formData.leaveQuotas
+                    leaveQuotas: formData.leaveQuotas,
+                    assignedTableId: formData.role === 'table' ? Number(formData.assignedTableId) : undefined
                 };
 
                 // Update password only if a new one is provided AND user is Admin
@@ -181,6 +190,10 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
                 // Handle branch ID logic based on role
                 if (updatedUser.role === 'admin') {
                     delete updatedUser.allowedBranchIds;
+                } else if (updatedUser.role === 'table') {
+                    // Tablets implicitly belong to current context, or can be assigned. 
+                    // For now, let's allow them to have branch IDs if needed, but primarily rely on Table ID.
+                    updatedUser.allowedBranchIds = formData.allowedBranchIds || [];
                 } else {
                     updatedUser.allowedBranchIds = formData.allowedBranchIds || [];
                 }
@@ -202,7 +215,8 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
                 username: formData.username.trim(),
                 password: formData.password, // Password is mandatory for new users
                 role: formData.role,
-                leaveQuotas: formData.leaveQuotas
+                leaveQuotas: formData.leaveQuotas,
+                assignedTableId: formData.role === 'table' ? Number(formData.assignedTableId) : undefined
             };
 
             if (formData.profilePictureUrl && formData.profilePictureUrl.trim()) {
@@ -247,7 +261,8 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
             role: user.role, 
             allowedBranchIds: user.allowedBranchIds || [],
             profilePictureUrl: user.profilePictureUrl || '',
-            leaveQuotas: user.leaveQuotas || { sick: 30, personal: 6, vacation: 6 }
+            leaveQuotas: user.leaveQuotas || { sick: 30, personal: 6, vacation: 6 },
+            assignedTableId: user.assignedTableId
         });
     };
 
@@ -266,6 +281,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
             case 'pos': return 'พนักงาน POS';
             case 'kitchen': return 'พนักงานครัว';
             case 'auditor': return 'Auditor';
+            case 'table': return 'Tablet / โต๊ะ';
         }
     };
 
@@ -275,6 +291,12 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
             .map(id => branches.find(b => b.id === id)?.name)
             .filter(Boolean)
             .join(', ');
+    };
+
+    const getTableName = (tableId: number | undefined) => {
+        if (!tableId) return 'ไม่ระบุโต๊ะ';
+        const table = tables.find(t => t.id === tableId);
+        return table ? `โต๊ะ ${table.name}` : `Unknown Table (${tableId})`;
     };
 
     // Helper to determine if password editing is allowed
@@ -326,13 +348,20 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
                                                             user.role === 'admin' ? 'text-red-600' :
                                                             user.role === 'branch-admin' ? 'text-purple-600' :
                                                             user.role === 'kitchen' ? 'text-orange-600' :
+                                                            user.role === 'table' ? 'text-teal-600' :
                                                             user.role === 'auditor' ? 'text-gray-600' :
                                                             'text-blue-600'
                                                         }`}>{roleText(user.role)}</span>
-                                                        {user.role !== 'admin' && (
+                                                        {user.role !== 'admin' && user.role !== 'table' && (
                                                             <>
                                                                 <span className="mx-1.5 text-gray-300">&bull;</span>
                                                                 <span>สาขา: {getBranchNames(user.allowedBranchIds)}</span>
+                                                            </>
+                                                        )}
+                                                        {user.role === 'table' && (
+                                                            <>
+                                                                <span className="mx-1.5 text-gray-300">&bull;</span>
+                                                                <span>{getTableName(user.assignedTableId)}</span>
                                                             </>
                                                         )}
                                                     </p>
@@ -352,7 +381,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
                                                         className="p-2 text-red-600 hover:bg-red-100 rounded-full disabled:text-gray-400 disabled:hover:bg-transparent disabled:cursor-not-allowed"
                                                         title={isActionDisabled ? disabledTitle : 'ลบ'}
                                                     >
-                                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                                                     </button>
                                                </div>
                                             </div>
@@ -400,12 +429,15 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
                                         <option value="kitchen">พนักงานครัว</option>
                                         <option value="branch-admin">ผู้ดูแลสาขา</option>
                                         <option value="auditor">Auditor</option>
+                                        <option value="table">Tablet / โต๊ะลูกค้า</option>
                                         {currentUser.role === 'admin' && (
                                             <option value="admin">ผู้ดูแลระบบ</option>
                                         )}
                                     </select>
                                 </div>
-                                {formData.role !== 'admin' && (
+                                
+                                {/* Branch Selection (For standard roles) */}
+                                {formData.role !== 'admin' && formData.role !== 'table' && (
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-2">กำหนดสิทธิ์สาขา:</label>
                                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 p-2 border rounded-md bg-white max-h-32 overflow-y-auto">
@@ -423,9 +455,30 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
                                         </div>
                                     </div>
                                 )}
+
+                                {/* Table Assignment (Only for 'table' role) */}
+                                {formData.role === 'table' && (
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">ระบุโต๊ะประจำเครื่อง:</label>
+                                        <select 
+                                            name="assignedTableId" 
+                                            value={formData.assignedTableId || ''} 
+                                            onChange={handleInputChange} 
+                                            className="w-full px-3 py-2 border rounded-md bg-white border-gray-300 text-gray-900 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                                        >
+                                            <option value="">-- เลือกโต๊ะ (หรือ Guest) --</option>
+                                            {tables.map(table => (
+                                                <option key={table.id} value={table.id}>{table.name} ({table.floor})</option>
+                                            ))}
+                                        </select>
+                                        <p className="text-xs text-gray-500 mt-1">
+                                            * เลือกโต๊ะที่ต้องการให้ Tablet นี้ผูกค่าไว้ (หากต้องการเป็น Guest สามารถสร้างโต๊ะชื่อ "Guest" ได้)
+                                        </p>
+                                    </div>
+                                )}
                                 
                                 {/* Leave Quotas Section - Admin Only Configuration, but NOT for Admin/Branch Admin roles */}
-                                {currentUser.role === 'admin' && formData.role !== 'admin' && formData.role !== 'branch-admin' && (
+                                {currentUser.role === 'admin' && formData.role !== 'admin' && formData.role !== 'branch-admin' && formData.role !== 'table' && (
                                     <div className="pt-2 border-t mt-2">
                                         <label className="block text-sm font-bold text-gray-700 mb-2">โควตาวันลา (ต่อปี):</label>
                                         <div className="grid grid-cols-3 gap-3">
