@@ -8,7 +8,8 @@ import Swal from 'sweetalert2';
 
 declare var html2canvas: any;
 
-// --- TRANSLATION DICTIONARY ---
+// ... (KEEP DICTIONARY CONSTANTS AS IS)
+// ... existing code ...
 const RAW_DICTIONARY: Record<string, string> = {
     // UI Elements
     'เมนูอาหาร 🍽️': 'Menu 🍽️',
@@ -70,6 +71,11 @@ const RAW_DICTIONARY: Record<string, string> = {
     'บันทึกการแก้ไข': 'Save Changes',
     'ล้างที่เลือก': 'Clear',
     'จำนวน': 'Qty',
+    'ออกจากระบบ': 'Logout',
+    'ยืนยันการออกจากระบบ': 'Confirm Logout',
+    'คุณต้องการออกจากระบบใช่หรือไม่?': 'Are you sure you want to logout?',
+    'ใช่': 'Yes',
+    'ยกเลิก': 'Cancel',
     
     // Categories
     'ทั้งหมด': 'All',
@@ -91,7 +97,7 @@ const RAW_DICTIONARY: Record<string, string> = {
     'เมนูทานเล่น': 'Snacks'
 };
 
-// Normalize dictionary keys (remove spaces) for robust matching
+// ... (KEEP NORMALIZED_DICTIONARY AS IS)
 const NORMALIZED_DICTIONARY = Object.keys(RAW_DICTIONARY).reduce((acc, key) => {
     // Remove all whitespace from the key
     const normalizedKey = key.replace(/\s+/g, '');
@@ -111,6 +117,7 @@ interface CustomerViewProps {
     recommendedMenuItemIds: number[];
     logoUrl: string | null;
     restaurantName: string;
+    onLogout?: () => void; // Added onLogout prop
 }
 
 export const CustomerView: React.FC<CustomerViewProps> = ({
@@ -125,8 +132,9 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     recommendedMenuItemIds,
     logoUrl,
     restaurantName,
+    onLogout
 }) => {
-    // --- LANGUAGE STATE ---
+    // ... (Keep existing state hooks)
     const [lang, setLang] = useState<'TH' | 'EN'>('TH');
 
     const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -136,7 +144,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         return sessionStorage.getItem(`customer_completed_${table.id}`) === 'true';
     });
 
-    // --- CART PERSISTENCE ---
+    // ... (Keep cart and order state hooks)
     const cartKey = `customer_cart_${table.id}`;
     const [cartItems, setCartItems] = useState<OrderItem[]>(() => {
         const savedCart = localStorage.getItem(cartKey);
@@ -149,7 +157,6 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         }
     });
 
-    // --- MY ORDERS PERSISTENCE ---
     const myOrdersKey = `customer_my_orders_${table.id}`;
     const [myOrderNumbers, setMyOrderNumbers] = useState<number[]>(() => {
         const saved = localStorage.getItem(myOrdersKey);
@@ -160,7 +167,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         }
     });
 
-    // --- TRANSLATION HELPER (Space-Insensitive) ---
+    // ... (Keep translation helper)
     const t = useCallback((text: string) => {
         if (lang === 'TH') return text;
         if (!text || typeof text !== 'string') return text;
@@ -177,13 +184,11 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         return NORMALIZED_DICTIONARY[normalized] || text;
     }, [lang]);
 
-    // --- LOCALIZED DATA COMPUTATION ---
-    // 1. Localize Categories
+    // ... (Keep memoized localized data)
     const localizedCategories = useMemo(() => {
         return categories.map(c => t(c));
     }, [categories, t]);
 
-    // 2. Localize Menu Items
     const localizedMenuItems = useMemo(() => {
         return menuItems.map(item => ({
             ...item,
@@ -200,6 +205,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         }));
     }, [menuItems, lang, t]);
 
+    // ... (Keep effects for persistence)
     useEffect(() => {
         localStorage.setItem(cartKey, JSON.stringify(cartItems));
     }, [cartItems, cartKey]);
@@ -208,7 +214,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         localStorage.setItem(myOrdersKey, JSON.stringify(myOrderNumbers));
     }, [myOrderNumbers, myOrdersKey]);
 
-
+    // ... (Keep UI state)
     const [isCartOpen, setIsCartOpen] = useState(false);
     const [isActiveOrderListOpen, setIsActiveOrderListOpen] = useState(false);
     const [itemToCustomize, setItemToCustomize] = useState<MenuItem | null>(null);
@@ -217,7 +223,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     const prevMyItemsCountRef = useRef<number>(0);
     const isProcessingPaymentRef = useRef(false);
     
-    // --- Auto-Login / Session Logic ---
+    // ... (Keep Session Logic)
     useEffect(() => {
         if (isSessionCompleted) return;
 
@@ -252,7 +258,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         setIsSessionCompleted(true);
     };
 
-    // --- IDENTIFY ITEMS ---
+    // ... (Keep Identify Items Logic)
     const { myItems, otherItems } = useMemo(() => {
         const mine: OrderItem[] = [];
         const others: { item: OrderItem, owner: string }[] = [];
@@ -301,6 +307,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
 
     const grandTotal = myTotal + otherItems.reduce((sum, { item }) => sum + (item.finalPrice * item.quantity), 0);
 
+    // ... (Keep update myOrderNumbers effect)
     useEffect(() => {
         if (!isAuthenticated || !customerName) return;
         try {
@@ -321,7 +328,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     }, [activeOrders, customerName, isAuthenticated, myOrderNumbers]);
 
 
-    // --- Detect Payment & Trigger Save Bill ---
+    // ... (Keep Payment Detect Effect - No changes)
     useEffect(() => {
         if (!isAuthenticated || isSessionCompleted) return;
     
@@ -433,6 +440,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     }, [myItems.length, isAuthenticated, completedOrders, myOrderNumbers, logoUrl, restaurantName, customerName, isSessionCompleted, t]);
     
 
+    // ... (Keep handleSelectItem and other handlers)
     const handleSelectItem = (item: MenuItem) => {
         setItemToCustomize(item);
     };
@@ -520,10 +528,28 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         }
     };
 
+    const handleLogoutClick = () => {
+        if (onLogout) {
+            Swal.fire({
+                title: t('ยืนยันการออกจากระบบ'),
+                text: t('คุณต้องการออกจากระบบใช่หรือไม่?'),
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                confirmButtonText: t('ใช่'),
+                cancelButtonText: t('ยกเลิก')
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    onLogout();
+                }
+            });
+        }
+    };
+
     const cartTotalAmount = useMemo(() => cartItems.reduce((sum, i) => sum + (i.finalPrice * i.quantity), 0), [cartItems]);
     const totalCartItemsCount = useMemo(() => cartItems.reduce((sum, i) => sum + i.quantity, 0), [cartItems]);
 
-    // --- Order Status Logic ---
+    // ... (Keep Order Status Logic)
     const orderStatus = useMemo(() => {
         try {
             if (myItems.length === 0) return null;
@@ -554,7 +580,8 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     if (isSessionCompleted) {
         return (
             <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6 text-center animate-fade-in">
-                <div className="bg-white p-10 rounded-2xl shadow-xl w-full max-w-sm border-t-8 border-green-500">
+                {/* ... (Keep session completed view) */}
+                 <div className="bg-white p-10 rounded-2xl shadow-xl w-full max-w-sm border-t-8 border-green-500">
                     <div className="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
                     </div>
@@ -590,13 +617,27 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                     <h1 className="font-bold text-gray-800 text-lg flex items-center gap-2">
                         {t('เมนูอาหาร 🍽️')}
                     </h1>
-                    <div className="flex bg-gray-200 rounded-lg p-1">
-                        <button onClick={() => setLang('TH')} className={`px-3 py-1 rounded-md text-sm font-bold transition-all ${lang === 'TH' ? 'bg-white shadow text-blue-600' : 'text-gray-500'}`}>🇹🇭 TH</button>
-                        <button onClick={() => setLang('EN')} className={`px-3 py-1 rounded-md text-sm font-bold transition-all ${lang === 'EN' ? 'bg-white shadow text-blue-600' : 'text-gray-500'}`}>🇬🇧 EN</button>
+                    <div className="flex items-center gap-3">
+                         <div className="flex bg-gray-200 rounded-lg p-1">
+                            <button onClick={() => setLang('TH')} className={`px-3 py-1 rounded-md text-sm font-bold transition-all ${lang === 'TH' ? 'bg-white shadow text-blue-600' : 'text-gray-500'}`}>🇹🇭 TH</button>
+                            <button onClick={() => setLang('EN')} className={`px-3 py-1 rounded-md text-sm font-bold transition-all ${lang === 'EN' ? 'bg-white shadow text-blue-600' : 'text-gray-500'}`}>🇬🇧 EN</button>
+                        </div>
+                        {onLogout && (
+                            <button 
+                                onClick={handleLogoutClick}
+                                className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-200"
+                                title={t('ออกจากระบบ')}
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                                </svg>
+                            </button>
+                        )}
                     </div>
                 </div>
 
                 <div className="px-4 py-3 flex justify-between items-start">
+                    {/* ... (Keep existing header content) ... */}
                     <div className="flex-1">
                         <div className="flex flex-wrap items-center gap-2 mb-1">
                             <span className="text-sm font-medium text-gray-600 bg-gray-100 px-3 py-1 rounded-full border border-gray-200 whitespace-nowrap">

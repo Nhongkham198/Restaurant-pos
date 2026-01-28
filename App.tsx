@@ -1,3 +1,4 @@
+
 // ... existing imports
 // (Keeping all imports same as before, no changes needed for imports)
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
@@ -100,7 +101,7 @@ declare global {
     }
 }
 
-const App: React.FC = () => {
+export const App: React.FC = () => {
     // 1. STATE INITIALIZATION
     // ... (Keep existing state initialization)
     // --- RESPONSIVE STATE ---
@@ -508,6 +509,7 @@ const App: React.FC = () => {
         });
         return () => { overdueTimersRef.current.forEach(timerId => clearTimeout(timerId)); };
     }, [activeOrders]);
+    
     useEffect(() => {
         if (isCustomerMode) return;
         const lowStockItems = stockItems.filter(item => { const qty = Number(item.quantity) || 0; const reorder = Number(item.reorderPoint) || 0; return qty <= reorder; });
@@ -516,138 +518,8 @@ const App: React.FC = () => {
             newLowStockItems.forEach(item => notifiedLowStockRef.current.add(item.id));
             const currentLowStockIds = new Set(lowStockItems.map(i => i.id));
             notifiedLowStockRef.current.forEach(id => { if (!currentLowStockIds.has(id)) notifiedLowStockRef.current.delete(id); });
-            const itemNames = newLowStockItems.map(i => i.name).join(', ');
-            Swal.fire({ title: 'แจ้งเตือนสินค้าใกล้หมด!', html: `รายการต่อไปนี้มีจำนวนคงเหลือต่ำกว่ากำหนด:<br/><b>${itemNames}</b>`, icon: 'warning', confirmButtonText: 'รับทราบ', timer: 10000, timerProgressBar: true });
         }
-    }, [stockItems, isCustomerMode]);
-    useEffect(() => {
-        const checkDailyAlert = () => {
-            if (isCustomerMode) return;
-            const now = new Date();
-            if (now.getHours() === 16 && now.getMinutes() === 0) {
-                const todayStr = now.toDateString();
-                if (notifiedDailyStockRef.current !== todayStr) {
-                    const lowStockItems = stockItems.filter(item => { const qty = Number(item.quantity) || 0; const reorder = Number(item.reorderPoint) || 0; return qty <= reorder; });
-                    if (lowStockItems.length > 0) {
-                        notifiedDailyStockRef.current = todayStr;
-                        const itemNames = lowStockItems.map(i => i.name).join(', ');
-                        Swal.fire({ title: '🔔 แจ้งเตือนสั่งของประจำวัน (16:00 น.)', html: `ถึงเวลาตรวจสอบสต็อกแล้ว!<br/>รายการที่ต้องสั่งซื้อเพิ่ม:<br/><b style="color:red">${itemNames}</b>`, icon: 'warning', confirmButtonText: 'รับทราบ', timer: 60000, timerProgressBar: true });
-                    }
-                }
-            }
-        };
-        const intervalId = setInterval(checkDailyAlert, 10000);
-        return () => clearInterval(intervalId);
-    }, [stockItems, isCustomerMode]);
-    useEffect(() => {
-        if (isCustomerMode || !currentUser) return;
-        const now = Date.now();
-        const oneDay = 24 * 60 * 60 * 1000;
-        const warningThresholdDays = 3; 
-        const dueItems = maintenanceItems.filter(item => {
-            if (item.status === 'broken' || item.status === 'repairing') return false;
-            if (!item.lastMaintenanceDate) return true; 
-            const last = new Date(item.lastMaintenanceDate);
-            const nextDue = new Date(last);
-            nextDue.setMonth(last.getMonth() + item.cycleMonths);
-            const diffTime = nextDue.getTime() - now;
-            const diffDays = Math.ceil(diffTime / oneDay);
-            return diffDays <= warningThresholdDays;
-        });
-        const newDueItems = dueItems.filter(item => !notifiedMaintenanceRef.current.has(item.id));
-        if (newDueItems.length > 0) {
-            newDueItems.forEach(item => notifiedMaintenanceRef.current.add(item.id));
-            const currentDueIds = new Set(dueItems.map(i => i.id));
-            notifiedMaintenanceRef.current.forEach(id => { if (!currentDueIds.has(id)) notifiedMaintenanceRef.current.delete(id); });
-            const itemNames = newDueItems.map(i => i.name).join(', ');
-            Swal.fire({ title: '🔔 แจ้งเตือนซ่อมบำรุงด่วน!', html: `รายการต่อไปนี้ครบกำหนดบำรุงรักษาแล้ว (หรือภายใน 3 วัน):<br/><b style="color:red">${itemNames}</b><br/><br/>กรุณาตรวจสอบที่เมนู "บำรุงรักษา"`, icon: 'warning', confirmButtonText: 'รับทราบ', timer: 20000, timerProgressBar: true });
-        }
-    }, [maintenanceItems, isCustomerMode, currentUser]);
-    
-    // Auto-select branch effect based on user permission (if single branch allowed)
-    useEffect(() => {
-        if (currentUser && !selectedBranch) {
-             // For table role, auto-select is handled in handleLogin or user load state, but here is a fallback
-             if (currentUser.role === 'table' && currentUser.allowedBranchIds && currentUser.allowedBranchIds.length > 0) {
-                 const branch = branches.find(b => b.id === currentUser.allowedBranchIds![0]);
-                 if (branch) setSelectedBranch(branch);
-             }
-        }
-    }, [currentUser, selectedBranch, branches]);
-
-    useEffect(() => {
-        const params = new URLSearchParams(window.location.search);
-        const mode = params.get('mode');
-        const branchIdParam = params.get('branchId');
-        const tableIdParam = params.get('tableId');
-        if (mode === 'customer' && branchIdParam && tableIdParam) {
-            const branch = branches.find(b => b.id === Number(branchIdParam));
-            if (branch) {
-                setSelectedBranch(branch);
-                localStorage.setItem('customerSelectedBranch', JSON.stringify(branch));
-                setCustomerTableId(Number(tableIdParam));
-                setIsCustomerMode(true);
-            }
-        }
-    }, [branches]);
-    useEffect(() => {
-        if (prevActiveOrdersRef.current === undefined) { prevActiveOrdersRef.current = activeOrders; return; }
-        const shouldNotify = (currentUser?.role === 'kitchen' || isOrderNotificationsEnabled) && notificationSoundUrl && isAudioUnlocked;
-        if (!shouldNotify) { prevActiveOrdersRef.current = activeOrders; return; }
-        const newOrders = activeOrders.filter(order => !prevActiveOrdersRef.current!.some(prevOrder => prevOrder.id === order.id) && order.id > mountTimeRef.current && order.tableName && order.orderNumber );
-        if (newOrders.length > 0) {
-            const audio = new Audio(notificationSoundUrl!);
-            audio.play().catch(() => {});
-            newOrders.forEach(order => {
-                Swal.fire({ toast: true, position: 'top-end', icon: 'info', title: '🔔 มีออเดอร์ใหม่!', html: `<b>โต๊ะ ${order.tableName}</b> (ออเดอร์ #${String(order.orderNumber).padStart(3, '0')})`, showConfirmButton: true, confirmButtonText: 'ไปที่หน้าครัว', timer: 10000, timerProgressBar: true, }).then((result) => { if (result.isConfirmed) setCurrentView('kitchen'); });
-            });
-        }
-        prevActiveOrdersRef.current = activeOrders;
-    }, [activeOrders, currentUser, notificationSoundUrl, isAudioUnlocked, isOrderNotificationsEnabled]);
-    useEffect(() => {
-        const latestCall = staffCalls.length > 0 ? staffCalls[staffCalls.length - 1] : null;
-        if (latestCall && latestCall.tableName && latestCall.id !== activeCallRef.current?.id) {
-            if (staffCallSoundUrl && isAudioUnlocked) {
-                if (staffCallAudioRef.current) staffCallAudioRef.current.src = staffCallSoundUrl;
-                else staffCallAudioRef.current = new Audio(staffCallSoundUrl);
-                staffCallAudioRef.current.play().catch(() => {});
-            }
-            activeCallRef.current = latestCall;
-            Swal.fire({ title: 'ลูกค้าเรียกพนักงาน!', html: `โต๊ะ <b>${latestCall.tableName}</b> (คุณ <b>${latestCall.customerName || 'ลูกค้า'}</b>) ต้องการความช่วยเหลือ`, icon: 'info', confirmButtonText: 'รับทราบ', timer: 30000, timerProgressBar: true, }).then((result) => { setStaffCalls(prevCalls => prevCalls.filter(call => call.id !== latestCall.id)); activeCallRef.current = null; });
-        }
-        const oneMinuteAgo = Date.now() - 60000;
-        const freshAndValidCalls = staffCalls.filter(call => call.timestamp > oneMinuteAgo && call.tableName);
-        if (freshAndValidCalls.length < staffCalls.length) { setStaffCalls(freshAndValidCalls); }
-    }, [staffCalls, setStaffCalls, staffCallSoundUrl, isAudioUnlocked]);
-    const showLeaveNotification = useCallback((req: LeaveRequest) => {
-        if (!currentUser || (req.acknowledgedBy?.includes(currentUser.id)) || shownNotificationsRef.current.has(req.id)) { return; }
-        let shouldNotify = false;
-        if (currentUser.role === 'admin' && req.branchId === 1) shouldNotify = true;
-        else if (['branch-admin', 'auditor'].includes(currentUser.role)) { if (currentUser.allowedBranchIds?.includes(req.branchId)) shouldNotify = true; }
-        if (shouldNotify) {
-            shownNotificationsRef.current.add(req.id);
-            const branchName = branches.find(b => b.id === req.branchId)?.name || `สาขา #${req.branchId}`;
-            const leaveTypeMapping: { [key in LeaveRequest['type']]: string } = { 'sick': 'ลาป่วย', 'personal': 'ลากิจ', 'vacation': 'ลาไม่รับเงินเดือน', 'leave-without-pay': 'ลาไม่รับเงินเดือน', 'other': 'อื่นๆ' };
-            Swal.fire({ title: 'มีคำขอวันลาใหม่', html: `พนักงาน <b>${req.username}</b> (${branchName})<br/>ได้ส่งคำขอ<b>${leaveTypeMapping[req.type] || 'การลา'}</b>`, icon: 'info', confirmButtonText: 'รับทราบ', allowOutsideClick: false, }).then((result) => { shownNotificationsRef.current.delete(req.id); if (result.isConfirmed) { setLeaveRequests(prev => prev.map(r => r.id === req.id ? { ...r, acknowledgedBy: Array.from(new Set([...(r.acknowledgedBy || []), currentUser.id])) } : r)); } });
-        }
-    }, [currentUser, branches, setLeaveRequests]);
-    useEffect(() => { if (leaveRequests && currentUser) { leaveRequests.forEach(req => { if (req.status === 'pending') showLeaveNotification(req); }); } }, [leaveRequests, currentUser, showLeaveNotification]);
-    useEffect(() => {
-        if (currentUser) {
-            localStorage.setItem('currentUser', JSON.stringify(currentUser));
-            if (isFirebaseConfigured && firebase.messaging.isSupported()) {
-                const messaging = firebase.messaging();
-                messaging.getToken({ vapidKey: 'BDBGk_J108hNL-aQh-fFzAIpMwlD8TztXugeAnQj2hcmLAAjY0p8hWlGF3a0cSIwJhY_Jd3Tj3Y-2-fB8dJL_4' }).then((token) => { if (token) { setCurrentFcmToken(token); const userHasToken = prevUserRef.current?.fcmTokens?.includes(token); if (!userHasToken) { const updatedTokens = Array.from(new Set([...(currentUser.fcmTokens || []), token])); setUsers(prevUsers => prevUsers.map(u => u.id === currentUser.id ? { ...u, fcmTokens: updatedTokens } : u)); } } }).catch(() => {});
-            }
-        } else { localStorage.removeItem('currentUser'); localStorage.removeItem('selectedBranch'); localStorage.removeItem('currentView'); }
-        prevUserRef.current = currentUser;
-    }, [currentUser, setUsers]);
-    useEffect(() => { if (selectedBranch) localStorage.setItem('selectedBranch', JSON.stringify(selectedBranch)); else if (!isCustomerMode) localStorage.removeItem('selectedBranch'); }, [selectedBranch, isCustomerMode]);
-    useEffect(() => { localStorage.setItem('currentView', currentView); }, [currentView]);
-    useEffect(() => { if (floors.length > 0 && !selectedSidebarFloor) setSelectedSidebarFloor(floors[0]); }, [floors, selectedSidebarFloor]);
-    useEffect(() => { if (window.AndroidBridge && typeof window.AndroidBridge.setPendingOrderCount === 'function') { window.AndroidBridge.setPendingOrderCount(totalKitchenBadgeCount); } }, [totalKitchenBadgeCount]);
-    useEffect(() => { if (menuItems.length > 0 && !imageCacheTriggeredRef.current) { imageCacheTriggeredRef.current = true; const imageUrls = menuItems.map(item => item.imageUrl).filter(url => url && typeof url === 'string'); if ('serviceWorker' in navigator && navigator.serviceWorker.controller) { navigator.serviceWorker.controller.postMessage({ type: 'CACHE_IMAGES', urls: imageUrls }); } const handleMessage = (event: MessageEvent) => { if (event.data && event.data.type === 'CACHE_IMAGES_COMPLETE') { setIsCachingImages(false); navigator.serviceWorker.removeEventListener('message', handleMessage); } }; if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', handleMessage); } }, [menuItems]);
-
+    }, [isCustomerMode, stockItems]);
 
     // ============================================================================
     // 4. HANDLERS
@@ -706,7 +578,7 @@ const App: React.FC = () => {
         return { success: false, error: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง' };
     };
 
-    const handleLogout = () => { setCurrentUser(null); setSelectedBranch(null); };
+    const handleLogout = () => { setCurrentUser(null); setSelectedBranch(null); localStorage.removeItem('currentUser'); localStorage.removeItem('selectedBranch'); };
     const handleMobileProfileClick = () => {
         Swal.fire({ title: 'ยืนยันการออกจากระบบ', text: "ท่านต้องการออกจากระบบใช่ไหม?", icon: 'question', showCancelButton: true, confirmButtonText: 'ใช่', cancelButtonText: 'ยกเลิก' }).then((result) => { if (result.isConfirmed) handleLogout(); });
     };
@@ -979,12 +851,18 @@ const App: React.FC = () => {
     const handleToggleVisibility = (id: number) => { setMenuItems(prev => prev.map(i => i.id === id ? { ...i, isVisible: i.isVisible === false ? true : false } : i)); };
     const handleUpdateOrderFromModal = async (orderId: number, items: OrderItem[], customerCount: number) => { if (!isOnline) return; if (items.length === 0) { const orderToCancel = activeOrders.find(o => o.id === orderId); if (orderToCancel) { await handleConfirmCancelOrder(orderToCancel, 'อื่นๆ', 'ยกเลิกอัตโนมัติ (รายการอาหารถูกลบหมด)'); Swal.fire({ icon: 'info', title: 'ยกเลิกบิลอัตโนมัติ', text: 'บิลถูกยกเลิกเนื่องจากไม่มีรายการอาหารเหลืออยู่', timer: 2000, showConfirmButton: false }); } else { handleModalClose(); } } else { await activeOrdersActions.update(orderId, { items, customerCount }); handleModalClose(); } };
     
-    // ... (Render Logic) ...
-    // (Keeping them collapsed as they are not changing)
-    // ... [Code omitted for brevity, identical to previous App.tsx] ...
-    if (isCustomerMode) {
-        const customerTable = tables.find(t => t.id === customerTableId);
-        // If customerTableId is set but table not found (maybe deleted), or null, handle gracefully
+    // RENDER LOGIC
+
+    // 1. Force Customer View for Table Role OR explicit Customer Mode
+    if (isCustomerMode || currentUser?.role === 'table') {
+        // Resolve table
+        let targetTableId = customerTableId;
+        if (currentUser?.role === 'table' && currentUser.assignedTableId) {
+            targetTableId = currentUser.assignedTableId;
+        }
+
+        const customerTable = tables.find(t => t.id === targetTableId);
+
         if (customerTable) {
              // Filter menu items for customer view based on isVisible property
              const visibleMenuItems = menuItems.filter(item => item.isVisible !== false);
@@ -994,7 +872,7 @@ const App: React.FC = () => {
                     table={customerTable}
                     menuItems={visibleMenuItems} // Pass filtered items
                     categories={categories}
-                    activeOrders={activeOrders.filter(o => o.tableId === customerTableId)}
+                    activeOrders={activeOrders.filter(o => o.tableId === targetTableId)}
                     allBranchOrders={activeOrders}
                     completedOrders={completedOrders}
                     onPlaceOrder={(items, name) => handlePlaceOrder(items, name, 1, customerTable)}
@@ -1002,14 +880,17 @@ const App: React.FC = () => {
                     recommendedMenuItemIds={recommendedMenuItemIds}
                     logoUrl={appLogoUrl || logoUrl} // Use App Logo for Customer View if available, else Receipt Logo
                     restaurantName={restaurantName}
+                    onLogout={handleLogout} // Passed prop
                 />
              );
         }
+        
+        // Fallback if table not found
         return (
             <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4 text-center">
                 <div>
                     <h2 className="text-xl font-bold text-gray-800 mb-2">ไม่พบข้อมูลโต๊ะ</h2>
-                    <p className="text-gray-600">กรุณาติดต่อพนักงานเพื่อตรวจสอบการตั้งค่า (Table ID: {customerTableId || 'Not Set'})</p>
+                    <p className="text-gray-600">กรุณาติดต่อพนักงานเพื่อตรวจสอบการตั้งค่า (Table ID: {targetTableId || 'Not Set'})</p>
                     <button onClick={handleLogout} className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg">กลับหน้า Login</button>
                 </div>
             </div>
