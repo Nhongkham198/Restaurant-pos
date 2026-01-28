@@ -629,6 +629,14 @@ const App: React.FC = () => {
                     // For now, we assume user is correctly configured.
                     setCustomerTableId(null); 
                 }
+
+                // AUTO-SELECT BRANCH for 'table' user based on their allowedBranchIds
+                if (user.allowedBranchIds && user.allowedBranchIds.length > 0) {
+                    const branch = branches.find(b => b.id === user.allowedBranchIds![0]);
+                    if (branch) {
+                        setSelectedBranch(branch);
+                    }
+                }
             } else if (user.role === 'kitchen') {
                 setCurrentView('kitchen');
             } else if (user.role === 'pos') {

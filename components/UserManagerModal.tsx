@@ -149,8 +149,8 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
             return;
         }
     
-        if (formData.role !== 'admin' && formData.role !== 'table' && (!formData.allowedBranchIds || formData.allowedBranchIds.length === 0)) {
-            Swal.fire('ข้อมูลไม่ครบถ้วน', 'สำหรับพนักงาน POS, ผู้ดูแลสาขา, และพนักงานครัว กรุณากำหนดสิทธิ์สาขาอย่างน้อย 1 สาขา', 'warning');
+        if (formData.role !== 'admin' && (!formData.allowedBranchIds || formData.allowedBranchIds.length === 0)) {
+            Swal.fire('ข้อมูลไม่ครบถ้วน', 'กรุณากำหนดสิทธิ์สาขาอย่างน้อย 1 สาขา ให้กับผู้ใช้งานนี้', 'warning');
             return;
         }
 
@@ -190,11 +190,8 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
                 // Handle branch ID logic based on role
                 if (updatedUser.role === 'admin') {
                     delete updatedUser.allowedBranchIds;
-                } else if (updatedUser.role === 'table') {
-                    // Tablets implicitly belong to current context, or can be assigned. 
-                    // For now, let's allow them to have branch IDs if needed, but primarily rely on Table ID.
-                    updatedUser.allowedBranchIds = formData.allowedBranchIds || [];
                 } else {
+                    // For table and other roles, update allowed branches
                     updatedUser.allowedBranchIds = formData.allowedBranchIds || [];
                 }
     
@@ -281,7 +278,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
             case 'pos': return 'พนักงาน POS';
             case 'kitchen': return 'พนักงานครัว';
             case 'auditor': return 'Auditor';
-            case 'table': return 'Tablet / โต๊ะ';
+            case 'table': return 'Tablet / โต๊ะลูกค้า';
         }
     };
 
@@ -352,7 +349,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
                                                             user.role === 'auditor' ? 'text-gray-600' :
                                                             'text-blue-600'
                                                         }`}>{roleText(user.role)}</span>
-                                                        {user.role !== 'admin' && user.role !== 'table' && (
+                                                        {user.role !== 'admin' && (
                                                             <>
                                                                 <span className="mx-1.5 text-gray-300">&bull;</span>
                                                                 <span>สาขา: {getBranchNames(user.allowedBranchIds)}</span>
@@ -436,10 +433,10 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
                                     </select>
                                 </div>
                                 
-                                {/* Branch Selection (For standard roles) */}
-                                {formData.role !== 'admin' && formData.role !== 'table' && (
+                                {/* Branch Selection - Updated to include 'table' role */}
+                                {formData.role !== 'admin' && (
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">กำหนดสิทธิ์สาขา:</label>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">กำหนดสิทธิ์สาขา {formData.role === 'table' && '(สาขาที่ Tablet ประจำอยู่)'}:</label>
                                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 p-2 border rounded-md bg-white max-h-32 overflow-y-auto">
                                             {branches.map(branch => (
                                                 <label key={branch.id} className="flex items-center gap-2 p-1.5 rounded hover:bg-gray-100">
@@ -472,12 +469,12 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
                                             ))}
                                         </select>
                                         <p className="text-xs text-gray-500 mt-1">
-                                            * เลือกโต๊ะที่ต้องการให้ Tablet นี้ผูกค่าไว้ (หากต้องการเป็น Guest สามารถสร้างโต๊ะชื่อ "Guest" ได้)
+                                            * เลือกโต๊ะที่ต้องการให้ Tablet นี้ผูกค่าไว้
                                         </p>
                                     </div>
                                 )}
                                 
-                                {/* Leave Quotas Section - Admin Only Configuration, but NOT for Admin/Branch Admin roles */}
+                                {/* Leave Quotas Section */}
                                 {currentUser.role === 'admin' && formData.role !== 'admin' && formData.role !== 'branch-admin' && formData.role !== 'table' && (
                                     <div className="pt-2 border-t mt-2">
                                         <label className="block text-sm font-bold text-gray-700 mb-2">โควตาวันลา (ต่อปี):</label>
