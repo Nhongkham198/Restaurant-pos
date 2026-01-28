@@ -181,8 +181,40 @@ const App: React.FC = () => {
     };
 
     // --- CUSTOMER MODE STATE ---
-    const [isCustomerMode, setIsCustomerMode] = useState(false);
-    const [customerTableId, setCustomerTableId] = useState<number | null>(null);
+    const [isCustomerMode, setIsCustomerMode] = useState(() => {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('mode') === 'customer') return true;
+        
+        // Check persisted user role
+        const storedUser = localStorage.getItem('currentUser');
+        if (storedUser) {
+            try {
+                const u = JSON.parse(storedUser);
+                return u.role === 'table';
+            } catch (e) {
+                return false;
+            }
+        }
+        return false;
+    });
+
+    const [customerTableId, setCustomerTableId] = useState<number | null>(() => {
+        const params = new URLSearchParams(window.location.search);
+        const tableIdParam = params.get('tableId');
+        if (tableIdParam) return Number(tableIdParam);
+        
+        // Check persisted user assignment
+        const storedUser = localStorage.getItem('currentUser');
+        if (storedUser) {
+            try {
+                const u = JSON.parse(storedUser);
+                if (u.role === 'table' && u.assignedTableId) return Number(u.assignedTableId);
+            } catch (e) {
+                return null;
+            }
+        }
+        return null;
+    });
     
     // --- BRANCH-SPECIFIC STATE (SYNCED WITH FIRESTORE) ---
     const branchId = selectedBranch ? selectedBranch.id.toString() : null;
@@ -304,6 +336,7 @@ const App: React.FC = () => {
     const notifiedMaintenanceRef = useRef<Set<number>>(new Set()); // For maintenance alert
 
     // ... (Computed Values) ...
+    // ... [Code omitted for brevity] ...
     const waitingBadgeCount = useMemo(() => activeOrders.filter(o => o.status === 'waiting').length, [activeOrders]);
     const cookingBadgeCount = useMemo(() => activeOrders.filter(o => o.status === 'cooking').length, [activeOrders]);
     const totalKitchenBadgeCount = waitingBadgeCount + cookingBadgeCount;
@@ -355,6 +388,7 @@ const App: React.FC = () => {
     }, [maintenanceItems]);
 
     const mobileNavItems = useMemo(() => {
+        // ... (Memoized items)
         const items: NavItem[] = [
             {id: 'pos', label: 'POS', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4z" /><path fillRule="evenodd" d="M18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h2a1 1 0 100-2H9z" clipRule="evenodd" /></svg>, view: 'pos'},
             {id: 'tables', label: 'ผังโต๊ะ', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M2 5a2 2 0 012-2h12a2 2 0 012 2v10a2 2 0 01-2-2H4a2 2 0 01-2-2V5zm2 1v8h8V6H4z" /></svg>, view: 'tables', badge: tablesBadgeCount},
@@ -419,6 +453,17 @@ const App: React.FC = () => {
         window.addEventListener('offline', handleOffline);
         return () => { window.removeEventListener('online', handleOnline); window.removeEventListener('offline', handleOffline); };
     }, []);
+    
+    // Ensure table users always stay in customer mode
+    useEffect(() => {
+        if (currentUser?.role === 'table') {
+            setIsCustomerMode(true);
+            if (currentUser.assignedTableId) {
+                setCustomerTableId(currentUser.assignedTableId);
+            }
+        }
+    }, [currentUser]);
+
     useEffect(() => {
         if (!isOnline) return;
         activeOrders.forEach(order => {
@@ -518,6 +563,18 @@ const App: React.FC = () => {
             Swal.fire({ title: '🔔 แจ้งเตือนซ่อมบำรุงด่วน!', html: `รายการต่อไปนี้ครบกำหนดบำรุงรักษาแล้ว (หรือภายใน 3 วัน):<br/><b style="color:red">${itemNames}</b><br/><br/>กรุณาตรวจสอบที่เมนู "บำรุงรักษา"`, icon: 'warning', confirmButtonText: 'รับทราบ', timer: 20000, timerProgressBar: true });
         }
     }, [maintenanceItems, isCustomerMode, currentUser]);
+    
+    // Auto-select branch effect based on user permission (if single branch allowed)
+    useEffect(() => {
+        if (currentUser && !selectedBranch) {
+             // For table role, auto-select is handled in handleLogin or user load state, but here is a fallback
+             if (currentUser.role === 'table' && currentUser.allowedBranchIds && currentUser.allowedBranchIds.length > 0) {
+                 const branch = branches.find(b => b.id === currentUser.allowedBranchIds![0]);
+                 if (branch) setSelectedBranch(branch);
+             }
+        }
+    }, [currentUser, selectedBranch, branches]);
+
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
         const mode = params.get('mode');
