@@ -92,7 +92,7 @@ export const printerService = {
         
         // Conditional Table Label: Remove "โต๊ะ:" if LineMan
         if (order.orderType === 'lineman') {
-            lines.push(`${order.tableName}`); 
+            lines.push(`Delivery ${order.tableName}`); 
         } else {
             lines.push(`โต๊ะ: ${order.tableName} (${order.floor})`);
         }

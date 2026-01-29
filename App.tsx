@@ -486,8 +486,6 @@ export const App: React.FC = () => {
                 messaging.getToken({ vapidKey: 'BDBGk_J108hNL-aQh-fFzAIpMwlD8TztXugeAnQj2hcmLAAjY0p8hWlGF3a0cSIwJhY_Jd3Tj3Y-2-fB8dJL_4' }).then((token) => { if (token) { setCurrentFcmToken(token); const userHasToken = prevUserRef.current?.fcmTokens?.includes(token); if (!userHasToken) { const updatedTokens = Array.from(new Set([...(currentUser.fcmTokens || []), token])); setUsers(prevUsers => prevUsers.map(u => u.id === currentUser.id ? { ...u, fcmTokens: updatedTokens } : u)); } } }).catch(() => {});
             }
         } 
-        // FIX: Removed the 'else' block that clears localStorage. This prevents accidental clearing during init or refresh.
-        // Clearing is now handled exclusively by handleLogout.
         
         prevUserRef.current = currentUser;
     }, [currentUser, setUsers]);
@@ -589,8 +587,6 @@ export const App: React.FC = () => {
         setItemToEdit(null); setOrderForModal(null); setItemToCustomize(null); setOrderItemToEdit(null);
     };
     
-    // ... (rest of the handlers: PlaceOrder, etc. - kept identical)
-    // [Code omitted for brevity as it is unchanged]
     const handleClearOrder = () => { setCurrentOrderItems([]); setCustomerName(''); setCustomerCount(1); setSelectedTableId(null); };
     const handleAddItemToOrder = (item: MenuItem) => { setItemToCustomize(item); setModalState(prev => ({ ...prev, isCustomization: true, isMenuSearch: false })); };
     const handleConfirmCustomization = (itemToAdd: OrderItem) => { setCurrentOrderItems(prevItems => { const existingItemIndex = prevItems.findIndex(i => i.cartItemId === (orderItemToEdit?.cartItemId || itemToAdd.cartItemId)); if (orderItemToEdit) { const newItems = [...prevItems]; newItems[existingItemIndex] = { ...itemToAdd, quantity: orderItemToEdit.quantity }; return newItems; } else { if (existingItemIndex !== -1) { const newItems = [...prevItems]; newItems[existingItemIndex].quantity += itemToAdd.quantity; return newItems; } else { return [...prevItems, itemToAdd]; } } }); handleModalClose(); };
@@ -599,7 +595,37 @@ export const App: React.FC = () => {
     const handleRemoveItem = (cartItemId: string) => { setCurrentOrderItems(prevItems => prevItems.filter(i => i.cartItemId !== cartItemId)); };
     const handlePlaceOrder = async (orderItems: OrderItem[] = currentOrderItems, custName: string = customerName, custCount: number = customerCount, tableOverride: Table | null = selectedTable, isLineMan: boolean = false, lineManNumber?: string, deliveryProviderName?: string) => { if (!isLineMan && !tableOverride) { Swal.fire('กรุณาเลือกโต๊ะ', 'ต้องเลือกโต๊ะสำหรับออเดอร์ หรือเลือก LineMan', 'warning'); return; } if (orderItems.length === 0) return; if (!isOnline) { Swal.fire('เชื่อมต่ออินเทอร์เน็ตไม่ได้', 'ไม่สามารถสั่งอาหารได้ในขณะนี้', 'error'); return; } setIsPlacingOrder(true); try { const branchIdStr = selectedBranch!.id.toString(); const counterRef = db.doc(`branches/${branchIdStr}/orderCounter/data`); await db.runTransaction(async (transaction: firebase.firestore.Transaction) => { const counterDoc = await transaction.get(counterRef); const counterData = (counterDoc.data() as { value: OrderCounter | undefined })?.value; const today = new Date(); const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`; let nextOrderId = 1; if (counterData && typeof counterData.count === 'number' && typeof counterData.lastResetDate === 'string' && counterData.lastResetDate === todayStr) { nextOrderId = counterData.count + 1; } const itemsWithOrigin = orderItems.map(item => ({ ...item, originalOrderNumber: nextOrderId, })); const orderTableName = isLineMan ? (deliveryProviderName || 'Delivery') : (tableOverride ? tableOverride.name : 'Unknown'); const orderFloor = isLineMan ? 'Delivery' : (tableOverride ? tableOverride.floor : 'Unknown'); const orderTableId = isLineMan ? -99 : (tableOverride ? tableOverride.id : 0); const shouldSendToKitchen = isCustomerMode || sendToKitchen || isLineMan; const newOrder: ActiveOrder = { id: Date.now(), orderNumber: nextOrderId, manualOrderNumber: lineManNumber || null, tableId: orderTableId, tableName: orderTableName, customerName: custName, floor: orderFloor, customerCount: custCount, items: itemsWithOrigin, status: shouldSendToKitchen ? 'waiting' : 'served', orderTime: Date.now(), orderType: isLineMan ? 'lineman' : 'dine-in', taxRate: isTaxEnabled ? taxRate : 0, taxAmount: 0, placedBy: currentUser ? currentUser.username : (custName || `โต๊ะ ${orderTableName}`), }; const subtotal = newOrder.items.reduce((sum, item) => sum + item.finalPrice * item.quantity, 0); newOrder.taxAmount = newOrder.taxRate > 0 ? subtotal * (newOrder.taxRate / 100) : 0; transaction.set(counterRef, { value: { count: nextOrderId, lastResetDate: todayStr } }); const newOrderDocRef = db.collection(`branches/${branchIdStr}/activeOrders`).doc(newOrder.id.toString()); transaction.set(newOrderDocRef, { ...newOrder, lastUpdated: firebase.firestore.FieldValue.serverTimestamp() }); return { newOrder, shouldSendToKitchen }; }).then(async (result) => { const { newOrder, shouldSendToKitchen } = result; setLastPlacedOrderId(newOrder.orderNumber); setModalState(prev => ({ ...prev, isOrderSuccess: true })); if (shouldSendToKitchen && printerConfig?.kitchen?.ipAddress) { try { await printerService.printKitchenOrder(newOrder, printerConfig.kitchen); } catch (printError: any) { console.error("Kitchen print failed:", printError); if (!isCustomerMode) Swal.fire('พิมพ์ไม่สำเร็จ', 'ไม่สามารถเชื่อมต่อเครื่องพิมพ์ครัวได้', 'error'); } } }); } catch (error: any) { console.error("Failed to place order:", error); Swal.fire('เกิดข้อผิดพลาด', error.message || 'ไม่สามารถสร้างออเดอร์ได้', 'error'); } finally { setIsPlacingOrder(false); if (!isCustomerMode) { setCurrentOrderItems([]); setCustomerName(''); setCustomerCount(1); setSelectedTableId(null); } } };
     const handleStartCooking = (orderId: number) => { if (!isOnline) return; activeOrdersActions.update(orderId, { status: 'cooking', cookingStartTime: Date.now() }); };
-    const handleCompleteOrder = async (orderId: number) => { if (!isOnline) return; const order = activeOrders.find(o => o.id === orderId); if (!order) return; if (order.orderType === 'lineman') { try { const paymentDetails: PaymentDetails = { method: 'transfer' }; const completed: CompletedOrder = { ...order, status: 'completed', completionTime: Date.now(), paymentDetails: paymentDetails, completedBy: currentUser?.username || 'Auto-Kitchen' }; await activeOrdersActions.update(orderId, { status: 'completed', completionTime: completed.completionTime, paymentDetails: paymentDetails }); await db.collection(`branches/${branchId}/completedOrders_v2`).doc(orderId.toString()).set(completed); Swal.fire({ icon: 'success', title: 'LineMan Completed', text: `ออเดอร์ #${order.orderNumber} จบงานและบันทึกยอดขายแล้ว`, timer: 1500, showConfirmButton: false }); } catch (error) { console.error("Auto-complete failed", error); Swal.fire('Error', 'Failed to auto-complete LineMan order', 'error'); } } else { activeOrdersActions.update(orderId, { status: 'served' }); } };
+    
+    // UPDATED: handleCompleteOrder to show provider name for delivery orders
+    const handleCompleteOrder = async (orderId: number) => { 
+        if (!isOnline) return; 
+        const order = activeOrders.find(o => o.id === orderId); 
+        if (!order) return; 
+        
+        if (order.orderType === 'lineman') { 
+            try { 
+                const paymentDetails: PaymentDetails = { method: 'transfer' }; 
+                const completed: CompletedOrder = { ...order, status: 'completed', completionTime: Date.now(), paymentDetails: paymentDetails, completedBy: currentUser?.username || 'Auto-Kitchen' }; 
+                await activeOrdersActions.update(orderId, { status: 'completed', completionTime: completed.completionTime, paymentDetails: paymentDetails }); 
+                await db.collection(`branches/${branchId}/completedOrders_v2`).doc(orderId.toString()).set(completed); 
+                
+                // Show provider name from tableName
+                Swal.fire({ 
+                    icon: 'success', 
+                    title: `${order.tableName} Completed`, 
+                    text: `ออเดอร์ #${order.orderNumber} จบงานและบันทึกยอดขายแล้ว`, 
+                    timer: 1500, 
+                    showConfirmButton: false 
+                }); 
+            } catch (error) { 
+                console.error("Auto-complete failed", error); 
+                Swal.fire('Error', 'Failed to auto-complete LineMan order', 'error'); 
+            } 
+        } else { 
+            activeOrdersActions.update(orderId, { status: 'served' }); 
+        } 
+    };
+
     const handlePrintKitchenOrder = async (orderId: number) => { const order = activeOrders.find(o => o.id === orderId); if (!order) return; if (!printerConfig?.kitchen) { Swal.fire('ไม่พบเครื่องพิมพ์', 'กรุณาตั้งค่าเครื่องพิมพ์ครัวก่อน', 'warning'); return; } try { Swal.fire({ title: 'กำลังส่งพิมพ์...', text: 'กรุณารอสักครู่', timer: 1000, showConfirmButton: false, didOpen: () => { Swal.showLoading(); } }); await printerService.printKitchenOrder(order, printerConfig.kitchen); } catch (error: any) { console.error("Reprint failed:", error); Swal.fire('พิมพ์ไม่สำเร็จ', error.message || 'ไม่สามารถเชื่อมต่อเครื่องพิมพ์ได้', 'error'); } };
     const handleShowBill = (orderId: number) => { const order = activeOrders.find(o => o.id === orderId); if (order) { setOrderForModal(order); setModalState(prev => ({ ...prev, isTableBill: true })); } };
     const handleConfirmPayment = async (orderId: number, paymentDetails: PaymentDetails) => { if (!isOnline) { Swal.fire('Offline', 'ไม่สามารถชำระเงินได้ขณะ Offline', 'warning'); return; } setIsConfirmingPayment(true); const orderToComplete = activeOrders.find(o => o.id === orderId); if (!orderToComplete) { setIsConfirmingPayment(false); return; } try { const completed: CompletedOrder = { ...orderToComplete, status: 'completed', completionTime: Date.now(), paymentDetails: paymentDetails, completedBy: currentUser?.username || 'Unknown' }; await activeOrdersActions.update(orderId, { status: 'completed', completionTime: completed.completionTime, paymentDetails: paymentDetails }); await db.collection(`branches/${branchId}/completedOrders_v2`).doc(orderId.toString()).set(completed); } catch (error) { console.error("Payment failed", error); Swal.fire('Error', 'Payment processing failed', 'error'); } finally { setIsConfirmingPayment(false); setModalState(prev => ({ ...prev, isPayment: false, isPaymentSuccess: true })); setOrderForModal(orderToComplete); } };

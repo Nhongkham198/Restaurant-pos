@@ -71,13 +71,21 @@ export const KitchenOrderCard: React.FC<KitchenOrderCardProps> = ({ order, onCom
 
     // KDS Style Colors
     const headerColor = useMemo(() => {
-        if (isLineMan) return 'bg-green-600'; // Specific green for LineMan
+        if (isLineMan) {
+            const providerName = (order.tableName || '').toLowerCase();
+            if (providerName.includes('shopee')) return 'bg-orange-500'; // ShopeeFood
+            if (providerName.includes('robin')) return 'bg-purple-600'; // Robinhood
+            if (providerName.includes('panda')) return 'bg-pink-500'; // FoodPanda
+            return 'bg-green-600'; // LineMan, Grab, others (Default Green)
+        }
         if (isOverdue) return 'bg-red-600';
-        if (isCooking) return 'bg-green-600'; // Same green for cooking, but LineMan takes precedent visually in label
+        if (isCooking) return 'bg-green-600'; 
         return 'bg-blue-600'; // Waiting
-    }, [isCooking, isOverdue, isLineMan]);
+    }, [isCooking, isOverdue, isLineMan, order.tableName]);
 
-    const typeLabel = isLineMan ? 'LINEMAN' : (isTakeaway ? 'TAKE AWAY' : 'EAT IN');
+    const typeLabel = isLineMan 
+        ? (order.tableName || 'DELIVERY').toUpperCase() 
+        : (isTakeaway ? 'TAKE AWAY' : 'EAT IN');
     
     // Display Logic: Use manual number if available (for LineMan), otherwise system order number
     const displayOrderNumber = order.manualOrderNumber ? `#${order.manualOrderNumber}` : `#${String(order.orderNumber).padStart(3, '0')}`;
