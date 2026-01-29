@@ -169,8 +169,10 @@ export const Menu: React.FC<MenuProps> = ({
         // If categories are hidden, force "All" behavior (show everything) unless searching
         if (hideCategories) {
              if (searchTerm.trim()) {
+                // Improved Search: Split terms by whitespace and check if all terms exist in name
+                const searchParts = searchTerm.toLowerCase().trim().split(/\s+/);
                 return menuItems.filter(item => 
-                    item.name.toLowerCase().includes(searchTerm.toLowerCase())
+                    searchParts.every(part => item.name.toLowerCase().includes(part))
                 );
             }
             return menuItems;
@@ -194,8 +196,10 @@ export const Menu: React.FC<MenuProps> = ({
 
         // If there's a search term, filter all items regardless of category.
         if (searchTerm.trim()) {
+            // Improved Search: Split terms by whitespace and check if all terms exist in name
+            const searchParts = searchTerm.toLowerCase().trim().split(/\s+/);
             return menuItems.filter(item => 
-                item.name.toLowerCase().includes(searchTerm.toLowerCase())
+                searchParts.every(part => item.name.toLowerCase().includes(part))
             );
         }
 

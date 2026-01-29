@@ -21,8 +21,10 @@ export const MenuSearchModal: React.FC<MenuSearchModalProps> = ({ isOpen, onClos
         if (!searchTerm.trim()) {
             return menuItems;
         }
+        // Improved Search: Split terms by whitespace and check if all terms exist in name
+        const searchParts = searchTerm.toLowerCase().trim().split(/\s+/);
         return menuItems.filter(item =>
-            item.name.toLowerCase().includes(searchTerm.toLowerCase())
+            searchParts.every(part => item.name.toLowerCase().includes(part))
         );
     }, [searchTerm, menuItems]);
 
