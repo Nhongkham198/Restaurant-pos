@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 
 interface ThaiVirtualKeyboardProps {
@@ -14,9 +15,9 @@ export const ThaiVirtualKeyboard: React.FC<ThaiVirtualKeyboardProps> = ({ onKeyP
     const rows = [
         // Row 1
         [
-            { normal: '1', shift: '+' }, { normal: '2', shift: '๑' }, { normal: '3', shift: '๒' }, { normal: '4', shift: '๓' },
-            { normal: '5', shift: '๔' }, { normal: '6', shift: 'ู' }, { normal: '7', shift: '฿' }, { normal: '8', shift: '๕' },
-            { normal: '9', shift: '๖' }, { normal: '0', shift: '๗' }, { normal: '-', shift: '๘' }, { normal: '=', shift: '๙' }
+            { normal: 'ๅ', shift: '+' }, { normal: '/', shift: '๑' }, { normal: '-', shift: '๒' }, { normal: 'ภ', shift: '๓' },
+            { normal: 'ถ', shift: '๔' }, { normal: 'ุ', shift: 'ู' }, { normal: 'ึ', shift: '฿' }, { normal: 'ค', shift: '๕' },
+            { normal: 'ต', shift: '๖' }, { normal: 'จ', shift: '๗' }, { normal: 'ข', shift: '๘' }, { normal: 'ช', shift: '๙' }
         ],
         // Row 2
         [
