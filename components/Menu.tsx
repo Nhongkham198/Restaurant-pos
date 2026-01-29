@@ -510,9 +510,9 @@ export const Menu: React.FC<MenuProps> = ({
                             onChange={(e) => setSearchTerm(e.target.value)}
                             className={`w-full ${hideCategories ? '' : 'md:w-64'} pl-10 pr-12 py-2 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50 text-gray-900`}
                         />
-                        {/* Keyboard Toggle Button (Desktop only via parent hidden prop logic, but here we just render it, hiding it on mobile via CSS is cleaner or checking screen width) */}
+                        {/* Keyboard Toggle Button (Modified: Visible on all screens) */}
                         <button 
-                            className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-blue-600 transition-colors hidden md:flex"
+                            className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-blue-600 transition-colors"
                             onClick={() => setIsKeyboardOpen(!isKeyboardOpen)}
                             title={isKeyboardOpen ? "ปิดแป้นพิมพ์" : "เปิดแป้นพิมพ์ไทย"}
                         >
