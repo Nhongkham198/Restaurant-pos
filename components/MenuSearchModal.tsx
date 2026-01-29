@@ -2,6 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import type { MenuItem } from '../types';
 import { MenuItemImage } from './MenuItemImage';
+import { ThaiVirtualKeyboard } from './ThaiVirtualKeyboard';
 
 interface MenuSearchModalProps {
     isOpen: boolean;
@@ -14,6 +15,7 @@ interface MenuSearchModalProps {
 export const MenuSearchModal: React.FC<MenuSearchModalProps> = ({ isOpen, onClose, menuItems, onSelectItem, onToggleAvailability }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [isStockMode, setIsStockMode] = useState(false);
+    const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
 
     const filteredItems = useMemo(() => {
         if (!searchTerm.trim()) {
@@ -35,11 +37,24 @@ export const MenuSearchModal: React.FC<MenuSearchModalProps> = ({ isOpen, onClos
         }
     };
 
+    // --- Virtual Keyboard Handlers ---
+    const handleVirtualKeyPress = (key: string) => {
+        setSearchTerm(prev => prev + key);
+    };
+
+    const handleVirtualBackspace = () => {
+        setSearchTerm(prev => prev.slice(0, -1));
+    };
+
+    const handleVirtualClear = () => {
+        setSearchTerm('');
+    };
+
     if (!isOpen) return null;
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4" onClick={onClose}>
-            <div className="bg-white rounded-lg shadow-xl w-full max-w-lg transform transition-all flex flex-col" style={{maxHeight: '90vh'}} onClick={e => e.stopPropagation()}>
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-lg transform transition-all flex flex-col relative" style={{maxHeight: '90vh'}} onClick={e => e.stopPropagation()}>
                 <div className="p-6 border-b">
                     <div className="flex justify-between items-center mb-4">
                         <h3 className="text-2xl font-bold text-gray-900">ค้นหาเมนูอาหาร</h3>
@@ -47,7 +62,7 @@ export const MenuSearchModal: React.FC<MenuSearchModalProps> = ({ isOpen, onClos
                             onClick={() => setIsStockMode(!isStockMode)}
                             className={`px-3 py-1.5 rounded-lg text-sm font-bold border transition-colors ${
                                 isStockMode 
-                                    ? 'bg-red-500 text-white border-red-600 shadow-inner' 
+                                    ? 'bg-red-50 text-white border-red-600 shadow-inner' 
                                     : 'bg-gray-100 text-gray-600 border-gray-300 hover:bg-gray-200'
                             }`}
                         >
@@ -65,9 +80,18 @@ export const MenuSearchModal: React.FC<MenuSearchModalProps> = ({ isOpen, onClos
                             placeholder="พิมพ์ชื่อเมนู..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-900"
+                            className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-900"
                             autoFocus
                         />
+                        <button 
+                            className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-blue-600 transition-colors"
+                            onClick={() => setIsKeyboardOpen(!isKeyboardOpen)}
+                            title={isKeyboardOpen ? "ปิดแป้นพิมพ์" : "เปิดแป้นพิมพ์ไทย"}
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                            </svg>
+                        </button>
                     </div>
                 </div>
 
@@ -120,6 +144,16 @@ export const MenuSearchModal: React.FC<MenuSearchModalProps> = ({ isOpen, onClos
                         ปิด
                     </button>
                 </div>
+
+                {/* Virtual Keyboard Overlay */}
+                {isKeyboardOpen && (
+                    <ThaiVirtualKeyboard 
+                        onKeyPress={handleVirtualKeyPress}
+                        onBackspace={handleVirtualBackspace}
+                        onClear={handleVirtualClear}
+                        onClose={() => setIsKeyboardOpen(false)}
+                    />
+                )}
             </div>
         </div>
     );
