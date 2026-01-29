@@ -1,6 +1,4 @@
 
-// ... existing imports
-// (Keep imports exactly as they are in the provided file content)
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 
 import { 
@@ -564,6 +562,8 @@ export const App: React.FC = () => {
     const handleLogout = () => { 
         setCurrentUser(null); 
         setSelectedBranch(null); 
+        setIsCustomerMode(false); // Fix: Reset customer mode
+        setCustomerTableId(null); // Fix: Clear assigned table
         localStorage.removeItem('currentUser'); 
         localStorage.removeItem('selectedBranch'); 
     };
