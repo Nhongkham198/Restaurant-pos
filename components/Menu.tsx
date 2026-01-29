@@ -23,6 +23,8 @@ interface MenuProps {
     recommendedMenuItemIds: number[];
     onToggleVisibility?: (id: number) => void;
     hideCategories?: boolean; // New prop to hide category tabs
+    title?: string; // NEW: Allow custom title
+    searchPlaceholder?: string; // NEW: Allow custom search placeholder
 }
 
 export const Menu: React.FC<MenuProps> = ({ 
@@ -40,7 +42,9 @@ export const Menu: React.FC<MenuProps> = ({
     onImportMenu,
     recommendedMenuItemIds,
     onToggleVisibility,
-    hideCategories = false // Default to false
+    hideCategories = false, // Default to false
+    title = 'เมนูอาหาร', // Default title
+    searchPlaceholder = 'ค้นหาเมนู...' // Default placeholder
 }) => {
     const [selectedCategory, setSelectedCategory] = useState('ทั้งหมด');
     const [searchTerm, setSearchTerm] = useState('');
@@ -489,7 +493,7 @@ export const Menu: React.FC<MenuProps> = ({
             />
             {/* Header and Search */}
             <div className="mb-4 flex-shrink-0">
-                <h2 className="text-2xl font-bold text-gray-800">เมนูอาหาร</h2>
+                <h2 className="text-2xl font-bold text-gray-800">{title}</h2>
                 {/* MODIFIED: Changed layout to flex-col on mobile, flex-row on desktop */}
                 <div className="mt-2 flex flex-col md:flex-row items-stretch md:items-center gap-4">
                     <div className={`relative ${hideCategories ? 'w-full' : 'w-full md:w-auto'}`}>
@@ -501,7 +505,7 @@ export const Menu: React.FC<MenuProps> = ({
                         {/* Search input with padding right for keyboard button */}
                         <input
                             type="text"
-                            placeholder="ค้นหาเมนู..."
+                            placeholder={searchPlaceholder}
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                             className={`w-full ${hideCategories ? '' : 'md:w-64'} pl-10 pr-12 py-2 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50 text-gray-900`}

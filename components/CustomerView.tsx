@@ -13,9 +13,10 @@ declare var html2canvas: any;
 const RAW_DICTIONARY: Record<string, string> = {
     // UI Elements
     'เมนูอาหาร 🍽️': 'Menu 🍽️',
+    'เมนูอาหาร': 'Menu', 
+    'ค้นหาเมนู...': 'Search menu...', // Added for search placeholder
     'โต๊ะ': 'Table',
     'คุณ': 'Guest: ',
-    'เมนูอาหาร': 'Menu: ',
     'เรียกพนักงาน': 'Call Staff',
     'เรียก': 'Call',
     'ยอดของฉัน': 'My Total',
@@ -690,6 +691,8 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                     onImportMenu={() => {}}
                     recommendedMenuItemIds={recommendedMenuItemIds}
                     hideCategories={true}
+                    title={t('เมนูอาหาร')} // NEW: Pass localized title
+                    searchPlaceholder={t('ค้นหาเมนู...')} // NEW: Pass localized placeholder
                 />
             </div>
 
