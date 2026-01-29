@@ -1,5 +1,5 @@
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useRef } from 'react';
 import type { OrderItem, Table, TakeawayCutleryOption, Reservation, User, View, DeliveryProvider } from '../types';
 import { OrderListItem } from './OrderListItem';
 import { NumpadModal } from './NumpadModal'; // Import NumpadModal
@@ -91,6 +91,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
     const [isNumpadOpen, setIsNumpadOpen] = useState(false);
     const [isDeliverySelectionOpen, setIsDeliverySelectionOpen] = useState(false);
     const [deliveryOrderNumber, setDeliveryOrderNumber] = useState('');
+
+    // Ref to track if Numpad was submitted successfully
+    // This prevents onClose from clearing the provider when we actually wanted to confirm it
+    const isNumpadSubmittedRef = useRef(false);
 
     const activeProviders = useMemo(() => {
         return deliveryProviders.filter(p => p.isEnabled);
@@ -289,6 +293,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             // Select and Open Numpad
             setSelectedProvider(provider);
             setIsNumpadOpen(true);
+            isNumpadSubmittedRef.current = false; // Reset submission flag when opening
         }
     };
 
@@ -507,6 +512,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                                     } else if (activeProviders.length === 1) {
                                         setSelectedProvider(activeProviders[0]);
                                         setIsNumpadOpen(true);
+                                        isNumpadSubmittedRef.current = false; // Reset ref
                                     } else {
                                         Swal.fire({
                                             title: 'ไม่พบผู้ให้บริการ',
@@ -581,8 +587,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 isOpen={isNumpadOpen}
                 onClose={() => {
                     setIsNumpadOpen(false);
-                    // If closed without submitting and no delivery set yet, clear selection
-                    if (!isDelivery) {
+                    // Check ref to see if we submitted or just closed
+                    if (!isNumpadSubmittedRef.current && !isDelivery) {
                         setSelectedProvider(null);
                     }
                 }}
@@ -590,6 +596,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 initialValue="" 
                 allowLeadingZeros={true} 
                 onSubmit={(value) => {
+                    isNumpadSubmittedRef.current = true; // Mark as submitted
                     const numStr = value || '0';
                     setDeliveryOrderNumber(numStr);
                     setIsDelivery(true);
@@ -616,6 +623,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                                         setIsDeliverySelectionOpen(false);
                                         setSelectedProvider(provider);
                                         setIsNumpadOpen(true);
+                                        isNumpadSubmittedRef.current = false; // Reset ref here too
                                     }}
                                     className="flex flex-col items-center justify-center p-4 border rounded-xl hover:bg-blue-50 hover:border-blue-300 transition-all gap-2"
                                 >
