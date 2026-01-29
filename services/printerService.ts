@@ -90,9 +90,15 @@ export const printerService = {
 
         const lines: string[] = [];
         
-        // Conditional Table Label: Remove "โต๊ะ:" if LineMan
+        // Conditional Table Label
         if (order.orderType === 'lineman') {
-            lines.push(`Delivery ${order.tableName}`); 
+            const providerName = order.tableName || 'Delivery';
+            // Prevent printing "Delivery Delivery" if provider name is just "Delivery"
+            if (providerName.toLowerCase() === 'delivery') {
+                lines.push('Delivery');
+            } else {
+                lines.push(`Delivery ${providerName}`); 
+            }
         } else {
             lines.push(`โต๊ะ: ${order.tableName} (${order.floor})`);
         }

@@ -69,23 +69,29 @@ export const KitchenOrderCard: React.FC<KitchenOrderCardProps> = ({ order, onCom
     const isLineMan = order.orderType === 'lineman';
     const isTakeaway = order.orderType === 'takeaway' || order.items.some(i => i.isTakeaway);
 
-    // KDS Style Colors
+    // KDS Style Colors & Labels
     const headerColor = useMemo(() => {
         if (isLineMan) {
             const providerName = (order.tableName || '').toLowerCase();
-            if (providerName.includes('shopee')) return 'bg-orange-500'; // ShopeeFood
-            if (providerName.includes('robin')) return 'bg-purple-600'; // Robinhood
-            if (providerName.includes('panda')) return 'bg-pink-500'; // FoodPanda
-            return 'bg-green-600'; // LineMan, Grab, others (Default Green)
+            if (providerName.includes('shopee')) return 'bg-orange-500'; // ShopeeFood = Orange
+            if (providerName.includes('robin')) return 'bg-purple-600'; // Robinhood = Purple
+            if (providerName.includes('panda')) return 'bg-pink-500'; // FoodPanda = Pink
+            return 'bg-green-600'; // LineMan, Grab, others = Green (Default)
         }
         if (isOverdue) return 'bg-red-600';
         if (isCooking) return 'bg-green-600'; 
         return 'bg-blue-600'; // Waiting
     }, [isCooking, isOverdue, isLineMan, order.tableName]);
 
-    const typeLabel = isLineMan 
-        ? (order.tableName || 'DELIVERY').toUpperCase() 
-        : (isTakeaway ? 'TAKE AWAY' : 'EAT IN');
+    const typeLabel = useMemo(() => {
+        if (isLineMan) {
+            const providerName = (order.tableName || '').toUpperCase();
+            // Prevent "DELIVERY DELIVERY" if provider name is just "Delivery"
+            if (providerName === 'DELIVERY') return 'DELIVERY';
+            return `DELIVERY ${providerName}`;
+        }
+        return isTakeaway ? 'TAKE AWAY' : 'EAT IN';
+    }, [isLineMan, isTakeaway, order.tableName]);
     
     // Display Logic: Use manual number if available (for LineMan), otherwise system order number
     const displayOrderNumber = order.manualOrderNumber ? `#${order.manualOrderNumber}` : `#${String(order.orderNumber).padStart(3, '0')}`;
@@ -95,11 +101,11 @@ export const KitchenOrderCard: React.FC<KitchenOrderCardProps> = ({ order, onCom
             
             {/* KDS Header */}
             <div className={`${headerColor} px-3 py-2 flex justify-between items-center`}>
-                <div className="flex flex-col">
-                    <span className="text-xs font-bold opacity-80 uppercase tracking-wider">{typeLabel}</span>
+                <div className="flex flex-col overflow-hidden">
+                    <span className="text-xs font-bold opacity-80 uppercase tracking-wider truncate block w-full">{typeLabel}</span>
                     <span className="text-3xl font-black leading-none">{displayOrderNumber}</span>
                 </div>
-                <div className="flex flex-col items-end">
+                <div className="flex flex-col items-end flex-shrink-0 ml-2">
                     <span className="text-3xl font-mono font-bold">{formatTime(elapsedSeconds)}</span>
                     <span className="text-xs font-bold opacity-90 truncate max-w-[100px]">{isLineMan ? 'Delivery' : `โต๊ะ ${order.tableName}`}</span>
                 </div>
