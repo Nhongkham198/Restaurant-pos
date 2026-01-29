@@ -59,7 +59,14 @@ export const MenuSearchModal: React.FC<MenuSearchModalProps> = ({ isOpen, onClos
             <div className="bg-white rounded-lg shadow-xl w-full max-w-lg transform transition-all flex flex-col relative" style={{maxHeight: '90vh'}} onClick={e => e.stopPropagation()}>
                 <div className="p-6 border-b">
                     <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-2xl font-bold text-gray-900">ค้นหาเมนูอาหาร</h3>
+                        <h3 className="text-2xl font-bold text-gray-900 flex items-center">
+                            ค้นหาเมนูอาหาร
+                            {filteredItems.length > 0 && (
+                                <span className="ml-3 px-3 py-1 bg-blue-100 text-blue-700 text-lg rounded-full font-bold shadow-sm">
+                                    {filteredItems.length}
+                                </span>
+                            )}
+                        </h3>
                         <button
                             onClick={() => setIsStockMode(!isStockMode)}
                             className={`px-3 py-1.5 rounded-lg text-sm font-bold border transition-colors ${
@@ -86,7 +93,7 @@ export const MenuSearchModal: React.FC<MenuSearchModalProps> = ({ isOpen, onClos
                             autoFocus
                         />
                         <button 
-                            className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-blue-600 transition-colors"
+                            className={`absolute inset-y-0 right-0 flex items-center pr-3 transition-colors ${isKeyboardOpen ? 'text-blue-600' : 'text-gray-400 hover:text-blue-600'}`}
                             onClick={() => setIsKeyboardOpen(!isKeyboardOpen)}
                             title={isKeyboardOpen ? "ปิดแป้นพิมพ์" : "เปิดแป้นพิมพ์ไทย"}
                         >
@@ -97,7 +104,8 @@ export const MenuSearchModal: React.FC<MenuSearchModalProps> = ({ isOpen, onClos
                     </div>
                 </div>
 
-                <div className="p-6 space-y-2 overflow-y-auto flex-1">
+                {/* Added dynamic padding-bottom (pb-96) when keyboard is open to allow scrolling past the keyboard */}
+                <div className={`p-6 space-y-2 overflow-y-auto flex-1 ${isKeyboardOpen ? 'pb-96' : ''}`}>
                     {filteredItems.length > 0 ? (
                         filteredItems.map(item => {
                             const isAvailable = item.isAvailable !== false;
