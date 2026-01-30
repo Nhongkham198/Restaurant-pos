@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef, Suspense } from 'react';
 
 import { 
     DEFAULT_BRANCHES, 
@@ -51,17 +51,20 @@ import { isFirebaseConfigured, db } from './firebaseConfig';
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
 import { Menu } from './components/Menu';
-import { KitchenView } from './components/KitchenView';
-import { TableLayout } from './components/TableLayout';
-import { Dashboard } from './components/Dashboard';
-import { SalesHistory } from './components/SalesHistory';
-import { StockManagement } from './components/StockManagement';
-import { StockAnalytics } from './components/StockAnalytics';
-import { LeaveCalendarView } from './components/LeaveCalendarView';
-import { LeaveAnalytics } from './components/LeaveAnalytics';
-import AdminSidebar from './components/AdminSidebar';
+// Lazy load heavy components
+const KitchenView = React.lazy(() => import('./components/KitchenView').then(module => ({ default: module.KitchenView })));
+const TableLayout = React.lazy(() => import('./components/TableLayout').then(module => ({ default: module.TableLayout })));
+const Dashboard = React.lazy(() => import('./components/Dashboard').then(module => ({ default: module.Dashboard })));
+const SalesHistory = React.lazy(() => import('./components/SalesHistory').then(module => ({ default: module.SalesHistory })));
+const StockManagement = React.lazy(() => import('./components/StockManagement').then(module => ({ default: module.StockManagement })));
+const StockAnalytics = React.lazy(() => import('./components/StockAnalytics').then(module => ({ default: module.StockAnalytics })));
+const LeaveCalendarView = React.lazy(() => import('./components/LeaveCalendarView').then(module => ({ default: module.LeaveCalendarView })));
+const LeaveAnalytics = React.lazy(() => import('./components/LeaveAnalytics').then(module => ({ default: module.LeaveAnalytics })));
+const AdminSidebar = React.lazy(() => import('./components/AdminSidebar')); // Default export
+const MaintenanceView = React.lazy(() => import('./components/MaintenanceView').then(module => ({ default: module.MaintenanceView })));
+const CustomerView = React.lazy(() => import('./components/CustomerView').then(module => ({ default: module.CustomerView })));
+
 import { BottomNavBar } from './components/BottomNavBar';
-import { MaintenanceView } from './components/MaintenanceView';
 
 import { LoginScreen } from './components/LoginScreen';
 import { BranchSelectionScreen } from './components/BranchSelectionScreen';
@@ -74,7 +77,8 @@ import { SplitCompletedBillModal } from './components/SplitCompletedBillModal';
 import { TableBillModal } from './components/TableBillModal';
 import { PaymentModal } from './components/PaymentModal';
 import { PaymentSuccessModal } from './components/PaymentSuccessModal';
-import { SettingsModal } from './components/SettingsModal';
+// Lazy load heavy settings modal
+const SettingsModal = React.lazy(() => import('./components/SettingsModal').then(module => ({ default: module.SettingsModal })));
 import { EditCompletedOrderModal } from './components/EditCompletedOrderModal';
 import { UserManagerModal } from './components/UserManagerModal';
 import { BranchManagerModal } from './components/BranchManagerModal';
@@ -82,7 +86,6 @@ import { MoveTableModal } from './components/MoveTableModal';
 import { CancelOrderModal } from './components/CancelOrderModal';
 import { CashBillModal } from './components/CashBillModal';
 import { ItemCustomizationModal } from './components/ItemCustomizationModal';
-import { CustomerView } from './components/CustomerView';
 import { LeaveRequestModal } from './components/LeaveRequestModal';
 import { MenuSearchModal } from './components/MenuSearchModal';
 import { MergeBillModal } from './components/MergeBillModal';
@@ -97,6 +100,14 @@ declare global {
         };
     }
 }
+
+// Loading Spinner Component
+const PageLoading = () => (
+    <div className="h-full w-full flex flex-col items-center justify-center bg-gray-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600 mb-4"></div>
+        <p className="text-gray-500 font-medium">กำลังโหลด...</p>
+    </div>
+);
 
 export const App: React.FC = () => {
     // 1. STATE INITIALIZATION
@@ -685,37 +696,46 @@ export const App: React.FC = () => {
 
         const customerTable = tables.find(t => t.id === targetTableId);
 
-        if (customerTable) {
+        // OPTIMISTIC CHANGE:
+        // Use real table if found, otherwise use a placeholder IF we have a target ID but data isn't loaded yet.
+        // This bypasses the "tables.length === 0" check loop below.
+        const effectiveTable = customerTable || (targetTableId && tables.length === 0 ? {
+            id: targetTableId,
+            name: 'Loading...',
+            floor: '-',
+            activePin: null,
+            reservation: null
+        } as Table : null);
+
+        if (effectiveTable) {
              // Filter menu items for customer view based on isVisible property
              const visibleMenuItems = menuItems.filter(item => item.isVisible !== false);
 
              return (
-                <CustomerView 
-                    table={customerTable}
-                    menuItems={visibleMenuItems} // Pass filtered items
-                    categories={categories}
-                    activeOrders={activeOrders.filter(o => o.tableId === targetTableId)}
-                    allBranchOrders={activeOrders}
-                    completedOrders={completedOrders}
-                    onPlaceOrder={(items, name) => handlePlaceOrder(items, name, 1, customerTable)}
-                    // FIX: Pass branchId explicitly to onStaffCall to avoid crash when selectedBranch is null
-                    onStaffCall={(table, custName) => setStaffCalls(prev => [...prev, {id: Date.now(), tableId: table.id, tableName: `${table.name} (${table.floor})`, customerName: custName, branchId: selectedBranch ? selectedBranch.id : Number(branchId || 0), timestamp: Date.now()}])}
-                    recommendedMenuItemIds={recommendedMenuItemIds}
-                    logoUrl={appLogoUrl || logoUrl} // Use App Logo for Customer View if available, else Receipt Logo
-                    restaurantName={restaurantName}
-                    onLogout={handleLogout} // Passed prop
-                />
+                <Suspense fallback={<PageLoading />}>
+                    <CustomerView 
+                        table={effectiveTable}
+                        menuItems={visibleMenuItems} // Pass filtered items
+                        categories={categories}
+                        activeOrders={activeOrders.filter(o => o.tableId === targetTableId)}
+                        allBranchOrders={activeOrders}
+                        completedOrders={completedOrders}
+                        onPlaceOrder={(items, name) => handlePlaceOrder(items, name, 1, effectiveTable)}
+                        // FIX: Pass branchId explicitly to onStaffCall to avoid crash when selectedBranch is null
+                        onStaffCall={(table, custName) => setStaffCalls(prev => [...prev, {id: Date.now(), tableId: table.id, tableName: `${table.name} (${table.floor})`, customerName: custName, branchId: selectedBranch ? selectedBranch.id : Number(branchId || 0), timestamp: Date.now()}])}
+                        recommendedMenuItemIds={recommendedMenuItemIds}
+                        logoUrl={appLogoUrl || logoUrl} // Use App Logo for Customer View if available, else Receipt Logo
+                        restaurantName={restaurantName}
+                        onLogout={handleLogout} // Passed prop
+                    />
+                </Suspense>
              );
         }
         
         // Fallback if table not found (still showing loading state if tables are not yet synced)
         // If tables are empty, it might be syncing.
         if (tables.length === 0) {
-             return (
-                <div className="min-h-screen flex items-center justify-center bg-gray-50">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-                </div>
-             );
+             return <PageLoading />;
         }
 
         return (
@@ -802,19 +822,21 @@ export const App: React.FC = () => {
         <div className={`h-screen w-screen flex flex-col md:flex-row bg-gray-100 overflow-hidden ${isDesktop ? 'landscape-mode' : ''}`} onClick={handleAudioUnlock}>
             {/* Desktop Admin Sidebar */}
             {isAdminViewOnDesktop && (
-                <AdminSidebar 
-                   isCollapsed={isAdminSidebarCollapsed} onToggleCollapse={() => setIsAdminSidebarCollapsed(!isAdminSidebarCollapsed)}
-                   logoUrl={appLogoUrl || logoUrl} // Use App Logo if available
-                   restaurantName={restaurantName} branchName={selectedBranch.name} currentUser={currentUser}
-                   onViewChange={setCurrentView} currentView={currentView} onToggleEditMode={() => setIsEditMode(!isEditMode)} isEditMode={isEditMode}
-                   onOpenSettings={() => setModalState(prev => ({...prev, isSettings: true}))} onOpenUserManager={() => setModalState(prev => ({...prev, isUserManager: true}))}
-                   onManageBranches={() => setModalState(prev => ({...prev, isBranchManager: true}))} onChangeBranch={() => setSelectedBranch(null)} onLogout={handleLogout}
-                   kitchenBadgeCount={totalKitchenBadgeCount} tablesBadgeCount={tablesBadgeCount} leaveBadgeCount={leaveBadgeCount} stockBadgeCount={stockBadgeCount}
-                   maintenanceBadgeCount={maintenanceBadgeCount}
-                   onUpdateCurrentUser={handleUpdateCurrentUser} onUpdateLogoUrl={setLogoUrl} onUpdateRestaurantName={setRestaurantName}
-                   isOrderNotificationsEnabled={isOrderNotificationsEnabled} onToggleOrderNotifications={toggleOrderNotifications}
-                   printerConfig={printerConfig} // Pass printer config
-                />
+                <Suspense fallback={<div className="w-64 bg-gray-800 h-full animate-pulse"></div>}>
+                    <AdminSidebar 
+                    isCollapsed={isAdminSidebarCollapsed} onToggleCollapse={() => setIsAdminSidebarCollapsed(!isAdminSidebarCollapsed)}
+                    logoUrl={appLogoUrl || logoUrl} // Use App Logo if available
+                    restaurantName={restaurantName} branchName={selectedBranch.name} currentUser={currentUser}
+                    onViewChange={setCurrentView} currentView={currentView} onToggleEditMode={() => setIsEditMode(!isEditMode)} isEditMode={isEditMode}
+                    onOpenSettings={() => setModalState(prev => ({...prev, isSettings: true}))} onOpenUserManager={() => setModalState(prev => ({...prev, isUserManager: true}))}
+                    onManageBranches={() => setModalState(prev => ({...prev, isBranchManager: true}))} onChangeBranch={() => setSelectedBranch(null)} onLogout={handleLogout}
+                    kitchenBadgeCount={totalKitchenBadgeCount} tablesBadgeCount={tablesBadgeCount} leaveBadgeCount={leaveBadgeCount} stockBadgeCount={stockBadgeCount}
+                    maintenanceBadgeCount={maintenanceBadgeCount}
+                    onUpdateCurrentUser={handleUpdateCurrentUser} onUpdateLogoUrl={setLogoUrl} onUpdateRestaurantName={setRestaurantName}
+                    isOrderNotificationsEnabled={isOrderNotificationsEnabled} onToggleOrderNotifications={toggleOrderNotifications}
+                    printerConfig={printerConfig} // Pass printer config
+                    />
+                </Suspense>
             )}
             
             <div className="flex-1 flex flex-col overflow-hidden transition-all duration-300" style={{ marginLeft: isAdminViewOnDesktop ? (isAdminSidebarCollapsed ? '5rem' : '16rem') : '0' }}>
@@ -912,24 +934,26 @@ export const App: React.FC = () => {
                                         onToggleOrderNotifications={toggleOrderNotifications}
                                     />
                                     <div className="flex-1 overflow-y-auto">
-                                        {currentView === 'kitchen' && <KitchenView activeOrders={activeOrders} onCompleteOrder={handleCompleteOrder} onStartCooking={handleStartCooking} onPrintOrder={handlePrintKitchenOrder} />}
-                                        {currentView === 'tables' && <TableLayout tables={tables} activeOrders={activeOrders} onTableSelect={(id) => { setSelectedTableId(id); setCurrentView('pos'); }} onShowBill={handleShowBill} onGeneratePin={handleGeneratePin} currentUser={currentUser} printerConfig={printerConfig} floors={floors} selectedBranch={selectedBranch} restaurantName={restaurantName} logoUrl={logoUrl} />}
-                                        {currentView === 'dashboard' && <Dashboard completedOrders={completedOrders} cancelledOrders={cancelledOrders} openingTime={openingTime || '10:00'} closingTime={closingTime || '22:00'} currentUser={currentUser} />}
-                                        {currentView === 'history' && <SalesHistory completedOrders={completedOrders} cancelledOrders={cancelledOrders} printHistory={printHistory} onReprint={() => {}} onSplitOrder={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isSplitCompleted: true}))}} isEditMode={isEditMode} onEditOrder={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isEditCompleted: true}))}} onInitiateCashBill={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isCashBill: true}))}} onDeleteHistory={handleDeleteHistory} currentUser={currentUser} onReprintReceipt={handleReprintReceipt} />}
-                                        {currentView === 'stock' && <StockManagement stockItems={stockItems} setStockItems={setStockItems} stockCategories={stockCategories} setStockCategories={setStockCategories} stockUnits={stockUnits} setStockUnits={setStockUnits} currentUser={currentUser} />}
-                                        {currentView === 'stock-analytics' && <StockAnalytics stockItems={stockItems} />}
-                                        {currentView === 'leave' && <LeaveCalendarView leaveRequests={leaveRequests} currentUser={currentUser} onOpenRequestModal={(date) => { setLeaveRequestInitialDate(date); setModalState(prev => ({...prev, isLeaveRequest: true})); }} branches={branches} onUpdateStatus={(id, status) => setLeaveRequests(prev => prev.map(r => r.id === id ? {...r, status} : r))} onDeleteRequest={async (id) => {setLeaveRequests(prev => prev.filter(r => r.id !== id)); return true;}} selectedBranch={selectedBranch} />}
-                                        {currentView === 'leave-analytics' && <LeaveAnalytics leaveRequests={leaveRequests} users={users} />}
-                                        {currentView === 'maintenance' && (
-                                            <MaintenanceView 
-                                                maintenanceItems={maintenanceItems}
-                                                setMaintenanceItems={setMaintenanceItems}
-                                                maintenanceLogs={maintenanceLogs}
-                                                setMaintenanceLogs={setMaintenanceLogs}
-                                                currentUser={currentUser}
-                                                isEditMode={isEditMode}
-                                            />
-                                        )}
+                                        <Suspense fallback={<PageLoading />}>
+                                            {currentView === 'kitchen' && <KitchenView activeOrders={activeOrders} onCompleteOrder={handleCompleteOrder} onStartCooking={handleStartCooking} onPrintOrder={handlePrintKitchenOrder} />}
+                                            {currentView === 'tables' && <TableLayout tables={tables} activeOrders={activeOrders} onTableSelect={(id) => { setSelectedTableId(id); setCurrentView('pos'); }} onShowBill={handleShowBill} onGeneratePin={handleGeneratePin} currentUser={currentUser} printerConfig={printerConfig} floors={floors} selectedBranch={selectedBranch} restaurantName={restaurantName} logoUrl={logoUrl} />}
+                                            {currentView === 'dashboard' && <Dashboard completedOrders={completedOrders} cancelledOrders={cancelledOrders} openingTime={openingTime || '10:00'} closingTime={closingTime || '22:00'} currentUser={currentUser} />}
+                                            {currentView === 'history' && <SalesHistory completedOrders={completedOrders} cancelledOrders={cancelledOrders} printHistory={printHistory} onReprint={() => {}} onSplitOrder={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isSplitCompleted: true}))}} isEditMode={isEditMode} onEditOrder={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isEditCompleted: true}))}} onInitiateCashBill={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isCashBill: true}))}} onDeleteHistory={handleDeleteHistory} currentUser={currentUser} onReprintReceipt={handleReprintReceipt} />}
+                                            {currentView === 'stock' && <StockManagement stockItems={stockItems} setStockItems={setStockItems} stockCategories={stockCategories} setStockCategories={setStockCategories} stockUnits={stockUnits} setStockUnits={setStockUnits} currentUser={currentUser} />}
+                                            {currentView === 'stock-analytics' && <StockAnalytics stockItems={stockItems} />}
+                                            {currentView === 'leave' && <LeaveCalendarView leaveRequests={leaveRequests} currentUser={currentUser} onOpenRequestModal={(date) => { setLeaveRequestInitialDate(date); setModalState(prev => ({...prev, isLeaveRequest: true})); }} branches={branches} onUpdateStatus={(id, status) => setLeaveRequests(prev => prev.map(r => r.id === id ? {...r, status} : r))} onDeleteRequest={async (id) => {setLeaveRequests(prev => prev.filter(r => r.id !== id)); return true;}} selectedBranch={selectedBranch} />}
+                                            {currentView === 'leave-analytics' && <LeaveAnalytics leaveRequests={leaveRequests} users={users} />}
+                                            {currentView === 'maintenance' && (
+                                                <MaintenanceView 
+                                                    maintenanceItems={maintenanceItems}
+                                                    setMaintenanceItems={setMaintenanceItems}
+                                                    maintenanceLogs={maintenanceLogs}
+                                                    setMaintenanceLogs={setMaintenanceLogs}
+                                                    currentUser={currentUser}
+                                                    isEditMode={isEditMode}
+                                                />
+                                            )}
+                                        </Suspense>
                                     </div>
                                 </div>
                             )}
@@ -938,7 +962,7 @@ export const App: React.FC = () => {
 
                     {/* Desktop Other Views */}
                     {isDesktop && currentView !== 'pos' && (
-                        <>
+                        <Suspense fallback={<PageLoading />}>
                             {currentView === 'kitchen' && <KitchenView activeOrders={activeOrders} onCompleteOrder={handleCompleteOrder} onStartCooking={handleStartCooking} onPrintOrder={handlePrintKitchenOrder} />}
                             {currentView === 'tables' && <TableLayout tables={tables} activeOrders={activeOrders} onTableSelect={(id) => { setSelectedTableId(id); setCurrentView('pos'); }} onShowBill={handleShowBill} onGeneratePin={handleGeneratePin} currentUser={currentUser} printerConfig={printerConfig} floors={floors} selectedBranch={selectedBranch} restaurantName={restaurantName} logoUrl={logoUrl} />}
                             {currentView === 'dashboard' && <Dashboard completedOrders={completedOrders} cancelledOrders={cancelledOrders} openingTime={openingTime || '10:00'} closingTime={closingTime || '22:00'} currentUser={currentUser} />}
@@ -957,7 +981,7 @@ export const App: React.FC = () => {
                                     isEditMode={isEditMode}
                                 />
                             )}
-                        </>
+                        </Suspense>
                     )}
                 </main>
             </div>
@@ -986,45 +1010,49 @@ export const App: React.FC = () => {
             />
             <PaymentModal isOpen={modalState.isPayment} order={orderForModal as ActiveOrder | null} onClose={handleModalClose} onConfirmPayment={handleConfirmPayment} qrCodeUrl={qrCodeUrl} isEditMode={isEditMode} onOpenSettings={() => setModalState(prev => ({...prev, isSettings: true}))} isConfirmingPayment={isConfirmingPayment} />
             <PaymentSuccessModal isOpen={modalState.isPaymentSuccess} onClose={handlePaymentSuccessClose} orderNumber={(orderForModal as CompletedOrder)?.orderNumber || 0} />
-            <SettingsModal 
-                isOpen={modalState.isSettings} 
-                onClose={handleModalClose} 
-                onSave={(newLogo, newAppLogo, qr, sound, staffSound, printer, open, close, address, phone, tax, signature) => { 
-                    setLogoUrl(newLogo); 
-                    setAppLogoUrl(newAppLogo); 
-                    setQrCodeUrl(qr); 
-                    setNotificationSoundUrl(sound); 
-                    setStaffCallSoundUrl(staffSound); 
-                    setPrinterConfig(printer); 
-                    setOpeningTime(open); 
-                    setClosingTime(close); 
-                    // NEW: Save additional fields
-                    setRestaurantAddress(address);
-                    setRestaurantPhone(phone);
-                    setTaxId(tax);
-                    setSignatureUrl(signature);
-                    handleModalClose(); 
-                }} 
-                currentLogoUrl={logoUrl} 
-                currentAppLogoUrl={appLogoUrl} 
-                currentQrCodeUrl={qrCodeUrl} 
-                currentNotificationSoundUrl={notificationSoundUrl} 
-                currentStaffCallSoundUrl={staffCallSoundUrl} 
-                currentPrinterConfig={printerConfig} 
-                currentOpeningTime={openingTime} 
-                currentClosingTime={closingTime} 
-                onSavePrinterConfig={setPrinterConfig} 
-                menuItems={menuItems} 
-                currentRecommendedMenuItemIds={recommendedMenuItemIds} 
-                onSaveRecommendedItems={setRecommendedMenuItemIds} 
-                deliveryProviders={deliveryProviders}
-                onSaveDeliveryProviders={setDeliveryProviders}
-                // NEW: Pass current values
-                currentRestaurantAddress={restaurantAddress}
-                currentRestaurantPhone={restaurantPhone}
-                currentTaxId={taxId}
-                currentSignatureUrl={signatureUrl}
-            />
+            
+            <Suspense fallback={null}>
+                <SettingsModal 
+                    isOpen={modalState.isSettings} 
+                    onClose={handleModalClose} 
+                    onSave={(newLogo, newAppLogo, qr, sound, staffSound, printer, open, close, address, phone, tax, signature) => { 
+                        setLogoUrl(newLogo); 
+                        setAppLogoUrl(newAppLogo); 
+                        setQrCodeUrl(qr); 
+                        setNotificationSoundUrl(sound); 
+                        setStaffCallSoundUrl(staffSound); 
+                        setPrinterConfig(printer); 
+                        setOpeningTime(open); 
+                        setClosingTime(close); 
+                        // NEW: Save additional fields
+                        setRestaurantAddress(address);
+                        setRestaurantPhone(phone);
+                        setTaxId(tax);
+                        setSignatureUrl(signature);
+                        handleModalClose(); 
+                    }} 
+                    currentLogoUrl={logoUrl} 
+                    currentAppLogoUrl={appLogoUrl} 
+                    currentQrCodeUrl={qrCodeUrl} 
+                    currentNotificationSoundUrl={notificationSoundUrl} 
+                    currentStaffCallSoundUrl={staffCallSoundUrl} 
+                    currentPrinterConfig={printerConfig} 
+                    currentOpeningTime={openingTime} 
+                    currentClosingTime={closingTime} 
+                    onSavePrinterConfig={setPrinterConfig} 
+                    menuItems={menuItems} 
+                    currentRecommendedMenuItemIds={recommendedMenuItemIds} 
+                    onSaveRecommendedItems={setRecommendedMenuItemIds} 
+                    deliveryProviders={deliveryProviders}
+                    onSaveDeliveryProviders={setDeliveryProviders}
+                    // NEW: Pass current values
+                    currentRestaurantAddress={restaurantAddress}
+                    currentRestaurantPhone={restaurantPhone}
+                    currentTaxId={taxId}
+                    currentSignatureUrl={signatureUrl}
+                />
+            </Suspense>
+
             <EditCompletedOrderModal isOpen={modalState.isEditCompleted} order={orderForModal as CompletedOrder | null} onClose={handleModalClose} onSave={async ({id, items}) => { if(newCompletedOrders.some(o => o.id === id)) { await newCompletedOrdersActions.update(id, { items }); } else { setLegacyCompletedOrders(prev => prev.map(o => o.id === id ? {...o, items} : o)); } }} menuItems={menuItems} />
             <UserManagerModal isOpen={modalState.isUserManager} onClose={handleModalClose} users={users} setUsers={setUsers} currentUser={currentUser!} branches={branches} isEditMode={isEditMode} tables={tables} />
             <BranchManagerModal isOpen={modalState.isBranchManager} onClose={handleModalClose} branches={branches} setBranches={setBranches} currentUser={currentUser} />
