@@ -225,9 +225,17 @@ export const App: React.FC = () => {
     });
     
     // --- BRANCH-SPECIFIC STATE (SYNCED WITH FIRESTORE) ---
-    // FIX: Derive branchId from URL if in customer mode to load data immediately before state hydration
     const urlBranchId = useMemo(() => new URLSearchParams(window.location.search).get('branchId'), []);
     const branchId = selectedBranch ? selectedBranch.id.toString() : (isCustomerMode && urlBranchId ? urlBranchId : null);
+
+    // OPTIMIZATION: Determine if we should load heavy admin data (History, Stock, Maintenance)
+    // We only load this if the user is NOT a customer (role != 'table') AND not in customer mode.
+    const shouldLoadHeavyData = useMemo(() => {
+        return currentUser && currentUser.role !== 'table' && !isCustomerMode;
+    }, [currentUser, isCustomerMode]);
+
+    // Use this ID for heavy hooks. If null, the hook skips loading.
+    const heavyDataBranchId = shouldLoadHeavyData ? branchId : null;
 
     // Effect to hydrate selectedBranch from URL if missing (for Customer Mode)
     useEffect(() => {
@@ -240,22 +248,27 @@ export const App: React.FC = () => {
         }
     }, [isCustomerMode, selectedBranch, branches, urlBranchId]);
 
+    // --- ESSENTIAL DATA (Loaded for Everyone including Customers) ---
     const [menuItems, setMenuItems] = useFirestoreSync<MenuItem[]>(branchId, 'menuItems', DEFAULT_MENU_ITEMS);
     const [categories, setCategories] = useFirestoreSync<string[]>(branchId, 'categories', DEFAULT_CATEGORIES);
     const [tables, setTables] = useFirestoreSync<Table[]>(branchId, 'tables', DEFAULT_TABLES);
     const [floors, setFloors] = useFirestoreSync<string[]>(branchId, 'floors', DEFAULT_FLOORS);
+    const [recommendedMenuItemIds, setRecommendedMenuItemIds] = useFirestoreSync<number[]>(branchId, 'recommendedMenuItemIds', []);
     
+    // Active Orders: Needed for customers to see queue position and own orders
     const [rawActiveOrders, activeOrdersActions] = useFirestoreCollection<ActiveOrder>(branchId, 'activeOrders');
     
     const activeOrders = useMemo(() => {
         return rawActiveOrders.filter(o => o.status !== 'completed' && o.status !== 'cancelled');
     }, [rawActiveOrders]);
 
-    // --- HISTORY STATE ---
-    const [legacyCompletedOrders, setLegacyCompletedOrders] = useFirestoreSync<CompletedOrder[]>(branchId, 'completedOrders', []);
-    const [legacyCancelledOrders, setLegacyCancelledOrders] = useFirestoreSync<CancelledOrder[]>(branchId, 'cancelledOrders', []);
-    const [newCompletedOrders, newCompletedOrdersActions] = useFirestoreCollection<CompletedOrder>(branchId, 'completedOrders_v2');
-    const [newCancelledOrders, newCancelledOrdersActions] = useFirestoreCollection<CancelledOrder>(branchId, 'cancelledOrders_v2');
+    // --- HEAVY DATA (Loaded ONLY for Staff/Admin - via heavyDataBranchId) ---
+    
+    // History
+    const [legacyCompletedOrders, setLegacyCompletedOrders] = useFirestoreSync<CompletedOrder[]>(heavyDataBranchId, 'completedOrders', []);
+    const [legacyCancelledOrders, setLegacyCancelledOrders] = useFirestoreSync<CancelledOrder[]>(heavyDataBranchId, 'cancelledOrders', []);
+    const [newCompletedOrders, newCompletedOrdersActions] = useFirestoreCollection<CompletedOrder>(heavyDataBranchId, 'completedOrders_v2');
+    const [newCancelledOrders, newCancelledOrdersActions] = useFirestoreCollection<CancelledOrder>(heavyDataBranchId, 'cancelledOrders_v2');
 
     const completedOrders = useMemo(() => {
         const combined = [...newCompletedOrders, ...legacyCompletedOrders];
@@ -271,16 +284,27 @@ export const App: React.FC = () => {
         return Array.from(unique.values()).sort((a, b) => b.cancellationTime - a.cancellationTime);
     }, [legacyCancelledOrders, newCancelledOrders]);
 
-    const [stockItems, setStockItems] = useFirestoreSync<StockItem[]>(branchId, 'stockItems', DEFAULT_STOCK_ITEMS);
-    const [stockCategories, setStockCategories] = useFirestoreSync<string[]>(branchId, 'stockCategories', DEFAULT_STOCK_CATEGORIES);
-    const [stockUnits, setStockUnits] = useFirestoreSync<string[]>(branchId, 'stockUnits', DEFAULT_STOCK_UNITS);
-    const [printHistory, setPrintHistory] = useFirestoreSync<PrintHistoryEntry[]>(branchId, 'printHistory', []);
-    const [staffCalls, setStaffCalls] = useFirestoreSync<StaffCall[]>(branchId, 'staffCalls', []);
-    const [leaveRequests, setLeaveRequests] = useFirestoreSync<LeaveRequest[]>(null, 'leaveRequests', []);
-    const [orderCounter, setOrderCounter] = useFirestoreSync<OrderCounter>(branchId, 'orderCounter', { count: 0, lastResetDate: new Date().toISOString().split('T')[0] });
+    // Stock
+    const [stockItems, setStockItems] = useFirestoreSync<StockItem[]>(heavyDataBranchId, 'stockItems', DEFAULT_STOCK_ITEMS);
+    const [stockCategories, setStockCategories] = useFirestoreSync<string[]>(heavyDataBranchId, 'stockCategories', DEFAULT_STOCK_CATEGORIES);
+    const [stockUnits, setStockUnits] = useFirestoreSync<string[]>(heavyDataBranchId, 'stockUnits', DEFAULT_STOCK_UNITS);
+    
+    // Maintenance & Logs
+    const [printHistory, setPrintHistory] = useFirestoreSync<PrintHistoryEntry[]>(heavyDataBranchId, 'printHistory', []);
+    const [maintenanceItems, setMaintenanceItems] = useFirestoreSync<MaintenanceItem[]>(heavyDataBranchId, 'maintenanceItems', DEFAULT_MAINTENANCE_ITEMS);
+    const [maintenanceLogs, setMaintenanceLogs] = useFirestoreSync<MaintenanceLog[]>(heavyDataBranchId, 'maintenanceLogs', []);
+    
+    // Order Counter (For Dashboard stats primarily)
+    const [orderCounter, setOrderCounter] = useFirestoreSync<OrderCounter>(heavyDataBranchId, 'orderCounter', { count: 0, lastResetDate: new Date().toISOString().split('T')[0] });
 
-    const [maintenanceItems, setMaintenanceItems] = useFirestoreSync<MaintenanceItem[]>(branchId, 'maintenanceItems', DEFAULT_MAINTENANCE_ITEMS);
-    const [maintenanceLogs, setMaintenanceLogs] = useFirestoreSync<MaintenanceLog[]>(branchId, 'maintenanceLogs', []);
+    // Staff Calls & Leave Requests (Keep separate for now, lightweight enough to load on branchId or specialized logic)
+    // Note: Staff Calls are needed for Staff to RECEIVE. Customers SEND. Customers don't need to load the list.
+    // For now, we leave staffCalls on branchId so the setter works for customers to send calls.
+    const [staffCalls, setStaffCalls] = useFirestoreSync<StaffCall[]>(branchId, 'staffCalls', []);
+    
+    // Leave Requests are typically global or filtered by branch. 
+    // Optimization: Only load if Staff/Admin.
+    const [leaveRequests, setLeaveRequests] = useFirestoreSync<LeaveRequest[]>(shouldLoadHeavyData ? null : 'SKIP', 'leaveRequests', []);
 
     // --- POS-SPECIFIC LOCAL STATE ---
     const [currentOrderItems, setCurrentOrderItems] = useState<OrderItem[]>([]);
@@ -290,7 +314,7 @@ export const App: React.FC = () => {
     const [selectedSidebarFloor, setSelectedSidebarFloor] = useState<string>('');
     const [notSentToKitchenDetails, setNotSentToKitchenDetails] = useState<{ reason: string; notes: string } | null>(null);
 
-    // --- GENERAL SETTINGS STATE ---
+    // --- GENERAL SETTINGS STATE (Essential for everyone for Logo/Name/Rules) ---
     const [logoUrl, setLogoUrl] = useFirestoreSync<string | null>(branchId, 'logoUrl', null);
     const [appLogoUrl, setAppLogoUrl] = useFirestoreSync<string | null>(branchId, 'appLogoUrl', null);
     const [restaurantName, setRestaurantName] = useFirestoreSync<string>(branchId, 'restaurantName', 'ชื่อร้านอาหาร');
@@ -308,7 +332,6 @@ export const App: React.FC = () => {
     const [isTaxEnabled, setIsTaxEnabled] = useFirestoreSync<boolean>(branchId, 'isTaxEnabled', false);
     const [taxRate, setTaxRate] = useFirestoreSync<number>(branchId, 'taxRate', 7);
     const [sendToKitchen, setSendToKitchen] = useFirestoreSync<boolean>(branchId, 'sendToKitchen', true);
-    const [recommendedMenuItemIds, setRecommendedMenuItemIds] = useFirestoreSync<number[]>(branchId, 'recommendedMenuItemIds', []);
     const [deliveryProviders, setDeliveryProviders] = useFirestoreSync<DeliveryProvider[]>(branchId, 'deliveryProviders', DEFAULT_DELIVERY_PROVIDERS);
 
     // --- MODAL STATES ---
