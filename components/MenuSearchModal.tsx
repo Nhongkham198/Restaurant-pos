@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import type { MenuItem } from '../types';
 import { MenuItemImage } from './MenuItemImage';
 import { ThaiVirtualKeyboard } from './ThaiVirtualKeyboard';
@@ -16,6 +16,14 @@ export const MenuSearchModal: React.FC<MenuSearchModalProps> = ({ isOpen, onClos
     const [searchTerm, setSearchTerm] = useState('');
     const [isStockMode, setIsStockMode] = useState(false);
     const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
+
+    // Reset state when modal opens
+    useEffect(() => {
+        if (isOpen) {
+            setSearchTerm('');
+            setIsKeyboardOpen(false);
+        }
+    }, [isOpen]);
 
     const filteredItems = useMemo(() => {
         if (!searchTerm.trim()) {
@@ -94,7 +102,12 @@ export const MenuSearchModal: React.FC<MenuSearchModalProps> = ({ isOpen, onClos
                         />
                         <button 
                             className={`absolute inset-y-0 right-0 flex items-center pr-3 transition-colors ${isKeyboardOpen ? 'text-blue-600' : 'text-gray-400 hover:text-blue-600'}`}
-                            onClick={() => setIsKeyboardOpen(!isKeyboardOpen)}
+                            onClick={() => {
+                                if (!isKeyboardOpen) {
+                                    setSearchTerm(''); // Clear text when opening keyboard
+                                }
+                                setIsKeyboardOpen(!isKeyboardOpen);
+                            }}
                             title={isKeyboardOpen ? "ปิดแป้นพิมพ์" : "เปิดแป้นพิมพ์ไทย"}
                         >
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
