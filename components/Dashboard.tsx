@@ -449,6 +449,62 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
         };
     }, [filteredCompletedOrders, openingTime, closingTime]);
 
+    // --- NEW: Monthly & Menu Insights Calculation ---
+    // This runs on completedOrders but filtered to the MONTH of the selectedDate
+    // This allows seeing "Highest Day of Month" even if viewing Daily mode
+    const monthlyInsights = useMemo(() => {
+        // 1. Filter all orders for the SELECTED MONTH
+        const ordersInMonth = completedOrders.filter(o => {
+            if (currentUser?.role !== 'admin' && o.isDeleted) return false;
+            const d = new Date(o.completionTime);
+            return d.getMonth() === selectedDate.getMonth() && d.getFullYear() === selectedDate.getFullYear();
+        });
+
+        // 2. Financial Stats (Avg, Max, Min)
+        const salesByDate = new Map<string, number>();
+        const itemSales = new Map<string, number>();
+
+        ordersInMonth.forEach(o => {
+            // Aggregate Sales by Date
+            const dateKey = new Date(o.completionTime).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' });
+            const total = o.items.reduce((s, i) => s + (i.finalPrice * i.quantity), 0) + o.taxAmount;
+            salesByDate.set(dateKey, (salesByDate.get(dateKey) || 0) + total);
+
+            // Aggregate Menu Items
+            o.items.forEach(i => {
+                itemSales.set(i.name, (itemSales.get(i.name) || 0) + i.quantity);
+            });
+        });
+
+        // Calculate Revenue Stats
+        const salesValues = Array.from(salesByDate.entries());
+        
+        // Average
+        const totalRevenue = salesValues.reduce((sum, [, val]) => sum + val, 0);
+        const daysWithSales = salesValues.length;
+        const averageDailyRevenue = daysWithSales > 0 ? totalRevenue / daysWithSales : 0;
+
+        // Max & Min
+        salesValues.sort((a, b) => b[1] - a[1]); // Descending
+        const highestDay = salesValues.length > 0 ? salesValues[0] : null; // [DateStr, Amount]
+        const lowestDay = salesValues.length > 0 ? salesValues[salesValues.length - 1] : null;
+
+        // Menu Analysis
+        const menuRanking = Array.from(itemSales.entries()).sort((a, b) => b[1] - a[1]);
+        const top5 = menuRanking.slice(0, 5);
+        const bottom5 = menuRanking.length > 5 ? menuRanking.slice(-5).reverse() : []; // Show lowest 5, reversed to show lowest first
+
+        return {
+            averageDailyRevenue,
+            highestDay,
+            lowestDay,
+            top5,
+            bottom5,
+            hasData: ordersInMonth.length > 0
+        };
+    }, [completedOrders, selectedDate, currentUser]);
+
+
     const handleHourlyTrafficClick = (index: number) => {
         const clickedHour = hourlyInsights.displayHours[index];
         if (selectedHourFilter === clickedHour) {
@@ -471,7 +527,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
         : null;
 
     return (
-        <div className="p-4 md:p-6 space-y-6 h-full overflow-y-auto w-full">
+        <div className="p-4 md:p-6 space-y-6 h-full overflow-y-auto w-full pb-24">
             <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
                 <h1 className="text-3xl font-bold text-gray-800">
                     Dashboard <span className="text-lg font-medium text-gray-500">({formattedDateDisplay})</span>
@@ -622,6 +678,128 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
                         onSliceClick={handleOrderTypeClick}
                         selectedLabel={selectedOrderTypeFilter}
                     />
+                </div>
+            </div>
+
+            {/* --- NEW: Monthly Insights Section --- */}
+            <div className="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden mt-2">
+                <div className="p-4 bg-indigo-50 border-b border-indigo-100 flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                    </svg>
+                    <h3 className="text-xl font-bold text-indigo-900">สรุปภาพรวมและวิเคราะห์เมนูประจำเดือน {selectedDate.toLocaleDateString('th-TH', { month: 'long', year: 'numeric' })}</h3>
+                </div>
+                
+                <div className="p-6 grid grid-cols-1 xl:grid-cols-5 gap-8">
+                    {/* Left: Financial Stats */}
+                    <div className="xl:col-span-2 space-y-4">
+                        <div className="bg-white p-5 rounded-lg border border-gray-200 shadow-sm flex items-center justify-between">
+                            <div>
+                                <p className="text-gray-500 font-medium">รายได้เฉลี่ย / วัน</p>
+                                <p className="text-3xl font-bold text-indigo-600 mt-1">
+                                    {monthlyInsights.averageDailyRevenue.toLocaleString(undefined, { maximumFractionDigits: 0 })} ฿
+                                </p>
+                            </div>
+                            <div className="p-3 bg-indigo-50 rounded-full text-indigo-500">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                            </div>
+                        </div>
+
+                        <div className="bg-white p-5 rounded-lg border border-green-200 shadow-sm flex items-center justify-between bg-green-50/30">
+                            <div>
+                                <p className="text-green-700 font-medium flex items-center gap-1">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M12 7a1 1 0 110-2 1 1 0 010 2zm1 2a1 1 0 100 2 1 1 0 000-2z" clipRule="evenodd" /><path fillRule="evenodd" d="M5 4a3 3 0 00-3 3v6a3 3 0 003 3h10a3 3 0 003-3V7a3 3 0 00-3-3H5zm-1 9v-1h5v2H5a1 1 0 01-1-1zm7 1h4a1 1 0 001-1v-1h-5v2zm0-4h5V8h-5v2zM9 8H4v2h5V8z" clipRule="evenodd" /></svg>
+                                    วันยอดขายสูงสุด
+                                </p>
+                                <p className="text-2xl font-bold text-gray-800 mt-1">
+                                    {monthlyInsights.highestDay ? monthlyInsights.highestDay[1].toLocaleString() : 0} ฿
+                                </p>
+                                <p className="text-sm text-green-600 mt-1 font-semibold">
+                                    วันที่: {monthlyInsights.highestDay ? monthlyInsights.highestDay[0] : '-'}
+                                </p>
+                            </div>
+                            <div className="p-3 bg-green-100 rounded-full text-green-600">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>
+                            </div>
+                        </div>
+
+                        <div className="bg-white p-5 rounded-lg border border-red-200 shadow-sm flex items-center justify-between bg-red-50/30">
+                            <div>
+                                <p className="text-red-700 font-medium flex items-center gap-1">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M12 13a1 1 0 100 2 1 1 0 000-2zm1-8a1 1 0 100-2 1 1 0 000 2zM5 4a3 3 0 00-3 3v6a3 3 0 003 3h10a3 3 0 003-3V7a3 3 0 00-3-3H5zm-1 9v-1h5v2H5a1 1 0 01-1-1zm7 1h4a1 1 0 001-1v-1h-5v2zm0-4h5V8h-5v2zM9 8H4v2h5V8z" clipRule="evenodd" /></svg>
+                                    วันยอดขายต่ำสุด
+                                </p>
+                                <p className="text-2xl font-bold text-gray-800 mt-1">
+                                    {monthlyInsights.lowestDay ? monthlyInsights.lowestDay[1].toLocaleString() : 0} ฿
+                                </p>
+                                <p className="text-sm text-red-600 mt-1 font-semibold">
+                                    วันที่: {monthlyInsights.lowestDay ? monthlyInsights.lowestDay[0] : '-'}
+                                </p>
+                            </div>
+                            <div className="p-3 bg-red-100 rounded-full text-red-600">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6" /></svg>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Right: Menu Analysis */}
+                    <div className="xl:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* Top Selling */}
+                        <div className="bg-white border border-gray-200 rounded-lg shadow-sm flex flex-col h-full">
+                            <div className="p-4 border-b bg-green-50 flex items-center justify-between">
+                                <h4 className="font-bold text-green-800 flex items-center gap-2">
+                                    <span className="text-lg">🏆</span> 5 เมนูขายดีที่สุด
+                                </h4>
+                            </div>
+                            <div className="p-2 flex-1">
+                                {monthlyInsights.top5.length > 0 ? (
+                                    <ul className="space-y-1">
+                                        {monthlyInsights.top5.map(([name, qty], idx) => (
+                                            <li key={idx} className="flex justify-between items-center p-2 hover:bg-green-50/50 rounded-lg transition-colors">
+                                                <div className="flex items-center gap-3 overflow-hidden">
+                                                    <span className={`w-6 h-6 flex items-center justify-center rounded-full text-xs font-bold text-white flex-shrink-0 ${idx === 0 ? 'bg-yellow-400' : idx === 1 ? 'bg-gray-400' : idx === 2 ? 'bg-orange-400' : 'bg-green-200 text-green-800'}`}>
+                                                        {idx + 1}
+                                                    </span>
+                                                    <span className="font-medium text-gray-700 truncate">{name}</span>
+                                                </div>
+                                                <span className="font-bold text-green-600 whitespace-nowrap">{qty} จาน</span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                ) : (
+                                    <div className="h-full flex items-center justify-center text-gray-400 text-sm">ไม่มีข้อมูล</div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Least Selling */}
+                        <div className="bg-white border border-gray-200 rounded-lg shadow-sm flex flex-col h-full">
+                            <div className="p-4 border-b bg-gray-50 flex items-center justify-between">
+                                <h4 className="font-bold text-gray-600 flex items-center gap-2">
+                                    <span className="text-lg">📉</span> 5 เมนูขายน้อย/ควรปรับปรุง
+                                </h4>
+                            </div>
+                            <div className="p-2 flex-1">
+                                {monthlyInsights.bottom5.length > 0 ? (
+                                    <ul className="space-y-1">
+                                        {monthlyInsights.bottom5.map(([name, qty], idx) => (
+                                            <li key={idx} className="flex justify-between items-center p-2 hover:bg-gray-100 rounded-lg transition-colors">
+                                                <div className="flex items-center gap-3 overflow-hidden">
+                                                    <span className="w-6 h-6 flex items-center justify-center rounded-full text-xs font-bold bg-gray-200 text-gray-500 flex-shrink-0">
+                                                        {monthlyInsights.top5.length + idx + 1}
+                                                    </span>
+                                                    <span className="font-medium text-gray-600 truncate">{name}</span>
+                                                </div>
+                                                <span className="font-bold text-gray-500 whitespace-nowrap">{qty} จาน</span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                ) : (
+                                    <div className="h-full flex items-center justify-center text-gray-400 text-sm">ไม่มีข้อมูล</div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
