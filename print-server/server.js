@@ -172,18 +172,16 @@ const executePrintJob = async (job) => {
                             try {
                                 console.log('[USB Print] Device opened. Sending data...');
                                 
-                                // *** STAR MICRONICS FIX: AGGRESSIVE FEED ***
-                                // 1. Wake up
-                                // 2. Init
-                                // 3. Raster Data
-                                // 4. Feed 8 Lines (approx 1 inch) to clear cutter
-                                // 5. Cut
+                                // *** STAR MICRONICS FIX: AGGRESSIVE FEED using newlines ***
+                                // 1. Init
+                                // 2. Raster Data
+                                // 3. Feed 15 lines (\n) - Universal line feed, safe for all modes
+                                // 4. Cut
                                 const combinedBuffer = Buffer.concat([
-                                    Buffer.from([0x00, 0x00]), // Wake up
                                     Buffer.from(COMMANDS.INIT),
                                     rasterData,
-                                    Buffer.from('\n\n\n\n\n\n\n\n'), // Feed 8 lines (Text mode feed)
-                                    Buffer.from(COMMANDS.FEED_LINES), // ESC d 5 (Command mode feed)
+                                    Buffer.from('\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n'), // 15 Newlines (~60mm)
+                                    Buffer.from(COMMANDS.FEED_LINES), // Extra command feed
                                     Buffer.from(COMMANDS.CUT)
                                 ]);
 
@@ -234,10 +232,9 @@ const executePrintJob = async (job) => {
                     client.connect(targetPort, targetHost, async () => {
                         try {
                             const combinedBuffer = Buffer.concat([
-                                Buffer.from([0x00, 0x00]), 
                                 Buffer.from(COMMANDS.INIT),
                                 rasterData,
-                                Buffer.from('\n\n\n\n\n\n\n\n'),
+                                Buffer.from('\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n'), // 15 Newlines
                                 Buffer.from(COMMANDS.FEED_LINES),
                                 Buffer.from(COMMANDS.CUT)
                             ]);

@@ -54,6 +54,10 @@ const generateReceiptImage = async (lines: string[], paperWidth: '58mm' | '80mm'
             }
         });
 
+        // *** STAR TSP100 FIX: ROBUST PADDING ***
+        // Use 200px height with invisible content to ensure it renders as image data
+        htmlContent += `<div style="height: 200px; width: 100%; display: flex; align-items: flex-end; justify-content: center; color: transparent;">.</div>`;
+
         container.innerHTML = htmlContent;
         document.body.appendChild(container);
 
