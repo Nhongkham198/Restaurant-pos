@@ -175,10 +175,10 @@ export const printerService = {
         // Use smart fit constants
         const targetWidth = is58mm ? TARGET_WIDTH_58MM : TARGET_WIDTH_80MM;
         
-        // Font Sizes adjusted for 360px/550px widths
-        const fsNormal = is58mm ? '20px' : '22px'; // Standard readable size
-        const fsLarge = is58mm ? '24px' : '30px';
-        const fsXLarge = is58mm ? '32px' : '40px';
+        // Font Sizes adjusted for 360px/550px widths (Big & Clear)
+        const fsNormal = is58mm ? '24px' : '28px'; 
+        const fsLarge = is58mm ? '32px' : '40px';
+        const fsXLarge = is58mm ? '48px' : '56px';
         
         const displayOrderNumber = order.manualOrderNumber ? `#${order.manualOrderNumber}` : `#${String(order.orderNumber).padStart(3, '0')}`;
         const timeStr = new Date(order.orderTime).toLocaleTimeString('th-TH', {hour: '2-digit', minute:'2-digit'});
@@ -271,11 +271,11 @@ export const printerService = {
         
         const opts = config.receiptOptions;
 
-        // Optimized Font Sizes for Receipt
-        const fsSmall = is58mm ? '16px' : '18px';
-        const fsNormal = is58mm ? '18px' : '20px';
-        const fsLarge = is58mm ? '22px' : '26px';
-        const fsXLarge = is58mm ? '26px' : '32px';
+        // Optimized Font Sizes for Receipt (Bigger!)
+        const fsSmall = is58mm ? '18px' : '20px';
+        const fsNormal = is58mm ? '22px' : '24px';
+        const fsLarge = is58mm ? '28px' : '32px';
+        const fsXLarge = is58mm ? '36px' : '42px';
 
         // Header Logic
         let headerHtml = '';
@@ -393,11 +393,11 @@ export const printerService = {
         const subtotal = order.items.reduce((s, i) => s + i.finalPrice * i.quantity, 0);
         const total = subtotal + order.taxAmount;
 
-        // Optimized Font Sizes
-        const fsSmall = is58mm ? '16px' : '18px';
-        const fsNormal = is58mm ? '18px' : '20px';
-        const fsLarge = is58mm ? '22px' : '26px';
-        const fsXLarge = is58mm ? '26px' : '32px';
+        // Optimized Font Sizes (Bigger!)
+        const fsSmall = is58mm ? '18px' : '20px';
+        const fsNormal = is58mm ? '22px' : '24px';
+        const fsLarge = is58mm ? '28px' : '32px';
+        const fsXLarge = is58mm ? '36px' : '42px';
 
         const htmlContent = `
             <div style="width: 100%; box-sizing: border-box; font-family: 'Sarabun', sans-serif; color: #000; padding: 5px 0;">
@@ -539,9 +539,11 @@ export const printerService = {
         const is58mm = paperWidth === '58mm';
         const targetWidth = is58mm ? TARGET_WIDTH_58MM : TARGET_WIDTH_80MM;
         
-        const fsTitle = is58mm ? '24px' : '28px';
-        const fsNormal = is58mm ? '18px' : '20px';
-        const fsSmall = is58mm ? '14px' : '16px';
+        // --- UPDATED FONT SIZES FOR TEST PRINT ---
+        // Matching the user's request for larger text like the reference image
+        const fsTitle = is58mm ? '32px' : '48px'; 
+        const fsNormal = is58mm ? '22px' : '32px';
+        const fsSmall = is58mm ? '18px' : '22px';
 
         const html = `
             <div style="width: 100%; box-sizing: border-box; font-family: 'Sarabun', sans-serif; text-align: center; border: 2px solid #000; padding: 5px; color: #000; word-wrap: break-word; overflow-wrap: break-word;">
