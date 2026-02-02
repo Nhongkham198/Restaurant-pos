@@ -52,7 +52,7 @@ app.use(bodyParser.json({ limit: '10mb' }));
 const COMMANDS = {
     INIT: '\x1b\x40',
     CUT: '\x1d\x56\x41\x00', // GS V A 0 (Standard Cut)
-    FEED_CUT: '\x1b\x64\x02', // ESC d 2 (Feed 2 lines & Cut - Better for Star)
+    FEED_LINES: '\x1b\x64\x05', // ESC d 5 (Feed 5 lines)
 };
 
 // ฟังก์ชันแปลง PNG Buffer เป็น ESC/POS Raster Data (GS v 0)
@@ -172,14 +172,19 @@ const executePrintJob = async (job) => {
                             try {
                                 console.log('[USB Print] Device opened. Sending data...');
                                 
-                                // Wake up / Init sequence + Extra Feed + Standard Cut + Feed&Cut
+                                // *** STAR MICRONICS FIX: AGGRESSIVE FEED ***
+                                // 1. Wake up
+                                // 2. Init
+                                // 3. Raster Data
+                                // 4. Feed 8 Lines (approx 1 inch) to clear cutter
+                                // 5. Cut
                                 const combinedBuffer = Buffer.concat([
-                                    Buffer.from([0x00, 0x00, 0x00]), // Wake up buffer
+                                    Buffer.from([0x00, 0x00]), // Wake up
                                     Buffer.from(COMMANDS.INIT),
                                     rasterData,
-                                    Buffer.from('\n\n\n\n\n\n'), // Generous Feed
-                                    Buffer.from(COMMANDS.CUT),
-                                    Buffer.from(COMMANDS.FEED_CUT) // Backup Cut command
+                                    Buffer.from('\n\n\n\n\n\n\n\n'), // Feed 8 lines (Text mode feed)
+                                    Buffer.from(COMMANDS.FEED_LINES), // ESC d 5 (Command mode feed)
+                                    Buffer.from(COMMANDS.CUT)
                                 ]);
 
                                 await writeDeviceChunked(device, combinedBuffer);
@@ -229,12 +234,12 @@ const executePrintJob = async (job) => {
                     client.connect(targetPort, targetHost, async () => {
                         try {
                             const combinedBuffer = Buffer.concat([
-                                Buffer.from([0x00, 0x00]), // Wake up buffer
+                                Buffer.from([0x00, 0x00]), 
                                 Buffer.from(COMMANDS.INIT),
                                 rasterData,
-                                Buffer.from('\n\n\n\n\n\n'), // Generous Feed
-                                Buffer.from(COMMANDS.CUT),
-                                Buffer.from(COMMANDS.FEED_CUT) // Backup Cut
+                                Buffer.from('\n\n\n\n\n\n\n\n'),
+                                Buffer.from(COMMANDS.FEED_LINES),
+                                Buffer.from(COMMANDS.CUT)
                             ]);
                             
                             // Send data

@@ -388,9 +388,12 @@ export const printerService = {
             "หากคุณอ่านข้อความนี้ได้",
             "แสดงว่าเครื่องพิมพ์ทำงานปกติ",
             "-------------------------",
+            "..........................",
             new Date().toLocaleString('th-TH'),
             " ",
-            " " // Extra padding for cut
+            " ",
+            " ",
+            "-------------------------" // Add padding at bottom
         ];
         const base64Image = await generateReceiptImage(lines, paperWidth as '58mm' | '80mm');
         const res = await fetch(url, {
