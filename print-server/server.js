@@ -133,19 +133,29 @@ const executePrintJob = async (job) => {
                         if (!device) return reject(new Error('USB Device initialization failed'));
 
                         const printer = new escpos.Printer(device);
+                        
                         device.open((err) => {
-                            if (err) return reject(new Error('Cannot open USB printer: ' + err.message));
+                            if (err) return reject(new Error('Cannot open USB printer (Check Zadig/WinUSB): ' + err.message));
                             
                             try {
-                                printer.adapter.write(Buffer.from(COMMANDS.INIT));
-                                printer.adapter.write(rasterData);
-                                printer.adapter.write(Buffer.from('\n\n\n'));
-                                printer.adapter.write(Buffer.from(COMMANDS.CUT));
-                                
-                                device.close(() => {
-                                    console.log('[USB Print] Success');
-                                    resolve();
-                                });
+                                console.log('[USB Print] Connection opened, sending data...');
+                                // FIX: Use chaining and callback on the LAST write to ensure data is flushed before closing
+                                printer.adapter
+                                    .write(Buffer.from(COMMANDS.INIT))
+                                    .write(rasterData)
+                                    .write(Buffer.from('\n\n\n'))
+                                    .write(Buffer.from(COMMANDS.CUT), () => {
+                                        // This callback fires after the last write is acknowledged by the underlying driver
+                                        console.log('[USB Print] Data transferred. Closing connection...');
+                                        // Small timeout to let the hardware buffer catch up if needed
+                                        setTimeout(() => {
+                                            device.close(() => {
+                                                console.log('[USB Print] Success - Connection Closed');
+                                                resolve();
+                                            });
+                                        }, 200); 
+                                    });
+                                    
                             } catch (writeErr) {
                                 device.close();
                                 reject(writeErr);
@@ -244,8 +254,8 @@ app.get('/scan-usb', (req, res) => {
             return {
                 vid: '0x' + (desc.idVendor ? desc.idVendor.toString(16).padStart(4, '0') : '????'),
                 pid: '0x' + (desc.idProduct ? desc.idProduct.toString(16).padStart(4, '0') : '????'),
-                manufacturer: '', // Often hard to get via this lib without extra work
-                product: '' // Often hard to get
+                manufacturer: '', 
+                product: '' 
             };
         });
         

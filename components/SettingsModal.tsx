@@ -1,14 +1,18 @@
 
+// ... existing imports ...
 import React, { useState, useEffect, useRef } from 'react';
 import type { PrinterConfig, ReceiptPrintSettings, KitchenPrinterSettings, CashierPrinterSettings, MenuItem, DeliveryProvider, PrinterStatus, PrinterConnectionType } from '../types';
 import { printerService } from '../services/printerService';
 import Swal from 'sweetalert2';
 import { MenuItemImage } from './MenuItemImage';
 
+// ... existing interfaces ...
 interface SettingsModalProps {
+    // ...
     isOpen: boolean;
     onClose: () => void;
     onSave: (
+        // ... (all existing params)
         logoUrl: string | null,
         appLogoUrl: string | null,
         qrCodeUrl: string | null,
@@ -22,6 +26,7 @@ interface SettingsModalProps {
         taxId: string,
         signatureUrl: string | null
     ) => void;
+    // ... (rest of props)
     currentLogoUrl: string | null;
     currentAppLogoUrl: string | null;
     currentQrCodeUrl: string | null;
@@ -43,6 +48,7 @@ interface SettingsModalProps {
 }
 
 const DEFAULT_RECEIPT_OPTIONS: ReceiptPrintSettings = {
+    // ... existing defaults ...
     showLogo: true,
     showRestaurantName: true,
     showAddress: true,
@@ -63,6 +69,7 @@ const DEFAULT_RECEIPT_OPTIONS: ReceiptPrintSettings = {
 };
 
 const StatusIndicator: React.FC<{ status: PrinterStatus; label: string }> = ({ status, label }) => {
+    // ... existing StatusIndicator ...
     let color = 'bg-gray-400';
     let text = 'ไม่ได้ตรวจสอบ';
     if (status === 'checking') { color = 'bg-yellow-500 animate-pulse'; text = 'กำลังตรวจสอบ...'; }
@@ -78,6 +85,7 @@ const StatusIndicator: React.FC<{ status: PrinterStatus; label: string }> = ({ s
 };
 
 export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
+    // ... existing state and logic ...
     const [activeTab, setActiveTab] = useState<'general' | 'printer' | 'menu' | 'delivery'>('general');
     
     // State initialization
@@ -289,6 +297,27 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
         }
     };
 
+    const handleShowZadigHelp = () => {
+        Swal.fire({
+            title: 'วิธีแก้ปัญหา USB พิมพ์ไม่ออก (Windows)',
+            html: `
+                <div class="text-left text-sm space-y-3">
+                    <p class="font-bold text-red-600">สำคัญ: บน Windows หากใช้สาย USB ต้องเปลี่ยน Driver เป็น WinUSB มิเช่นนั้นโปรแกรมจะสั่งพิมพ์ไม่ได้ แม้จะขึ้น Success</p>
+                    <ol class="list-decimal pl-5 space-y-1">
+                        <li>ดาวน์โหลดโปรแกรม <b>Zadig</b> (ฟรี)</li>
+                        <li>เปิดโปรแกรม Zadig > ไปที่เมนู <b>Options</b> > เลือก <b>List All Devices</b></li>
+                        <li>เลือกชื่อเครื่องพิมพ์ของคุณในช่องรายการ (เช่น Printer, USB Printing Support)</li>
+                        <li>ดูช่องขวา ให้แน่ใจว่าเป็น <b>WinUSB</b> (ถ้าไม่ใช่ ให้เลือก WinUSB จากลูกศร)</li>
+                        <li>กดปุ่ม <b>Replace Driver</b> หรือ <b>Install Driver</b></li>
+                        <li>รอจนเสร็จ แล้วกด "ทดสอบพิมพ์" ใหม่อีกครั้ง</li>
+                    </ol>
+                </div>
+            `,
+            icon: 'info',
+            confirmButtonText: 'เข้าใจแล้ว'
+        });
+    };
+
     const handleTestPrint = async (type: 'kitchen' | 'cashier') => {
         const printer = settingsForm.printerConfig[type];
         if (!printer) return;
@@ -350,12 +379,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
 
     if (!props.isOpen) return null;
 
-    // Helper to render Image Upload Field
+    // ... (renderImageUpload and renderSoundUpload helpers remain unchanged) ...
     const renderImageUpload = (label: string, value: string | null, field: string, inputRef: React.RefObject<HTMLInputElement>) => (
         <div className="border border-gray-200 rounded-lg p-4 bg-white">
             <label className="block text-sm font-medium text-gray-700 mb-2">{label}</label>
             <div className="flex gap-4 items-start">
-                {/* Preview Area */}
                 <div className="w-24 h-24 bg-gray-100 border rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0">
                     {value ? (
                         <img src={value} alt="Preview" className="w-full h-full object-contain" />
@@ -363,55 +391,26 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
                         <span className="text-xs text-gray-400">ไม่มีรูป</span>
                     )}
                 </div>
-                {/* Controls */}
                 <div className="flex-1 space-y-2">
                     <div className="flex gap-2">
-                        <button 
-                            onClick={() => inputRef.current?.click()} 
-                            className="px-3 py-1.5 bg-blue-50 text-blue-600 rounded border border-blue-200 hover:bg-blue-100 text-sm font-medium transition-colors"
-                        >
-                            เลือกรูปภาพ
-                        </button>
+                        <button onClick={() => inputRef.current?.click()} className="px-3 py-1.5 bg-blue-50 text-blue-600 rounded border border-blue-200 hover:bg-blue-100 text-sm font-medium transition-colors">เลือกรูปภาพ</button>
                         {value && (
-                            <button 
-                                onClick={() => handleInputChange(field, null)} 
-                                className="px-3 py-1.5 bg-red-50 text-red-600 rounded border border-red-200 hover:bg-red-100 text-sm font-medium transition-colors"
-                            >
-                                ลบ
-                            </button>
+                            <button onClick={() => handleInputChange(field, null)} className="px-3 py-1.5 bg-red-50 text-red-600 rounded border border-red-200 hover:bg-red-100 text-sm font-medium transition-colors">ลบ</button>
                         )}
                     </div>
-                    <input 
-                        type="text" 
-                        value={value || ''} 
-                        onChange={e => handleInputChange(field, e.target.value)} 
-                        placeholder="หรือใส่ URL ของรูปภาพ..." 
-                        className="w-full text-xs text-gray-500 border border-gray-300 rounded p-1.5 focus:outline-none focus:border-blue-500" 
-                    />
-                    <input 
-                        type="file" 
-                        ref={inputRef} 
-                        onChange={(e) => handleFileChange(e, field)} 
-                        className="hidden" 
-                        accept="image/*" 
-                    />
+                    <input type="text" value={value || ''} onChange={e => handleInputChange(field, e.target.value)} placeholder="หรือใส่ URL ของรูปภาพ..." className="w-full text-xs text-gray-500 border border-gray-300 rounded p-1.5 focus:outline-none focus:border-blue-500" />
+                    <input type="file" ref={inputRef} onChange={(e) => handleFileChange(e, field)} className="hidden" accept="image/*" />
                 </div>
             </div>
         </div>
     );
 
-    // Helper to render Sound Upload Field
     const renderSoundUpload = (label: string, value: string | null, field: string, inputRef: React.RefObject<HTMLInputElement>) => (
         <div className="border border-gray-200 rounded-lg p-4 bg-white">
             <label className="block text-sm font-medium text-gray-700 mb-2">{label}</label>
             <div className="flex flex-col gap-3">
                 <div className="flex items-center gap-3">
-                    <button 
-                        onClick={() => inputRef.current?.click()} 
-                        className="px-3 py-1.5 bg-blue-50 text-blue-600 rounded border border-blue-200 hover:bg-blue-100 text-sm font-medium transition-colors"
-                    >
-                        เลือกไฟล์เสียง
-                    </button>
+                    <button onClick={() => inputRef.current?.click()} className="px-3 py-1.5 bg-blue-50 text-blue-600 rounded border border-blue-200 hover:bg-blue-100 text-sm font-medium transition-colors">เลือกไฟล์เสียง</button>
                     {value && (
                         <span className="text-xs text-green-600 font-semibold flex items-center gap-1">
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
@@ -419,13 +418,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
                         </span>
                     )}
                 </div>
-                <input 
-                    type="file" 
-                    ref={inputRef} 
-                    onChange={(e) => handleFileChange(e, field)} 
-                    className="hidden" 
-                    accept="audio/*" 
-                />
+                <input type="file" ref={inputRef} onChange={(e) => handleFileChange(e, field)} className="hidden" accept="audio/*" />
                 {value && (
                     <audio controls src={value} className="w-full h-8 mt-1" />
                 )}
@@ -475,7 +468,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
                     )}
                     {conf.connectionType === 'usb' && (
                         <div className="col-span-12 bg-orange-50 p-3 rounded-lg border border-orange-200">
-                            <label className="block text-sm font-bold text-orange-800 mb-2">ระบุอุปกรณ์ USB (Optional - หากมีหลายเครื่อง)</label>
+                            <div className="flex justify-between items-center mb-2">
+                                <label className="block text-sm font-bold text-orange-800">ระบุอุปกรณ์ USB (Optional)</label>
+                                <button onClick={handleShowZadigHelp} className="text-xs text-blue-600 hover:underline font-bold flex items-center gap-1">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                    พิมพ์ไม่ออก? (คลิก)
+                                </button>
+                            </div>
                             <div className="flex gap-2 items-end">
                                 <div className="flex-1">
                                     <label className="text-xs text-orange-700 block">Vendor ID (VID)</label>
@@ -503,6 +502,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
 
                 {type === 'cashier' && receiptOpts && (
                     <div className="mt-6 pt-6 border-t border-gray-200">
+                        {/* ... (Receipt options rendering remains same) ... */}
                         <h4 className="text-lg font-bold text-gray-800 mb-4">รายละเอียดบนใบเสร็จ</h4>
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                             <div className="space-y-6">
@@ -607,7 +607,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
                 <div className="flex-1 overflow-y-auto p-6 bg-gray-50">
                     {activeTab === 'general' && (
                         <div className="space-y-6 max-w-3xl mx-auto">
-                            {/* General Inputs (Restaurant Info) */}
+                            {/* ... (General Tab content remains same) ... */}
                             <div className="bg-white p-6 rounded-lg shadow-sm space-y-4">
                                 <h3 className="text-lg font-bold text-gray-800 border-b pb-2">ข้อมูลร้าน</h3>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -630,7 +630,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
                                 </div>
                             </div>
 
-                            {/* Images & Sounds - RESTORED UI */}
                             <div className="bg-white p-6 rounded-lg shadow-sm space-y-4">
                                 <h3 className="text-lg font-bold text-gray-800 border-b pb-2">รูปภาพและเสียง</h3>
                                 <div className="space-y-4">
@@ -644,7 +643,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
                                 </div>
                             </div>
 
-                            {/* Timings */}
                             <div className="bg-white p-6 rounded-lg shadow-sm space-y-4">
                                 <h3 className="text-lg font-bold text-gray-800 border-b pb-2">เวลาทำการ</h3>
                                 <div className="grid grid-cols-2 gap-4">
