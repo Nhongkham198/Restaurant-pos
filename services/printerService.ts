@@ -90,10 +90,11 @@ const generateImageFromHtml = async (htmlContent: string, targetWidthPx: number)
     container.style.overflowWrap = 'break-word';
     container.style.whiteSpace = 'normal';
     
-    // Use Sarabun for Thai support
+    // Use Sarabun for Thai support with optimizeLegibility
     container.style.fontFamily = "'Sarabun', sans-serif"; 
-    container.style.lineHeight = '1.2'; 
+    container.style.lineHeight = '1.4'; // Increased from 1.2 to 1.4 for Thai vowels
     container.style.setProperty('-webkit-font-smoothing', 'antialiased'); 
+    container.style.setProperty('text-rendering', 'optimizeLegibility');
     
     container.innerHTML = htmlContent;
     document.body.appendChild(container);
@@ -107,8 +108,7 @@ const generateImageFromHtml = async (htmlContent: string, targetWidthPx: number)
     try {
         if (!window.html2canvas) throw new Error("html2canvas library not loaded");
 
-        // 1. Capture at High Resolution (Scale 2 = 2x Width)
-        // capturing at 2x gives us sharp text, even if we downscale slightly later
+        // 1. Capture at 2x Resolution for sharpness
         const rawCanvas = await window.html2canvas(container, {
             scale: 2, 
             useCORS: true,
@@ -131,7 +131,7 @@ const generateImageFromHtml = async (htmlContent: string, targetWidthPx: number)
         const trimmedCanvas = trimCanvas(rawCanvas);
 
         // 3. SMART FIT: Resize the high-res canvas down to the EXACT target width
-        // This ensures pixel-perfect fit for the thermal printer head (e.g. 384 dots)
+        // This ensures pixel-perfect fit for the thermal printer head
         const finalCanvas = document.createElement('canvas');
         finalCanvas.width = targetWidthPx;
         finalCanvas.height = (trimmedCanvas.height / trimmedCanvas.width) * targetWidthPx;
@@ -139,15 +139,16 @@ const generateImageFromHtml = async (htmlContent: string, targetWidthPx: number)
         const ctx = finalCanvas.getContext('2d');
         if (!ctx) throw new Error("Could not get context");
 
-        // High quality scaling
-        ctx.imageSmoothingEnabled = true;
-        ctx.imageSmoothingQuality = 'high';
+        // KEY FIX: Disable smoothing for sharper text edges on thermal printers
+        // When downscaling text for monochrome/thermal printing, smoothing creates blurry gray pixels.
+        // Nearest-neighbor (smoothing = false) keeps edges sharp black/white.
+        ctx.imageSmoothingEnabled = false; 
         
         // Fill white background just in case
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, finalCanvas.width, finalCanvas.height);
         
-        // Draw the trimmed (possibly large) canvas into the exact-width canvas
+        // Draw the trimmed (large) canvas into the exact-width canvas
         ctx.drawImage(trimmedCanvas, 0, 0, finalCanvas.width, finalCanvas.height);
         
         const base64 = finalCanvas.toDataURL('image/png');
@@ -198,7 +199,7 @@ export const printerService = {
 
             itemsHtml += `
                 <div style="margin-bottom: 10px; border-bottom: 1px dotted #ccc; padding-bottom: 8px;">
-                    <div style="font-size: ${fsLarge}; font-weight: 900; line-height: 1.1; display: flex; align-items: start;">
+                    <div style="font-size: ${fsLarge}; font-weight: 900; line-height: 1.2; display: flex; align-items: start;">
                         <span style="min-width: 30px; text-align: right; margin-right: 5px;">${item.quantity}</span>
                         <span style="word-break: break-word;">x ${item.name}</span>
                     </div>
@@ -293,23 +294,25 @@ export const printerService = {
         let itemsHtml = '';
         if (opts.showItems) {
             itemsHtml += `<table style="width: 100%; font-size: ${fsNormal}; border-collapse: collapse; margin-bottom: 5px; table-layout: fixed;">`;
+            // FIX: Padding bottom added to headers to prevent line intersection
+            // FIX: Border bottom moved to headers instead of row
             itemsHtml += `
-                <tr style="border-bottom: 1px solid #000;">
-                    <th style="text-align:left; width: ${is58mm ? '55%' : '60%'}; padding-bottom: 2px;">รายการ</th>
-                    <th style="text-align:right; width: ${is58mm ? '15%' : '15%'}; padding-bottom: 2px;">Qty</th>
-                    <th style="text-align:right; width: ${is58mm ? '30%' : '25%'}; padding-bottom: 2px;">รวม</th>
+                <tr style="">
+                    <th style="text-align:left; width: ${is58mm ? '55%' : '60%'}; padding-bottom: 8px; border-bottom: 2px solid #000;">รายการ</th>
+                    <th style="text-align:right; width: ${is58mm ? '15%' : '15%'}; padding-bottom: 8px; border-bottom: 2px solid #000;">Qty</th>
+                    <th style="text-align:right; width: ${is58mm ? '30%' : '25%'}; padding-bottom: 8px; border-bottom: 2px solid #000;">รวม</th>
                 </tr>`;
             
             order.items.forEach(item => {
                 const itemTotal = (item.finalPrice * item.quantity).toFixed(2);
                 itemsHtml += `
                     <tr>
-                        <td style="padding-top: 4px; vertical-align: top; word-wrap: break-word; overflow-wrap: break-word; padding-right: 2px;">
+                        <td style="padding-top: 8px; padding-bottom: 4px; vertical-align: top; word-wrap: break-word; overflow-wrap: break-word; padding-right: 2px;">
                             <div style="font-weight: bold; line-height: 1.2;">${item.name}</div>
-                            ${item.selectedOptions.length > 0 ? `<div style="font-size: ${fsSmall}; font-weight: normal; color: #555;">- ${item.selectedOptions.map(o=>o.name).join(', ')}</div>` : ''}
+                            ${item.selectedOptions.length > 0 ? `<div style="font-size: ${fsSmall}; font-weight: normal; color: #333;">- ${item.selectedOptions.map(o=>o.name).join(', ')}</div>` : ''}
                         </td>
-                        <td style="text-align: right; vertical-align: top; padding-top: 4px;">${item.quantity}</td>
-                        <td style="text-align: right; vertical-align: top; padding-top: 4px;">${itemTotal}</td>
+                        <td style="text-align: right; vertical-align: top; padding-top: 8px;">${item.quantity}</td>
+                        <td style="text-align: right; vertical-align: top; padding-top: 8px;">${itemTotal}</td>
                     </tr>
                 `;
             });
@@ -319,14 +322,15 @@ export const printerService = {
         // Totals Logic
         const subtotal = order.items.reduce((s, i) => s + i.finalPrice * i.quantity, 0);
         const total = subtotal + order.taxAmount;
-        let totalsHtml = `<div style="font-size: ${fsNormal}; border-top: 1px dashed #000; padding-top: 5px; margin-top: 5px;">`;
+        // FIX: Increased top padding for totals
+        let totalsHtml = `<div style="font-size: ${fsNormal}; border-top: 2px dotted #000; padding-top: 10px; margin-top: 10px;">`;
         
-        if (opts.showSubtotal) totalsHtml += `<div style="display: flex; justify-content: space-between;"><span>รวมเงิน</span><span>${subtotal.toFixed(2)}</span></div>`;
-        if (opts.showTax && order.taxAmount > 0) totalsHtml += `<div style="display: flex; justify-content: space-between;"><span>ภาษี (${order.taxRate}%)</span><span>${order.taxAmount.toFixed(2)}</span></div>`;
-        if (opts.showTotal) totalsHtml += `<div style="display: flex; justify-content: space-between; font-weight: 900; font-size: ${fsLarge}; margin-top: 5px; border-top: 1px solid #000; padding-top: 2px;"><span>ยอดสุทธิ</span><span>${total.toFixed(2)}</span></div>`;
+        if (opts.showSubtotal) totalsHtml += `<div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span>รวมเงิน</span><span>${subtotal.toFixed(2)}</span></div>`;
+        if (opts.showTax && order.taxAmount > 0) totalsHtml += `<div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span>ภาษี (${order.taxRate}%)</span><span>${order.taxAmount.toFixed(2)}</span></div>`;
+        if (opts.showTotal) totalsHtml += `<div style="display: flex; justify-content: space-between; font-weight: 900; font-size: ${fsLarge}; margin-top: 8px; border-top: 1px solid #000; padding-top: 4px;"><span>ยอดสุทธิ</span><span>${total.toFixed(2)}</span></div>`;
         if (opts.showPaymentMethod) {
             const method = order.paymentDetails.method === 'cash' ? 'เงินสด' : 'โอนจ่าย';
-            totalsHtml += `<div style="text-align: center; margin-top: 8px; font-size: ${fsSmall};">(ชำระโดย: ${method})</div>`;
+            totalsHtml += `<div style="text-align: center; margin-top: 12px; font-size: ${fsSmall};">(ชำระโดย: ${method})</div>`;
         }
         totalsHtml += `</div>`;
 
@@ -334,10 +338,10 @@ export const printerService = {
         const htmlContent = `
             <div style="width: 100%; box-sizing: border-box; font-family: 'Sarabun', sans-serif; color: #000; padding: 5px 0;">
                 ${headerHtml}
-                <div style="border-bottom: 1px dashed #000; margin: 8px 0;"></div>
-                <div style="text-align: center; font-size: ${fsLarge}; font-weight: bold; margin-bottom: 8px;">ใบเสร็จรับเงิน</div>
+                <div style="border-bottom: 1px dashed #000; margin: 10px 0;"></div>
+                <div style="text-align: center; font-size: ${fsLarge}; font-weight: bold; margin-bottom: 10px;">ใบเสร็จรับเงิน</div>
                 
-                <div style="font-size: ${fsSmall}; margin-bottom: 8px;">
+                <div style="font-size: ${fsSmall}; margin-bottom: 12px; line-height: 1.4;">
                     ${opts.showTable ? `<div>โต๊ะ: <span style="font-weight:bold; font-size: ${fsNormal};">${order.tableName}</span></div>` : ''}
                     ${opts.showOrderId ? `<div>Order: #${order.orderNumber}</div>` : ''}
                     ${opts.showDateTime ? `<div>วันที่: ${new Date(order.completionTime).toLocaleString('th-TH')}</div>` : ''}
@@ -347,7 +351,7 @@ export const printerService = {
                 ${itemsHtml}
                 ${totalsHtml}
 
-                ${opts.showThankYouMessage && opts.thankYouMessage ? `<div style="text-align: center; margin-top: 15px; font-size: ${fsNormal}; font-weight: bold;">*** ${opts.thankYouMessage} ***</div>` : ''}
+                ${opts.showThankYouMessage && opts.thankYouMessage ? `<div style="text-align: center; margin-top: 20px; font-size: ${fsNormal}; font-weight: bold;">*** ${opts.thankYouMessage} ***</div>` : ''}
             </div>
         `;
 
@@ -403,31 +407,31 @@ export const printerService = {
                 
                 <div style="border-bottom: 1px dashed #000; margin: 5px 0;"></div>
 
-                <div style="font-size: ${fsSmall}; margin-bottom: 5px;">
+                <div style="font-size: ${fsSmall}; margin-bottom: 10px; line-height: 1.4;">
                     <div>โต๊ะ: <span style="font-weight:bold; font-size: ${fsNormal};">${order.tableName}</span></div>
                     <div>Order: #${order.orderNumber}</div>
                     <div>เวลา: ${new Date().toLocaleString('th-TH')}</div>
                 </div>
 
                 <table style="width: 100%; font-size: ${fsNormal}; border-collapse: collapse; margin-bottom: 5px; table-layout: fixed;">
-                    <tr style="border-bottom: 1px solid #000;">
-                        <th style="text-align:left; width: ${is58mm ? '55%' : '60%'};">รายการ</th>
-                        <th style="text-align:right; width: ${is58mm ? '45%' : '40%'};">รวม</th>
+                    <tr style="">
+                        <th style="text-align:left; width: ${is58mm ? '55%' : '60%'}; padding-bottom: 8px; border-bottom: 2px solid #000;">รายการ</th>
+                        <th style="text-align:right; width: ${is58mm ? '45%' : '40%'}; padding-bottom: 8px; border-bottom: 2px solid #000;">รวม</th>
                     </tr>
                     ${order.items.map(item => `
                         <tr>
-                            <td style="padding-top: 4px; word-wrap: break-word; overflow-wrap: break-word;">${item.quantity} x ${item.name}</td>
-                            <td style="text-align: right; vertical-align: top; padding-top: 4px;">${(item.finalPrice * item.quantity).toFixed(2)}</td>
+                            <td style="padding-top: 8px; padding-bottom: 4px; word-wrap: break-word; overflow-wrap: break-word;">${item.quantity} x ${item.name}</td>
+                            <td style="text-align: right; vertical-align: top; padding-top: 8px;">${(item.finalPrice * item.quantity).toFixed(2)}</td>
                         </tr>
                     `).join('')}
                 </table>
 
-                <div style="border-top: 1px solid #000; padding-top: 5px; margin-top: 5px;">
-                    <div style="display: flex; justify-content: space-between; font-size: ${fsNormal};">
+                <div style="border-top: 2px dotted #000; padding-top: 10px; margin-top: 10px;">
+                    <div style="display: flex; justify-content: space-between; font-size: ${fsNormal}; margin-bottom: 4px;">
                         <span>ยอดรวม</span><span>${subtotal.toFixed(2)}</span>
                     </div>
-                    ${order.taxAmount > 0 ? `<div style="display: flex; justify-content: space-between; font-size: ${fsNormal};"><span>ภาษี (${order.taxRate}%)</span><span>${order.taxAmount.toFixed(2)}</span></div>` : ''}
-                    <div style="display: flex; justify-content: space-between; font-size: ${fsXLarge}; font-weight: 900; margin-top: 5px;">
+                    ${order.taxAmount > 0 ? `<div style="display: flex; justify-content: space-between; font-size: ${fsNormal}; margin-bottom: 4px;"><span>ภาษี (${order.taxRate}%)</span><span>${order.taxAmount.toFixed(2)}</span></div>` : ''}
+                    <div style="display: flex; justify-content: space-between; font-size: ${fsXLarge}; font-weight: 900; margin-top: 8px; padding-top: 4px; border-top: 1px solid #000;">
                         <span>ยอดสุทธิ</span><span>${total.toFixed(2)}</span>
                     </div>
                 </div>
