@@ -7,6 +7,7 @@ const iconv = require('iconv-lite');
 const fs = require('fs');
 const path = require('path');
 const { PNG } = require('pngjs');
+const usb = require('usb'); // Direct access to usb library for scanning
 
 // --- USB Library Loading (Safe Mode) ---
 let escpos, escposUsb;
@@ -97,45 +98,65 @@ function pngToRaster(pngBuffer) {
     return Buffer.concat([header, Buffer.from(data)]);
 }
 
+// Helper to write to USB device with Promise (Wait for completion)
+const writeDeviceAsync = (device, data) => {
+    return new Promise((resolve, reject) => {
+        device.write(data, (err) => {
+            if (err) reject(err);
+            else resolve();
+        });
+    });
+};
+
 // --- PRINT QUEUE SYSTEM ---
-// ระบบคิวเพื่อป้องกันการพิมพ์ชนกันเมื่อใช้เครื่องพิมพ์เดียวกัน
 const printQueue = [];
 let isProcessingQueue = false;
 
-// Updated executePrintJob with Retry Logic
 const executePrintJob = async (job) => {
     const { imageBuffer, connectionType, targetPrinter } = job;
     const rasterData = pngToRaster(imageBuffer);
     const MAX_RETRIES = 3;
-    const RETRY_DELAY = 2500; // 2.5 seconds
+    const RETRY_DELAY = 2500;
 
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
         try {
-            await new Promise((resolve, reject) => {
+            await new Promise(async (resolve, reject) => {
                 if (connectionType === 'usb') {
                      if (!isUsbAvailable) return reject(new Error('USB Drivers not active'));
                      
                      try {
-                        // Always try to find a fresh device instance on each attempt
-                        const device = new escpos.USB();
-                        if (!device) return reject(new Error('USB Device not found'));
+                        let device;
+                        // Check if specific VID/PID is provided
+                        if (targetPrinter && targetPrinter.vid && targetPrinter.pid) {
+                            const vid = parseInt(targetPrinter.vid, 16);
+                            const pid = parseInt(targetPrinter.pid, 16);
+                            console.log(`[USB Print] Connecting to specific device VID: ${targetPrinter.vid}, PID: ${targetPrinter.pid}`);
+                            device = new escpos.USB(vid, pid);
+                        } else {
+                            console.log(`[USB Print] Connecting to default/first USB device`);
+                            device = new escpos.USB();
+                        }
 
-                        const printer = new escpos.Printer(device);
-                        device.open((err) => {
+                        if (!device) return reject(new Error('USB Device instance could not be created'));
+
+                        device.open(async (err) => {
                             if (err) return reject(new Error('Cannot open USB printer: ' + err.message));
                             
                             try {
-                                printer.adapter.write(Buffer.from(COMMANDS.INIT));
-                                printer.adapter.write(rasterData);
-                                printer.adapter.write(Buffer.from('\n\n\n'));
-                                printer.adapter.write(Buffer.from(COMMANDS.CUT));
+                                await writeDeviceAsync(device, Buffer.from(COMMANDS.INIT));
+                                await writeDeviceAsync(device, rasterData);
+                                await writeDeviceAsync(device, Buffer.from('\n\n\n'));
+                                await writeDeviceAsync(device, Buffer.from(COMMANDS.CUT));
                                 
-                                device.close(() => {
-                                    console.log('[USB Print] Success');
-                                    resolve();
-                                });
+                                setTimeout(() => {
+                                    device.close(() => {
+                                        console.log('[USB Print] Success (Sent & Closed)');
+                                        resolve();
+                                    });
+                                }, 100); 
+                                
                             } catch (writeErr) {
-                                device.close();
+                                try { device.close(); } catch(e){}
                                 reject(writeErr);
                             }
                         });
@@ -147,7 +168,7 @@ const executePrintJob = async (job) => {
                     
                     console.log(`[Network Print] Printing to ${targetHost}:${targetPort} (Attempt ${attempt}/${MAX_RETRIES})`);
                     const client = new net.Socket();
-                    client.setTimeout(5000); // 5s timeout per attempt
+                    client.setTimeout(5000);
                     
                     let handled = false;
                     const handleError = (err) => {
@@ -176,15 +197,11 @@ const executePrintJob = async (job) => {
                     });
                 }
             });
-            
-            // If Promise resolved, the job is done.
-            return;
+            return; // Job Done
 
         } catch (error) {
             console.error(`[Print] Attempt ${attempt} failed: ${error.message}`);
-            if (attempt === MAX_RETRIES) throw error; // Re-throw if it was the last attempt
-            
-            // Wait before retrying
+            if (attempt === MAX_RETRIES) throw error;
             await new Promise(r => setTimeout(r, RETRY_DELAY));
         }
     }
@@ -194,21 +211,17 @@ const processQueue = async () => {
     if (isProcessingQueue || printQueue.length === 0) return;
     
     isProcessingQueue = true;
-    const job = printQueue.shift(); // Get the next job
+    const job = printQueue.shift();
 
     try {
         await executePrintJob(job);
-        // Respond success to the frontend ONLY after the job is processed
         if (!job.res.headersSent) job.res.json({ success: true });
     } catch (error) {
         console.error('Print Job Failed:', error.message);
         if (!job.res.headersSent) job.res.status(500).json({ success: false, error: error.message });
     } finally {
         isProcessingQueue = false;
-        // Add a small delay to let the printer reset/buffer clear before next job
-        setTimeout(() => {
-            processQueue(); 
-        }, 1000);
+        setTimeout(() => { processQueue(); }, 1000);
     }
 };
 
@@ -216,43 +229,84 @@ app.get('/', (req, res) => {
     res.send(`POS Print Server (Network ${isUsbAvailable ? '+ USB' : ''} Supported) - Queue Active: ${printQueue.length}`);
 });
 
+// NEW: Endpoint to scan connected USB devices
+app.get('/scan-usb', (req, res) => {
+    if (!isUsbAvailable) {
+        return res.status(500).json({ error: 'USB Drivers not loaded' });
+    }
+    try {
+        const devices = usb.getDeviceList();
+        const printerCandidates = devices
+            .filter(d => {
+                // Basic filtering: Printers usually have interface class 7
+                // Or we just return everything and let user pick (safest for generic drivers)
+                try {
+                    return d.configDescriptor?.interfaces?.some(iface => 
+                        iface.some(conf => conf.bInterfaceClass === 7)
+                    ) || true; // Return all for now to be safe
+                } catch(e) { return true; }
+            })
+            .map(d => ({
+                vid: '0x' + d.deviceDescriptor.idVendor.toString(16).padStart(4, '0'),
+                pid: '0x' + d.deviceDescriptor.idProduct.toString(16).padStart(4, '0'),
+                busNumber: d.busNumber,
+                deviceAddress: d.deviceAddress
+            }));
+            
+        res.json({ devices: printerCandidates });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
 app.post('/check-printer', (req, res) => {
-    const { ip, port, connectionType } = req.body;
+    const { ip, port, connectionType, vid, pid } = req.body;
     
     if (connectionType === 'usb') {
         if (!isUsbAvailable) {
             return res.json({ online: false, message: 'USB Driver not loaded on server' });
         }
         try {
+            // If VID/PID provided, try to find THAT specific device
+            if (vid && pid) {
+                const targetVid = parseInt(vid, 16);
+                const targetPid = parseInt(pid, 16);
+                // We use escpos.USB to try instantiating
+                const device = new escpos.USB(targetVid, targetPid);
+                // Just creating the instance doesn't verify presence fully in all versions of node-usb,
+                // but open() will fail if it's missing.
+                // However, we don't want to open/claim interface just for checking status if we can avoid it.
+                // Better strategy: Scan the list.
+                const devices = usb.getDeviceList();
+                const found = devices.some(d => d.deviceDescriptor.idVendor === targetVid && d.deviceDescriptor.idProduct === targetPid);
+                
+                if (found) {
+                    return res.json({ online: true, message: `Found USB Device (${vid}:${pid})` });
+                } else {
+                    return res.json({ online: false, message: `Device ${vid}:${pid} not connected` });
+                }
+            } 
+            
+            // Fallback: Find ANY printer
             const devices = escpos.USB.findPrinter();
             if (devices && devices.length > 0) {
-                return res.json({ online: true, message: `Found ${devices.length} USB Printer(s)` });
+                return res.json({ online: true, message: `Found ${devices.length} USB Printer(s) (Auto-detect)` });
             } else {
-                return res.json({ online: false, message: 'No USB Printer found (Check connection/Zadig)' });
+                return res.json({ online: false, message: 'No USB Printer found' });
             }
         } catch (e) {
             return res.json({ online: false, message: e.message });
         }
     }
 
+    // Network Check
     const targetHost = ip || PRINTER_CONFIG.host;
     const targetPort = port || PRINTER_CONFIG.port;
-
-    console.log(`Checking network printer at ${targetHost}:${targetPort}...`);
     const sock = new net.Socket();
     sock.setTimeout(2500);
-
-    sock.on('connect', () => {
-        sock.destroy();
-        res.json({ online: true, message: 'Online' });
-    });
-
+    sock.on('connect', () => { sock.destroy(); res.json({ online: true, message: 'Online' }); });
     sock.on('error', (err) => res.json({ online: false, message: err.message }));
-    sock.on('timeout', () => {
-        sock.destroy();
-        res.json({ online: false, message: 'Timeout' });
-    });
-
+    sock.on('timeout', () => { sock.destroy(); res.json({ online: false, message: 'Timeout' }); });
     sock.connect(targetPort, targetHost);
 });
 
@@ -267,7 +321,6 @@ app.post('/print-image', (req, res) => {
         const base64Data = image.replace(/^data:image\/png;base64,/, "");
         const imageBuffer = Buffer.from(base64Data, 'base64');
 
-        // Add job to queue instead of processing immediately
         console.log(`[Queue] Added new print job. Queue size: ${printQueue.length + 1}`);
         printQueue.push({ res, imageBuffer, connectionType, targetPrinter });
         
@@ -284,10 +337,5 @@ app.listen(SERVER_PORT, () => {
     console.log(`listening on port: ${SERVER_PORT}`);
     console.log(`Network Mode: Enabled`);
     console.log(`USB Mode: ${isUsbAvailable ? 'Enabled' : 'Disabled (Drivers not loaded)'}`);
-    console.log(`Queue System: Active`);
-    console.log(`--------------------------------`);
-    if (!isUsbAvailable) {
-        console.log(`NOTE: To enable USB, ensure 'usb' and 'escpos-usb' are installed correctly.`);
-    }
     console.log(`================================\n`);
 });
