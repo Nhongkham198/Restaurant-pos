@@ -52,7 +52,7 @@ app.use(bodyParser.json({ limit: '10mb' }));
 const COMMANDS = {
     INIT: '\x1b\x40',
     CUT: '\x1d\x56\x41\x00', // GS V A 0 (Standard Cut)
-    FEED_LINES: '\x1b\x64\x05', // ESC d 5 (Feed 5 lines)
+    FEED_J: '\x1b\x4a\xff', // ESC J 255 (Feed 255 dots approx 30mm) - Force motor feed
 };
 
 // ฟังก์ชันแปลง PNG Buffer เป็น ESC/POS Raster Data (GS v 0)
@@ -172,16 +172,18 @@ const executePrintJob = async (job) => {
                             try {
                                 console.log('[USB Print] Device opened. Sending data...');
                                 
-                                // *** STAR MICRONICS FIX: AGGRESSIVE FEED using newlines ***
-                                // 1. Init
-                                // 2. Raster Data
-                                // 3. Feed 15 lines (\n) - Universal line feed, safe for all modes
-                                // 4. Cut
+                                // *** STAR MICRONICS FIX: AGGRESSIVE FEED using ESC J ***
+                                // Using ESC J (0x1B 0x4A n) forces the motor to feed n dots.
+                                // We send it 5 times with max dots (255) to ensure ~15cm feed.
+                                // This flushes the raster buffer and clears the cutter.
                                 const combinedBuffer = Buffer.concat([
                                     Buffer.from(COMMANDS.INIT),
                                     rasterData,
-                                    Buffer.from('\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n'), // 15 Newlines (~60mm)
-                                    Buffer.from(COMMANDS.FEED_LINES), // Extra command feed
+                                    Buffer.from(COMMANDS.FEED_J),
+                                    Buffer.from(COMMANDS.FEED_J),
+                                    Buffer.from(COMMANDS.FEED_J),
+                                    Buffer.from(COMMANDS.FEED_J),
+                                    Buffer.from(COMMANDS.FEED_J), // 5th feed for safety
                                     Buffer.from(COMMANDS.CUT)
                                 ]);
 
@@ -234,8 +236,11 @@ const executePrintJob = async (job) => {
                             const combinedBuffer = Buffer.concat([
                                 Buffer.from(COMMANDS.INIT),
                                 rasterData,
-                                Buffer.from('\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n'), // 15 Newlines
-                                Buffer.from(COMMANDS.FEED_LINES),
+                                Buffer.from(COMMANDS.FEED_J),
+                                Buffer.from(COMMANDS.FEED_J),
+                                Buffer.from(COMMANDS.FEED_J),
+                                Buffer.from(COMMANDS.FEED_J),
+                                Buffer.from(COMMANDS.FEED_J),
                                 Buffer.from(COMMANDS.CUT)
                             ]);
                             
