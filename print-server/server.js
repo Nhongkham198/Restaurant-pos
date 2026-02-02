@@ -108,9 +108,8 @@ const writeDeviceAsync = (device, data) => {
     });
 };
 
-// NEW: Chunked write for Network Socket (Optimized for speed)
+// NEW: Chunked write for Network Socket (Slower chunks for stability)
 const writeSocketChunked = async (client, data) => {
-    // 8KB chunks for network seems safe
     const CHUNK_SIZE = 8192; 
     for (let i = 0; i < data.length; i += CHUNK_SIZE) {
         const chunk = data.slice(i, i + CHUNK_SIZE);
@@ -119,20 +118,19 @@ const writeSocketChunked = async (client, data) => {
             // Wait for drain if buffer is full
             await new Promise(resolve => client.once('drain', resolve));
         }
-        // Micro delay to prevent flooding printer buffer (Reduced to 2ms for speed)
-        await new Promise(resolve => setTimeout(resolve, 5));
+        // Increased delay to 15ms to ensure printer buffer has time to process
+        await new Promise(resolve => setTimeout(resolve, 15));
     }
 };
 
-// NEW: Chunked write with smaller buffer size for better stability (USB)
+// NEW: Chunked write for USB
 const writeDeviceChunked = async (device, data) => {
-    // Reduced chunk size to 4096 bytes (4KB) for USB to balance speed/stability
     const CHUNK_SIZE = 4096; 
     for (let i = 0; i < data.length; i += CHUNK_SIZE) {
         const chunk = data.slice(i, i + CHUNK_SIZE);
         await writeDeviceAsync(device, chunk);
-        // Micro delay
-        await new Promise(resolve => setTimeout(resolve, 5)); 
+        // Increased delay to 20ms
+        await new Promise(resolve => setTimeout(resolve, 20)); 
     }
 };
 
@@ -143,8 +141,8 @@ let isProcessingQueue = false;
 const executePrintJob = async (job) => {
     const { imageBuffer, connectionType, targetPrinter } = job;
     const rasterData = pngToRaster(imageBuffer);
-    const MAX_RETRIES = 2; // Reduced retries for background processing
-    const RETRY_DELAY = 1500;
+    const MAX_RETRIES = 2; 
+    const RETRY_DELAY = 2000;
 
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
         try {
@@ -154,14 +152,13 @@ const executePrintJob = async (job) => {
                      
                      try {
                         let device;
-                        // Check if specific VID/PID is provided
                         if (targetPrinter && targetPrinter.vid && targetPrinter.pid) {
                             const vid = parseInt(targetPrinter.vid, 16);
                             const pid = parseInt(targetPrinter.pid, 16);
-                            console.log(`[USB Print] Connecting to specific device VID: ${targetPrinter.vid}, PID: ${targetPrinter.pid}`);
+                            console.log(`[USB Print] Connecting to VID: ${targetPrinter.vid}, PID: ${targetPrinter.pid}`);
                             device = new escpos.USB(vid, pid);
                         } else {
-                            console.log(`[USB Print] Connecting to default/first USB device`);
+                            console.log(`[USB Print] Connecting to default USB device`);
                             device = new escpos.USB();
                         }
 
@@ -171,9 +168,8 @@ const executePrintJob = async (job) => {
                             if (err) return reject(new Error('Cannot open USB printer: ' + err.message));
                             
                             try {
-                                console.log('[USB Print] Device opened. Preparing data...');
+                                console.log('[USB Print] Device opened. Sending data...');
                                 
-                                // Combine commands into one large buffer
                                 const combinedBuffer = Buffer.concat([
                                     Buffer.from(COMMANDS.INIT),
                                     rasterData,
@@ -181,23 +177,21 @@ const executePrintJob = async (job) => {
                                     Buffer.from(COMMANDS.CUT)
                                 ]);
 
-                                // Send the combined buffer in chunks
                                 await writeDeviceChunked(device, combinedBuffer);
-                                
                                 console.log(`[USB Print] Sent ${combinedBuffer.length} bytes.`);
                                 
-                                // Wait 1 second before closing
+                                // WAIT 5 SECONDS before closing for USB to ensure cut command executes
                                 setTimeout(() => {
                                     try {
                                         device.close(() => {
-                                            console.log('[USB Print] Connection closed cleanly.');
+                                            console.log('[USB Print] Connection closed.');
                                             resolve();
                                         });
                                     } catch (closeErr) {
                                         console.warn('[USB Print] Warning during close:', closeErr.message);
-                                        resolve(); // Treat as success even if close throws
+                                        resolve();
                                     }
-                                }, 1000); 
+                                }, 5000); 
                                 
                             } catch (writeErr) {
                                 console.error('[USB Print] Write error:', writeErr);
@@ -215,9 +209,9 @@ const executePrintJob = async (job) => {
                         return reject(new Error('Target Printer IP is missing'));
                     }
 
-                    console.log(`[Network Print] Printing to ${targetHost}:${targetPort} (Attempt ${attempt}/${MAX_RETRIES})`);
+                    console.log(`[Network Print] Printing to ${targetHost}:${targetPort} (Attempt ${attempt})`);
                     const client = new net.Socket();
-                    client.setTimeout(15000); // 15s timeout
+                    client.setTimeout(20000); // 20s connection timeout
                     
                     let handled = false;
                     const handleError = (err) => {
@@ -236,14 +230,22 @@ const executePrintJob = async (job) => {
                                 Buffer.from(COMMANDS.CUT)
                             ]);
                             
-                            // Send in chunks
+                            // Send data
                             await writeSocketChunked(client, combinedBuffer);
+                            console.log(`[Network Print] Data sent (${combinedBuffer.length} bytes). Waiting to close...`);
                             
-                            // Wait for data to flush before ending
-                            // Add a small delay before closing to ensure printer receives everything
+                            // *** CRITICAL CHANGE ***
+                            // Wait 12 SECONDS before closing the socket.
                             setTimeout(() => {
-                                client.end();
-                            }, 500);
+                                console.log('[Network Print] Closing connection.');
+                                client.end(); 
+                                client.destroy(); 
+                                if (!handled) {
+                                    handled = true;
+                                    resolve();
+                                }
+                            }, 12000);
+
                         } catch (err) {
                             handleError(err);
                         }
@@ -252,12 +254,7 @@ const executePrintJob = async (job) => {
                     client.on('timeout', () => handleError(new Error('Printer Connection Timeout')));
                     client.on('error', (err) => handleError(err));
                     
-                    client.on('close', (hadError) => {
-                        if (!handled && !hadError) {
-                            handled = true;
-                            resolve();
-                        }
-                    });
+                    // Note: We handle close manually via setTimeout above for success cases
                 }
             });
             return; // Job Done
@@ -277,14 +274,12 @@ const processQueue = async () => {
     const job = printQueue.shift();
 
     try {
-        // Execute print job (background)
         await executePrintJob(job);
         console.log('[Queue] Job completed successfully.');
     } catch (error) {
         console.error('[Queue] Job failed permanently:', error.message);
     } finally {
         isProcessingQueue = false;
-        // Check for next job
         setTimeout(() => { processQueue(); }, 500);
     }
 };
@@ -293,15 +288,12 @@ app.get('/', (req, res) => {
     res.send(`POS Print Server (Network ${isUsbAvailable ? '+ USB' : ''} Supported) - Queue Active: ${printQueue.length}`);
 });
 
-// NEW: Endpoint to scan connected USB devices
 app.get('/scan-usb', (req, res) => {
     if (!isUsbAvailable) {
         return res.status(500).json({ error: 'USB Drivers not loaded' });
     }
     try {
         const devices = usb.getDeviceList();
-        
-        // Map to simple objects
         const printerCandidates = devices.map(d => {
             try {
                 return {
@@ -314,7 +306,6 @@ app.get('/scan-usb', (req, res) => {
                 return null;
             }
         }).filter(d => d !== null);
-            
         res.json({ devices: printerCandidates });
     } catch (e) {
         console.error("Scan Error:", e);
@@ -326,41 +317,25 @@ app.post('/check-printer', (req, res) => {
     const { ip, port, connectionType, vid, pid } = req.body;
     
     if (connectionType === 'usb') {
-        if (!isUsbAvailable) {
-            return res.json({ online: false, message: 'USB Driver not loaded on server' });
-        }
+        if (!isUsbAvailable) return res.json({ online: false, message: 'USB Driver not loaded' });
         try {
             if (vid && pid) {
                 const targetVid = parseInt(vid, 16);
                 const targetPid = parseInt(pid, 16);
                 const devices = usb.getDeviceList();
                 const found = devices.some(d => d.deviceDescriptor.idVendor === targetVid && d.deviceDescriptor.idProduct === targetPid);
-                
-                if (found) {
-                    return res.json({ online: true, message: `Found USB Device (${vid}:${pid})` });
-                } else {
-                    return res.json({ online: false, message: `Device ${vid}:${pid} not connected` });
-                }
+                return res.json({ online: found, message: found ? `Found USB (${vid}:${pid})` : `Device ${vid}:${pid} not connected` });
             } 
-            
             const devices = escpos.USB.findPrinter();
-            if (devices && devices.length > 0) {
-                return res.json({ online: true, message: `Found ${devices.length} USB Printer(s)` });
-            } else {
-                return res.json({ online: false, message: 'No USB Printer found' });
-            }
+            return res.json({ online: devices && devices.length > 0, message: devices && devices.length > 0 ? 'USB Printer Found' : 'No USB Printer' });
         } catch (e) {
             return res.json({ online: false, message: e.message });
         }
     }
 
-    // Network Check
     const targetHost = ip || PRINTER_CONFIG.host;
     const targetPort = port || PRINTER_CONFIG.port;
-    
-    if (!targetHost) {
-        return res.json({ online: false, message: 'Missing IP Address' });
-    }
+    if (!targetHost) return res.json({ online: false, message: 'Missing IP' });
 
     const sock = new net.Socket();
     sock.setTimeout(2500);
@@ -381,22 +356,17 @@ app.post('/print-image', (req, res) => {
         const base64Data = image.replace(/^data:image\/png;base64,/, "");
         const imageBuffer = Buffer.from(base64Data, 'base64');
 
-        // --- FIRE AND FORGET IMPLEMENTATION ---
-        // 1. Send Success Response Immediately
+        // FIRE AND FORGET: Respond Success Immediately
         res.json({ success: true, message: 'Job queued successfully' });
 
-        // 2. Add to Queue for background processing
+        // Add to Queue
         console.log(`[Queue] Added new print job. Queue size: ${printQueue.length + 1}`);
-        
-        // Push object WITHOUT 'res' (Response is already sent)
         printQueue.push({ imageBuffer, connectionType, targetPrinter });
         
-        // Trigger background processing
         processQueue();
 
     } catch (error) {
         console.error('Request Error:', error);
-        // Only send error if we haven't responded yet (though unlikely here)
         if (!res.headersSent) {
             res.status(500).json({ success: false, error: 'Request failed: ' + error.message });
         }

@@ -390,7 +390,7 @@ export const CashBillModal: React.FC<CashBillModalProps> = ({
     const handleZoomOut = () => setZoomLevel(prev => Math.max(prev - 0.1, 0.5));
     const handleZoomReset = () => setZoomLevel(1);
 
-    // --- ENHANCED PRINT HANDLER WITH FIXED 560PX WIDTH ---
+    // --- ENHANCED PRINT HANDLER WITH FIXED 560PX WIDTH & DELAY ---
     const handlePrint = async () => {
         if (!printerConfig?.cashier) {
             Swal.fire({
@@ -415,15 +415,16 @@ export const CashBillModal: React.FC<CashBillModalProps> = ({
         const clone = printContent.cloneNode(true) as HTMLElement;
         
         // Style clone for perfect 80mm fit (560px width, Scale 1)
-        clone.style.position = 'absolute';
+        clone.style.position = 'fixed'; // Use fixed to ensure it's rendered in view before capture if needed, but offscreen
         clone.style.top = '-9999px';
         clone.style.left = '-9999px';
         clone.style.width = isA4 ? '210mm' : '560px'; // Explicit pixel width for Thermal
-        clone.style.height = 'auto'; 
+        clone.style.height = 'auto'; // Ensure height grows with content
         clone.style.minHeight = 'auto';
         clone.style.maxHeight = 'none';
         clone.style.overflow = 'visible';
         clone.style.transform = 'none'; 
+        clone.style.backgroundColor = 'white'; // Ensure background is white
         
         // Manually copy input values
         const originalInputs = printContent.querySelectorAll('input');
@@ -434,22 +435,18 @@ export const CashBillModal: React.FC<CashBillModalProps> = ({
 
         document.body.appendChild(clone);
 
-        try {
-            const fullHeight = clone.scrollHeight;
-            const fullWidth = clone.scrollWidth;
+        // *** IMPORTANT DELAY ***
+        // Wait for DOM to fully render the clone, especially height calculations
+        await new Promise(resolve => setTimeout(resolve, 800));
 
-            // 2. Capture with SCALE 1 for 80mm
-            // Using scale 1 ensures the image width stays at ~560px, which fits the printer buffer.
-            // Scale 2 would make it ~1120px, causing "No paper" issue.
+        try {
+            // 2. Capture
             const canvas = await window.html2canvas(clone, { 
-                scale: isA4 ? 2 : 1, // Use scale 1 for Thermal to keep width safe
+                scale: isA4 ? 2 : 1, // Use scale 1 for Thermal to keep width safe (560px)
                 useCORS: true,
                 backgroundColor: '#ffffff',
                 logging: false,
-                height: fullHeight + 20, 
-                windowHeight: fullHeight + 50,
-                width: fullWidth,
-                windowWidth: fullWidth + 20
+                // Remove explicit height, let html2canvas calculate it naturally from the visible clone
             });
             
             const base64Image = canvas.toDataURL('image/png');
