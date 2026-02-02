@@ -62,21 +62,22 @@ const trimCanvas = (canvas: HTMLCanvasElement) => {
     return canvas;
 };
 
-// --- Constants for Safer Widths ---
-// 58mm: ~48mm printable. 280px gives decent resolution while keeping fonts manageable.
-// 80mm: ~72mm printable. 550px is standard for high-res 80mm printing.
-const WIDTH_58MM_PX = 280; 
-const WIDTH_80MM_PX = 550; 
+// --- Constants for EXACT Printable Widths (Smart Fit) ---
+// 58mm Paper: Physical head width is usually 384 dots. We use 360 to have a tiny safe margin.
+// 80mm Paper: Physical head width is usually 576 dots. We use 550 to have a tiny safe margin.
+const TARGET_WIDTH_58MM = 360; 
+const TARGET_WIDTH_80MM = 550; 
 
 // --- Core Generator ---
-const generateImageFromHtml = async (htmlContent: string, widthPx: number): Promise<string> => {
+const generateImageFromHtml = async (htmlContent: string, targetWidthPx: number): Promise<string> => {
     const container = document.createElement('div');
     
-    // Use absolute positioning to isolate content
+    // We render the HTML at the TARGET width initially to ensure word-wrapping happens correctly
+    // for the physical paper width.
     container.style.position = 'absolute';
     container.style.left = '-9999px';
     container.style.top = '0';
-    container.style.width = `${widthPx}px`;
+    container.style.width = `${targetWidthPx}px`; 
     container.style.height = 'auto'; 
     container.style.margin = '0';
     container.style.padding = '0'; 
@@ -106,14 +107,16 @@ const generateImageFromHtml = async (htmlContent: string, widthPx: number): Prom
     try {
         if (!window.html2canvas) throw new Error("html2canvas library not loaded");
 
-        const canvas = await window.html2canvas(container, {
-            scale: 2, // High resolution
+        // 1. Capture at High Resolution (Scale 2 = 2x Width)
+        // capturing at 2x gives us sharp text, even if we downscale slightly later
+        const rawCanvas = await window.html2canvas(container, {
+            scale: 2, 
             useCORS: true,
             logging: false,
             backgroundColor: '#ffffff', 
-            width: widthPx,
+            width: targetWidthPx,
             height: contentHeight,
-            windowWidth: widthPx,
+            windowWidth: targetWidthPx,
             windowHeight: contentHeight + 100, // Extra buffer
             onclone: (clonedDoc: any) => {
                 const clonedEl = clonedDoc.querySelector('div');
@@ -124,10 +127,30 @@ const generateImageFromHtml = async (htmlContent: string, widthPx: number): Prom
             }
         });
         
-        // AUTO-TRIM based on non-white pixels
-        const trimmedCanvas = trimCanvas(canvas);
+        // 2. Trim Whitespace from bottom
+        const trimmedCanvas = trimCanvas(rawCanvas);
+
+        // 3. SMART FIT: Resize the high-res canvas down to the EXACT target width
+        // This ensures pixel-perfect fit for the thermal printer head (e.g. 384 dots)
+        const finalCanvas = document.createElement('canvas');
+        finalCanvas.width = targetWidthPx;
+        finalCanvas.height = (trimmedCanvas.height / trimmedCanvas.width) * targetWidthPx;
         
-        const base64 = trimmedCanvas.toDataURL('image/png');
+        const ctx = finalCanvas.getContext('2d');
+        if (!ctx) throw new Error("Could not get context");
+
+        // High quality scaling
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        
+        // Fill white background just in case
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, finalCanvas.width, finalCanvas.height);
+        
+        // Draw the trimmed (possibly large) canvas into the exact-width canvas
+        ctx.drawImage(trimmedCanvas, 0, 0, finalCanvas.width, finalCanvas.height);
+        
+        const base64 = finalCanvas.toDataURL('image/png');
         document.body.removeChild(container);
         return base64;
     } catch (e) {
@@ -146,12 +169,14 @@ export const printerService = {
 
         const url = `http://${config.ipAddress}:${config.port || 3000}/print-image`;
         const is58mm = config.paperWidth === '58mm';
-        const paperWidthPx = is58mm ? WIDTH_58MM_PX : WIDTH_80MM_PX;
         
-        // Font Sizes
-        const fsNormal = is58mm ? '16px' : '20px';
-        const fsLarge = is58mm ? '20px' : '28px';
-        const fsXLarge = is58mm ? '26px' : '36px';
+        // Use smart fit constants
+        const targetWidth = is58mm ? TARGET_WIDTH_58MM : TARGET_WIDTH_80MM;
+        
+        // Font Sizes adjusted for 360px/550px widths
+        const fsNormal = is58mm ? '20px' : '22px'; // Standard readable size
+        const fsLarge = is58mm ? '24px' : '30px';
+        const fsXLarge = is58mm ? '32px' : '40px';
         
         const displayOrderNumber = order.manualOrderNumber ? `#${order.manualOrderNumber}` : `#${String(order.orderNumber).padStart(3, '0')}`;
         const timeStr = new Date(order.orderTime).toLocaleTimeString('th-TH', {hour: '2-digit', minute:'2-digit'});
@@ -207,14 +232,13 @@ export const printerService = {
         `;
 
         try {
-            const base64Image = await generateImageFromHtml(htmlContent, paperWidthPx);
+            const base64Image = await generateImageFromHtml(htmlContent, targetWidth);
             const res = await fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     image: base64Image,
                     connectionType: config.connectionType,
-                    // Pass specific hardware details to Server
                     targetPrinter: {
                         ip: config.targetPrinterIp || '',
                         port: config.targetPrinterPort || '9100',
@@ -238,14 +262,17 @@ export const printerService = {
 
         const url = `http://${config.ipAddress}:${config.port || 3000}/print-image`;
         const is58mm = config.paperWidth === '58mm';
-        const paperWidthPx = is58mm ? WIDTH_58MM_PX : WIDTH_80MM_PX;
+        
+        // Use smart fit constants
+        const targetWidth = is58mm ? TARGET_WIDTH_58MM : TARGET_WIDTH_80MM;
+        
         const opts = config.receiptOptions;
 
         // Optimized Font Sizes for Receipt
-        const fsSmall = is58mm ? '12px' : '16px';
-        const fsNormal = is58mm ? '14px' : '18px';
-        const fsLarge = is58mm ? '18px' : '22px';
-        const fsXLarge = is58mm ? '22px' : '28px';
+        const fsSmall = is58mm ? '16px' : '18px';
+        const fsNormal = is58mm ? '18px' : '20px';
+        const fsLarge = is58mm ? '22px' : '26px';
+        const fsXLarge = is58mm ? '26px' : '32px';
 
         // Header Logic
         let headerHtml = '';
@@ -325,7 +352,7 @@ export const printerService = {
         `;
 
         try {
-            const base64Image = await generateImageFromHtml(htmlContent, paperWidthPx);
+            const base64Image = await generateImageFromHtml(htmlContent, targetWidth);
             const res = await fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -353,15 +380,18 @@ export const printerService = {
     // --- 3. Check Bill (Preliminary Bill) ---
     printBill: async (order: ActiveOrder, config: CashierPrinterSettings, restaurantName: string, logoUrl?: string | null): Promise<void> => {
         const is58mm = config.paperWidth === '58mm';
-        const paperWidthPx = is58mm ? WIDTH_58MM_PX : WIDTH_80MM_PX;
+        
+        // Use smart fit constants
+        const targetWidth = is58mm ? TARGET_WIDTH_58MM : TARGET_WIDTH_80MM;
+        
         const subtotal = order.items.reduce((s, i) => s + i.finalPrice * i.quantity, 0);
         const total = subtotal + order.taxAmount;
 
         // Optimized Font Sizes
-        const fsSmall = is58mm ? '12px' : '16px';
-        const fsNormal = is58mm ? '14px' : '18px';
-        const fsLarge = is58mm ? '18px' : '22px';
-        const fsXLarge = is58mm ? '22px' : '28px';
+        const fsSmall = is58mm ? '16px' : '18px';
+        const fsNormal = is58mm ? '18px' : '20px';
+        const fsLarge = is58mm ? '22px' : '26px';
+        const fsXLarge = is58mm ? '26px' : '32px';
 
         const htmlContent = `
             <div style="width: 100%; box-sizing: border-box; font-family: 'Sarabun', sans-serif; color: #000; padding: 5px 0;">
@@ -406,7 +436,7 @@ export const printerService = {
 
         const url = `http://${config.ipAddress}:${config.port || 3000}/print-image`;
         try {
-            const base64Image = await generateImageFromHtml(htmlContent, paperWidthPx);
+            const base64Image = await generateImageFromHtml(htmlContent, targetWidth);
             await fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -453,13 +483,16 @@ export const printerService = {
         if (!config.ipAddress) throw new Error("Printer config missing");
         
         const is58mm = config.paperWidth === '58mm';
-        const paperWidthPx = is58mm ? WIDTH_58MM_PX : WIDTH_80MM_PX;
-        const qrSize = is58mm ? 180 : 250;
-        const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=${qrSize}x${qrSize}&data=${encodeURIComponent(customerUrl)}`;
+        
+        // Use smart fit constants
+        const targetWidth = is58mm ? TARGET_WIDTH_58MM : TARGET_WIDTH_80MM;
+        
+        const qrSize = is58mm ? 200 : 300;
+        const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(customerUrl)}`;
         
         // Font sizes
-        const fsTitle = is58mm ? '24px' : '32px';
-        const fsSub = is58mm ? '16px' : '20px';
+        const fsTitle = is58mm ? '28px' : '36px';
+        const fsSub = is58mm ? '20px' : '24px';
         
         const html = `
             <div style="text-align: center; padding: 10px; font-family: 'Sarabun', sans-serif; width: 100%; box-sizing: border-box; color: #000;">
@@ -470,11 +503,11 @@ export const printerService = {
                     <img src="${qrApiUrl}" style="width: 100%; height: 100%;" />
                 </div>
                 <div style="font-size: ${fsSub}; font-weight: bold; margin-top: 10px;">สแกนเพื่อสั่งอาหาร</div>
-                <div style="font-size: 14px;">Scan to Order</div>
+                <div style="font-size: 16px;">Scan to Order</div>
             </div>
         `;
 
-        const imageBase64 = await generateImageFromHtml(html, paperWidthPx);
+        const imageBase64 = await generateImageFromHtml(html, targetWidth);
         const url = `http://${config.ipAddress}:${config.port || 3000}/print-image`;
         
         await fetch(url, {
@@ -498,11 +531,11 @@ export const printerService = {
         const url = `http://${ip}:${port || 3000}/print-image`;
         
         const is58mm = paperWidth === '58mm';
-        const paperWidthPx = is58mm ? WIDTH_58MM_PX : WIDTH_80MM_PX;
+        const targetWidth = is58mm ? TARGET_WIDTH_58MM : TARGET_WIDTH_80MM;
         
-        const fsTitle = is58mm ? '20px' : '24px';
-        const fsNormal = is58mm ? '14px' : '16px';
-        const fsSmall = is58mm ? '12px' : '14px';
+        const fsTitle = is58mm ? '24px' : '28px';
+        const fsNormal = is58mm ? '18px' : '20px';
+        const fsSmall = is58mm ? '14px' : '16px';
 
         const html = `
             <div style="width: 100%; box-sizing: border-box; font-family: 'Sarabun', sans-serif; text-align: center; border: 2px solid #000; padding: 5px; color: #000; word-wrap: break-word; overflow-wrap: break-word;">
@@ -520,7 +553,7 @@ export const printerService = {
         `;
 
         try {
-            const imageBase64 = await generateImageFromHtml(html, paperWidthPx);
+            const imageBase64 = await generateImageFromHtml(html, targetWidth);
             const res = await fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
