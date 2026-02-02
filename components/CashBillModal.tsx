@@ -10,7 +10,7 @@ declare global {
     }
 }
 
-// ... (Rest of imports and helper functions remain unchanged)
+// Helper to convert number to Thai Baht text
 const moneyToThaiText = (amount: number): string => {
     const txtNumArr = ["ศูนย์", "หนึ่ง", "สอง", "สาม", "สี่", "ห้า", "หก", "เจ็ด", "แปด", "เก้า"];
     const txtDigitArr = ["", "สิบ", "ร้อย", "พัน", "หมื่น", "แสน", "ล้าน"];
@@ -48,7 +48,7 @@ const moneyToThaiText = (amount: number): string => {
     }
     
     if (bahtText.length > 0) bahtText += "บาท";
-    else if (Number(baht) === 0 && Number(satang) > 0) {} 
+    else if (Number(baht) === 0 && Number(satang) > 0) {} // No baht prefix for pure satang? Usually empty is fine, or "ศูนย์บาท" if strictly formal but usually omitted if satang present in casual contexts. Let's keep empty if 0 baht but has satang.
 
     // Process Satang
     if (Number(satang) > 0) {
@@ -78,7 +78,7 @@ const moneyToThaiText = (amount: number): string => {
     return bahtText;
 };
 
-// ... (EditableField component remains unchanged)
+// Helper for Editable Field
 interface EditableFieldProps {
     value: string | number;
     onChange: (val: string) => void;
@@ -106,6 +106,7 @@ const EditableField: React.FC<EditableFieldProps> = ({ value, onChange, classNam
     };
 
     const handleBlur = () => {
+        // Small delay to allow click on suggestion to register
         setTimeout(() => {
             setIsEditing(false);
             setShowSuggestions(false);
@@ -134,11 +135,12 @@ const EditableField: React.FC<EditableFieldProps> = ({ value, onChange, classNam
         }
     };
 
+    // Filter suggestions based on input
     const filteredSuggestions = useMemo(() => {
         if (!suggestions || !showSuggestions || !localValue) return [];
         return suggestions.filter(item => 
             item.name.toLowerCase().includes(localValue.toLowerCase())
-        ).slice(0, 5); 
+        ).slice(0, 5); // Limit to 5
     }, [suggestions, showSuggestions, localValue]);
 
     if (isEditing) {
@@ -158,7 +160,7 @@ const EditableField: React.FC<EditableFieldProps> = ({ value, onChange, classNam
                         {filteredSuggestions.map(item => (
                             <li 
                                 key={item.id} 
-                                onMouseDown={(e) => { e.preventDefault(); handleSuggestionClick(item); }} 
+                                onMouseDown={(e) => { e.preventDefault(); handleSuggestionClick(item); }} // Use onMouseDown to trigger before onBlur
                                 className="p-2 hover:bg-blue-50 cursor-pointer text-sm text-gray-800 border-b last:border-0 text-left"
                             >
                                 <span className="font-bold">{item.name}</span> <span className="text-gray-500">- {item.price.toLocaleString()} ฿</span>
@@ -181,7 +183,6 @@ const EditableField: React.FC<EditableFieldProps> = ({ value, onChange, classNam
     );
 };
 
-// ... (CashBillModalProps and EditableItem interface remain unchanged)
 interface CashBillModalProps {
     isOpen: boolean;
     onClose: () => void;
@@ -219,25 +220,33 @@ export const CashBillModal: React.FC<CashBillModalProps> = ({
     const componentRef = useRef<HTMLDivElement>(null);
     const [paperSize, setPaperSize] = useState<'a4' | '80mm'>('80mm');
     const [zoomLevel, setZoomLevel] = useState(1);
-    const [bottomPadding, setBottomPadding] = useState(60);
+    
+    // NEW: Bottom Padding / Margin Adjustment State
+    const [bottomPadding, setBottomPadding] = useState(60); // Default 60px
 
-    // ... (Local State and Effects remain unchanged until handlePrint)
+    // --- Local State for ALL Editable Fields ---
+    
+    // Header Info
     const [shopName, setShopName] = useState('');
     const [shopAddress, setShopAddress] = useState('');
     const [shopPhone, setShopPhone] = useState('');
     const [shopTaxId, setShopTaxId] = useState('');
     
+    // Bill Meta
     const [docTitle, setDocTitle] = useState('บิลเงินสด / ใบกำกับภาษี');
     const [invNo, setInvNo] = useState('');
     const [billDate, setBillDate] = useState('');
     const [billTime, setBillTime] = useState('');
 
+    // Customer Info
     const [customerName, setCustomerName] = useState('');
     const [customerAddress, setCustomerAddress] = useState('');
     const [customerTaxId, setCustomerTaxId] = useState('');
 
+    // Items
     const [editableItems, setEditableItems] = useState<EditableItem[]>([]);
 
+    // Totals & Footer
     const [subtotalStr, setSubtotalStr] = useState('');
     const [taxLabel, setTaxLabel] = useState('ภาษีมูลค่าเพิ่ม 7%');
     const [taxAmountStr, setTaxAmountStr] = useState('');
@@ -245,13 +254,16 @@ export const CashBillModal: React.FC<CashBillModalProps> = ({
     const [grandTotalStr, setGrandTotalStr] = useState('');
     const [grandTotalInWords, setGrandTotalInWords] = useState('');
     
+    // Signatures & Names (Smart Fields)
     const [receiverLabel, setReceiverLabel] = useState('ผู้รับเงิน');
     const [authorityLabel, setAuthorityLabel] = useState('ผู้มีอำนาจลงนาม');
     const [receiverName, setReceiverName] = useState('');
     const [authorityName, setAuthorityName] = useState('');
     
+    // NEW: Base64 state for signature
     const [signatureBase64, setSignatureBase64] = useState<string | null>(null);
 
+    // Helper to calculate totals
     const recalculateTotals = (items: EditableItem[]) => {
         let subtotal = 0;
         const updatedItems = items.map(item => {
@@ -265,6 +277,7 @@ export const CashBillModal: React.FC<CashBillModalProps> = ({
             };
         });
 
+        // Use order tax rate if available, or extract from label if possible, default to 7%
         const taxRate = order?.taxRate || 7;
         const taxAmount = (taxRate / 100) * subtotal;
         const grandTotal = subtotal + taxAmount;
@@ -277,17 +290,22 @@ export const CashBillModal: React.FC<CashBillModalProps> = ({
         return updatedItems;
     };
 
+    // --- Convert Signature URL to Base64 ---
     useEffect(() => {
         const processImage = async () => {
             if (!signatureUrl) {
                 setSignatureBase64(null);
                 return;
             }
+            
+            // If already base64, use it directly
             if (signatureUrl.startsWith('data:image')) {
                 setSignatureBase64(signatureUrl);
                 return;
             }
+
             try {
+                // Attempt to fetch and convert to base64
                 const response = await fetch(signatureUrl, { mode: 'cors' });
                 const blob = await response.blob();
                 const reader = new FileReader();
@@ -297,27 +315,35 @@ export const CashBillModal: React.FC<CashBillModalProps> = ({
                 reader.readAsDataURL(blob);
             } catch (e) {
                 console.error("Failed to convert signature image to Base64 for printing:", e);
+                // Fallback: Use original URL and hope html2canvas handles it
                 setSignatureBase64(signatureUrl);
             }
         };
+
         processImage();
     }, [signatureUrl]);
 
+    // --- Initialize Data when Order Opens ---
     useEffect(() => {
         if (isOpen && order) {
+            // Header
             setShopName(restaurantName);
             setShopAddress(restaurantAddress);
             setShopPhone(`โทร: ${restaurantPhone}`);
             setShopTaxId(`เลขประจำตัวผู้เสียภาษี: ${taxId}`);
 
+            // Meta
             setInvNo(`INV-${String(order.orderNumber).padStart(6, '0')}`);
             setBillDate(new Date(order.completionTime).toLocaleDateString('th-TH'));
             setBillTime(new Date(order.completionTime).toLocaleTimeString('th-TH'));
 
+            // Customer
             setCustomerName('');
             setCustomerAddress('');
             setCustomerTaxId('');
 
+            // Items
+            // MODIFIED: Do not include selectedOptions (modifiers) as per user request
             const items = order.items.map(item => ({
                 name: item.name, 
                 qty: String(item.quantity),
@@ -326,6 +352,7 @@ export const CashBillModal: React.FC<CashBillModalProps> = ({
             }));
             setEditableItems(items);
 
+            // Totals - Initial Calculation
             const subtotal = order.items.reduce((sum, item) => sum + item.finalPrice * item.quantity, 0);
             const tax = order.taxAmount;
             const total = subtotal + tax;
@@ -335,13 +362,16 @@ export const CashBillModal: React.FC<CashBillModalProps> = ({
             setGrandTotalStr(total.toLocaleString(undefined, { minimumFractionDigits: 2 }));
             setGrandTotalInWords(moneyToThaiText(total));
             
+            // Labels
             setDocTitle('บิลเงินสด / ใบกำกับภาษี');
             setTaxLabel(`ภาษีมูลค่าเพิ่ม ${order.taxRate}%`);
             setGrandTotalLabel('ยอดสุทธิ');
             setReceiverLabel('ผู้รับเงิน');
             setAuthorityLabel('ผู้มีอำนาจลงนาม');
+            // Auto-fill Names
             setReceiverName(order.completedBy ? `(${order.completedBy})` : '(..................................................)');
             setAuthorityName('(..................................................)');
+            // Reset Zoom
             setZoomLevel(1);
         }
     }, [isOpen, order, restaurantName, restaurantAddress, restaurantPhone, taxId]);
@@ -349,6 +379,8 @@ export const CashBillModal: React.FC<CashBillModalProps> = ({
     const handleItemChange = (index: number, field: keyof EditableItem, value: string) => {
         const newItems = [...editableItems];
         newItems[index] = { ...newItems[index], [field]: value };
+        
+        // If changing qty or price, auto-calculate row total and grand totals
         if (field === 'qty' || field === 'price') {
             const recalculated = recalculateTotals(newItems);
             setEditableItems(recalculated);
@@ -359,6 +391,7 @@ export const CashBillModal: React.FC<CashBillModalProps> = ({
 
     const handleSuggestionSelect = (index: number, item: MenuItem) => {
         const newItems = [...editableItems];
+        // Auto-fill name and price
         newItems[index] = { 
             ...newItems[index], 
             name: item.name,
@@ -390,7 +423,7 @@ export const CashBillModal: React.FC<CashBillModalProps> = ({
     const handleZoomOut = () => setZoomLevel(prev => Math.max(prev - 0.1, 0.5));
     const handleZoomReset = () => setZoomLevel(1);
 
-    // --- ENHANCED PRINT HANDLER (FIXED) ---
+    // --- ENHANCED PRINT HANDLER WITH CLONING ---
     const handlePrint = async () => {
         if (!printerConfig?.cashier) {
             Swal.fire({
@@ -411,55 +444,56 @@ export const CashBillModal: React.FC<CashBillModalProps> = ({
             didOpen: () => { Swal.showLoading(); }
         });
 
-        // 1. Calculate the FULL height of the content
-        // This is crucial. We must know how tall the bill is to force the clone to that size.
-        const originalHeight = printContent.scrollHeight;
-
-        // 2. CLONE
+        // 1. CLONE the element to ensure full height is captured
+        // We clone it and append it to body but hidden, so it renders fully without scroll bars
         const clone = printContent.cloneNode(true) as HTMLElement;
         
-        // 3. Style clone for capture
-        // Force width 560px (standard 80mm printable area at good DPI)
-        // Force height to match content height to prevent truncation
-        clone.style.position = 'fixed'; 
+        // Style the clone to ensure it's fully expanded and visible for the capture engine
+        clone.style.position = 'absolute';
         clone.style.top = '-9999px';
         clone.style.left = '-9999px';
-        clone.style.width = isA4 ? '210mm' : '560px'; 
-        clone.style.height = `${originalHeight}px`; // Explicit height!
-        clone.style.minHeight = `${originalHeight}px`;
-        clone.style.overflow = 'visible';
-        clone.style.transform = 'none'; 
-        clone.style.backgroundColor = 'white'; 
+        clone.style.width = isA4 ? '210mm' : '80mm'; // Maintain width
+        // Explicitly un-constrain height
+        clone.style.height = 'auto'; 
+        clone.style.minHeight = 'auto';
+        clone.style.maxHeight = 'none';
+        clone.style.overflow = 'visible'; // No internal scrolling
+        clone.style.transform = 'none'; // Reset transforms so print output is 1:1, not zoomed
         
-        // Manually copy input values (cloneNode doesn't copy values)
+        // Manually copy input values as cloneNode doesn't copy current value of inputs
         const originalInputs = printContent.querySelectorAll('input');
         const cloneInputs = clone.querySelectorAll('input');
         originalInputs.forEach((input, index) => {
             if (cloneInputs[index]) cloneInputs[index].value = input.value;
         });
 
+        // Append to body temporarily
         document.body.appendChild(clone);
 
-        // *** IMPORTANT DELAY FOR RENDER ***
-        // Increased to 1000ms to be safe for fonts/layout to settle
-        await new Promise(resolve => setTimeout(resolve, 1000));
-
         try {
-            // 4. Capture with window scroll correction
+            // Get accurate height of the clone
+            const fullHeight = clone.scrollHeight;
+            const fullWidth = clone.scrollWidth;
+
+            // 2. Capture the clone with explicit height
             const canvas = await window.html2canvas(clone, { 
-                scale: isA4 ? 2 : 1, 
+                scale: 2, // High resolution
                 useCORS: true,
                 backgroundColor: '#ffffff',
                 logging: false,
-                height: originalHeight, // Explicit capture height
-                windowHeight: originalHeight + 100, // Ensure window context is tall enough
-                scrollY: -window.scrollY // Correct for scroll position
+                // CRITICAL FIX: Explicitly set height and windowHeight to capture full content
+                height: fullHeight + 50, // Add buffer
+                windowHeight: fullHeight + 100, // Ensure window context is tall enough
+                width: fullWidth,
+                windowWidth: fullWidth + 50
             });
             
             const base64Image = canvas.toDataURL('image/png');
+
+            // 3. Remove clone
             document.body.removeChild(clone);
 
-            // 5. Send to printer
+            // 4. Send to printer
             await printerService.printCustomImage(base64Image, printerConfig.cashier);
 
             Swal.fire({
@@ -470,6 +504,7 @@ export const CashBillModal: React.FC<CashBillModalProps> = ({
             });
         } catch (error) {
             console.error("Print Error:", error);
+            // Ensure clone is removed even if error
             if (document.body.contains(clone)) document.body.removeChild(clone);
             
             Swal.fire({
@@ -485,7 +520,6 @@ export const CashBillModal: React.FC<CashBillModalProps> = ({
     const isA4 = paperSize === 'a4';
 
     return (
-        // ... (Return JSX matches existing, omitted for brevity as only logic changed above)
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[60] p-4" onClick={onClose}>
             <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl flex flex-col h-[90vh]" onClick={e => e.stopPropagation()}>
                 {/* Modal Header */}
@@ -504,6 +538,8 @@ export const CashBillModal: React.FC<CashBillModalProps> = ({
                     
                     {/* Actions Group */}
                     <div className="flex items-center gap-4">
+                        
+                        {/* NEW: Bottom Margin Slider (Only for 80mm) */}
                         {!isA4 && (
                             <div className="flex items-center gap-2 bg-yellow-50 p-1.5 rounded-lg border border-yellow-200">
                                 <span className="text-xs font-bold text-yellow-800 flex items-center gap-1">
@@ -524,6 +560,7 @@ export const CashBillModal: React.FC<CashBillModalProps> = ({
                             </div>
                         )}
 
+                        {/* Zoom Controls */}
                         <div className="flex bg-gray-200 rounded-lg p-1 gap-1">
                             <button onClick={handleZoomOut} className="p-1.5 hover:bg-white rounded-md transition-colors text-gray-600" title="ย่อภาพ">
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
@@ -555,13 +592,14 @@ export const CashBillModal: React.FC<CashBillModalProps> = ({
                     <div 
                         ref={componentRef} 
                         className={`bg-white shadow-sm relative text-black origin-top transition-transform duration-200 ease-out ${
-                            isA4 ? 'p-8 max-w-[210mm] w-full' : 'p-2 pb-4 w-[560px] h-auto text-xs' // Fixed width 560px for consistent capture
+                            isA4 ? 'p-8 max-w-[210mm] w-full' : 'p-2 pb-4 w-[80mm] h-auto text-xs'
                         }`}
                         style={{ 
                             fontFamily: 'Sarabun, sans-serif',
                             transform: `scale(${zoomLevel})`
                         }}
                     >
+                        {/* CSS injection for continuous 80mm printing INSIDE componentRef */}
                         {!isA4 && (
                             <style>{`
                                 .printable-content {
@@ -610,7 +648,7 @@ export const CashBillModal: React.FC<CashBillModalProps> = ({
                             </div>
                         </div>
 
-                        {/* Customer Info Input */}
+                        {/* Customer Info Input - MODIFIED: Remove box/border styles */}
                         <div className={`mb-4 ${isA4 ? 'p-4 border rounded-lg' : 'pt-2 border-t border-dashed border-black'}`}>
                             <h3 className="font-bold mb-1 text-sm">ข้อมูลลูกค้า</h3>
                             <div className={`grid ${isA4 ? 'grid-cols-2' : 'grid-cols-1'} gap-1`}>
@@ -646,6 +684,7 @@ export const CashBillModal: React.FC<CashBillModalProps> = ({
                                     <tr key={index} className="border-b border-gray-200 group">
                                         {isA4 && <td className="py-2 text-center">{index + 1}</td>}
                                         <td className="py-2 align-top">
+                                            {/* Name Field with Autocomplete */}
                                             <EditableField 
                                                 value={item.name} 
                                                 onChange={(v) => handleItemChange(index, 'name', v)} 
@@ -653,6 +692,7 @@ export const CashBillModal: React.FC<CashBillModalProps> = ({
                                                 suggestions={menuItems}
                                                 onSelectSuggestion={(selectedItem) => handleSuggestionSelect(index, selectedItem)}
                                             />
+                                            {/* MODIFIED: Removed the price-per-unit display for Thermal mode to reduce clutter/extra lines */}
                                         </td>
                                         <td className="py-2 text-center align-top">
                                             <EditableField value={item.qty} onChange={(v) => handleItemChange(index, 'qty', v)} className="text-center w-full" align="center" />
@@ -676,6 +716,7 @@ export const CashBillModal: React.FC<CashBillModalProps> = ({
                                         </td>
                                     </tr>
                                 ))}
+                                {/* Add Item Row */}
                                 <tr className="no-print">
                                     <td colSpan={isA4 ? 6 : 4} className="py-2 text-center">
                                         <button 
@@ -721,13 +762,17 @@ export const CashBillModal: React.FC<CashBillModalProps> = ({
                             </tfoot>
                         </table>
 
+                        {/* Total in words - Background changed to white */}
                         <div className="mt-2 p-2 bg-white text-sm font-bold text-center text-gray-800 border-b border-dashed border-gray-300 pb-4">
                             ( <EditableField value={grandTotalInWords} onChange={setGrandTotalInWords} className="text-center w-full" align="center" /> )
                         </div>
 
+                        {/* Footer - With Signature Image & Names */}
                          <div className={`flex ${isA4 ? 'justify-between flex-row' : 'flex-col items-center gap-4'} items-end mt-4 text-sm`}>
                             <div className={`${isA4 ? 'w-1/3' : 'w-full'} text-center`}>
-                                <div className="h-16 w-full flex items-end justify-center mb-1"></div>
+                                <div className="h-16 w-full flex items-end justify-center mb-1">
+                                    {/* Empty space or cashier signature could go here */}
+                                </div>
                                 <div className="pt-2 border-t border-dotted border-gray-400">
                                     <EditableField value={receiverName} onChange={setReceiverName} className="text-center w-full mb-1 font-medium" align="center" />
                                     <EditableField value={receiverLabel} onChange={setReceiverLabel} className="text-center w-full text-sm" align="center" />
@@ -755,11 +800,13 @@ export const CashBillModal: React.FC<CashBillModalProps> = ({
                             </div>
                         </div>
 
+                        {/* Dynamic Spacer for Thermal Printer Cut Margin */}
                         {!isA4 && (
                             <div 
                                 style={{ height: `${bottomPadding}px` }} 
                                 className="w-full relative transition-all duration-200 border-l-2 border-dashed border-gray-300"
                             >
+                                {/* Visual guide for the user on screen */}
                                 <div className="absolute inset-x-0 bottom-0 border-b border-red-300 text-[10px] text-red-400 text-center opacity-70 no-print">
                                     --- จุดตัดกระดาษ (โดยประมาณ) ---
                                 </div>

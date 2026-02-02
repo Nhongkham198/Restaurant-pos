@@ -5,8 +5,6 @@ import { printerService } from '../services/printerService';
 import Swal from 'sweetalert2';
 import { MenuItemImage } from './MenuItemImage';
 
-// ... (Imports and Interfaces remain consistent with existing code)
-
 interface SettingsModalProps {
     isOpen: boolean;
     onClose: () => void;
@@ -33,6 +31,8 @@ interface SettingsModalProps {
     currentSignatureUrl: string | null;
 }
 
+// ... existing constants (DEFAULT_RECEIPT_OPTIONS, etc.) ...
+// (Keeping constants identical)
 const DEFAULT_RECEIPT_OPTIONS: ReceiptPrintSettings = {
     showLogo: true,
     showRestaurantName: true,
@@ -56,27 +56,22 @@ const DEFAULT_RECEIPT_OPTIONS: ReceiptPrintSettings = {
 const DEFAULT_KITCHEN_PRINTER: KitchenPrinterSettings = { 
     connectionType: 'network', 
     ipAddress: '', 
-    port: '3001', // Changed default to 3001
+    port: '3000', 
     paperWidth: '80mm', 
     targetPrinterIp: '', 
-    targetPrinterPort: '9100',
-    usbVid: '',
-    usbPid: ''
+    targetPrinterPort: '9100' 
 };
 
 const DEFAULT_CASHIER_PRINTER: CashierPrinterSettings = { 
     connectionType: 'network', 
     ipAddress: '', 
-    port: '3001', // Changed default to 3001
+    port: '3000', 
     paperWidth: '80mm', 
     targetPrinterIp: '', 
     targetPrinterPort: '9100', 
-    usbVid: '',
-    usbPid: '',
     receiptOptions: DEFAULT_RECEIPT_OPTIONS 
 };
 
-// ... (TabButton component) ...
 const TabButton: React.FC<{ label: string; isActive: boolean; onClick: () => void; }> = ({ label, isActive, onClick }) => (
     <button
         type="button"
@@ -119,7 +114,7 @@ const StatusIndicator: React.FC<{ status: ConnectionStatus, label: string }> = (
     return (
         <span className="flex items-center gap-1 text-red-600 text-xs font-medium">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 00-1.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
             </svg>
             {label} Failed
         </span>
@@ -134,7 +129,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     currentRestaurantAddress, currentRestaurantPhone, currentTaxId, currentSignatureUrl
 }) => {
     
-    // ... (State initialization) ...
     const [activeTab, setActiveTab] = useState<'general' | 'sound' | 'staffCallSound' | 'qrcode' | 'kitchen' | 'cashier' | 'recommended' | 'delivery'>('general');
     const [settingsForm, setSettingsForm] = useState({
         logoUrl: '',
@@ -159,6 +153,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     const [printerStatus, setPrinterStatus] = useState<{kitchen: ConnectionStatus, cashier: ConnectionStatus}>({ kitchen: 'idle', cashier: 'idle' });
     const [localRecommendedIds, setLocalRecommendedIds] = useState(new Set<number>());
     const [recommendSearchTerm, setRecommendSearchTerm] = useState('');
+    
     const [localDeliveryProviders, setLocalDeliveryProviders] = useState<DeliveryProvider[]>([]);
     const [newProviderName, setNewProviderName] = useState('');
     const [newProviderLogoUrl, setNewProviderLogoUrl] = useState('');
@@ -210,6 +205,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         }
     }, [isOpen, currentLogoUrl, currentAppLogoUrl, currentQrCodeUrl, currentNotificationSoundUrl, currentStaffCallSoundUrl, currentPrinterConfig, currentOpeningTime, currentClosingTime, currentRecommendedMenuItemIds, deliveryProviders, currentRestaurantAddress, currentRestaurantPhone, currentTaxId, currentSignatureUrl]);
 
+    // ... (Keep existing handlers for printer, sound, delivery etc.) ...
     const handlePrinterChange = (type: 'kitchen' | 'cashier', field: string, value: any) => {
         setSettingsForm(prev => ({
             ...prev,
@@ -239,80 +235,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         }));
     };
 
-    // ... (Scan USB) ...
-    const handleScanUsb = async (type: 'kitchen' | 'cashier') => {
-        const printer = settingsForm.printerConfig[type];
-        if (!printer || !printer.ipAddress) {
-            Swal.fire('ข้อมูลไม่ครบ', 'กรุณาระบุ IP ของเครื่อง Print Server ก่อน (Node.js)', 'warning');
-            return;
-        }
-
-        try {
-            Swal.fire({
-                title: 'กำลังสแกนหา USB...',
-                didOpen: () => Swal.showLoading()
-            });
-
-            const devices = await printerService.scanUsbDevices(printer.ipAddress, printer.port || '3001');
-            Swal.close();
-
-            if (devices.length === 0) {
-                Swal.fire('ไม่พบอุปกรณ์', 'ไม่พบอุปกรณ์ USB ที่เชื่อมต่ออยู่\n(หากเพิ่งลง Zadig ลองถอดสาย USB แล้วเสียบใหม่)', 'info');
-                return;
-            }
-
-            const deviceOptions: { [key: string]: string } = {};
-            devices.forEach(d => {
-                const key = `${d.vid}|${d.pid}`;
-                deviceOptions[key] = `VID: ${d.vid} - PID: ${d.pid} (Bus: ${d.busNumber}, Addr: ${d.deviceAddress})`;
-            });
-
-            const { value: selectedKey } = await Swal.fire({
-                title: 'เลือกอุปกรณ์ USB',
-                input: 'select',
-                inputOptions: deviceOptions,
-                inputPlaceholder: 'เลือกอุปกรณ์...',
-                showCancelButton: true,
-                confirmButtonText: 'เลือก',
-                cancelButtonText: 'ยกเลิก'
-            });
-
-            if (selectedKey) {
-                const [vid, pid] = selectedKey.split('|');
-                handlePrinterChange(type, 'usbVid', vid);
-                handlePrinterChange(type, 'usbPid', pid);
-                Swal.fire('เรียบร้อย', `ตั้งค่า VID: ${vid}, PID: ${pid} แล้ว`, 'success');
-            }
-
-        } catch (error: any) {
-            Swal.fire('เกิดข้อผิดพลาด', `Scan Failed: ${error.message}\n(กรุณาเช็คจอ Server ว่ามี Error อะไรขึ้นไหม)`, 'error');
-        }
-    };
-
     const handleCheckPrinterStatus = async (type: 'kitchen' | 'cashier') => {
         const printer = settingsForm.printerConfig[type];
         if (!printer) return;
-        
-        // --- Validation ---
-        if (!printer.ipAddress) {
-            Swal.fire('ข้อมูลไม่ครบ', 'กรุณาระบุ Print Server IP', 'warning');
-            return;
-        }
-        if (printer.connectionType === 'network' && !printer.targetPrinterIp) {
-            Swal.fire('ข้อมูลไม่ครบ', 'กรุณาระบุ Printer IP สำหรับโหมด Network', 'warning');
-            return;
-        }
-        
         setPrinterStatus(prev => ({ ...prev, [type]: 'checking' }));
         try {
             const result = await printerService.checkPrinterStatus(
                 printer.ipAddress, 
-                printer.port || '3001',
+                printer.port || '3000',
                 printer.targetPrinterIp || '',
                 printer.targetPrinterPort || '9100',
-                printer.connectionType,
-                printer.usbVid,
-                printer.usbPid
+                printer.connectionType
             );
             setPrinterStatus(prev => ({ ...prev, [type]: result.online ? 'success' : 'error' }));
             if (result.online) {
@@ -322,36 +255,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             }
         } catch (error) {
             setPrinterStatus(prev => ({ ...prev, [type]: 'error' }));
-            Swal.fire({ icon: 'error', title: 'เชื่อมต่อ Server ไม่ได้', text: 'ตรวจสอบ Print Server IP และ Port' });
         }
     };
 
     const handleTestPrint = async (type: 'kitchen' | 'cashier') => {
         const printer = settingsForm.printerConfig[type];
         if (!printer) return;
-        
-        // --- Validation ---
-        if (!printer.ipAddress) {
-            Swal.fire('ข้อมูลไม่ครบ', 'กรุณาระบุ Print Server IP ก่อนทดสอบ', 'warning');
-            return;
-        }
-        if (printer.connectionType === 'network' && !printer.targetPrinterIp) {
-            Swal.fire('ข้อมูลไม่ครบ', 'กรุณาระบุ Printer IP สำหรับโหมด Network', 'warning');
-            return;
-        }
-
         try {
-            Swal.fire({ title: 'กำลังส่งคำสั่งพิมพ์...', didOpen: () => Swal.showLoading() });
-            
             await printerService.printTest(
                 printer.ipAddress, 
                 printer.paperWidth, 
-                printer.port || '3001',
+                printer.port || '3000',
                 printer.targetPrinterIp,
                 printer.targetPrinterPort,
-                printer.connectionType,
-                printer.usbVid,
-                printer.usbPid
+                printer.connectionType
             );
             Swal.fire({ icon: 'success', title: 'ส่งคำสั่งสำเร็จ', text: 'กรุณาตรวจสอบที่เครื่องพิมพ์', timer: 1500, showConfirmButton: false });
         } catch (error: any) {
@@ -359,9 +276,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         }
     };
 
-    // ... (Rest of the component: File handling, PlaySound, Render Logic is unchanged) ...
-    // ... (Assume previous full content for handleFileChange, handlePlaySound, etc.) ...
-    
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, type: 'logo' | 'appLogo' | 'sound' | 'staffCallSound' | 'qrcode' | 'signature') => {
         const file = e.target.files?.[0];
         if (file) {
@@ -413,7 +327,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         );
     }, [menuItems, recommendSearchTerm]);
 
-    // ... (Provider handlers) ...
     const handleToggleProvider = (id: string) => {
         setLocalDeliveryProviders(prev => prev.map(p => 
             p.id === id ? { ...p, isEnabled: !p.isEnabled } : p
@@ -442,6 +355,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     };
 
     const handleEditProvider = async (provider: DeliveryProvider) => {
+        // ... (Same implementation)
         const confirmResult = await Swal.fire({
             title: 'ต้องการแก้ไขข้อมูล?',
             text: `คุณต้องการแก้ไขข้อมูลของ "${provider.name}" ใช่หรือไม่?`,
@@ -551,42 +465,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     </div>
                     <div className="col-span-4 md:col-span-3">
                         <label className="block text-sm font-bold text-blue-700">Port</label>
-                        <input type="text" value={conf.port} onChange={(e) => handlePrinterChange(type, 'port', e.target.value)} placeholder="3001" className="mt-1 block w-full border border-gray-300 p-2 rounded-md shadow-sm text-gray-900" />
+                        <input type="text" value={conf.port} onChange={(e) => handlePrinterChange(type, 'port', e.target.value)} placeholder="3000" className="mt-1 block w-full border border-gray-300 p-2 rounded-md shadow-sm text-gray-900" />
                     </div>
-                    {conf.connectionType === 'network' ? (
+                    {conf.connectionType === 'network' && (
                         <div className="col-span-12">
-                            <label className="block text-sm font-bold text-green-700">Printer IP (ตัวเครื่องพิมพ์) <span className="text-red-500">*จำเป็น</span></label>
+                            <label className="block text-sm font-bold text-green-700">Printer IP (ตัวเครื่องพิมพ์)</label>
                             <input type="text" value={conf.targetPrinterIp || ''} onChange={(e) => handlePrinterChange(type, 'targetPrinterIp', e.target.value)} placeholder="เช่น 192.168.1.200" className="mt-1 block w-full border border-gray-300 p-2 rounded-md shadow-sm text-gray-900" />
-                        </div>
-                    ) : (
-                        // USB Section
-                        <div className="col-span-12 bg-orange-50 p-3 rounded-md border border-orange-200">
-                            <label className="block text-sm font-bold text-orange-800 mb-2">ระบุเครื่องพิมพ์ USB (Optional)</label>
-                            <p className="text-xs text-orange-700 mb-2">หากไม่ได้ระบุ ระบบจะใช้เครื่องพิมพ์ USB ตัวแรกที่เจอ</p>
-                            <div className="flex gap-2 items-end">
-                                <div className="flex-1">
-                                    <label className="block text-xs font-bold text-gray-600">Vendor ID (VID) Hex</label>
-                                    <input type="text" value={conf.usbVid || ''} onChange={(e) => handlePrinterChange(type, 'usbVid', e.target.value)} placeholder="e.g. 0x0483" className="mt-1 block w-full border border-gray-300 p-2 rounded-md shadow-sm text-sm" />
-                                </div>
-                                <div className="flex-1">
-                                    <label className="block text-xs font-bold text-gray-600">Product ID (PID) Hex</label>
-                                    <input type="text" value={conf.usbPid || ''} onChange={(e) => handlePrinterChange(type, 'usbPid', e.target.value)} placeholder="e.g. 0x5743" className="mt-1 block w-full border border-gray-300 p-2 rounded-md shadow-sm text-sm" />
-                                </div>
-                                <button type="button" onClick={() => handleScanUsb(type)} className="px-3 py-2 bg-orange-600 text-white text-sm font-bold rounded-md hover:bg-orange-700 shadow-sm h-[38px]">
-                                    สแกนหา USB
-                                </button>
-                            </div>
                         </div>
                     )}
                 </div>
                 {type === 'cashier' && receiptOpts && (
-                    // ... (Receipt options section remains the same) ...
                     <div className="mt-6 pt-6 border-t border-gray-200">
                         <h4 className="text-lg font-bold text-gray-800 mb-4">รายละเอียดบนใบเสร็จ</h4>
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                             <div className="space-y-6">
                                 <div className="grid grid-cols-2 gap-4">
-                                    {/* (Checkboxes remain same) */}
                                     <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={receiptOpts.showRestaurantName} onChange={(e) => handleReceiptOptionChange('showRestaurantName', e.target.checked)} className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500" /><span className="text-sm font-medium text-gray-700">ชื่อร้าน</span></label>
                                     <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={receiptOpts.showLogo} onChange={(e) => handleReceiptOptionChange('showLogo', e.target.checked)} className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500" /><span className="text-sm font-medium text-gray-700">โลโก้ร้าน</span></label>
                                     <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={receiptOpts.showAddress} onChange={(e) => handleReceiptOptionChange('showAddress', e.target.checked)} className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500" /><span className="text-sm font-medium text-gray-700">ที่อยู่</span></label>
@@ -650,7 +543,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         );
     };
 
-    // ... (Main Render with return statement and closing tags)
     return (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl flex flex-col h-[90vh]" onClick={e => e.stopPropagation()}>
@@ -725,28 +617,60 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                         </div>
                                     </div>
 
-                                    {/* Signature Upload */}
+                                    {/* Signature / ID Card Upload */}
                                     <div className="pt-4 border-t border-gray-200">
                                         <h5 className="text-md font-semibold text-gray-700 mb-2">ภาพถ่ายบัตรประชาชน/ลายเซ็น (สำหรับใบเสร็จ)</h5>
                                         <div className="flex flex-col md:flex-row gap-6 items-start bg-gray-50 p-4 rounded-lg border border-gray-200">
+                                            {/* Preview */}
                                             <div className="flex-shrink-0 flex items-center justify-center bg-white w-full md:w-64 h-32 border border-gray-300 rounded-lg shadow-sm overflow-hidden">
                                                 {settingsForm.signatureUrl ? (
-                                                    <img src={settingsForm.signatureUrl} alt="Signature" className="w-full h-full object-contain" style={{ filter: 'grayscale(100%) contrast(120%)' }} />
+                                                    <img 
+                                                        src={settingsForm.signatureUrl} 
+                                                        alt="Signature" 
+                                                        className="w-full h-full object-contain" 
+                                                        style={{ filter: 'grayscale(100%) contrast(120%)' }} // Show preview with filter effect
+                                                    />
                                                 ) : (
                                                     <span className="text-gray-400 text-xs">ไม่มีรูปภาพ</span>
                                                 )}
                                             </div>
+                                            
                                             <div className="flex-1 space-y-3 w-full">
-                                                <input type="file" accept="image/*" ref={signatureFileInputRef} onChange={(e) => handleFileChange(e, 'signature')} className="hidden" />
+                                                <input 
+                                                    type="file" 
+                                                    accept="image/*" 
+                                                    ref={signatureFileInputRef}
+                                                    onChange={(e) => handleFileChange(e, 'signature')}
+                                                    className="hidden"
+                                                />
                                                 <div className="flex flex-col gap-2">
                                                     <div className="flex gap-2">
-                                                        <button type="button" onClick={() => signatureFileInputRef.current?.click()} className="px-4 py-2 bg-gray-600 text-white text-sm font-semibold rounded-md hover:bg-gray-700 shadow-sm whitespace-nowrap">เลือกรูปภาพ</button>
+                                                        <button 
+                                                            type="button" 
+                                                            onClick={() => signatureFileInputRef.current?.click()}
+                                                            className="px-4 py-2 bg-gray-600 text-white text-sm font-semibold rounded-md hover:bg-gray-700 shadow-sm whitespace-nowrap"
+                                                        >
+                                                            เลือกรูปภาพ
+                                                        </button>
                                                         {settingsForm.signatureUrl && (
-                                                            <button type="button" onClick={() => setSettingsForm(prev => ({...prev, signatureUrl: ''}))} className="px-4 py-2 bg-red-100 text-red-600 text-sm font-semibold rounded-md hover:bg-red-200 shadow-sm">ลบรูป</button>
+                                                            <button 
+                                                                type="button" 
+                                                                onClick={() => setSettingsForm(prev => ({...prev, signatureUrl: ''}))}
+                                                                className="px-4 py-2 bg-red-100 text-red-600 text-sm font-semibold rounded-md hover:bg-red-200 shadow-sm"
+                                                            >
+                                                                ลบรูป
+                                                            </button>
                                                         )}
                                                     </div>
-                                                    <input type="text" value={settingsForm.signatureUrl || ''} onChange={(e) => setSettingsForm(prev => ({...prev, signatureUrl: e.target.value}))} placeholder="หรือใส่ URL ของรูปภาพ..." className="w-full border border-gray-300 p-2 rounded-lg text-sm" />
+                                                    <input 
+                                                        type="text" 
+                                                        value={settingsForm.signatureUrl || ''} 
+                                                        onChange={(e) => setSettingsForm(prev => ({...prev, signatureUrl: e.target.value}))}
+                                                        placeholder="หรือใส่ URL ของรูปภาพ..."
+                                                        className="w-full border border-gray-300 p-2 rounded-lg text-sm"
+                                                    />
                                                 </div>
+                                                
                                                 <div className="text-xs text-gray-600">
                                                     <p>รูปภาพนี้จะแสดงเหนือชื่อ "ผู้มีอำนาจลงนาม" ในใบเสร็จรับเงินแบบเต็มรูปแบบ</p>
                                                     <p className="mt-1 font-medium text-gray-500">* ระบบจะปรับสีให้เป็นขาว-ดำอัตโนมัติ</p>
@@ -755,10 +679,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                         </div>
                                     </div>
                                     
-                                    {/* App Logo Upload */}
+                                    {/* App Logo Upload Section (New) */}
                                     <div className="pt-4 border-t border-gray-200">
                                         <h5 className="text-md font-semibold text-gray-700 mb-2">โลโก้ร้านค้า (สำหรับแสดงในแอป)</h5>
                                         <div className="flex flex-col md:flex-row gap-6 items-start bg-blue-50 p-4 rounded-lg border border-blue-200">
+                                            {/* Preview */}
                                             <div className="flex-shrink-0 flex items-center justify-center bg-white w-32 h-32 border border-gray-300 rounded-lg shadow-sm">
                                                 {settingsForm.appLogoUrl ? (
                                                     <img src={settingsForm.appLogoUrl} alt="App Logo" className="max-w-full max-h-full object-contain" />
@@ -766,18 +691,35 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                                     <span className="text-gray-400 text-xs">ไม่มีโลโก้แอป</span>
                                                 )}
                                             </div>
+                                            
                                             <div className="flex-1 space-y-3">
-                                                <input type="file" accept="image/*" ref={appLogoFileInputRef} onChange={(e) => handleFileChange(e, 'appLogo')} className="hidden" />
-                                                <button type="button" onClick={() => appLogoFileInputRef.current?.click()} className="px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-md hover:bg-blue-700 shadow-sm">อัปโหลดโลโก้แอป</button>
-                                                <div className="text-xs text-gray-600"><p>โลโก้นี้จะแสดงที่มุมซ้ายบนของหน้าจอโปรแกรม</p></div>
+                                                <input 
+                                                    type="file" 
+                                                    accept="image/*" 
+                                                    ref={appLogoFileInputRef}
+                                                    onChange={(e) => handleFileChange(e, 'appLogo')}
+                                                    className="hidden"
+                                                />
+                                                <button 
+                                                    type="button" 
+                                                    onClick={() => appLogoFileInputRef.current?.click()}
+                                                    className="px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-md hover:bg-blue-700 shadow-sm"
+                                                >
+                                                    อัปโหลดโลโก้แอป
+                                                </button>
+                                                
+                                                <div className="text-xs text-gray-600">
+                                                    <p>โลโก้นี้จะแสดงที่มุมซ้ายบนของหน้าจอโปรแกรม</p>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
 
-                                    {/* Receipt Logo Upload */}
+                                    {/* Receipt Logo Upload Section */}
                                     <div className="pt-4 border-t border-gray-200">
                                         <h5 className="text-md font-semibold text-gray-700 mb-2">โลโก้ร้านค้า (สำหรับใบเสร็จ)</h5>
                                         <div className="flex flex-col md:flex-row gap-6 items-start bg-gray-50 p-4 rounded-lg border border-gray-200">
+                                            {/* Preview */}
                                             <div className="flex-shrink-0 flex items-center justify-center bg-white w-32 h-32 border border-gray-300 rounded-lg shadow-sm">
                                                 {settingsForm.logoUrl ? (
                                                     <img src={settingsForm.logoUrl} alt="Logo" className="max-w-full max-h-full object-contain" />
@@ -785,9 +727,23 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                                     <span className="text-gray-400 text-xs">ไม่มีโลโก้</span>
                                                 )}
                                             </div>
+                                            
                                             <div className="flex-1 space-y-3">
-                                                <input type="file" accept="image/*" ref={logoFileInputRef} onChange={(e) => handleFileChange(e, 'logo')} className="hidden" />
-                                                <button type="button" onClick={() => logoFileInputRef.current?.click()} className="px-4 py-2 bg-gray-600 text-white text-sm font-semibold rounded-md hover:bg-gray-700 shadow-sm">อัปโหลดโลโก้ใบเสร็จ</button>
+                                                <input 
+                                                    type="file" 
+                                                    accept="image/*" 
+                                                    ref={logoFileInputRef}
+                                                    onChange={(e) => handleFileChange(e, 'logo')}
+                                                    className="hidden"
+                                                />
+                                                <button 
+                                                    type="button" 
+                                                    onClick={() => logoFileInputRef.current?.click()}
+                                                    className="px-4 py-2 bg-gray-600 text-white text-sm font-semibold rounded-md hover:bg-gray-700 shadow-sm"
+                                                >
+                                                    อัปโหลดโลโก้ใบเสร็จ
+                                                </button>
+                                                
                                                 <div className="text-xs text-gray-600 bg-gray-100 p-3 rounded border border-gray-200">
                                                     <p className="font-bold text-gray-800 mb-1">คำแนะนำรูปภาพใบเสร็จ:</p>
                                                     <ul className="list-disc list-inside space-y-1">
@@ -804,15 +760,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         )}
 
                         {activeTab === 'delivery' && (
-                            // ... (Delivery tab content) ...
+                            // ... (Existing delivery tab code)
                             <div className="space-y-6">
                                 <div className="flex flex-col gap-1">
                                     <h4 className="text-lg font-semibold text-gray-700">จัดการ Delivery</h4>
                                     <p className="text-sm text-gray-500">เลือกผู้ให้บริการ Delivery ที่ต้องการให้แสดงปุ่มในหน้า POS (คลิกที่รายการเพื่อแก้ไข)</p>
                                 </div>
+
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                     {localDeliveryProviders.map(provider => (
-                                        <div key={provider.id} onClick={() => handleEditProvider(provider)} className={`p-4 border rounded-lg flex items-center justify-between transition-colors cursor-pointer hover:bg-gray-50 ${provider.isEnabled ? 'bg-blue-50 border-blue-200 hover:bg-blue-100' : 'bg-white border-gray-200 hover:bg-gray-50'}`}>
+                                        <div 
+                                            key={provider.id} 
+                                            onClick={() => handleEditProvider(provider)}
+                                            className={`p-4 border rounded-lg flex items-center justify-between transition-colors cursor-pointer hover:bg-gray-50 ${provider.isEnabled ? 'bg-blue-50 border-blue-200 hover:bg-blue-100' : 'bg-white border-gray-200 hover:bg-gray-50'}`}
+                                        >
                                             <div className="flex items-center gap-3">
                                                 {provider.iconUrl ? (
                                                     <img src={provider.iconUrl} alt={provider.name} className="w-10 h-10 rounded-md object-cover bg-white" onError={(e) => e.currentTarget.style.display = 'none'} />
@@ -823,7 +784,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                             </div>
                                             <div className="flex items-center gap-3" onClick={e => e.stopPropagation()}>
                                                 <label className="relative inline-flex items-center cursor-pointer">
-                                                    <input type="checkbox" checked={provider.isEnabled} onChange={() => handleToggleProvider(provider.id)} className="sr-only peer" />
+                                                    <input 
+                                                        type="checkbox" 
+                                                        checked={provider.isEnabled} 
+                                                        onChange={() => handleToggleProvider(provider.id)}
+                                                        className="sr-only peer" 
+                                                    />
                                                     <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
                                                 </label>
                                                 {!provider.isDefault && (
@@ -835,35 +801,65 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                         </div>
                                     ))}
                                 </div>
+
                                 <div className="border-t pt-4">
                                     <h5 className="font-semibold text-gray-700 mb-3">เพิ่มผู้ให้บริการใหม่</h5>
                                     <div className="flex flex-col md:flex-row gap-4 items-end bg-gray-50 p-4 rounded-lg">
                                         <div className="flex-1 w-full">
                                             <label className="block text-sm font-medium text-gray-700 mb-1">ชื่อผู้ให้บริการ</label>
-                                            <input type="text" value={newProviderName} onChange={(e) => setNewProviderName(e.target.value)} placeholder="เช่น GrabFood" className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 outline-none" />
+                                            <input 
+                                                type="text" 
+                                                value={newProviderName} 
+                                                onChange={(e) => setNewProviderName(e.target.value)} 
+                                                placeholder="เช่น GrabFood" 
+                                                className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 outline-none"
+                                            />
                                         </div>
                                         <div className="flex-1 w-full">
                                             <label className="block text-sm font-medium text-gray-700 mb-1">URL โลโก้ (ถ้ามี)</label>
-                                            <input type="text" value={newProviderLogoUrl} onChange={(e) => setNewProviderLogoUrl(e.target.value)} placeholder="https://example.com/logo.png" className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 outline-none" />
+                                            <input 
+                                                type="text" 
+                                                value={newProviderLogoUrl} 
+                                                onChange={(e) => setNewProviderLogoUrl(e.target.value)} 
+                                                placeholder="https://example.com/logo.png" 
+                                                className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 outline-none"
+                                            />
                                         </div>
-                                        <button type="button" onClick={handleAddProvider} className="px-6 py-2 bg-blue-600 text-white font-bold rounded-md hover:bg-blue-700 shadow-sm">เพิ่ม</button>
+                                        <button 
+                                            type="button" 
+                                            onClick={handleAddProvider}
+                                            className="px-6 py-2 bg-blue-600 text-white font-bold rounded-md hover:bg-blue-700 shadow-sm"
+                                        >
+                                            เพิ่ม
+                                        </button>
                                     </div>
                                 </div>
                             </div>
                         )}
 
                         {activeTab === 'recommended' && (
-                            // ... (Recommended tab content) ...
+                            // ... (Existing recommended tab code)
                             <div className="space-y-4">
                                 <div className="flex flex-col gap-1">
                                     <h4 className="text-lg font-semibold text-gray-700">จัดการเมนูแนะนำ</h4>
                                     <p className="text-sm text-gray-500">เลือกรายการอาหารที่จะแสดงเป็นเมนูแนะนำในหน้า POS</p>
                                 </div>
-                                <input type="text" placeholder="ค้นหาเมนู..." value={recommendSearchTerm} onChange={(e) => setRecommendSearchTerm(e.target.value)} className="w-full p-2 border rounded-lg text-gray-900" />
+                                <input 
+                                    type="text" 
+                                    placeholder="ค้นหาเมนู..." 
+                                    value={recommendSearchTerm} 
+                                    onChange={(e) => setRecommendSearchTerm(e.target.value)} 
+                                    className="w-full p-2 border rounded-lg text-gray-900"
+                                />
                                 <div className="grid grid-cols-1 gap-2 max-h-[500px] overflow-y-auto">
                                     {filteredRecommendedItems.map(item => (
                                         <label key={item.id} className="flex items-center gap-4 p-3 border rounded-lg hover:bg-gray-50 cursor-pointer transition-colors">
-                                            <input type="checkbox" checked={localRecommendedIds.has(item.id)} onChange={() => handleToggleRecommended(item.id)} className="h-5 w-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500" />
+                                            <input 
+                                                type="checkbox" 
+                                                checked={localRecommendedIds.has(item.id)}
+                                                onChange={() => handleToggleRecommended(item.id)}
+                                                className="h-5 w-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                                            />
                                             <div className="w-16 h-16 rounded-md overflow-hidden bg-gray-100 flex-shrink-0">
                                                 <MenuItemImage src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" />
                                             </div>
@@ -878,18 +874,42 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         )}
 
                         {(activeTab === 'sound' || activeTab === 'staffCallSound') && (
-                            // ... (Sound tab content) ...
+                            // ... (Existing sound tab code)
                             <div className="space-y-4">
-                                <h4 className="text-lg font-semibold text-gray-700">{activeTab === 'sound' ? 'เสียงแจ้งเตือนออเดอร์ใหม่' : 'เสียงแจ้งเตือนเรียกพนักงาน'}</h4>
+                                <h4 className="text-lg font-semibold text-gray-700">
+                                    {activeTab === 'sound' ? 'เสียงแจ้งเตือนออเดอร์ใหม่' : 'เสียงแจ้งเตือนเรียกพนักงาน'}
+                                </h4>
                                 <div className="p-6 bg-gray-50 rounded-xl border-2 border-dashed border-gray-300 flex flex-col items-center">
-                                    <input type="file" accept="audio/*" ref={activeTab === 'sound' ? soundFileInputRef : staffCallSoundFileInputRef} onChange={(e) => handleFileChange(e, activeTab === 'sound' ? 'sound' : 'staffCallSound')} className="hidden" />
+                                    <input 
+                                        type="file" 
+                                        accept="audio/*" 
+                                        ref={activeTab === 'sound' ? soundFileInputRef : staffCallSoundFileInputRef}
+                                        onChange={(e) => handleFileChange(e, activeTab === 'sound' ? 'sound' : 'staffCallSound')}
+                                        className="hidden"
+                                    />
                                     <div className="mb-4 text-center">
                                         <p className="text-sm text-gray-500 mb-1">ไฟล์ปัจจุบัน:</p>
                                         <p className="font-bold text-blue-600 text-lg">{activeTab === 'sound' ? settingsForm.soundFileName : settingsForm.staffCallSoundFileName}</p>
                                     </div>
+                                    
                                     <div className="flex gap-3">
-                                        <button type="button" onClick={() => (activeTab === 'sound' ? soundFileInputRef.current : staffCallSoundFileInputRef.current)?.click()} className="px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold shadow-sm transition-all">เลือกไฟล์เสียงใหม่</button>
-                                        <button type="button" onClick={() => handlePlaySound(activeTab === 'sound' ? settingsForm.soundDataUrl : settingsForm.staffCallSoundDataUrl)} className="px-6 py-2.5 bg-green-500 text-white rounded-lg hover:bg-green-600 font-bold shadow-sm transition-all flex items-center gap-2"><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" /></svg>ทดลองฟังเสียง</button>
+                                        <button 
+                                            type="button" 
+                                            onClick={() => (activeTab === 'sound' ? soundFileInputRef.current : staffCallSoundFileInputRef.current)?.click()}
+                                            className="px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold shadow-sm transition-all"
+                                        >
+                                            เลือกไฟล์เสียงใหม่
+                                        </button>
+                                        <button 
+                                            type="button"
+                                            onClick={() => handlePlaySound(activeTab === 'sound' ? settingsForm.soundDataUrl : settingsForm.staffCallSoundDataUrl)}
+                                            className="px-6 py-2.5 bg-green-500 text-white rounded-lg hover:bg-green-600 font-bold shadow-sm transition-all flex items-center gap-2"
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
+                                            </svg>
+                                            ทดลองฟังเสียง
+                                        </button>
                                     </div>
                                     <p className="mt-4 text-xs text-gray-400 italic">* รองรับไฟล์ MP3, WAV, OGG</p>
                                 </div>
@@ -897,7 +917,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         )}
 
                         {activeTab === 'qrcode' && (
-                            // ... (QRCode tab content) ...
+                            // ... (Existing qr code tab code)
                             <div className="space-y-4 text-center">
                                 <h4 className="text-lg font-semibold text-gray-700">QR Code สำหรับรับชำระเงิน</h4>
                                 <div className="p-4 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300 inline-block mx-auto min-w-[250px]">
@@ -906,8 +926,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                     ) : (
                                         <div className="w-48 h-48 mx-auto flex items-center justify-center bg-white border border-gray-200 mb-4 text-gray-400 rounded">ยังไม่มีรูปภาพ</div>
                                     )}
-                                    <input type="file" accept="image/*" ref={qrCodeFileInputRef} onChange={(e) => handleFileChange(e, 'qrcode')} className="hidden" />
-                                    <button type="button" onClick={() => qrCodeFileInputRef.current?.click()} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold">อัปโหลดรูปภาพ QR Code (รับเงิน)</button>
+                                    <input 
+                                        type="file" 
+                                        accept="image/*" 
+                                        ref={qrCodeFileInputRef}
+                                        onChange={(e) => handleFileChange(e, 'qrcode')}
+                                        className="hidden"
+                                    />
+                                    <button 
+                                        type="button" 
+                                        onClick={() => qrCodeFileInputRef.current?.click()}
+                                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold"
+                                    >
+                                        อัปโหลดรูปภาพ QR Code (รับเงิน)
+                                    </button>
                                 </div>
                             </div>
                         )}

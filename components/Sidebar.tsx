@@ -4,6 +4,7 @@ import type { OrderItem, Table, TakeawayCutleryOption, Reservation, User, View, 
 import { OrderListItem } from './OrderListItem';
 import { NumpadModal } from './NumpadModal'; // Import NumpadModal
 import Swal from 'sweetalert2';
+import { ThaiVirtualKeyboard } from './ThaiVirtualKeyboard';
 
 interface SidebarProps {
     currentOrderItems: OrderItem[];
@@ -91,6 +92,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
     const [isNumpadOpen, setIsNumpadOpen] = useState(false);
     const [isDeliverySelectionOpen, setIsDeliverySelectionOpen] = useState(false);
     const [deliveryOrderNumber, setDeliveryOrderNumber] = useState('');
+
+    // State for Virtual Keyboard
+    const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
 
     // Ref to track if Numpad was submitted successfully
     // This prevents onClose from clearing the provider when we actually wanted to confirm it
@@ -297,8 +301,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
         }
     };
 
+    // Virtual Keyboard Handlers
+    const handleVirtualKeyPress = (key: string) => {
+        onCustomerNameChange(customerName + key);
+    };
+
+    const handleVirtualBackspace = () => {
+        onCustomerNameChange(customerName.slice(0, -1));
+    };
+
+    const handleVirtualClear = () => {
+        onCustomerNameChange('');
+    };
+
     return (
-        <div className="bg-gray-900 text-white w-full h-full flex flex-col shadow-2xl overflow-hidden border-l border-gray-800 transition-all duration-200">
+        <div className="bg-gray-900 text-white w-full h-full flex flex-col shadow-2xl overflow-hidden border-l border-gray-800 transition-all duration-200 relative">
             {isMobilePage && currentUser && (
                 <header className="p-3 flex justify-between items-center flex-shrink-0 z-30 shadow-lg border-b border-gray-800 relative">
                     <div className="flex items-center gap-3 cursor-pointer" onClick={handleProfileClick}>
@@ -347,13 +364,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 {/* Customer Info */}
                 <div className="space-y-1">
                     <label className="text-xs font-medium text-gray-400">ชื่อลูกค้า (ถ้ามี)</label>
-                    <input
-                        type="text"
-                        placeholder="เช่น คุณสมชาย"
-                        value={customerName}
-                        onChange={(e) => onCustomerNameChange(e.target.value)}
-                        className="w-full p-3 bg-gray-800 rounded-lg border border-gray-700 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all"
-                    />
+                    <div className="relative">
+                        <input
+                            type="text"
+                            placeholder="เช่น คุณสมชาย"
+                            value={customerName}
+                            onChange={(e) => onCustomerNameChange(e.target.value)}
+                            className="w-full p-3 pr-12 bg-gray-800 rounded-lg border border-gray-700 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all"
+                        />
+                        <button 
+                            className={`absolute inset-y-0 right-0 flex items-center pr-3 transition-colors ${isKeyboardOpen ? 'text-blue-500' : 'text-gray-400 hover:text-blue-500'}`}
+                            onClick={() => setIsKeyboardOpen(!isKeyboardOpen)}
+                            title={isKeyboardOpen ? "ปิดแป้นพิมพ์" : "เปิดแป้นพิมพ์ไทย"}
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                            </svg>
+                        </button>
+                    </div>
                 </div>
 
                 {/* Floor Selection (Disable if Delivery) */}
@@ -638,6 +666,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         </div>
                     </div>
                 </div>
+            )}
+
+            {/* Virtual Keyboard Overlay */}
+            {isKeyboardOpen && (
+                <ThaiVirtualKeyboard 
+                    onKeyPress={handleVirtualKeyPress}
+                    onBackspace={handleVirtualBackspace}
+                    onClear={handleVirtualClear}
+                    onClose={() => setIsKeyboardOpen(false)}
+                />
             )}
         </div>
     );
