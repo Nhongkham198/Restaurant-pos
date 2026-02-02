@@ -63,9 +63,8 @@ const trimCanvas = (canvas: HTMLCanvasElement) => {
 };
 
 // --- Constants for Safer Widths ---
-// 58mm paper printable area is usually ~48mm. 48mm @ 203dpi is approx 384px.
-// However, html2canvas rendering + printer margins often require a much smaller "logical" width 
-// to prevent cutoff. 290px is a very safe value for 58mm.
+// 58mm paper printable area is significantly smaller than the paper width.
+// Reducing to 290px creates a safe "center" column that avoids hardware margins.
 const WIDTH_58MM_PX = 290; 
 const WIDTH_80MM_PX = 500; 
 
@@ -85,7 +84,7 @@ const generateImageFromHtml = async (htmlContent: string, widthPx: number): Prom
     container.style.color = '#000000';
     container.style.overflow = 'hidden'; // Prevent spillover
     
-    // Smart Text Wrapping - CRITICAL for preventing cutoff
+    // Force text wrapping - Vital for preventing cutoff
     container.style.wordWrap = 'break-word';
     container.style.overflowWrap = 'break-word';
     container.style.whiteSpace = 'normal';
@@ -473,11 +472,11 @@ export const printerService = {
         // FORCE the new safe widths here based on the passed paperWidth string
         const paperWidthPx = paperWidth === '58mm' ? WIDTH_58MM_PX : WIDTH_80MM_PX;
         
-        // Reduced padding and font sizes significantly to guarantee fit within 290px
+        // Adjusted HTML for Test Print to strictly fit within 290px
         const html = `
-            <div style="padding: 10px 5px; font-family: 'Sarabun', sans-serif; text-align: center; border: 2px solid #000; width: 100%; box-sizing: border-box; color: #000; margin: 0 auto; word-wrap: break-word;">
-                <div style="font-size: 24px; font-weight: 900;">TEST PRINT</div>
-                <div style="font-size: 18px; font-weight: bold; margin-top: 2px;">ทดสอบภาษาไทย</div>
+            <div style="width: 100%; box-sizing: border-box; font-family: 'Sarabun', sans-serif; text-align: center; border: 2px solid #000; padding: 5px; color: #000; word-wrap: break-word; overflow-wrap: break-word;">
+                <div style="font-size: 22px; font-weight: 900; line-height: 1.2;">TEST PRINT</div>
+                <div style="font-size: 18px; font-weight: bold; margin-top: 2px; line-height: 1.2;">ทดสอบภาษาไทย</div>
                 <div style="font-size: 14px;">(Sarabun Font)</div>
                 <hr style="margin: 5px 0; border-top: 1px solid #000;" />
                 <div style="font-size: 14px; text-align: left; padding-left: 2px; font-weight: bold; line-height: 1.3;">
@@ -485,7 +484,7 @@ export const printerService = {
                     ${connectionType === 'usb' ? `<div style="word-break: break-all;">VID:${vid || '-'} PID:${pid || '-'}</div>` : ''}
                     <div>Date: ${new Date().toLocaleDateString('th-TH')}</div>
                 </div>
-                <div style="font-size: 30px; margin-top: 5px;">OK ✅</div>
+                <div style="font-size: 24px; margin-top: 5px; font-weight: bold;">OK ✅</div>
             </div>
         `;
 
