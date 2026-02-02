@@ -1,18 +1,14 @@
 
-// ... existing imports ...
 import React, { useState, useEffect, useRef } from 'react';
 import type { PrinterConfig, ReceiptPrintSettings, KitchenPrinterSettings, CashierPrinterSettings, MenuItem, DeliveryProvider, PrinterStatus, PrinterConnectionType } from '../types';
 import { printerService } from '../services/printerService';
 import Swal from 'sweetalert2';
 import { MenuItemImage } from './MenuItemImage';
 
-// ... existing interfaces ...
 interface SettingsModalProps {
-    // ...
     isOpen: boolean;
     onClose: () => void;
     onSave: (
-        // ... (all existing params)
         logoUrl: string | null,
         appLogoUrl: string | null,
         qrCodeUrl: string | null,
@@ -26,7 +22,6 @@ interface SettingsModalProps {
         taxId: string,
         signatureUrl: string | null
     ) => void;
-    // ... (rest of props)
     currentLogoUrl: string | null;
     currentAppLogoUrl: string | null;
     currentQrCodeUrl: string | null;
@@ -48,7 +43,6 @@ interface SettingsModalProps {
 }
 
 const DEFAULT_RECEIPT_OPTIONS: ReceiptPrintSettings = {
-    // ... existing defaults ...
     showLogo: true,
     showRestaurantName: true,
     showAddress: true,
@@ -69,7 +63,6 @@ const DEFAULT_RECEIPT_OPTIONS: ReceiptPrintSettings = {
 };
 
 const StatusIndicator: React.FC<{ status: PrinterStatus; label: string }> = ({ status, label }) => {
-    // ... existing StatusIndicator ...
     let color = 'bg-gray-400';
     let text = 'ไม่ได้ตรวจสอบ';
     if (status === 'checking') { color = 'bg-yellow-500 animate-pulse'; text = 'กำลังตรวจสอบ...'; }
@@ -85,7 +78,6 @@ const StatusIndicator: React.FC<{ status: PrinterStatus; label: string }> = ({ s
 };
 
 export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
-    // ... existing state and logic ...
     const [activeTab, setActiveTab] = useState<'general' | 'printer' | 'menu' | 'delivery'>('general');
     
     // State initialization
@@ -300,17 +292,35 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
     const handleShowZadigHelp = () => {
         Swal.fire({
             title: 'วิธีแก้ปัญหา USB พิมพ์ไม่ออก (Windows)',
+            width: '600px',
             html: `
-                <div class="text-left text-sm space-y-3">
-                    <p class="font-bold text-red-600">สำคัญ: บน Windows หากใช้สาย USB ต้องเปลี่ยน Driver เป็น WinUSB มิเช่นนั้นโปรแกรมจะสั่งพิมพ์ไม่ได้ แม้จะขึ้น Success</p>
-                    <ol class="list-decimal pl-5 space-y-1">
-                        <li>ดาวน์โหลดโปรแกรม <b>Zadig</b> (ฟรี)</li>
-                        <li>เปิดโปรแกรม Zadig > ไปที่เมนู <b>Options</b> > เลือก <b>List All Devices</b></li>
-                        <li>เลือกชื่อเครื่องพิมพ์ของคุณในช่องรายการ (เช่น Printer, USB Printing Support)</li>
-                        <li>ดูช่องขวา ให้แน่ใจว่าเป็น <b>WinUSB</b> (ถ้าไม่ใช่ ให้เลือก WinUSB จากลูกศร)</li>
-                        <li>กดปุ่ม <b>Replace Driver</b> หรือ <b>Install Driver</b></li>
-                        <li>รอจนเสร็จ แล้วกด "ทดสอบพิมพ์" ใหม่อีกครั้ง</li>
-                    </ol>
+                <div class="text-left text-sm space-y-4">
+                    <div class="bg-red-50 p-3 rounded border border-red-200">
+                        <p class="font-bold text-red-600">⚠️ อาการ: กดทดสอบแล้วขึ้น Success แต่เครื่องพิมพ์เงียบ</p>
+                        <p class="text-gray-600 mt-1">สาเหตุ: Windows Driver แย่งการทำงาน ทำให้โปรแกรมส่งข้อมูลไปที่เครื่องพิมพ์โดยตรงไม่ได้</p>
+                    </div>
+
+                    <div>
+                        <h4 class="font-bold text-gray-800 border-b pb-1 mb-2">วิธีแก้ไข (ทำครั้งเดียว):</h4>
+                        <ol class="list-decimal pl-5 space-y-2 text-gray-700">
+                            <li>
+                                <strong>ดาวน์โหลดโปรแกรม Zadig</strong> (ฟรี)
+                                <br/><a href="https://zadig.akeo.ie/" target="_blank" class="text-blue-600 underline">คลิกที่นี่เพื่อดาวน์โหลด Zadig</a>
+                            </li>
+                            <li>เปิดโปรแกรม Zadig ขึ้นมา</li>
+                            <li>ไปที่เมนู <strong>Options</strong> > เลือก <strong>List All Devices</strong></li>
+                            <li>
+                                ในช่องรายการ ให้เลือกชื่อเครื่องพิมพ์ของคุณ
+                                <br/><span class="text-xs text-gray-500">(อาจชื่อว่า 'Printer', 'USB Printing Support', หรือชื่อยี่ห้อ)</span>
+                            </li>
+                            <li>
+                                ดูช่องทางขวา (Driver) ให้เลือกเป็น <strong>WinUSB</strong> 
+                                <br/><span class="text-xs text-green-600 font-bold">(สำคัญมาก! ต้องเป็น WinUSB เท่านั้น)</span>
+                            </li>
+                            <li>กดปุ่ม <strong>Replace Driver</strong> หรือ <strong>Install Driver</strong></li>
+                            <li>รอจนเสร็จ แล้วกด "ทดสอบพิมพ์" ในหน้านี้ใหม่อีกครั้ง</li>
+                        </ol>
+                    </div>
                 </div>
             `,
             icon: 'info',
@@ -379,7 +389,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
 
     if (!props.isOpen) return null;
 
-    // ... (renderImageUpload and renderSoundUpload helpers remain unchanged) ...
+    // ... (Helper render functions: renderImageUpload, renderSoundUpload remain the same) ...
     const renderImageUpload = (label: string, value: string | null, field: string, inputRef: React.RefObject<HTMLInputElement>) => (
         <div className="border border-gray-200 rounded-lg p-4 bg-white">
             <label className="block text-sm font-medium text-gray-700 mb-2">{label}</label>
@@ -468,13 +478,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
                     )}
                     {conf.connectionType === 'usb' && (
                         <div className="col-span-12 bg-orange-50 p-3 rounded-lg border border-orange-200">
-                            <div className="flex justify-between items-center mb-2">
-                                <label className="block text-sm font-bold text-orange-800">ระบุอุปกรณ์ USB (Optional)</label>
-                                <button onClick={handleShowZadigHelp} className="text-xs text-blue-600 hover:underline font-bold flex items-center gap-1">
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                                    พิมพ์ไม่ออก? (คลิก)
+                            <div className="flex justify-between items-center mb-3 border-b border-orange-200 pb-2">
+                                <label className="block text-sm font-bold text-orange-900">การตั้งค่า USB</label>
+                                <button onClick={handleShowZadigHelp} className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded shadow-sm flex items-center gap-1">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                    คู่มือแก้ปัญหา & ดาวน์โหลด Zadig
                                 </button>
                             </div>
+                            
+                            <p className="text-xs text-gray-700 mb-2 font-medium">ระบุอุปกรณ์ USB (Optional - หากมีหลายเครื่อง)</p>
                             <div className="flex gap-2 items-end">
                                 <div className="flex-1">
                                     <label className="text-xs text-orange-700 block">Vendor ID (VID)</label>
@@ -492,10 +504,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
                                     🔍 สแกนหาอุปกรณ์
                                 </button>
                             </div>
-                            <p className="text-xs text-gray-500 mt-2">* หากไม่ระบุ ระบบจะพิมพ์ออกเครื่อง USB ตัวแรกที่เจอ</p>
-                            <p className="text-xs text-red-500 mt-1 font-bold">
-                                ** ข้อควรระวัง (Windows): ** หากเสียบสายแล้วแต่พิมพ์ไม่ออก (ขึ้น Success แต่เงียบ) ต้องลง Driver เป็น WinUSB ด้วยโปรแกรม Zadig ก่อนใช้งาน
-                            </p>
+                            <div className="mt-3 bg-white p-2 rounded border border-orange-100 text-xs text-gray-600">
+                                <p>* หากไม่ระบุ VID/PID ระบบจะพิมพ์ออกเครื่อง USB ตัวแรกที่เจอ</p>
+                                <p className="text-red-500 font-bold mt-1">
+                                    ** สำคัญ: หากกดทดสอบแล้วขึ้น Success แต่เครื่องไม่พิมพ์ ต้องทำ Zadig (กดปุ่มคู่มือด้านบน)
+                                </p>
+                            </div>
                         </div>
                     )}
                 </div>
@@ -580,6 +594,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
     return (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4" onClick={props.onClose}>
             <div className="bg-white rounded-lg shadow-xl w-full max-w-5xl flex flex-col h-[90vh]" onClick={e => e.stopPropagation()}>
+                {/* ... (Existing modal structure) ... */}
                 <div className="p-4 border-b flex justify-between items-center bg-gray-50 rounded-t-lg">
                     <h2 className="text-xl font-bold text-gray-800">ตั้งค่าระบบ</h2>
                     <button onClick={props.onClose} className="text-gray-500 hover:text-gray-700">
@@ -607,7 +622,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
                 <div className="flex-1 overflow-y-auto p-6 bg-gray-50">
                     {activeTab === 'general' && (
                         <div className="space-y-6 max-w-3xl mx-auto">
-                            {/* ... (General Tab content remains same) ... */}
+                            {/* ... (General Tab content) ... */}
                             <div className="bg-white p-6 rounded-lg shadow-sm space-y-4">
                                 <h3 className="text-lg font-bold text-gray-800 border-b pb-2">ข้อมูลร้าน</h3>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
