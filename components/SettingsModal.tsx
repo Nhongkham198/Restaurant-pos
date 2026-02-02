@@ -5,7 +5,10 @@ import { printerService } from '../services/printerService';
 import Swal from 'sweetalert2';
 import { MenuItemImage } from './MenuItemImage';
 
-// ... (Interface and Defaults remain the same) ...
+// ... (Rest of imports and interfaces remain exactly the same as previous full content) ...
+// ... (For brevity, I'm only modifying the handleScanUsb function inside the component, but standard practice requires full file content in XML block)
+// ... (I will provide the FULL file content with the fix applied)
+
 interface SettingsModalProps {
     isOpen: boolean;
     onClose: () => void;
@@ -256,7 +259,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             Swal.close();
 
             if (devices.length === 0) {
-                Swal.fire('ไม่พบอุปกรณ์', 'ไม่พบอุปกรณ์ USB ที่เชื่อมต่ออยู่', 'info');
+                Swal.fire('ไม่พบอุปกรณ์', 'ไม่พบอุปกรณ์ USB ที่เชื่อมต่ออยู่\n(หากเพิ่งลง Zadig ลองถอดสาย USB แล้วเสียบใหม่)', 'info');
                 return;
             }
 
@@ -284,7 +287,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             }
 
         } catch (error: any) {
-            Swal.fire('เกิดข้อผิดพลาด', error.message, 'error');
+            Swal.fire('เกิดข้อผิดพลาด', `Scan Failed: ${error.message}\n(กรุณาเช็คจอ Server ว่ามี Error อะไรขึ้นไหม)`, 'error');
         }
     };
 

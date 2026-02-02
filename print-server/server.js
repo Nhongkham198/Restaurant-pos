@@ -230,31 +230,31 @@ app.get('/', (req, res) => {
 });
 
 // NEW: Endpoint to scan connected USB devices
+// UPDATED: Simplified scanning to prevent "configDescriptor" access errors on Windows
 app.get('/scan-usb', (req, res) => {
     if (!isUsbAvailable) {
         return res.status(500).json({ error: 'USB Drivers not loaded' });
     }
     try {
         const devices = usb.getDeviceList();
-        const printerCandidates = devices
-            .filter(d => {
-                // Basic filtering: Printers usually have interface class 7
-                // Or we just return everything and let user pick (safest for generic drivers)
-                try {
-                    return d.configDescriptor?.interfaces?.some(iface => 
-                        iface.some(conf => conf.bInterfaceClass === 7)
-                    ) || true; // Return all for now to be safe
-                } catch(e) { return true; }
-            })
-            .map(d => ({
-                vid: '0x' + d.deviceDescriptor.idVendor.toString(16).padStart(4, '0'),
-                pid: '0x' + d.deviceDescriptor.idProduct.toString(16).padStart(4, '0'),
-                busNumber: d.busNumber,
-                deviceAddress: d.deviceAddress
-            }));
+        
+        // Map to simple objects first to avoid accessing properties that might throw
+        const printerCandidates = devices.map(d => {
+            try {
+                return {
+                    vid: '0x' + d.deviceDescriptor.idVendor.toString(16).padStart(4, '0'),
+                    pid: '0x' + d.deviceDescriptor.idProduct.toString(16).padStart(4, '0'),
+                    busNumber: d.busNumber,
+                    deviceAddress: d.deviceAddress
+                };
+            } catch (err) {
+                return null;
+            }
+        }).filter(d => d !== null);
             
         res.json({ devices: printerCandidates });
     } catch (e) {
+        console.error("Scan Error:", e);
         res.status(500).json({ error: e.message });
     }
 });
@@ -271,12 +271,8 @@ app.post('/check-printer', (req, res) => {
             if (vid && pid) {
                 const targetVid = parseInt(vid, 16);
                 const targetPid = parseInt(pid, 16);
-                // We use escpos.USB to try instantiating
-                const device = new escpos.USB(targetVid, targetPid);
-                // Just creating the instance doesn't verify presence fully in all versions of node-usb,
-                // but open() will fail if it's missing.
-                // However, we don't want to open/claim interface just for checking status if we can avoid it.
-                // Better strategy: Scan the list.
+                
+                // Using getDeviceList check instead of instantiation to verify presence
                 const devices = usb.getDeviceList();
                 const found = devices.some(d => d.deviceDescriptor.idVendor === targetVid && d.deviceDescriptor.idProduct === targetPid);
                 
