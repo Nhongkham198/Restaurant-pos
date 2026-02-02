@@ -389,7 +389,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
 
     if (!props.isOpen) return null;
 
-    // ... (Helper render functions: renderImageUpload, renderSoundUpload remain the same) ...
+    // ... (Helper render functions: renderImageUpload, renderSoundUpload) ...
     const renderImageUpload = (label: string, value: string | null, field: string, inputRef: React.RefObject<HTMLInputElement>) => (
         <div className="border border-gray-200 rounded-lg p-4 bg-white">
             <label className="block text-sm font-medium text-gray-700 mb-2">{label}</label>
@@ -547,7 +547,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
 
                 {type === 'cashier' && receiptOpts && (
                     <div className="mt-6 pt-6 border-t border-gray-200">
-                        {/* ... (Receipt options rendering remains same) ... */}
+                        {/* ... (Receipt options rendering) ... */}
                         <h4 className="text-lg font-bold text-gray-800 mb-4">รายละเอียดบนใบเสร็จ</h4>
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                             <div className="space-y-6">
@@ -625,7 +625,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
     return (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4" onClick={props.onClose}>
             <div className="bg-white rounded-lg shadow-xl w-full max-w-5xl flex flex-col h-[90vh]" onClick={e => e.stopPropagation()}>
-                {/* ... (Existing modal structure) ... */}
                 <div className="p-4 border-b flex justify-between items-center bg-gray-50 rounded-t-lg">
                     <h2 className="text-xl font-bold text-gray-800">ตั้งค่าระบบ</h2>
                     <button onClick={props.onClose} className="text-gray-500 hover:text-gray-700">
@@ -653,25 +652,44 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
                 <div className="flex-1 overflow-y-auto p-6 bg-gray-50">
                     {activeTab === 'general' && (
                         <div className="space-y-6 max-w-3xl mx-auto">
-                            {/* ... (General Tab content) ... */}
                             <div className="bg-white p-6 rounded-lg shadow-sm space-y-4">
                                 <h3 className="text-lg font-bold text-gray-800 border-b pb-2">ข้อมูลร้าน</h3>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700">ชื่อร้าน</label>
-                                        <input type="text" value={settingsForm.logoUrl ? 'ใช้โลโก้แทน' : '(แก้ไขที่ Header)'} disabled className="mt-1 block w-full bg-gray-100 border-gray-300 rounded-md shadow-sm p-2 text-gray-500" />
+                                        <input 
+                                            type="text" 
+                                            value={settingsForm.logoUrl ? 'ใช้โลโก้แทน' : '(แก้ไขที่ Header)'} 
+                                            disabled 
+                                            className="mt-1 block w-full bg-gray-100 border border-gray-300 rounded-md shadow-sm p-2 text-gray-500" 
+                                        />
                                     </div>
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700">เบอร์โทรศัพท์</label>
-                                        <input type="text" value={settingsForm.restaurantPhone} onChange={e => handleInputChange('restaurantPhone', e.target.value)} className="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2" />
+                                        <input 
+                                            type="text" 
+                                            value={settingsForm.restaurantPhone} 
+                                            onChange={e => handleInputChange('restaurantPhone', e.target.value)} 
+                                            className="mt-1 block w-full bg-gray-50 border border-gray-300 rounded-md shadow-sm p-2 focus:ring-blue-500 focus:border-blue-500" 
+                                        />
                                     </div>
                                     <div className="md:col-span-2">
                                         <label className="block text-sm font-medium text-gray-700">ที่อยู่</label>
-                                        <textarea value={settingsForm.restaurantAddress} onChange={e => handleInputChange('restaurantAddress', e.target.value)} rows={3} className="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2" />
+                                        <textarea 
+                                            value={settingsForm.restaurantAddress} 
+                                            onChange={e => handleInputChange('restaurantAddress', e.target.value)} 
+                                            rows={3} 
+                                            className="mt-1 block w-full bg-gray-50 border border-gray-300 rounded-md shadow-sm p-2 focus:ring-blue-500 focus:border-blue-500" 
+                                        />
                                     </div>
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700">เลขประจำตัวผู้เสียภาษี</label>
-                                        <input type="text" value={settingsForm.taxId} onChange={e => handleInputChange('taxId', e.target.value)} className="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2" />
+                                        <input 
+                                            type="text" 
+                                            value={settingsForm.taxId} 
+                                            onChange={e => handleInputChange('taxId', e.target.value)} 
+                                            className="mt-1 block w-full bg-gray-50 border border-gray-300 rounded-md shadow-sm p-2 focus:ring-blue-500 focus:border-blue-500" 
+                                        />
                                     </div>
                                 </div>
                             </div>

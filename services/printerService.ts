@@ -280,7 +280,8 @@ export const printerService = {
         // Header Logic
         let headerHtml = '';
         if (logoUrl && opts.showLogo) {
-            headerHtml += `<div style="text-align: center; margin-bottom: 5px;"><img src="${logoUrl}" style="max-height: 80px; max-width: 90%;" crossOrigin="anonymous"/></div>`;
+            // FIX: Increased max-height for larger logo and centered it
+            headerHtml += `<div style="text-align: center; margin-bottom: 5px;"><img src="${logoUrl}" style="max-height: 150px; max-width: 100%; object-fit: contain;" crossOrigin="anonymous"/></div>`;
         }
         if (opts.showRestaurantName) {
             headerHtml += `<div style="font-size: ${fsLarge}; font-weight: 900; line-height: 1.2; margin-bottom: 4px; text-align: center;">${restaurantName}</div>`;
@@ -353,7 +354,7 @@ export const printerService = {
                 ${itemsHtml}
                 ${totalsHtml}
 
-                ${opts.showThankYouMessage && opts.thankYouMessage ? `<div style="text-align: center; margin-top: 20px; font-size: ${fsNormal}; font-weight: bold;">*** ${opts.thankYouMessage} ***</div>` : ''}
+                ${opts.showThankYouMessage && opts.thankYouMessage ? `<div style="text-align: center; margin-top: 20px; font-size: ${fsNormal}; font-weight: bold; line-height: 1.8; padding-bottom: 15px;">*** ${opts.thankYouMessage} ***</div>` : ''}
             </div>
         `;
 
