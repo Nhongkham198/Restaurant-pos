@@ -197,8 +197,12 @@ export interface KitchenPrinterSettings {
     ipAddress: string; // The Node.js Server IP
     port?: string;     // The Node.js Server Port
     paperWidth: '58mm' | '80mm';
+    // Network Settings
     targetPrinterIp?: string; // The Actual Printer IP (Hardware)
     targetPrinterPort?: string; // The Actual Printer Port (Hardware, usually 9100)
+    // USB Settings (NEW)
+    vid?: string; // Vendor ID (Hex)
+    pid?: string; // Product ID (Hex)
 }
 
 export interface CashierPrinterSettings {
@@ -206,8 +210,12 @@ export interface CashierPrinterSettings {
     ipAddress: string;
     port?: string;
     paperWidth: '58mm' | '80mm';
+    // Network Settings
     targetPrinterIp?: string;
     targetPrinterPort?: string;
+    // USB Settings (NEW)
+    vid?: string; 
+    pid?: string;
     receiptOptions: ReceiptPrintSettings;
 }
 

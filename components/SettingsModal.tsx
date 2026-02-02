@@ -59,7 +59,9 @@ const DEFAULT_KITCHEN_PRINTER: KitchenPrinterSettings = {
     port: '3000', 
     paperWidth: '80mm', 
     targetPrinterIp: '', 
-    targetPrinterPort: '9100' 
+    targetPrinterPort: '9100',
+    vid: '',
+    pid: ''
 };
 
 const DEFAULT_CASHIER_PRINTER: CashierPrinterSettings = { 
@@ -68,7 +70,9 @@ const DEFAULT_CASHIER_PRINTER: CashierPrinterSettings = {
     port: '3000', 
     paperWidth: '80mm', 
     targetPrinterIp: '', 
-    targetPrinterPort: '9100', 
+    targetPrinterPort: '9100',
+    vid: '',
+    pid: '',
     receiptOptions: DEFAULT_RECEIPT_OPTIONS 
 };
 
@@ -245,7 +249,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 printer.port || '3000',
                 printer.targetPrinterIp || '',
                 printer.targetPrinterPort || '9100',
-                printer.connectionType
+                printer.connectionType,
+                printer.vid,
+                printer.pid
             );
             setPrinterStatus(prev => ({ ...prev, [type]: result.online ? 'success' : 'error' }));
             if (result.online) {
@@ -273,6 +279,61 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             Swal.fire({ icon: 'success', title: 'ส่งคำสั่งสำเร็จ', text: 'กรุณาตรวจสอบที่เครื่องพิมพ์', timer: 1500, showConfirmButton: false });
         } catch (error: any) {
             Swal.fire({ icon: 'error', title: 'พิมพ์ไม่สำเร็จ', text: error.message });
+        }
+    };
+
+    // --- NEW: Scan USB Handler ---
+    const handleScanUsb = async (type: 'kitchen' | 'cashier') => {
+        const printer = settingsForm.printerConfig[type];
+        if (!printer || !printer.ipAddress) {
+            Swal.fire('ข้อมูลไม่ครบ', 'กรุณาระบุ IP ของ Print Server ก่อนสแกน', 'warning');
+            return;
+        }
+
+        Swal.fire({
+            title: 'กำลังสแกนหาเครื่องพิมพ์ USB...',
+            allowOutsideClick: false,
+            didOpen: () => Swal.showLoading()
+        });
+
+        try {
+            const devices = await printerService.scanUsbDevices(printer.ipAddress, printer.port || '3000');
+            
+            if (devices.length === 0) {
+                Swal.fire('ไม่พบอุปกรณ์', 'ไม่พบเครื่องพิมพ์ USB ที่เชื่อมต่ออยู่', 'info');
+                return;
+            }
+
+            // Create options for Swal input
+            const inputOptions: Record<string, string> = {};
+            devices.forEach((dev, idx) => {
+                inputOptions[`${dev.vid}|${dev.pid}`] = `Printer #${idx + 1} (VID: ${dev.vid}, PID: ${dev.pid})`;
+            });
+
+            const { value: selected } = await Swal.fire({
+                title: 'เลือกเครื่องพิมพ์',
+                input: 'select',
+                inputOptions: inputOptions,
+                inputPlaceholder: 'เลือกอุปกรณ์...',
+                showCancelButton: true,
+                confirmButtonText: 'เลือก'
+            });
+
+            if (selected) {
+                const [vid, pid] = selected.split('|');
+                handlePrinterChange(type, 'vid', vid);
+                handlePrinterChange(type, 'pid', pid);
+                Swal.fire({
+                    icon: 'success',
+                    title: 'เลือกเรียบร้อย',
+                    text: `ตั้งค่า VID: ${vid}, PID: ${pid}`,
+                    timer: 1500,
+                    showConfirmButton: false
+                });
+            }
+
+        } catch (error: any) {
+            Swal.fire('Error', `สแกนไม่สำเร็จ: ${error.message}`, 'error');
         }
     };
 
@@ -312,6 +373,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         });
     };
 
+    // ... (rest of helper functions for menu, delivery etc. remain same) ...
     const handleToggleRecommended = (id: number) => {
         setLocalRecommendedIds(prev => {
             const next = new Set(prev);
@@ -355,7 +417,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     };
 
     const handleEditProvider = async (provider: DeliveryProvider) => {
-        // ... (Same implementation)
         const confirmResult = await Swal.fire({
             title: 'ต้องการแก้ไขข้อมูล?',
             text: `คุณต้องการแก้ไขข้อมูลของ "${provider.name}" ใช่หรือไม่?`,
@@ -473,6 +534,30 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                             <input type="text" value={conf.targetPrinterIp || ''} onChange={(e) => handlePrinterChange(type, 'targetPrinterIp', e.target.value)} placeholder="เช่น 192.168.1.200" className="mt-1 block w-full border border-gray-300 p-2 rounded-md shadow-sm text-gray-900" />
                         </div>
                     )}
+                    {/* NEW: USB Specific Inputs */}
+                    {conf.connectionType === 'usb' && (
+                        <div className="col-span-12 bg-orange-50 p-3 rounded-lg border border-orange-200">
+                            <label className="block text-sm font-bold text-orange-800 mb-2">ระบุอุปกรณ์ USB (Optional - หากมีหลายเครื่อง)</label>
+                            <div className="flex gap-2 items-end">
+                                <div className="flex-1">
+                                    <label className="text-xs text-orange-700 block">Vendor ID (VID)</label>
+                                    <input type="text" value={conf.vid || ''} onChange={(e) => handlePrinterChange(type, 'vid', e.target.value)} placeholder="0x...." className="mt-1 w-full border border-gray-300 p-2 rounded-md" />
+                                </div>
+                                <div className="flex-1">
+                                    <label className="text-xs text-orange-700 block">Product ID (PID)</label>
+                                    <input type="text" value={conf.pid || ''} onChange={(e) => handlePrinterChange(type, 'pid', e.target.value)} placeholder="0x...." className="mt-1 w-full border border-gray-300 p-2 rounded-md" />
+                                </div>
+                                <button 
+                                    type="button" 
+                                    onClick={() => handleScanUsb(type)} 
+                                    className="px-4 py-2 bg-orange-600 text-white font-bold rounded-md hover:bg-orange-700 h-10 shadow-sm whitespace-nowrap"
+                                >
+                                    🔍 สแกนหาอุปกรณ์
+                                </button>
+                            </div>
+                            <p className="text-xs text-gray-500 mt-2">* หากไม่ระบุ ระบบจะพิมพ์ออกเครื่อง USB ตัวแรกที่เจอ</p>
+                        </div>
+                    )}
                 </div>
                 {type === 'cashier' && receiptOpts && (
                     <div className="mt-6 pt-6 border-t border-gray-200">
@@ -568,6 +653,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     </div>
 
                     <div className="p-6 space-y-6 overflow-y-auto flex-1">
+                        {/* ... (Existing Tabs content for general, sound, etc.) ... */}
                         {activeTab === 'general' && (
                             <div className="space-y-4">
                                 <h4 className="text-lg font-semibold text-gray-700">ตั้งค่าร้านค้า</h4>

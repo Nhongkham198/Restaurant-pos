@@ -116,9 +116,21 @@ const executePrintJob = async (job) => {
                      if (!isUsbAvailable) return reject(new Error('USB Drivers not active'));
                      
                      try {
-                        // Always try to find a fresh device instance on each attempt
-                        const device = new escpos.USB();
-                        if (!device) return reject(new Error('USB Device not found'));
+                        // Support Specific USB Device Targeting
+                        let device;
+                        if (targetPrinter && targetPrinter.vid && targetPrinter.pid) {
+                            // Parse hex strings if necessary (e.g., "0x04b8" or "04b8")
+                            const vid = parseInt(targetPrinter.vid.replace('0x', ''), 16);
+                            const pid = parseInt(targetPrinter.pid.replace('0x', ''), 16);
+                            console.log(`[USB Print] Targeting VID: 0x${vid.toString(16)} PID: 0x${pid.toString(16)}`);
+                            device = new escpos.USB(vid, pid);
+                        } else {
+                            // Fallback to auto-detect first printer
+                            console.log(`[USB Print] Auto-detecting first USB printer...`);
+                            device = new escpos.USB();
+                        }
+
+                        if (!device) return reject(new Error('USB Device initialization failed'));
 
                         const printer = new escpos.Printer(device);
                         device.open((err) => {
@@ -216,14 +228,54 @@ app.get('/', (req, res) => {
     res.send(`POS Print Server (Network ${isUsbAvailable ? '+ USB' : ''} Supported) - Queue Active: ${printQueue.length}`);
 });
 
+// NEW: Endpoint to scan and list all connected USB printers
+app.get('/scan-usb', (req, res) => {
+    if (!isUsbAvailable) {
+        return res.status(500).json({ success: false, error: 'USB Drivers not loaded' });
+    }
+    try {
+        // escpos.USB.findPrinter() returns an array of Device objects
+        const devices = escpos.USB.findPrinter();
+        
+        // Map to a cleaner format for the frontend
+        const printerList = devices.map(device => {
+            // Depending on the OS/Driver, these properties might vary slightly, but usually found in deviceDescriptor
+            const desc = device.deviceDescriptor || {};
+            return {
+                vid: '0x' + (desc.idVendor ? desc.idVendor.toString(16).padStart(4, '0') : '????'),
+                pid: '0x' + (desc.idProduct ? desc.idProduct.toString(16).padStart(4, '0') : '????'),
+                manufacturer: '', // Often hard to get via this lib without extra work
+                product: '' // Often hard to get
+            };
+        });
+        
+        res.json({ success: true, devices: printerList });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
 app.post('/check-printer', (req, res) => {
-    const { ip, port, connectionType } = req.body;
+    const { ip, port, connectionType, vid, pid } = req.body;
     
     if (connectionType === 'usb') {
         if (!isUsbAvailable) {
             return res.json({ online: false, message: 'USB Driver not loaded on server' });
         }
         try {
+            // If specific VID/PID provided, check specifically for it
+            if (vid && pid) {
+                const targetVid = parseInt(vid.replace('0x', ''), 16);
+                const targetPid = parseInt(pid.replace('0x', ''), 16);
+                const device = new escpos.USB(targetVid, targetPid);
+                // Try to just instantiate it (checking existence)
+                if (device) {
+                     return res.json({ online: true, message: `Found Printer (VID:${vid}, PID:${pid})` });
+                }
+                return res.json({ online: false, message: `Printer (VID:${vid}, PID:${pid}) Not Found` });
+            }
+
+            // Otherwise, check for ANY printer
             const devices = escpos.USB.findPrinter();
             if (devices && devices.length > 0) {
                 return res.json({ online: true, message: `Found ${devices.length} USB Printer(s)` });

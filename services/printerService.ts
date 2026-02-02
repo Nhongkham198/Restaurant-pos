@@ -160,7 +160,9 @@ export const printerService = {
                     connectionType: config.connectionType,
                     targetPrinter: {
                         ip: config.targetPrinterIp || '',
-                        port: config.targetPrinterPort || '9100'
+                        port: config.targetPrinterPort || '9100',
+                        vid: config.vid || '',
+                        pid: config.pid || ''
                     }
                 })
             });
@@ -249,7 +251,9 @@ export const printerService = {
                     connectionType: config.connectionType,
                     targetPrinter: {
                         ip: config.targetPrinterIp || '',
-                        port: config.targetPrinterPort || '9100'
+                        port: config.targetPrinterPort || '9100',
+                        vid: config.vid || '',
+                        pid: config.pid || ''
                     }
                 })
             });
@@ -353,7 +357,9 @@ export const printerService = {
                     connectionType: config.connectionType,
                     targetPrinter: {
                         ip: config.targetPrinterIp || '',
-                        port: config.targetPrinterPort || '9100'
+                        port: config.targetPrinterPort || '9100',
+                        vid: config.vid || '',
+                        pid: config.pid || ''
                     }
                 })
             });
@@ -381,7 +387,9 @@ export const printerService = {
                     connectionType: config.connectionType,
                     targetPrinter: {
                         ip: config.targetPrinterIp || '',
-                        port: config.targetPrinterPort || '9100'
+                        port: config.targetPrinterPort || '9100',
+                        vid: config.vid || '',
+                        pid: config.pid || ''
                     }
                 })
             });
@@ -414,12 +422,12 @@ export const printerService = {
         return true;
     },
     
-    checkPrinterStatus: async (serverIp: string, serverPort: string, printerIp: string, printerPort: string, connectionType: PrinterConnectionType): Promise<{ online: boolean, message: string }> => {
+    checkPrinterStatus: async (serverIp: string, serverPort: string, printerIp: string, printerPort: string, connectionType: PrinterConnectionType, vid?: string, pid?: string): Promise<{ online: boolean, message: string }> => {
         const url = `http://${serverIp}:${serverPort || 3000}/check-printer`;
         const res = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ip: printerIp, port: printerPort || '9100', connectionType })
+            body: JSON.stringify({ ip: printerIp, port: printerPort || '9100', connectionType, vid, pid })
         });
         return await res.json();
     },
@@ -450,7 +458,9 @@ export const printerService = {
                     connectionType: config.connectionType,
                     targetPrinter: {
                         ip: config.targetPrinterIp || '',
-                        port: config.targetPrinterPort || '9100'
+                        port: config.targetPrinterPort || '9100',
+                        vid: config.vid || '',
+                        pid: config.pid || ''
                     }
                 })
             });
@@ -460,6 +470,19 @@ export const printerService = {
             }
         } catch (error: any) {
             throw new Error("พิมพ์ล้มเหลว: " + error.message);
+        }
+    },
+
+    // New method to scan USB devices
+    scanUsbDevices: async (serverIp: string, serverPort: string): Promise<any[]> => {
+        const url = `http://${serverIp}:${serverPort || 3000}/scan-usb`;
+        try {
+            const res = await fetch(url);
+            if (!res.ok) throw new Error('Scan failed');
+            const data = await res.json();
+            return data.devices || [];
+        } catch (error: any) {
+            throw new Error("Scan failed: " + error.message);
         }
     }
 };
