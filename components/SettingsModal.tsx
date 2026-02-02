@@ -454,13 +454,44 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
         
         return (
             <div className="space-y-4">
-                <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-                    <label className="block text-sm font-bold text-gray-700 mb-2">ประเภทการเชื่อมต่อ</label>
-                    <div className="flex gap-4">
-                        <button type="button" onClick={() => handlePrinterChange(type, 'connectionType', 'network')} className={`flex-1 py-2 rounded-md font-bold border-2 transition-all ${conf.connectionType === 'network' ? 'bg-blue-600 text-white border-blue-700 shadow-inner' : 'bg-white text-gray-600 border-gray-300'}`}>WiFi / Network</button>
-                        <button type="button" onClick={() => handlePrinterChange(type, 'connectionType', 'usb')} className={`flex-1 py-2 rounded-md font-bold border-2 transition-all ${conf.connectionType === 'usb' ? 'bg-orange-600 text-white border-orange-700 shadow-inner' : 'bg-white text-gray-600 border-gray-300'}`}>USB (ต่อตรง)</button>
+                <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 space-y-4">
+                    <div>
+                        <label className="block text-sm font-bold text-gray-700 mb-2">ประเภทการเชื่อมต่อ</label>
+                        <div className="flex gap-4">
+                            <button type="button" onClick={() => handlePrinterChange(type, 'connectionType', 'network')} className={`flex-1 py-2 rounded-md font-bold border-2 transition-all ${conf.connectionType === 'network' ? 'bg-blue-600 text-white border-blue-700 shadow-inner' : 'bg-white text-gray-600 border-gray-300'}`}>WiFi / Network</button>
+                            <button type="button" onClick={() => handlePrinterChange(type, 'connectionType', 'usb')} className={`flex-1 py-2 rounded-md font-bold border-2 transition-all ${conf.connectionType === 'usb' ? 'bg-orange-600 text-white border-orange-700 shadow-inner' : 'bg-white text-gray-600 border-gray-300'}`}>USB (ต่อตรง)</button>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-bold text-gray-700 mb-2">ขนาดหน้ากว้างกระดาษ</label>
+                        <div className="flex gap-4">
+                            <label className={`flex-1 flex items-center justify-center gap-2 p-2 rounded-md border-2 cursor-pointer transition-all ${conf.paperWidth === '80mm' ? 'border-blue-600 bg-blue-50 text-blue-800 font-bold' : 'border-gray-200 bg-white text-gray-600'}`}>
+                                <input
+                                    type="radio"
+                                    name={`paperWidth-${type}`}
+                                    value="80mm"
+                                    checked={conf.paperWidth === '80mm'}
+                                    onChange={() => handlePrinterChange(type, 'paperWidth', '80mm')}
+                                    className="hidden"
+                                />
+                                <span>80mm (มาตรฐาน)</span>
+                            </label>
+                            <label className={`flex-1 flex items-center justify-center gap-2 p-2 rounded-md border-2 cursor-pointer transition-all ${conf.paperWidth === '58mm' ? 'border-blue-600 bg-blue-50 text-blue-800 font-bold' : 'border-gray-200 bg-white text-gray-600'}`}>
+                                <input
+                                    type="radio"
+                                    name={`paperWidth-${type}`}
+                                    value="58mm"
+                                    checked={conf.paperWidth === '58mm'}
+                                    onChange={() => handlePrinterChange(type, 'paperWidth', '58mm')}
+                                    className="hidden"
+                                />
+                                <span>58mm (เล็ก)</span>
+                            </label>
+                        </div>
                     </div>
                 </div>
+
                 <div className="grid grid-cols-12 gap-4">
                     <div className="col-span-8 md:col-span-9">
                         <label className="block text-sm font-bold text-blue-700">Print Server IP (เครื่องที่รัน Node.js)</label>
