@@ -1066,9 +1066,8 @@ export const App: React.FC = () => {
                     menuItems={menuItems} 
                     currentRecommendedMenuItemIds={recommendedMenuItemIds} 
                     onSaveRecommendedItems={setRecommendedMenuItemIds} 
-                    deliveryProviders={deliveryProviders}
+                    deliveryProviders={deliveryProviders} 
                     onSaveDeliveryProviders={setDeliveryProviders}
-                    // NEW: Pass current values
                     currentRestaurantAddress={restaurantAddress}
                     currentRestaurantPhone={restaurantPhone}
                     currentTaxId={taxId}

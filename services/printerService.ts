@@ -402,7 +402,8 @@ export const printerService = {
         }
     },
 
-    printTest: async (ip: string, paperWidth: string, port: string, targetPrinterIp?: string, targetPrinterPort?: string, connectionType: PrinterConnectionType = 'network'): Promise<boolean> => {
+    // FIX: Add vid and pid parameters to printTest
+    printTest: async (ip: string, paperWidth: string, port: string, targetPrinterIp?: string, targetPrinterPort?: string, connectionType: PrinterConnectionType = 'network', vid?: string, pid?: string): Promise<boolean> => {
         const url = `http://${ip}:${port || 3000}/print-image`;
         const lines = ["--- ทดสอบการพิมพ์ ---", `โหมด: ${connectionType.toUpperCase()}`, new Date().toLocaleString('th-TH')];
         const base64Image = await generateReceiptImage(lines, paperWidth as '58mm' | '80mm');
@@ -412,7 +413,13 @@ export const printerService = {
             body: JSON.stringify({
                 image: base64Image,
                 connectionType,
-                targetPrinter: { ip: targetPrinterIp || '', port: targetPrinterPort || '9100' }
+                // FIX: Include vid and pid in the request body for test prints
+                targetPrinter: { 
+                    ip: targetPrinterIp || '', 
+                    port: targetPrinterPort || '9100',
+                    vid: vid || '', 
+                    pid: pid || '' 
+                }
             })
         });
         if (!res.ok) {
