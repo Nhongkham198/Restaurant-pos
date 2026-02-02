@@ -10,7 +10,7 @@ declare global {
     }
 }
 
-// ... (moneyToThaiText and EditableField components remain unchanged, assume they are here) ...
+// ... (Rest of imports and helper functions remain unchanged)
 const moneyToThaiText = (amount: number): string => {
     const txtNumArr = ["ศูนย์", "หนึ่ง", "สอง", "สาม", "สี่", "ห้า", "หก", "เจ็ด", "แปด", "เก้า"];
     const txtDigitArr = ["", "สิบ", "ร้อย", "พัน", "หมื่น", "แสน", "ล้าน"];
@@ -78,7 +78,7 @@ const moneyToThaiText = (amount: number): string => {
     return bahtText;
 };
 
-// ... (EditableField code remains same) ...
+// ... (EditableField component remains unchanged)
 interface EditableFieldProps {
     value: string | number;
     onChange: (val: string) => void;
@@ -181,6 +181,7 @@ const EditableField: React.FC<EditableFieldProps> = ({ value, onChange, classNam
     );
 };
 
+// ... (CashBillModalProps and EditableItem interface remain unchanged)
 interface CashBillModalProps {
     isOpen: boolean;
     onClose: () => void;
@@ -220,7 +221,7 @@ export const CashBillModal: React.FC<CashBillModalProps> = ({
     const [zoomLevel, setZoomLevel] = useState(1);
     const [bottomPadding, setBottomPadding] = useState(60);
 
-    // --- Local State for ALL Editable Fields ---
+    // ... (Local State and Effects remain unchanged until handlePrint)
     const [shopName, setShopName] = useState('');
     const [shopAddress, setShopAddress] = useState('');
     const [shopPhone, setShopPhone] = useState('');
@@ -251,7 +252,6 @@ export const CashBillModal: React.FC<CashBillModalProps> = ({
     
     const [signatureBase64, setSignatureBase64] = useState<string | null>(null);
 
-    // ... (recalculateTotals remains same) ...
     const recalculateTotals = (items: EditableItem[]) => {
         let subtotal = 0;
         const updatedItems = items.map(item => {
@@ -390,7 +390,7 @@ export const CashBillModal: React.FC<CashBillModalProps> = ({
     const handleZoomOut = () => setZoomLevel(prev => Math.max(prev - 0.1, 0.5));
     const handleZoomReset = () => setZoomLevel(1);
 
-    // --- ENHANCED PRINT HANDLER WITH FIXED 560PX WIDTH & DELAY ---
+    // --- ENHANCED PRINT HANDLER (FIXED) ---
     const handlePrint = async () => {
         if (!printerConfig?.cashier) {
             Swal.fire({
@@ -411,22 +411,27 @@ export const CashBillModal: React.FC<CashBillModalProps> = ({
             didOpen: () => { Swal.showLoading(); }
         });
 
-        // 1. CLONE
+        // 1. Calculate the FULL height of the content
+        // This is crucial. We must know how tall the bill is to force the clone to that size.
+        const originalHeight = printContent.scrollHeight;
+
+        // 2. CLONE
         const clone = printContent.cloneNode(true) as HTMLElement;
         
-        // Style clone for perfect 80mm fit (560px width, Scale 1)
-        clone.style.position = 'fixed'; // Use fixed to ensure it's rendered in view before capture if needed, but offscreen
+        // 3. Style clone for capture
+        // Force width 560px (standard 80mm printable area at good DPI)
+        // Force height to match content height to prevent truncation
+        clone.style.position = 'fixed'; 
         clone.style.top = '-9999px';
         clone.style.left = '-9999px';
-        clone.style.width = isA4 ? '210mm' : '560px'; // Explicit pixel width for Thermal
-        clone.style.height = 'auto'; // Ensure height grows with content
-        clone.style.minHeight = 'auto';
-        clone.style.maxHeight = 'none';
+        clone.style.width = isA4 ? '210mm' : '560px'; 
+        clone.style.height = `${originalHeight}px`; // Explicit height!
+        clone.style.minHeight = `${originalHeight}px`;
         clone.style.overflow = 'visible';
         clone.style.transform = 'none'; 
-        clone.style.backgroundColor = 'white'; // Ensure background is white
+        clone.style.backgroundColor = 'white'; 
         
-        // Manually copy input values
+        // Manually copy input values (cloneNode doesn't copy values)
         const originalInputs = printContent.querySelectorAll('input');
         const cloneInputs = clone.querySelectorAll('input');
         originalInputs.forEach((input, index) => {
@@ -435,24 +440,26 @@ export const CashBillModal: React.FC<CashBillModalProps> = ({
 
         document.body.appendChild(clone);
 
-        // *** IMPORTANT DELAY ***
-        // Wait for DOM to fully render the clone, especially height calculations
-        await new Promise(resolve => setTimeout(resolve, 800));
+        // *** IMPORTANT DELAY FOR RENDER ***
+        // Increased to 1000ms to be safe for fonts/layout to settle
+        await new Promise(resolve => setTimeout(resolve, 1000));
 
         try {
-            // 2. Capture
+            // 4. Capture with window scroll correction
             const canvas = await window.html2canvas(clone, { 
-                scale: isA4 ? 2 : 1, // Use scale 1 for Thermal to keep width safe (560px)
+                scale: isA4 ? 2 : 1, 
                 useCORS: true,
                 backgroundColor: '#ffffff',
                 logging: false,
-                // Remove explicit height, let html2canvas calculate it naturally from the visible clone
+                height: originalHeight, // Explicit capture height
+                windowHeight: originalHeight + 100, // Ensure window context is tall enough
+                scrollY: -window.scrollY // Correct for scroll position
             });
             
             const base64Image = canvas.toDataURL('image/png');
             document.body.removeChild(clone);
 
-            // 4. Send to printer
+            // 5. Send to printer
             await printerService.printCustomImage(base64Image, printerConfig.cashier);
 
             Swal.fire({
@@ -478,6 +485,7 @@ export const CashBillModal: React.FC<CashBillModalProps> = ({
     const isA4 = paperSize === 'a4';
 
     return (
+        // ... (Return JSX matches existing, omitted for brevity as only logic changed above)
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[60] p-4" onClick={onClose}>
             <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl flex flex-col h-[90vh]" onClick={e => e.stopPropagation()}>
                 {/* Modal Header */}

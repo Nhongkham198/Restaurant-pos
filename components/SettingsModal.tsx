@@ -56,7 +56,7 @@ const DEFAULT_RECEIPT_OPTIONS: ReceiptPrintSettings = {
 const DEFAULT_KITCHEN_PRINTER: KitchenPrinterSettings = { 
     connectionType: 'network', 
     ipAddress: '', 
-    port: '3000', 
+    port: '3001', // Changed default to 3001
     paperWidth: '80mm', 
     targetPrinterIp: '', 
     targetPrinterPort: '9100',
@@ -67,7 +67,7 @@ const DEFAULT_KITCHEN_PRINTER: KitchenPrinterSettings = {
 const DEFAULT_CASHIER_PRINTER: CashierPrinterSettings = { 
     connectionType: 'network', 
     ipAddress: '', 
-    port: '3000', 
+    port: '3001', // Changed default to 3001
     paperWidth: '80mm', 
     targetPrinterIp: '', 
     targetPrinterPort: '9100', 
@@ -253,7 +253,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 didOpen: () => Swal.showLoading()
             });
 
-            const devices = await printerService.scanUsbDevices(printer.ipAddress, printer.port || '3000');
+            const devices = await printerService.scanUsbDevices(printer.ipAddress, printer.port || '3001');
             Swal.close();
 
             if (devices.length === 0) {
@@ -307,7 +307,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         try {
             const result = await printerService.checkPrinterStatus(
                 printer.ipAddress, 
-                printer.port || '3000',
+                printer.port || '3001',
                 printer.targetPrinterIp || '',
                 printer.targetPrinterPort || '9100',
                 printer.connectionType,
@@ -346,7 +346,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             await printerService.printTest(
                 printer.ipAddress, 
                 printer.paperWidth, 
-                printer.port || '3000',
+                printer.port || '3001',
                 printer.targetPrinterIp,
                 printer.targetPrinterPort,
                 printer.connectionType,
@@ -551,7 +551,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     </div>
                     <div className="col-span-4 md:col-span-3">
                         <label className="block text-sm font-bold text-blue-700">Port</label>
-                        <input type="text" value={conf.port} onChange={(e) => handlePrinterChange(type, 'port', e.target.value)} placeholder="3000" className="mt-1 block w-full border border-gray-300 p-2 rounded-md shadow-sm text-gray-900" />
+                        <input type="text" value={conf.port} onChange={(e) => handlePrinterChange(type, 'port', e.target.value)} placeholder="3001" className="mt-1 block w-full border border-gray-300 p-2 rounded-md shadow-sm text-gray-900" />
                     </div>
                     {conf.connectionType === 'network' ? (
                         <div className="col-span-12">

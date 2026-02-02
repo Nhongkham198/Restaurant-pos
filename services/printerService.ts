@@ -77,7 +77,7 @@ const generateReceiptImage = async (lines: string[], paperWidth: '58mm' | '80mm'
 export const printerService = {
     // NEW: Scan for USB devices via the server
     scanUsbDevices: async (serverIp: string, serverPort: string): Promise<any[]> => {
-        const url = `http://${serverIp}:${serverPort || 3000}/scan-usb`;
+        const url = `http://${serverIp}:${serverPort || 3001}/scan-usb`;
         const res = await fetch(url);
         if (!res.ok) throw new Error("Failed to scan USB devices");
         const data = await res.json();
@@ -87,7 +87,7 @@ export const printerService = {
     printKitchenOrder: async (order: ActiveOrder, config: KitchenPrinterSettings): Promise<void> => {
         if (!config.ipAddress) throw new Error("ไม่ได้ตั้งค่า IP ของ Print Server");
 
-        const url = `http://${config.ipAddress}:${config.port || 3000}/print-image`;
+        const url = `http://${config.ipAddress}:${config.port || 3001}/print-image`;
         
         const displayOrderNumber = order.manualOrderNumber ? `#${order.manualOrderNumber}` : `#${String(order.orderNumber).padStart(3, '0')}`;
 
@@ -174,7 +174,7 @@ export const printerService = {
         if (!config.ipAddress) throw new Error("ไม่ได้ตั้งค่า IP ของ Print Server");
 
         const opts = config.receiptOptions;
-        const url = `http://${config.ipAddress}:${config.port || 3000}/print-image`;
+        const url = `http://${config.ipAddress}:${config.port || 3001}/print-image`;
         const lines: string[] = [];
 
         if (opts.showRestaurantName) {
@@ -257,7 +257,7 @@ export const printerService = {
         if (!config.ipAddress) throw new Error("ไม่ได้ตั้งค่า IP ของ Print Server");
 
         const opts = config.receiptOptions;
-        const url = `http://${config.ipAddress}:${config.port || 3000}/print-image`;
+        const url = `http://${config.ipAddress}:${config.port || 3001}/print-image`;
         const lines: string[] = [];
 
         if (opts.showRestaurantName) {
@@ -352,7 +352,7 @@ export const printerService = {
     printCustomImage: async (base64Image: string, config: CashierPrinterSettings): Promise<void> => {
         if (!config.ipAddress) throw new Error("ไม่ได้ตั้งค่า IP ของ Print Server");
 
-        const url = `http://${config.ipAddress}:${config.port || 3000}/print-image`;
+        const url = `http://${config.ipAddress}:${config.port || 3001}/print-image`;
 
         try {
             const res = await fetch(url, {
@@ -379,8 +379,19 @@ export const printerService = {
     },
 
     printTest: async (ip: string, paperWidth: string, port: string, targetPrinterIp?: string, targetPrinterPort?: string, connectionType: PrinterConnectionType = 'network', vid?: string, pid?: string): Promise<boolean> => {
-        const url = `http://${ip}:${port || 3000}/print-image`;
-        const lines = ["--- ทดสอบการพิมพ์ ---", `โหมด: ${connectionType.toUpperCase()}`, new Date().toLocaleString('th-TH')];
+        const url = `http://${ip}:${port || 3001}/print-image`;
+        const lines = [
+            "--- ทดสอบการพิมพ์ ---", 
+            `โหมด: ${connectionType.toUpperCase()}`, 
+            `VID: ${vid || '-'} PID: ${pid || '-'}`,
+            "-------------------------",
+            "หากคุณอ่านข้อความนี้ได้",
+            "แสดงว่าเครื่องพิมพ์ทำงานปกติ",
+            "-------------------------",
+            new Date().toLocaleString('th-TH'),
+            " ",
+            " " // Extra padding for cut
+        ];
         const base64Image = await generateReceiptImage(lines, paperWidth as '58mm' | '80mm');
         const res = await fetch(url, {
             method: 'POST',
@@ -399,7 +410,7 @@ export const printerService = {
     },
     
     checkPrinterStatus: async (serverIp: string, serverPort: string, printerIp: string, printerPort: string, connectionType: PrinterConnectionType, vid?: string, pid?: string): Promise<{ online: boolean, message: string }> => {
-        const url = `http://${serverIp}:${serverPort || 3000}/check-printer`;
+        const url = `http://${serverIp}:${serverPort || 3001}/check-printer`;
         const res = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -424,7 +435,7 @@ export const printerService = {
 
         try {
             const base64Image = await generateReceiptImage(lines, config.paperWidth);
-            const url = `http://${config.ipAddress}:${config.port || 3000}/print-image`;
+            const url = `http://${config.ipAddress}:${config.port || 3001}/print-image`;
             const res = await fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },

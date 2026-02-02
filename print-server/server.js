@@ -42,7 +42,8 @@ if (fs.existsSync(configPath)) {
     }
 }
 
-const SERVER_PORT = 3000;
+// *** CHANGE DEFAULT PORT TO 3001 TO MATCH USER ENVIRONMENT ***
+const SERVER_PORT = 3001;
 
 const app = express();
 app.use(cors());
@@ -50,7 +51,8 @@ app.use(bodyParser.json({ limit: '10mb' }));
 
 const COMMANDS = {
     INIT: '\x1b\x40',
-    CUT: '\x1d\x56\x41\x00',
+    CUT: '\x1d\x56\x41\x00', // GS V A 0 (Standard Cut)
+    FEED_CUT: '\x1b\x64\x02', // ESC d 2 (Feed 2 lines & Cut - Better for Star)
 };
 
 // ฟังก์ชันแปลง PNG Buffer เป็น ESC/POS Raster Data (GS v 0)
@@ -118,8 +120,8 @@ const writeSocketChunked = async (client, data) => {
             // Wait for drain if buffer is full
             await new Promise(resolve => client.once('drain', resolve));
         }
-        // Increased delay to 15ms to ensure printer buffer has time to process
-        await new Promise(resolve => setTimeout(resolve, 15));
+        // Increased delay to 50ms for Network as well
+        await new Promise(resolve => setTimeout(resolve, 50));
     }
 };
 
@@ -129,8 +131,8 @@ const writeDeviceChunked = async (device, data) => {
     for (let i = 0; i < data.length; i += CHUNK_SIZE) {
         const chunk = data.slice(i, i + CHUNK_SIZE);
         await writeDeviceAsync(device, chunk);
-        // Increased delay to 20ms
-        await new Promise(resolve => setTimeout(resolve, 20)); 
+        // Increased delay to 100ms for Star Printers
+        await new Promise(resolve => setTimeout(resolve, 100)); 
     }
 };
 
@@ -170,11 +172,14 @@ const executePrintJob = async (job) => {
                             try {
                                 console.log('[USB Print] Device opened. Sending data...');
                                 
+                                // Wake up / Init sequence + Extra Feed + Standard Cut + Feed&Cut
                                 const combinedBuffer = Buffer.concat([
+                                    Buffer.from([0x00, 0x00, 0x00]), // Wake up buffer
                                     Buffer.from(COMMANDS.INIT),
                                     rasterData,
-                                    Buffer.from('\n\n\n'),
-                                    Buffer.from(COMMANDS.CUT)
+                                    Buffer.from('\n\n\n\n\n\n'), // Generous Feed
+                                    Buffer.from(COMMANDS.CUT),
+                                    Buffer.from(COMMANDS.FEED_CUT) // Backup Cut command
                                 ]);
 
                                 await writeDeviceChunked(device, combinedBuffer);
@@ -224,10 +229,12 @@ const executePrintJob = async (job) => {
                     client.connect(targetPort, targetHost, async () => {
                         try {
                             const combinedBuffer = Buffer.concat([
+                                Buffer.from([0x00, 0x00]), // Wake up buffer
                                 Buffer.from(COMMANDS.INIT),
                                 rasterData,
-                                Buffer.from('\n\n\n'),
-                                Buffer.from(COMMANDS.CUT)
+                                Buffer.from('\n\n\n\n\n\n'), // Generous Feed
+                                Buffer.from(COMMANDS.CUT),
+                                Buffer.from(COMMANDS.FEED_CUT) // Backup Cut
                             ]);
                             
                             // Send data
@@ -235,7 +242,7 @@ const executePrintJob = async (job) => {
                             console.log(`[Network Print] Data sent (${combinedBuffer.length} bytes). Waiting to close...`);
                             
                             // *** CRITICAL CHANGE ***
-                            // Wait 12 SECONDS before closing the socket.
+                            // Wait 15 SECONDS before closing the socket.
                             setTimeout(() => {
                                 console.log('[Network Print] Closing connection.');
                                 client.end(); 
@@ -244,7 +251,7 @@ const executePrintJob = async (job) => {
                                     handled = true;
                                     resolve();
                                 }
-                            }, 12000);
+                            }, 15000);
 
                         } catch (err) {
                             handleError(err);
