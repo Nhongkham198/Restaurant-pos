@@ -63,10 +63,10 @@ const trimCanvas = (canvas: HTMLCanvasElement) => {
 };
 
 // --- Constants for Safer Widths ---
-// 58mm paper printable area is significantly smaller than the paper width.
-// Reducing to 290px creates a safe "center" column that avoids hardware margins.
-const WIDTH_58MM_PX = 290; 
-const WIDTH_80MM_PX = 500; 
+// 58mm: ~48mm printable. 280px gives decent resolution while keeping fonts manageable.
+// 80mm: ~72mm printable. 550px is standard for high-res 80mm printing.
+const WIDTH_58MM_PX = 280; 
+const WIDTH_80MM_PX = 550; 
 
 // --- Core Generator ---
 const generateImageFromHtml = async (htmlContent: string, widthPx: number): Promise<string> => {
@@ -91,7 +91,7 @@ const generateImageFromHtml = async (htmlContent: string, widthPx: number): Prom
     
     // Use Sarabun for Thai support
     container.style.fontFamily = "'Sarabun', sans-serif"; 
-    container.style.lineHeight = '1.3'; 
+    container.style.lineHeight = '1.2'; 
     container.style.setProperty('-webkit-font-smoothing', 'antialiased'); 
     
     container.innerHTML = htmlContent;
@@ -145,8 +145,13 @@ export const printerService = {
         if (!config.ipAddress) throw new Error("ไม่ได้ตั้งค่า IP ของ Print Server");
 
         const url = `http://${config.ipAddress}:${config.port || 3000}/print-image`;
-        // Smart width selection
-        const paperWidthPx = config.paperWidth === '58mm' ? WIDTH_58MM_PX : WIDTH_80MM_PX;
+        const is58mm = config.paperWidth === '58mm';
+        const paperWidthPx = is58mm ? WIDTH_58MM_PX : WIDTH_80MM_PX;
+        
+        // Font Sizes
+        const fsNormal = is58mm ? '16px' : '20px';
+        const fsLarge = is58mm ? '20px' : '28px';
+        const fsXLarge = is58mm ? '26px' : '36px';
         
         const displayOrderNumber = order.manualOrderNumber ? `#${order.manualOrderNumber}` : `#${String(order.orderNumber).padStart(3, '0')}`;
         const timeStr = new Date(order.orderTime).toLocaleTimeString('th-TH', {hour: '2-digit', minute:'2-digit'});
@@ -155,22 +160,22 @@ export const printerService = {
         let itemsHtml = '';
         order.items.forEach(item => {
             const optionsHtml = item.selectedOptions?.length > 0 
-                ? `<div style="font-size: 18px; color: #333; padding-left: 10px; margin-top: 2px; font-weight: normal;">+ ${item.selectedOptions.map(o => o.name).join(', ')}</div>` 
+                ? `<div style="font-size: ${fsNormal}; color: #333; padding-left: 10px; margin-top: 2px; font-weight: normal;">+ ${item.selectedOptions.map(o => o.name).join(', ')}</div>` 
                 : '';
             
             const notesHtml = item.notes 
-                ? `<div style="font-size: 16px; font-weight: bold; background-color: #000; color: #fff; display: inline-block; padding: 2px 6px; border-radius: 4px; margin-top: 5px; margin-left: 10px;">Note: ${item.notes}</div>` 
+                ? `<div style="font-size: ${fsNormal}; font-weight: bold; background-color: #000; color: #fff; display: inline-block; padding: 2px 6px; border-radius: 4px; margin-top: 5px; margin-left: 10px;">Note: ${item.notes}</div>` 
                 : '';
             
             const takeawayHtml = item.isTakeaway 
-                ? `<div style="font-size: 16px; font-weight: 900; border: 2px solid #000; display: inline-block; padding: 2px 6px; margin-left: 10px; margin-top: 5px;">กลับบ้าน</div>` 
+                ? `<div style="font-size: ${fsNormal}; font-weight: 900; border: 2px solid #000; display: inline-block; padding: 2px 6px; margin-left: 10px; margin-top: 5px;">กลับบ้าน</div>` 
                 : '';
 
             itemsHtml += `
                 <div style="margin-bottom: 10px; border-bottom: 1px dotted #ccc; padding-bottom: 8px;">
-                    <div style="font-size: 24px; font-weight: 900; line-height: 1.2; display: flex; align-items: start;">
+                    <div style="font-size: ${fsLarge}; font-weight: 900; line-height: 1.1; display: flex; align-items: start;">
                         <span style="min-width: 30px; text-align: right; margin-right: 5px;">${item.quantity}</span>
-                        <span>x ${item.name}</span>
+                        <span style="word-break: break-word;">x ${item.name}</span>
                     </div>
                     ${optionsHtml}
                     ${notesHtml}
@@ -183,10 +188,10 @@ export const printerService = {
         const htmlContent = `
             <div style="width: 100%; box-sizing: border-box; font-family: 'Sarabun', sans-serif; color: #000; padding: 5px;">
                 <div style="text-align: center; margin-bottom: 5px; border-bottom: 3px solid #000; padding-bottom: 5px;">
-                    <div style="font-size: 18px; font-weight: bold;">ใบรายการอาหาร (ครัว)</div>
-                    <div style="font-size: 36px; font-weight: 900; margin: 2px 0; line-height: 1; word-break: break-all;">${order.orderType === 'lineman' ? (order.tableName || 'Delivery') : `โต๊ะ ${order.tableName}`}</div>
-                    ${order.orderType !== 'lineman' ? `<div style="font-size: 22px; font-weight: bold;">(${order.floor})</div>` : ''}
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 5px; font-size: 18px; font-weight: bold; border-top: 1px solid #000; padding-top: 5px;">
+                    <div style="font-size: ${fsNormal}; font-weight: bold;">ใบรายการอาหาร (ครัว)</div>
+                    <div style="font-size: ${fsXLarge}; font-weight: 900; margin: 2px 0; line-height: 1; word-break: break-all;">${order.orderType === 'lineman' ? (order.tableName || 'Delivery') : `โต๊ะ ${order.tableName}`}</div>
+                    ${order.orderType !== 'lineman' ? `<div style="font-size: ${fsLarge}; font-weight: bold;">(${order.floor})</div>` : ''}
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 5px; font-size: ${fsLarge}; font-weight: bold; border-top: 1px solid #000; padding-top: 5px;">
                         <span>Order: ${displayOrderNumber}</span>
                         <span>เวลา: ${timeStr}</span>
                     </div>
@@ -197,7 +202,7 @@ export const printerService = {
                 </div>
                 
                 <div style="border-top: 3px solid #000; margin-top: 10px; width: 100%; height: 1px;"></div>
-                <div style="text-align: center; margin-top: 5px; font-size: 16px;">--- จบรายการ ---</div>
+                <div style="text-align: center; margin-top: 5px; font-size: ${fsNormal};">--- จบรายการ ---</div>
             </div>
         `;
 
@@ -232,38 +237,49 @@ export const printerService = {
         if (!config.ipAddress) throw new Error("ไม่ได้ตั้งค่า IP ของ Print Server");
 
         const url = `http://${config.ipAddress}:${config.port || 3000}/print-image`;
-        // Smart width selection
-        const paperWidthPx = config.paperWidth === '58mm' ? WIDTH_58MM_PX : WIDTH_80MM_PX;
+        const is58mm = config.paperWidth === '58mm';
+        const paperWidthPx = is58mm ? WIDTH_58MM_PX : WIDTH_80MM_PX;
         const opts = config.receiptOptions;
+
+        // Optimized Font Sizes for Receipt
+        const fsSmall = is58mm ? '12px' : '16px';
+        const fsNormal = is58mm ? '14px' : '18px';
+        const fsLarge = is58mm ? '18px' : '22px';
+        const fsXLarge = is58mm ? '22px' : '28px';
 
         // Header Logic
         let headerHtml = '';
         if (logoUrl && opts.showLogo) {
-            headerHtml += `<div style="text-align: center; margin-bottom: 5px;"><img src="${logoUrl}" style="max-height: 60px; max-width: 90%;" crossOrigin="anonymous"/></div>`;
+            headerHtml += `<div style="text-align: center; margin-bottom: 5px;"><img src="${logoUrl}" style="max-height: 80px; max-width: 90%;" crossOrigin="anonymous"/></div>`;
         }
         if (opts.showRestaurantName) {
-            headerHtml += `<div style="font-size: 24px; font-weight: 900; line-height: 1.2; margin-bottom: 2px; text-align: center;">${restaurantName}</div>`;
+            headerHtml += `<div style="font-size: ${fsLarge}; font-weight: 900; line-height: 1.2; margin-bottom: 4px; text-align: center;">${restaurantName}</div>`;
         }
         if (opts.showAddress && opts.address) {
-            headerHtml += `<div style="font-size: 14px; text-align: center; line-height: 1.2;">${opts.address}</div>`;
+            headerHtml += `<div style="font-size: ${fsSmall}; text-align: center; line-height: 1.3; margin-bottom: 2px; padding: 0 5px;">${opts.address}</div>`;
         }
         if (opts.showPhoneNumber && opts.phoneNumber) {
-            headerHtml += `<div style="font-size: 14px; text-align: center;">โทร: ${opts.phoneNumber}</div>`;
+            headerHtml += `<div style="font-size: ${fsSmall}; text-align: center;">โทร: ${opts.phoneNumber}</div>`;
         }
 
-        // Items Logic
+        // Items Logic with Table Layout for Alignment
         let itemsHtml = '';
         if (opts.showItems) {
-            itemsHtml += `<table style="width: 100%; font-size: 16px; border-collapse: collapse; margin-bottom: 5px;">`;
-            itemsHtml += `<tr style="border-bottom: 1px solid #000;"><th style="text-align:left; padding-bottom: 2px;">รายการ</th><th style="text-align:right; width: 25px; padding-bottom: 2px;">Qty</th><th style="text-align:right; width: 60px; padding-bottom: 2px;">รวม</th></tr>`;
+            itemsHtml += `<table style="width: 100%; font-size: ${fsNormal}; border-collapse: collapse; margin-bottom: 5px; table-layout: fixed;">`;
+            itemsHtml += `
+                <tr style="border-bottom: 1px solid #000;">
+                    <th style="text-align:left; width: ${is58mm ? '55%' : '60%'}; padding-bottom: 2px;">รายการ</th>
+                    <th style="text-align:right; width: ${is58mm ? '15%' : '15%'}; padding-bottom: 2px;">Qty</th>
+                    <th style="text-align:right; width: ${is58mm ? '30%' : '25%'}; padding-bottom: 2px;">รวม</th>
+                </tr>`;
             
             order.items.forEach(item => {
                 const itemTotal = (item.finalPrice * item.quantity).toFixed(2);
                 itemsHtml += `
                     <tr>
-                        <td style="padding-top: 4px; font-weight: bold; line-height: 1.2; word-break: break-all;">
-                            ${item.name}
-                            ${item.selectedOptions.length > 0 ? `<div style="font-size: 12px; font-weight: normal; color: #555;">- ${item.selectedOptions.map(o=>o.name).join(', ')}</div>` : ''}
+                        <td style="padding-top: 4px; vertical-align: top; word-wrap: break-word; overflow-wrap: break-word; padding-right: 2px;">
+                            <div style="font-weight: bold; line-height: 1.2;">${item.name}</div>
+                            ${item.selectedOptions.length > 0 ? `<div style="font-size: ${fsSmall}; font-weight: normal; color: #555;">- ${item.selectedOptions.map(o=>o.name).join(', ')}</div>` : ''}
                         </td>
                         <td style="text-align: right; vertical-align: top; padding-top: 4px;">${item.quantity}</td>
                         <td style="text-align: right; vertical-align: top; padding-top: 4px;">${itemTotal}</td>
@@ -276,26 +292,26 @@ export const printerService = {
         // Totals Logic
         const subtotal = order.items.reduce((s, i) => s + i.finalPrice * i.quantity, 0);
         const total = subtotal + order.taxAmount;
-        let totalsHtml = `<div style="font-size: 16px; border-top: 1px dashed #000; padding-top: 5px;">`;
+        let totalsHtml = `<div style="font-size: ${fsNormal}; border-top: 1px dashed #000; padding-top: 5px; margin-top: 5px;">`;
         
         if (opts.showSubtotal) totalsHtml += `<div style="display: flex; justify-content: space-between;"><span>รวมเงิน</span><span>${subtotal.toFixed(2)}</span></div>`;
         if (opts.showTax && order.taxAmount > 0) totalsHtml += `<div style="display: flex; justify-content: space-between;"><span>ภาษี (${order.taxRate}%)</span><span>${order.taxAmount.toFixed(2)}</span></div>`;
-        if (opts.showTotal) totalsHtml += `<div style="display: flex; justify-content: space-between; font-weight: 900; font-size: 26px; margin-top: 5px; border-top: 1px solid #000; padding-top: 2px;"><span>ยอดสุทธิ</span><span>${total.toFixed(2)}</span></div>`;
+        if (opts.showTotal) totalsHtml += `<div style="display: flex; justify-content: space-between; font-weight: 900; font-size: ${fsLarge}; margin-top: 5px; border-top: 1px solid #000; padding-top: 2px;"><span>ยอดสุทธิ</span><span>${total.toFixed(2)}</span></div>`;
         if (opts.showPaymentMethod) {
             const method = order.paymentDetails.method === 'cash' ? 'เงินสด' : 'โอนจ่าย';
-            totalsHtml += `<div style="text-align: center; margin-top: 5px; font-size: 14px;">(ชำระโดย: ${method})</div>`;
+            totalsHtml += `<div style="text-align: center; margin-top: 8px; font-size: ${fsSmall};">(ชำระโดย: ${method})</div>`;
         }
         totalsHtml += `</div>`;
 
         // Full Receipt Template
         const htmlContent = `
-            <div style="width: 100%; box-sizing: border-box; font-family: 'Sarabun', sans-serif; color: #000; padding: 10px 5px;">
+            <div style="width: 100%; box-sizing: border-box; font-family: 'Sarabun', sans-serif; color: #000; padding: 5px 0;">
                 ${headerHtml}
-                <div style="border-bottom: 1px dashed #000; margin: 5px 0;"></div>
-                <div style="text-align: center; font-size: 18px; font-weight: bold; margin-bottom: 5px;">ใบเสร็จรับเงิน</div>
+                <div style="border-bottom: 1px dashed #000; margin: 8px 0;"></div>
+                <div style="text-align: center; font-size: ${fsLarge}; font-weight: bold; margin-bottom: 8px;">ใบเสร็จรับเงิน</div>
                 
-                <div style="font-size: 14px; margin-bottom: 5px;">
-                    ${opts.showTable ? `<div>โต๊ะ: <span style="font-weight:bold; font-size: 16px;">${order.tableName}</span></div>` : ''}
+                <div style="font-size: ${fsSmall}; margin-bottom: 8px;">
+                    ${opts.showTable ? `<div>โต๊ะ: <span style="font-weight:bold; font-size: ${fsNormal};">${order.tableName}</span></div>` : ''}
                     ${opts.showOrderId ? `<div>Order: #${order.orderNumber}</div>` : ''}
                     ${opts.showDateTime ? `<div>วันที่: ${new Date(order.completionTime).toLocaleString('th-TH')}</div>` : ''}
                     ${opts.showStaff && order.completedBy ? `<div>พนักงาน: ${order.completedBy}</div>` : ''}
@@ -304,7 +320,7 @@ export const printerService = {
                 ${itemsHtml}
                 ${totalsHtml}
 
-                ${opts.showThankYouMessage && opts.thankYouMessage ? `<div style="text-align: center; margin-top: 15px; font-size: 16px; font-weight: bold;">*** ${opts.thankYouMessage} ***</div>` : ''}
+                ${opts.showThankYouMessage && opts.thankYouMessage ? `<div style="text-align: center; margin-top: 15px; font-size: ${fsNormal}; font-weight: bold;">*** ${opts.thankYouMessage} ***</div>` : ''}
             </div>
         `;
 
@@ -336,45 +352,52 @@ export const printerService = {
 
     // --- 3. Check Bill (Preliminary Bill) ---
     printBill: async (order: ActiveOrder, config: CashierPrinterSettings, restaurantName: string, logoUrl?: string | null): Promise<void> => {
-        // Smart width selection
-        const paperWidthPx = config.paperWidth === '58mm' ? WIDTH_58MM_PX : WIDTH_80MM_PX;
+        const is58mm = config.paperWidth === '58mm';
+        const paperWidthPx = is58mm ? WIDTH_58MM_PX : WIDTH_80MM_PX;
         const subtotal = order.items.reduce((s, i) => s + i.finalPrice * i.quantity, 0);
         const total = subtotal + order.taxAmount;
 
+        // Optimized Font Sizes
+        const fsSmall = is58mm ? '12px' : '16px';
+        const fsNormal = is58mm ? '14px' : '18px';
+        const fsLarge = is58mm ? '18px' : '22px';
+        const fsXLarge = is58mm ? '22px' : '28px';
+
         const htmlContent = `
-            <div style="width: 100%; box-sizing: border-box; font-family: 'Sarabun', sans-serif; color: #000; padding: 10px 5px;">
+            <div style="width: 100%; box-sizing: border-box; font-family: 'Sarabun', sans-serif; color: #000; padding: 5px 0;">
                 <div style="text-align: center; margin-bottom: 5px;">
-                    <div style="font-size: 24px; font-weight: 900; line-height: 1.2;">${restaurantName}</div>
-                    <div style="font-size: 20px; font-weight: bold; margin-top: 2px;">ใบแจ้งรายการ (Check Bill)</div>
-                    <div style="font-size: 14px; color: #555;">(ยังไม่ได้ชำระเงิน)</div>
+                    <div style="font-size: ${fsLarge}; font-weight: 900; line-height: 1.2;">${restaurantName}</div>
+                    <div style="font-size: ${fsNormal}; font-weight: bold; margin-top: 2px;">ใบแจ้งรายการ (Check Bill)</div>
+                    <div style="font-size: ${fsSmall}; color: #555;">(ยังไม่ได้ชำระเงิน)</div>
                 </div>
                 
                 <div style="border-bottom: 1px dashed #000; margin: 5px 0;"></div>
 
-                <div style="font-size: 16px; margin-bottom: 5px;">
-                    <div>โต๊ะ: <span style="font-weight:bold; font-size: 20px;">${order.tableName}</span></div>
+                <div style="font-size: ${fsSmall}; margin-bottom: 5px;">
+                    <div>โต๊ะ: <span style="font-weight:bold; font-size: ${fsNormal};">${order.tableName}</span></div>
                     <div>Order: #${order.orderNumber}</div>
                     <div>เวลา: ${new Date().toLocaleString('th-TH')}</div>
                 </div>
 
-                <table style="width: 100%; font-size: 16px; border-collapse: collapse; margin-bottom: 5px;">
+                <table style="width: 100%; font-size: ${fsNormal}; border-collapse: collapse; margin-bottom: 5px; table-layout: fixed;">
                     <tr style="border-bottom: 1px solid #000;">
-                        <th style="text-align:left;">รายการ</th><th style="text-align:right;">รวม</th>
+                        <th style="text-align:left; width: ${is58mm ? '55%' : '60%'};">รายการ</th>
+                        <th style="text-align:right; width: ${is58mm ? '45%' : '40%'};">รวม</th>
                     </tr>
                     ${order.items.map(item => `
                         <tr>
-                            <td style="padding-top: 4px; word-break: break-all;">${item.quantity} x ${item.name}</td>
-                            <td style="text-align: right; padding-top: 4px;">${(item.finalPrice * item.quantity).toFixed(2)}</td>
+                            <td style="padding-top: 4px; word-wrap: break-word; overflow-wrap: break-word;">${item.quantity} x ${item.name}</td>
+                            <td style="text-align: right; vertical-align: top; padding-top: 4px;">${(item.finalPrice * item.quantity).toFixed(2)}</td>
                         </tr>
                     `).join('')}
                 </table>
 
                 <div style="border-top: 1px solid #000; padding-top: 5px; margin-top: 5px;">
-                    <div style="display: flex; justify-content: space-between; font-size: 16px;">
+                    <div style="display: flex; justify-content: space-between; font-size: ${fsNormal};">
                         <span>ยอดรวม</span><span>${subtotal.toFixed(2)}</span>
                     </div>
-                    ${order.taxAmount > 0 ? `<div style="display: flex; justify-content: space-between; font-size: 16px;"><span>ภาษี (${order.taxRate}%)</span><span>${order.taxAmount.toFixed(2)}</span></div>` : ''}
-                    <div style="display: flex; justify-content: space-between; font-size: 26px; font-weight: 900; margin-top: 5px;">
+                    ${order.taxAmount > 0 ? `<div style="display: flex; justify-content: space-between; font-size: ${fsNormal};"><span>ภาษี (${order.taxRate}%)</span><span>${order.taxAmount.toFixed(2)}</span></div>` : ''}
+                    <div style="display: flex; justify-content: space-between; font-size: ${fsXLarge}; font-weight: 900; margin-top: 5px;">
                         <span>ยอดสุทธิ</span><span>${total.toFixed(2)}</span>
                     </div>
                 </div>
@@ -429,20 +452,25 @@ export const printerService = {
     printTableQRCode: async (table: Table, customerUrl: string, config: KitchenPrinterSettings): Promise<void> => {
         if (!config.ipAddress) throw new Error("Printer config missing");
         
-        // Smart width selection
-        const paperWidthPx = config.paperWidth === '58mm' ? WIDTH_58MM_PX : WIDTH_80MM_PX;
-        const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(customerUrl)}`;
+        const is58mm = config.paperWidth === '58mm';
+        const paperWidthPx = is58mm ? WIDTH_58MM_PX : WIDTH_80MM_PX;
+        const qrSize = is58mm ? 180 : 250;
+        const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=${qrSize}x${qrSize}&data=${encodeURIComponent(customerUrl)}`;
+        
+        // Font sizes
+        const fsTitle = is58mm ? '24px' : '32px';
+        const fsSub = is58mm ? '16px' : '20px';
         
         const html = `
             <div style="text-align: center; padding: 10px; font-family: 'Sarabun', sans-serif; width: 100%; box-sizing: border-box; color: #000;">
-                <div style="font-size: 32px; font-weight: 900; line-height: 1;">${table.name}</div>
-                <div style="font-size: 20px; margin-bottom: 5px;">(${table.floor})</div>
+                <div style="font-size: ${fsTitle}; font-weight: 900; line-height: 1;">${table.name}</div>
+                <div style="font-size: ${fsSub}; margin-bottom: 5px;">(${table.floor})</div>
                 <div style="border-top: 3px solid #000; margin: 5px 0;"></div>
-                <div style="margin: 10px auto; width: 200px; height: 200px; border: 3px solid #000; padding: 5px;">
+                <div style="margin: 10px auto; width: ${qrSize}px; height: ${qrSize}px; border: 3px solid #000; padding: 5px;">
                     <img src="${qrApiUrl}" style="width: 100%; height: 100%;" />
                 </div>
-                <div style="font-size: 22px; font-weight: bold; margin-top: 10px;">สแกนเพื่อสั่งอาหาร</div>
-                <div style="font-size: 18px;">Scan to Order</div>
+                <div style="font-size: ${fsSub}; font-weight: bold; margin-top: 10px;">สแกนเพื่อสั่งอาหาร</div>
+                <div style="font-size: 14px;">Scan to Order</div>
             </div>
         `;
 
@@ -469,22 +497,25 @@ export const printerService = {
     printTest: async (ip: string, paperWidth: string, port: string, targetPrinterIp?: string, targetPrinterPort?: string, connectionType: PrinterConnectionType = 'network', vid?: string, pid?: string): Promise<boolean> => {
         const url = `http://${ip}:${port || 3000}/print-image`;
         
-        // FORCE the new safe widths here based on the passed paperWidth string
-        const paperWidthPx = paperWidth === '58mm' ? WIDTH_58MM_PX : WIDTH_80MM_PX;
+        const is58mm = paperWidth === '58mm';
+        const paperWidthPx = is58mm ? WIDTH_58MM_PX : WIDTH_80MM_PX;
         
-        // Adjusted HTML for Test Print to strictly fit within 290px
+        const fsTitle = is58mm ? '20px' : '24px';
+        const fsNormal = is58mm ? '14px' : '16px';
+        const fsSmall = is58mm ? '12px' : '14px';
+
         const html = `
             <div style="width: 100%; box-sizing: border-box; font-family: 'Sarabun', sans-serif; text-align: center; border: 2px solid #000; padding: 5px; color: #000; word-wrap: break-word; overflow-wrap: break-word;">
-                <div style="font-size: 22px; font-weight: 900; line-height: 1.2;">TEST PRINT</div>
-                <div style="font-size: 18px; font-weight: bold; margin-top: 2px; line-height: 1.2;">ทดสอบภาษาไทย</div>
-                <div style="font-size: 14px;">(Sarabun Font)</div>
+                <div style="font-size: ${fsTitle}; font-weight: 900; line-height: 1.2;">TEST PRINT</div>
+                <div style="font-size: ${fsNormal}; font-weight: bold; margin-top: 2px; line-height: 1.2;">ทดสอบภาษาไทย</div>
+                <div style="font-size: ${fsSmall};">(Sarabun Font)</div>
                 <hr style="margin: 5px 0; border-top: 1px solid #000;" />
-                <div style="font-size: 14px; text-align: left; padding-left: 2px; font-weight: bold; line-height: 1.3;">
+                <div style="font-size: ${fsSmall}; text-align: left; padding-left: 2px; font-weight: bold; line-height: 1.3;">
                     <div>Mode: ${connectionType.toUpperCase()}</div>
                     ${connectionType === 'usb' ? `<div style="word-break: break-all;">VID:${vid || '-'} PID:${pid || '-'}</div>` : ''}
                     <div>Date: ${new Date().toLocaleDateString('th-TH')}</div>
                 </div>
-                <div style="font-size: 24px; margin-top: 5px; font-weight: bold;">OK ✅</div>
+                <div style="font-size: ${fsTitle}; margin-top: 5px; font-weight: bold;">OK ✅</div>
             </div>
         `;
 
