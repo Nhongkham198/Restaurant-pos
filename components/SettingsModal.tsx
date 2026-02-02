@@ -5,9 +5,7 @@ import { printerService } from '../services/printerService';
 import Swal from 'sweetalert2';
 import { MenuItemImage } from './MenuItemImage';
 
-// ... (Rest of imports and interfaces remain exactly the same as previous full content) ...
-// ... (For brevity, I'm only modifying the handleScanUsb function inside the component, but standard practice requires full file content in XML block)
-// ... (I will provide the FULL file content with the fix applied)
+// ... (Imports and Interfaces remain consistent with existing code)
 
 interface SettingsModalProps {
     isOpen: boolean;
@@ -78,7 +76,7 @@ const DEFAULT_CASHIER_PRINTER: CashierPrinterSettings = {
     receiptOptions: DEFAULT_RECEIPT_OPTIONS 
 };
 
-// ... (TabButton and StatusIndicator components remain the same) ...
+// ... (TabButton component) ...
 const TabButton: React.FC<{ label: string; isActive: boolean; onClick: () => void; }> = ({ label, isActive, onClick }) => (
     <button
         type="button"
@@ -136,7 +134,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     currentRestaurantAddress, currentRestaurantPhone, currentTaxId, currentSignatureUrl
 }) => {
     
-    // ... (State initialization remains the same) ...
+    // ... (State initialization) ...
     const [activeTab, setActiveTab] = useState<'general' | 'sound' | 'staffCallSound' | 'qrcode' | 'kitchen' | 'cashier' | 'recommended' | 'delivery'>('general');
     const [settingsForm, setSettingsForm] = useState({
         logoUrl: '',
@@ -241,7 +239,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         }));
     };
 
-    // NEW: Handle scanning USB devices
+    // ... (Scan USB) ...
     const handleScanUsb = async (type: 'kitchen' | 'cashier') => {
         const printer = settingsForm.printerConfig[type];
         if (!printer || !printer.ipAddress) {
@@ -294,6 +292,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     const handleCheckPrinterStatus = async (type: 'kitchen' | 'cashier') => {
         const printer = settingsForm.printerConfig[type];
         if (!printer) return;
+        
+        // --- Validation ---
+        if (!printer.ipAddress) {
+            Swal.fire('ข้อมูลไม่ครบ', 'กรุณาระบุ Print Server IP', 'warning');
+            return;
+        }
+        if (printer.connectionType === 'network' && !printer.targetPrinterIp) {
+            Swal.fire('ข้อมูลไม่ครบ', 'กรุณาระบุ Printer IP สำหรับโหมด Network', 'warning');
+            return;
+        }
+        
         setPrinterStatus(prev => ({ ...prev, [type]: 'checking' }));
         try {
             const result = await printerService.checkPrinterStatus(
@@ -313,13 +322,27 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             }
         } catch (error) {
             setPrinterStatus(prev => ({ ...prev, [type]: 'error' }));
+            Swal.fire({ icon: 'error', title: 'เชื่อมต่อ Server ไม่ได้', text: 'ตรวจสอบ Print Server IP และ Port' });
         }
     };
 
     const handleTestPrint = async (type: 'kitchen' | 'cashier') => {
         const printer = settingsForm.printerConfig[type];
         if (!printer) return;
+        
+        // --- Validation ---
+        if (!printer.ipAddress) {
+            Swal.fire('ข้อมูลไม่ครบ', 'กรุณาระบุ Print Server IP ก่อนทดสอบ', 'warning');
+            return;
+        }
+        if (printer.connectionType === 'network' && !printer.targetPrinterIp) {
+            Swal.fire('ข้อมูลไม่ครบ', 'กรุณาระบุ Printer IP สำหรับโหมด Network', 'warning');
+            return;
+        }
+
         try {
+            Swal.fire({ title: 'กำลังส่งคำสั่งพิมพ์...', didOpen: () => Swal.showLoading() });
+            
             await printerService.printTest(
                 printer.ipAddress, 
                 printer.paperWidth, 
@@ -336,7 +359,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         }
     };
 
-    // ... (File handling logic) ...
+    // ... (Rest of the component: File handling, PlaySound, Render Logic is unchanged) ...
+    // ... (Assume previous full content for handleFileChange, handlePlaySound, etc.) ...
+    
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, type: 'logo' | 'appLogo' | 'sound' | 'staffCallSound' | 'qrcode' | 'signature') => {
         const file = e.target.files?.[0];
         if (file) {
@@ -373,7 +398,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         });
     };
 
-    // ... (Other handlers like handleToggleRecommended, etc. remain the same) ...
     const handleToggleRecommended = (id: number) => {
         setLocalRecommendedIds(prev => {
             const next = new Set(prev);
@@ -389,6 +413,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         );
     }, [menuItems, recommendSearchTerm]);
 
+    // ... (Provider handlers) ...
     const handleToggleProvider = (id: string) => {
         setLocalDeliveryProviders(prev => prev.map(p => 
             p.id === id ? { ...p, isEnabled: !p.isEnabled } : p
@@ -530,7 +555,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     </div>
                     {conf.connectionType === 'network' ? (
                         <div className="col-span-12">
-                            <label className="block text-sm font-bold text-green-700">Printer IP (ตัวเครื่องพิมพ์)</label>
+                            <label className="block text-sm font-bold text-green-700">Printer IP (ตัวเครื่องพิมพ์) <span className="text-red-500">*จำเป็น</span></label>
                             <input type="text" value={conf.targetPrinterIp || ''} onChange={(e) => handlePrinterChange(type, 'targetPrinterIp', e.target.value)} placeholder="เช่น 192.168.1.200" className="mt-1 block w-full border border-gray-300 p-2 rounded-md shadow-sm text-gray-900" />
                         </div>
                     ) : (
@@ -561,6 +586,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                             <div className="space-y-6">
                                 <div className="grid grid-cols-2 gap-4">
+                                    {/* (Checkboxes remain same) */}
                                     <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={receiptOpts.showRestaurantName} onChange={(e) => handleReceiptOptionChange('showRestaurantName', e.target.checked)} className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500" /><span className="text-sm font-medium text-gray-700">ชื่อร้าน</span></label>
                                     <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={receiptOpts.showLogo} onChange={(e) => handleReceiptOptionChange('showLogo', e.target.checked)} className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500" /><span className="text-sm font-medium text-gray-700">โลโก้ร้าน</span></label>
                                     <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={receiptOpts.showAddress} onChange={(e) => handleReceiptOptionChange('showAddress', e.target.checked)} className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500" /><span className="text-sm font-medium text-gray-700">ที่อยู่</span></label>
@@ -574,7 +600,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                     <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={receiptOpts.showPaymentMethod} onChange={(e) => handleReceiptOptionChange('showPaymentMethod', e.target.checked)} className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500" /><span className="text-sm font-medium text-gray-700">การชำระเงิน</span></label>
                                     <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={receiptOpts.showThankYouMessage} onChange={(e) => handleReceiptOptionChange('showThankYouMessage', e.target.checked)} className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500" /><span className="text-sm font-medium text-gray-700">ข้อความขอบคุณ</span></label>
                                 </div>
-                                {/* ... rest of receipt options UI ... */}
                                 <div className="space-y-3 pt-4 border-t border-gray-200">
                                     <div>
                                         <label className="block text-xs font-bold text-gray-500 mb-1">ที่อยู่ร้าน (จะถูกแทนที่ด้วยค่าในหน้าทั่วไปหากมีการตั้งค่า)</label>
@@ -625,7 +650,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         );
     };
 
-    // ... (Main Render) ...
+    // ... (Main Render with return statement and closing tags)
     return (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl flex flex-col h-[90vh]" onClick={e => e.stopPropagation()}>
@@ -651,7 +676,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     </div>
 
                     <div className="p-6 space-y-6 overflow-y-auto flex-1">
-                        {/* ... (Existing Tabs content for general, sound, etc.) ... */}
                         {activeTab === 'general' && (
                             <div className="space-y-4">
                                 <h4 className="text-lg font-semibold text-gray-700">ตั้งค่าร้านค้า</h4>
@@ -780,7 +804,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         )}
 
                         {activeTab === 'delivery' && (
-                            // ... (Delivery tab content remains same) ...
+                            // ... (Delivery tab content) ...
                             <div className="space-y-6">
                                 <div className="flex flex-col gap-1">
                                     <h4 className="text-lg font-semibold text-gray-700">จัดการ Delivery</h4>
@@ -829,7 +853,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         )}
 
                         {activeTab === 'recommended' && (
-                            // ... (Recommended tab content remains same) ...
+                            // ... (Recommended tab content) ...
                             <div className="space-y-4">
                                 <div className="flex flex-col gap-1">
                                     <h4 className="text-lg font-semibold text-gray-700">จัดการเมนูแนะนำ</h4>
@@ -854,7 +878,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         )}
 
                         {(activeTab === 'sound' || activeTab === 'staffCallSound') && (
-                            // ... (Sound tab content remains same) ...
+                            // ... (Sound tab content) ...
                             <div className="space-y-4">
                                 <h4 className="text-lg font-semibold text-gray-700">{activeTab === 'sound' ? 'เสียงแจ้งเตือนออเดอร์ใหม่' : 'เสียงแจ้งเตือนเรียกพนักงาน'}</h4>
                                 <div className="p-6 bg-gray-50 rounded-xl border-2 border-dashed border-gray-300 flex flex-col items-center">
@@ -873,7 +897,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         )}
 
                         {activeTab === 'qrcode' && (
-                            // ... (QRCode tab content remains same) ...
+                            // ... (QRCode tab content) ...
                             <div className="space-y-4 text-center">
                                 <h4 className="text-lg font-semibold text-gray-700">QR Code สำหรับรับชำระเงิน</h4>
                                 <div className="p-4 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300 inline-block mx-auto min-w-[250px]">
