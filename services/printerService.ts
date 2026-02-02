@@ -55,7 +55,8 @@ const generateReceiptImage = async (lines: string[], paperWidth: '58mm' | '80mm'
         });
 
         // *** STAR TSP100 FIX: MAXIMIZED PADDING ***
-        // Use 300px height with invisible content to act as a robust software feed.
+        // Use 300px height with invisible content (.) to act as a robust software feed.
+        // This forces the printer to "print" this whitespace, pushing the real content past the cutter.
         htmlContent += `<div style="height: 300px; width: 100%; display: flex; align-items: flex-end; justify-content: center; color: transparent;">.</div>`;
 
         container.innerHTML = htmlContent;
