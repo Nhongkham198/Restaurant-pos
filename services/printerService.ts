@@ -134,7 +134,7 @@ export const printerService = {
         if (!config.ipAddress) throw new Error("ไม่ได้ตั้งค่า IP ของ Print Server");
 
         const url = `http://${config.ipAddress}:${config.port || 3000}/print-image`;
-        const paperWidthPx = config.paperWidth === '58mm' ? 370 : 560; // 58mm vs 80mm pixel width
+        const paperWidthPx = config.paperWidth === '58mm' ? 350 : 550; // Adjusted: 350px for 58mm safe margin
         
         const displayOrderNumber = order.manualOrderNumber ? `#${order.manualOrderNumber}` : `#${String(order.orderNumber).padStart(3, '0')}`;
         const timeStr = new Date(order.orderTime).toLocaleTimeString('th-TH', {hour: '2-digit', minute:'2-digit'});
@@ -220,7 +220,7 @@ export const printerService = {
         if (!config.ipAddress) throw new Error("ไม่ได้ตั้งค่า IP ของ Print Server");
 
         const url = `http://${config.ipAddress}:${config.port || 3000}/print-image`;
-        const paperWidthPx = config.paperWidth === '58mm' ? 370 : 560;
+        const paperWidthPx = config.paperWidth === '58mm' ? 350 : 550; // Adjusted
         const opts = config.receiptOptions;
 
         // Header Logic
@@ -323,7 +323,7 @@ export const printerService = {
 
     // --- 3. Check Bill (Preliminary Bill) ---
     printBill: async (order: ActiveOrder, config: CashierPrinterSettings, restaurantName: string, logoUrl?: string | null): Promise<void> => {
-        const paperWidthPx = config.paperWidth === '58mm' ? 370 : 560;
+        const paperWidthPx = config.paperWidth === '58mm' ? 350 : 550; // Adjusted
         const subtotal = order.items.reduce((s, i) => s + i.finalPrice * i.quantity, 0);
         const total = subtotal + order.taxAmount;
 
@@ -415,7 +415,7 @@ export const printerService = {
     printTableQRCode: async (table: Table, customerUrl: string, config: KitchenPrinterSettings): Promise<void> => {
         if (!config.ipAddress) throw new Error("Printer config missing");
         
-        const paperWidthPx = config.paperWidth === '58mm' ? 370 : 560;
+        const paperWidthPx = config.paperWidth === '58mm' ? 350 : 550; // Adjusted
         const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(customerUrl)}`;
         
         const html = `
@@ -453,20 +453,21 @@ export const printerService = {
     // --- 6. Test & Check ---
     printTest: async (ip: string, paperWidth: string, port: string, targetPrinterIp?: string, targetPrinterPort?: string, connectionType: PrinterConnectionType = 'network', vid?: string, pid?: string): Promise<boolean> => {
         const url = `http://${ip}:${port || 3000}/print-image`;
-        const paperWidthPx = paperWidth === '58mm' ? 370 : 560;
+        const paperWidthPx = paperWidth === '58mm' ? 350 : 550; // Adjusted for 58mm safety margin
         
+        // Reduced padding and font sizes slightly to fit inside 350px comfortably
         const html = `
-            <div style="padding: 10px; font-family: 'Sarabun', sans-serif; text-align: center; border: 3px solid #000; width: 100%; box-sizing: border-box; color: #000;">
-                <div style="font-size: 32px; font-weight: 900;">TEST PRINT</div>
-                <div style="font-size: 22px; font-weight: bold; margin-top: 5px;">ทดสอบภาษาไทย</div>
-                <div style="font-size: 18px;">(Sarabun Font)</div>
-                <hr style="margin: 15px 0; border-top: 2px solid #000;" />
-                <div style="font-size: 18px; text-align: left; padding-left: 5px; font-weight: bold; line-height: 1.3;">
+            <div style="padding: 5px; font-family: 'Sarabun', sans-serif; text-align: center; border: 3px solid #000; width: 100%; box-sizing: border-box; color: #000; margin: 0 auto;">
+                <div style="font-size: 28px; font-weight: 900;">TEST PRINT</div>
+                <div style="font-size: 20px; font-weight: bold; margin-top: 5px;">ทดสอบภาษาไทย</div>
+                <div style="font-size: 16px;">(Sarabun Font)</div>
+                <hr style="margin: 10px 0; border-top: 2px solid #000;" />
+                <div style="font-size: 16px; text-align: left; padding-left: 5px; font-weight: bold; line-height: 1.3;">
                     <div>Mode: ${connectionType.toUpperCase()}</div>
                     ${connectionType === 'usb' ? `<div style="word-wrap: break-word;">VID:${vid || '-'} PID:${pid || '-'}</div>` : ''}
                     <div>Date: ${new Date().toLocaleDateString('th-TH')}</div>
                 </div>
-                <div style="font-size: 42px; margin-top: 15px;">OK ✅</div>
+                <div style="font-size: 36px; margin-top: 10px;">OK ✅</div>
             </div>
         `;
 
