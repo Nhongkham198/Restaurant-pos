@@ -92,9 +92,10 @@ const generateImageFromHtml = async (htmlContent: string, targetWidthPx: number)
     
     // Use Sarabun for Thai support with optimizeLegibility
     container.style.fontFamily = "'Sarabun', sans-serif"; 
-    container.style.lineHeight = '1.4'; // Increased from 1.2 to 1.4 for Thai vowels
-    container.style.setProperty('-webkit-font-smoothing', 'antialiased'); 
-    container.style.setProperty('text-rendering', 'optimizeLegibility');
+    // FIX: Increase line height to 1.4 to prevent Thai vowels from overlapping
+    container.style.lineHeight = '1.4'; 
+    container.style.setProperty('-webkit-font-smoothing', 'none'); // Disable antialiasing in CSS
+    container.style.setProperty('text-rendering', 'optimizeSpeed'); // Use sharper rendering
     
     container.innerHTML = htmlContent;
     document.body.appendChild(container);
@@ -197,6 +198,7 @@ export const printerService = {
                 ? `<div style="font-size: ${fsNormal}; font-weight: 900; border: 2px solid #000; display: inline-block; padding: 2px 6px; margin-left: 10px; margin-top: 5px;">กลับบ้าน</div>` 
                 : '';
 
+            // FIX: Added padding-bottom 8px to prevent border intersection
             itemsHtml += `
                 <div style="margin-bottom: 10px; border-bottom: 1px dotted #ccc; padding-bottom: 8px;">
                     <div style="font-size: ${fsLarge}; font-weight: 900; line-height: 1.2; display: flex; align-items: start;">
@@ -213,11 +215,11 @@ export const printerService = {
         // Full Kitchen Template
         const htmlContent = `
             <div style="width: 100%; box-sizing: border-box; font-family: 'Sarabun', sans-serif; color: #000; padding: 5px;">
-                <div style="text-align: center; margin-bottom: 5px; border-bottom: 3px solid #000; padding-bottom: 5px;">
+                <div style="text-align: center; margin-bottom: 5px; border-bottom: 3px solid #000; padding-bottom: 8px;">
                     <div style="font-size: ${fsNormal}; font-weight: bold;">ใบรายการอาหาร (ครัว)</div>
                     <div style="font-size: ${fsXLarge}; font-weight: 900; margin: 2px 0; line-height: 1; word-break: break-all;">${order.orderType === 'lineman' ? (order.tableName || 'Delivery') : `โต๊ะ ${order.tableName}`}</div>
                     ${order.orderType !== 'lineman' ? `<div style="font-size: ${fsLarge}; font-weight: bold;">(${order.floor})</div>` : ''}
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 5px; font-size: ${fsLarge}; font-weight: bold; border-top: 1px solid #000; padding-top: 5px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 5px; font-size: ${fsLarge}; font-weight: bold; border-top: 1px solid #000; padding-top: 8px;">
                         <span>Order: ${displayOrderNumber}</span>
                         <span>เวลา: ${timeStr}</span>
                     </div>
@@ -327,7 +329,7 @@ export const printerService = {
         
         if (opts.showSubtotal) totalsHtml += `<div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span>รวมเงิน</span><span>${subtotal.toFixed(2)}</span></div>`;
         if (opts.showTax && order.taxAmount > 0) totalsHtml += `<div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span>ภาษี (${order.taxRate}%)</span><span>${order.taxAmount.toFixed(2)}</span></div>`;
-        if (opts.showTotal) totalsHtml += `<div style="display: flex; justify-content: space-between; font-weight: 900; font-size: ${fsLarge}; margin-top: 8px; border-top: 1px solid #000; padding-top: 4px;"><span>ยอดสุทธิ</span><span>${total.toFixed(2)}</span></div>`;
+        if (opts.showTotal) totalsHtml += `<div style="display: flex; justify-content: space-between; font-weight: 900; font-size: ${fsLarge}; margin-top: 8px; border-top: 1px solid #000; padding-top: 8px;"><span>ยอดสุทธิ</span><span>${total.toFixed(2)}</span></div>`;
         if (opts.showPaymentMethod) {
             const method = order.paymentDetails.method === 'cash' ? 'เงินสด' : 'โอนจ่าย';
             totalsHtml += `<div style="text-align: center; margin-top: 12px; font-size: ${fsSmall};">(ชำระโดย: ${method})</div>`;
@@ -431,7 +433,7 @@ export const printerService = {
                         <span>ยอดรวม</span><span>${subtotal.toFixed(2)}</span>
                     </div>
                     ${order.taxAmount > 0 ? `<div style="display: flex; justify-content: space-between; font-size: ${fsNormal}; margin-bottom: 4px;"><span>ภาษี (${order.taxRate}%)</span><span>${order.taxAmount.toFixed(2)}</span></div>` : ''}
-                    <div style="display: flex; justify-content: space-between; font-size: ${fsXLarge}; font-weight: 900; margin-top: 8px; padding-top: 4px; border-top: 1px solid #000;">
+                    <div style="display: flex; justify-content: space-between; font-size: ${fsXLarge}; font-weight: 900; margin-top: 8px; padding-top: 8px; border-top: 1px solid #000;">
                         <span>ยอดสุทธิ</span><span>${total.toFixed(2)}</span>
                     </div>
                 </div>
