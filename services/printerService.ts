@@ -198,9 +198,9 @@ export const printerService = {
                 ? `<div style="font-size: ${fsNormal}; font-weight: 900; border: 2px solid #000; display: inline-block; padding: 2px 6px; margin-left: 10px; margin-top: 5px;">กลับบ้าน</div>` 
                 : '';
 
-            // FIX: Added padding-bottom 8px to prevent border intersection
+            // FIX: Added padding-bottom 15px (increased from 8px) and margin-bottom 20px (increased from 10px) to separate items more clearly
             itemsHtml += `
-                <div style="margin-bottom: 10px; border-bottom: 1px dotted #ccc; padding-bottom: 8px;">
+                <div style="margin-bottom: 20px; border-bottom: 1px dotted #ccc; padding-bottom: 15px;">
                     <div style="font-size: ${fsLarge}; font-weight: 900; line-height: 1.2; display: flex; align-items: start;">
                         <span style="min-width: 30px; text-align: right; margin-right: 5px;">${item.quantity}</span>
                         <span style="word-break: break-word;">x ${item.name}</span>
@@ -213,19 +213,24 @@ export const printerService = {
         });
 
         // Full Kitchen Template
+        // FIX: Removed border-top on Order/Time row
+        // FIX: Added margin top/bottom to Table Name and Floor to separate them
         const htmlContent = `
             <div style="width: 100%; box-sizing: border-box; font-family: 'Sarabun', sans-serif; color: #000; padding: 5px;">
                 <div style="text-align: center; margin-bottom: 5px; border-bottom: 3px solid #000; padding-bottom: 8px;">
                     <div style="font-size: ${fsNormal}; font-weight: bold;">ใบรายการอาหาร (ครัว)</div>
-                    <div style="font-size: ${fsXLarge}; font-weight: 900; margin: 2px 0; line-height: 1; word-break: break-all;">${order.orderType === 'lineman' ? (order.tableName || 'Delivery') : `โต๊ะ ${order.tableName}`}</div>
-                    ${order.orderType !== 'lineman' ? `<div style="font-size: ${fsLarge}; font-weight: bold;">(${order.floor})</div>` : ''}
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 5px; font-size: ${fsLarge}; font-weight: bold; border-top: 1px solid #000; padding-top: 8px;">
+                    
+                    <div style="font-size: ${fsXLarge}; font-weight: 900; margin: 10px 0 10px 0; line-height: 1; word-break: break-all;">${order.orderType === 'lineman' ? (order.tableName || 'Delivery') : `โต๊ะ ${order.tableName}`}</div>
+                    
+                    ${order.orderType !== 'lineman' ? `<div style="font-size: ${fsLarge}; font-weight: bold; margin-bottom: 10px;">(${order.floor})</div>` : ''}
+                    
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px; font-size: ${fsLarge}; font-weight: bold; padding-top: 8px;">
                         <span>Order: ${displayOrderNumber}</span>
                         <span>เวลา: ${timeStr}</span>
                     </div>
                 </div>
                 
-                <div style="text-align: left;">
+                <div style="text-align: left; padding-top: 10px;">
                     ${itemsHtml}
                 </div>
                 
