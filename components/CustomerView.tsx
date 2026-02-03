@@ -260,6 +260,72 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         setIsSessionCompleted(true);
     };
 
+    // --- NEW: Real-time Table Move Detection ---
+    useEffect(() => {
+        // Only run if we have active orders and aren't already completed
+        if (myOrderNumbers.length === 0 || isSessionCompleted) return;
+
+        // Check if any of "my orders" are currently active at a DIFFERENT table
+        // We use allBranchOrders to scan the entire restaurant state
+        const movedOrder = allBranchOrders.find(o =>
+            // 1. Order belongs to this device (by ID) OR merged into this device's order
+            (myOrderNumbers.includes(o.orderNumber) || (o.mergedOrderNumbers && o.mergedOrderNumbers.some(n => myOrderNumbers.includes(n)))) &&
+            // 2. Order is active (not completed/cancelled)
+            o.status !== 'completed' &&
+            o.status !== 'cancelled' &&
+            // 3. Table ID in database is DIFFERENT from the current page's table ID
+            o.tableId !== table.id &&
+            // 4. Ensure it's a valid table (not a placeholder like -99 for delivery)
+            o.tableId > 0
+        );
+
+        if (movedOrder) {
+            // Found a move!
+            console.log(`[Auto-Follow] Order moved to Table ${movedOrder.tableId}. Redirecting...`);
+
+            const newTableId = movedOrder.tableId;
+
+            // 1. Construct the new URL
+            const currentUrl = new URL(window.location.href);
+            currentUrl.searchParams.set('tableId', String(newTableId));
+
+            // 2. MIGRATE LOCAL STORAGE DATA to the new Table ID
+            // This ensures the customer keeps their session name, cart, and order history
+            
+            // Migrate Session Name
+            const oldSessionKey = `customer_session_${table.id}`;
+            const newSessionKey = `customer_session_${newTableId}`;
+            const sessionData = localStorage.getItem(oldSessionKey);
+            if (sessionData && !localStorage.getItem(newSessionKey)) {
+                localStorage.setItem(newSessionKey, sessionData);
+            }
+
+            // Migrate My Orders List
+            const oldOrdersKey = `customer_my_orders_${table.id}`;
+            const newOrdersKey = `customer_my_orders_${newTableId}`;
+            const ordersData = localStorage.getItem(oldOrdersKey);
+            if (ordersData) {
+                // Merge if target exists, otherwise set
+                const existing = JSON.parse(localStorage.getItem(newOrdersKey) || '[]');
+                const old = JSON.parse(ordersData);
+                const combined = [...new Set([...existing, ...old])];
+                localStorage.setItem(newOrdersKey, JSON.stringify(combined));
+            }
+
+            // Migrate Cart (Optional but good UX)
+            const oldCartKey = `customer_cart_${table.id}`;
+            const newCartKey = `customer_cart_${newTableId}`;
+            const cartData = localStorage.getItem(oldCartKey);
+            if (cartData && !localStorage.getItem(newCartKey)) {
+                localStorage.setItem(newCartKey, cartData);
+            }
+
+            // 3. Force Redirect to the new URL (Reloads page with new context)
+            window.location.replace(currentUrl.toString());
+        }
+    }, [allBranchOrders, myOrderNumbers, table.id, isSessionCompleted]);
+    // -------------------------------------------
+
     // ... (Keep Identify Items Logic)
     const { myItems, otherItems } = useMemo(() => {
         const mine: OrderItem[] = [];
