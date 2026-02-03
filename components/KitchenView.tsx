@@ -45,7 +45,7 @@ export const KitchenView: React.FC<KitchenViewProps> = ({
                     <h2 className="text-lg font-bold text-white tracking-wide">หน้าจอครัว (KDS)</h2>
                 </div>
 
-                {/* Auto Print Toggle - Top Right as requested */}
+                {/* Auto Print Toggle Restored */}
                 <div className="flex items-center gap-3 bg-gray-900/50 px-3 py-1.5 rounded-lg border border-gray-600">
                     <span className="text-sm font-medium text-gray-300">พิมพ์อัตโนมัติ</span>
                     <label className="relative inline-flex items-center cursor-pointer">
