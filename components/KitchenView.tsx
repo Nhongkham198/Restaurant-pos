@@ -1,5 +1,5 @@
 
-import React, { useMemo, useEffect, useRef } from 'react';
+import React, { useMemo } from 'react';
 import type { ActiveOrder } from '../types';
 import { KitchenOrderCard } from './KitchenOrderCard';
 
@@ -20,31 +20,8 @@ export const KitchenView: React.FC<KitchenViewProps> = ({
     isAutoPrintEnabled,
     onToggleAutoPrint
 }) => {
-    // Refs to track state for auto-printing logic
-    const processedOrderIds = useRef<Set<number>>(new Set());
-    const mountTime = useRef<number>(Date.now());
-
-    // Auto-print logic: triggered when activeOrders changes
-    useEffect(() => {
-        if (!isAutoPrintEnabled) return;
-
-        activeOrders.forEach(order => {
-            // Only consider 'waiting' orders
-            if (order.status === 'waiting') {
-                // Check if this order is "new" relative to when this view was mounted
-                // AND hasn't been processed by this instance yet
-                if (order.id > mountTime.current && !processedOrderIds.current.has(order.id)) {
-                    
-                    // Mark as processed immediately to prevent double firing
-                    processedOrderIds.current.add(order.id);
-                    
-                    // Trigger print
-                    console.log(`[AutoPrint] Printing order #${order.orderNumber}`);
-                    onPrintOrder(order.id);
-                }
-            }
-        });
-    }, [activeOrders, isAutoPrintEnabled, onPrintOrder]);
+    // Note: Auto-print logic has been moved to App.tsx to ensure it runs globally
+    // on staff devices, regardless of the current view.
 
     const { waitingOrders, cookingOrders } = useMemo(() => {
         const waiting = activeOrders
