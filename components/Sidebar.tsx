@@ -316,6 +316,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
         onCustomerNameChange('');
     };
 
+    // --- Dynamic Color Logic for Confirm Button ---
+    const confirmButtonColorClass = useMemo(() => {
+        if (isDelivery && selectedProvider) {
+            const name = selectedProvider.name.toLowerCase();
+            const id = selectedProvider.id.toLowerCase();
+            
+            if (name.includes('shopee') || id.includes('shopee')) return 'bg-orange-500 hover:bg-orange-600 shadow-orange-900/30';
+            if (name.includes('robin') || id.includes('robin')) return 'bg-purple-600 hover:bg-purple-700 shadow-purple-900/30';
+            if (name.includes('panda') || id.includes('panda')) return 'bg-pink-500 hover:bg-pink-600 shadow-pink-900/30';
+            // LineMan, Grab, or default delivery
+            return 'bg-green-600 hover:bg-green-700 shadow-green-900/30';
+        }
+        
+        // Default Dine-in Blue
+        return 'bg-blue-600 hover:bg-blue-700 shadow-blue-900/30';
+    }, [isDelivery, selectedProvider]);
+
     return (
         <div className="bg-gray-900 text-white w-full h-full flex flex-col shadow-2xl overflow-hidden border-l border-gray-800 transition-all duration-200 relative">
             {isMobilePage && currentUser && (
@@ -591,11 +608,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     <button
                         onClick={handleConfirmPlaceOrder}
                         disabled={isPlacingOrder}
-                        className={`col-span-2 flex-grow p-3 rounded-xl text-white font-bold shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-all transform active:scale-95 ${
-                            isDelivery 
-                                ? 'bg-green-600 hover:bg-green-700 shadow-green-900/30' 
-                                : 'bg-blue-600 hover:bg-blue-700 shadow-blue-900/30'
-                        }`}
+                        className={`col-span-2 flex-grow p-3 rounded-xl text-white font-bold shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-all transform active:scale-95 ${confirmButtonColorClass}`}
                     >
                         {isPlacingOrder ? (
                             <>
