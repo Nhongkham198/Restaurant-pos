@@ -28,6 +28,8 @@ interface HeaderProps {
     onChangeBranch: () => void;
     onManageBranches: () => void;
     printerConfig: PrinterConfig | null; // Added prop
+    isAutoPrintEnabled: boolean; // Add this
+    onToggleAutoPrint: () => void; // Add this
 }
 
 const NavButton: React.FC<{
@@ -107,7 +109,9 @@ export const Header: React.FC<HeaderProps> = ({
     currentUser, onLogout, onOpenUserManager,
     logoUrl, onLogoChangeClick, restaurantName, onRestaurantNameChange,
     branchName, onChangeBranch, onManageBranches,
-    printerConfig
+    printerConfig,
+    isAutoPrintEnabled,
+    onToggleAutoPrint
 }) => {
     
     const isAdmin = currentUser?.role === 'admin';
@@ -251,6 +255,15 @@ export const Header: React.FC<HeaderProps> = ({
                 </nav>
 
                 <div className="flex items-center gap-4">
+                    {/* Auto Print Toggle */}
+                    <div className="relative group">
+                        <label className="relative inline-flex items-center cursor-pointer" title="เปิด/ปิด การพิมพ์อัตโนมัติ">
+                            <input type="checkbox" checked={isAutoPrintEnabled} onChange={onToggleAutoPrint} className="sr-only peer" />
+                            <div className="w-14 h-7 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-teal-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-1 after:left-[4px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-teal-400"></div>
+                            <span className="ml-3 text-sm font-medium text-gray-900 hidden lg:block">พิมพ์อัตโนมัติ</span>
+                        </label>
+                    </div>
+
                     {(currentUser.role === 'admin' || currentUser.role === 'branch-admin') && (
                         <div className="relative group">
                             <label className="relative inline-flex items-center cursor-pointer">

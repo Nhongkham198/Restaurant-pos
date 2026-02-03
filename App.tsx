@@ -188,6 +188,19 @@ export const App: React.FC = () => {
         });
     };
 
+    // --- AUTO PRINT TOGGLE STATE ---
+    const [isAutoPrintEnabled, setIsAutoPrintEnabled] = useState(() => {
+        return localStorage.getItem('isAutoPrintEnabled') === 'true';
+    });
+
+    const toggleAutoPrint = () => {
+        setIsAutoPrintEnabled(prev => {
+            const newValue = !prev;
+            localStorage.setItem('isAutoPrintEnabled', String(newValue));
+            return newValue;
+        });
+    };
+
     // --- CUSTOMER MODE STATE ---
     const [isCustomerMode, setIsCustomerMode] = useState(() => {
         const params = new URLSearchParams(window.location.search);
@@ -711,17 +724,13 @@ export const App: React.FC = () => {
 
     // 1. Force Customer View for Table Role OR explicit Customer Mode
     if (isCustomerMode || currentUser?.role === 'table') {
-        // Resolve table
+        // ... (Keep Customer View Logic) ...
         let targetTableId = customerTableId;
         if (currentUser?.role === 'table' && currentUser.assignedTableId) {
             targetTableId = currentUser.assignedTableId;
         }
 
         const customerTable = tables.find(t => t.id === targetTableId);
-
-        // OPTIMISTIC CHANGE:
-        // Use real table if found, otherwise use a placeholder IF we have a target ID but data isn't loaded yet.
-        // This bypasses the "tables.length === 0" check loop below.
         const effectiveTable = customerTable || (targetTableId && tables.length === 0 ? {
             id: targetTableId,
             name: 'Loading...',
@@ -731,36 +740,27 @@ export const App: React.FC = () => {
         } as Table : null);
 
         if (effectiveTable) {
-             // Filter menu items for customer view based on isVisible property
              const visibleMenuItems = menuItems.filter(item => item.isVisible !== false);
-
              return (
                 <Suspense fallback={<PageLoading />}>
                     <CustomerView 
                         table={effectiveTable}
-                        menuItems={visibleMenuItems} // Pass filtered items
+                        menuItems={visibleMenuItems}
                         categories={categories}
                         activeOrders={activeOrders.filter(o => o.tableId === targetTableId)}
                         allBranchOrders={activeOrders}
                         completedOrders={completedOrders}
                         onPlaceOrder={(items, name) => handlePlaceOrder(items, name, 1, effectiveTable)}
-                        // FIX: Pass branchId explicitly to onStaffCall to avoid crash when selectedBranch is null
                         onStaffCall={(table, custName) => setStaffCalls(prev => [...prev, {id: Date.now(), tableId: table.id, tableName: `${table.name} (${table.floor})`, customerName: custName, branchId: selectedBranch ? selectedBranch.id : Number(branchId || 0), timestamp: Date.now()}])}
                         recommendedMenuItemIds={recommendedMenuItemIds}
-                        logoUrl={appLogoUrl || logoUrl} // Use App Logo for Customer View if available, else Receipt Logo
+                        logoUrl={appLogoUrl || logoUrl}
                         restaurantName={restaurantName}
-                        onLogout={handleLogout} // Passed prop
+                        onLogout={handleLogout}
                     />
                 </Suspense>
              );
         }
-        
-        // Fallback if table not found (still showing loading state if tables are not yet synced)
-        // If tables are empty, it might be syncing.
-        if (tables.length === 0) {
-             return <PageLoading />;
-        }
-
+        if (tables.length === 0) return <PageLoading />;
         return (
             <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4 text-center">
                 <div>
@@ -775,48 +775,17 @@ export const App: React.FC = () => {
     if (!currentUser) return <LoginScreen onLogin={handleLogin} />;
 
     if (!selectedBranch && currentUser.role !== 'admin') {
-         return (
-            <BranchSelectionScreen 
-                currentUser={currentUser} 
-                branches={branches}
-                onSelectBranch={handleSelectBranch} 
-                onManageBranches={() => setModalState(prev => ({...prev, isBranchManager: true}))}
-                onLogout={handleLogout}
-            />
-        );
+         return <BranchSelectionScreen currentUser={currentUser} branches={branches} onSelectBranch={handleSelectBranch} onManageBranches={() => setModalState(prev => ({...prev, isBranchManager: true}))} onLogout={handleLogout} />;
     }
     
     if (!selectedBranch && currentUser.role === 'admin') {
-         return (
-            <BranchSelectionScreen 
-                currentUser={currentUser} 
-                branches={branches}
-                onSelectBranch={handleSelectBranch} 
-                onManageBranches={() => setModalState(prev => ({...prev, isBranchManager: true}))}
-                onLogout={handleLogout}
-            />
-        );
+         return <BranchSelectionScreen currentUser={currentUser} branches={branches} onSelectBranch={handleSelectBranch} onManageBranches={() => setModalState(prev => ({...prev, isBranchManager: true}))} onLogout={handleLogout} />;
     }
 
     if (!selectedBranch) return <div>Error: No branch selected. Please log out and try again.</div>
 
-    const MobileHeader = ({ 
-        user, 
-        restaurantName, 
-        onOpenSearch, 
-        onProfileClick,
-        isOrderNotificationsEnabled,
-        onToggleOrderNotifications,
-        onOpenSettings // NEW PROP
-    }: { 
-        user: User, 
-        restaurantName: string, 
-        onOpenSearch: () => void, 
-        onProfileClick: () => void,
-        isOrderNotificationsEnabled: boolean,
-        onToggleOrderNotifications: () => void,
-        onOpenSettings: () => void // NEW PROP TYPE
-    }) => (
+    // ... (Keep MobileHeader component) ...
+    const MobileHeader = ({ user, restaurantName, onOpenSearch, onProfileClick, isOrderNotificationsEnabled, onToggleOrderNotifications, onOpenSettings }: { user: User, restaurantName: string, onOpenSearch: () => void, onProfileClick: () => void, isOrderNotificationsEnabled: boolean, onToggleOrderNotifications: () => void, onOpenSettings: () => void }) => (
         <header className="bg-gray-900 text-white p-3 flex justify-between items-center flex-shrink-0 md:hidden z-30 shadow-lg relative">
             <div className="flex items-center gap-3 cursor-pointer" onClick={onProfileClick}>
                 <img src={user.profilePictureUrl || "https://img.icons8.com/fluency/48/user-male-circle.png"} alt={user.username} className="h-10 w-10 rounded-full object-cover border-2 border-gray-700"/>
@@ -825,24 +794,18 @@ export const App: React.FC = () => {
                     <span className="text-xs bg-gray-700 text-gray-300 px-1.5 py-0.5 rounded font-mono">{user.role}</span>
                 </div>
             </div>
-            {/* Title - ensure it doesn't overlap */}
             <h1 className="text-xl font-bold text-red-500 absolute left-1/2 -translate-x-1/2 whitespace-nowrap hidden sm:block">{restaurantName}</h1>
-            
             <div className="flex items-center gap-3">
-                {/* Settings Button */}
                 <button onClick={onOpenSettings} className="p-2 text-gray-300 rounded-full hover:bg-gray-700" aria-label="Settings">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                     </svg>
                 </button>
-
-                {/* Toggle Switch */}
                 <label className="relative inline-flex items-center cursor-pointer" title="เปิด/ปิด เสียงแจ้งเตือน">
                     <input type="checkbox" checked={isOrderNotificationsEnabled} onChange={onToggleOrderNotifications} className="sr-only peer" />
                     <div className="w-9 h-5 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-green-500"></div>
                 </label>
-
                 <button onClick={onOpenSearch} className="p-2 text-gray-300 rounded-full hover:bg-gray-700" aria-label="Search Menu">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
                 </button>
@@ -857,17 +820,17 @@ export const App: React.FC = () => {
             {isAdminViewOnDesktop && (
                 <Suspense fallback={<div className="w-64 bg-gray-800 h-full animate-pulse"></div>}>
                     <AdminSidebar 
-                    isCollapsed={isAdminSidebarCollapsed} onToggleCollapse={() => setIsAdminSidebarCollapsed(!isAdminSidebarCollapsed)}
-                    logoUrl={appLogoUrl || logoUrl} // Use App Logo if available
-                    restaurantName={restaurantName} branchName={selectedBranch.name} currentUser={currentUser}
-                    onViewChange={setCurrentView} currentView={currentView} onToggleEditMode={() => setIsEditMode(!isEditMode)} isEditMode={isEditMode}
-                    onOpenSettings={() => setModalState(prev => ({...prev, isSettings: true}))} onOpenUserManager={() => setModalState(prev => ({...prev, isUserManager: true}))}
-                    onManageBranches={() => setModalState(prev => ({...prev, isBranchManager: true}))} onChangeBranch={() => setSelectedBranch(null)} onLogout={handleLogout}
-                    kitchenBadgeCount={totalKitchenBadgeCount} tablesBadgeCount={tablesBadgeCount} leaveBadgeCount={leaveBadgeCount} stockBadgeCount={stockBadgeCount}
-                    maintenanceBadgeCount={maintenanceBadgeCount}
-                    onUpdateCurrentUser={handleUpdateCurrentUser} onUpdateLogoUrl={setLogoUrl} onUpdateRestaurantName={setRestaurantName}
-                    isOrderNotificationsEnabled={isOrderNotificationsEnabled} onToggleOrderNotifications={toggleOrderNotifications}
-                    printerConfig={printerConfig} // Pass printer config
+                        isCollapsed={isAdminSidebarCollapsed} onToggleCollapse={() => setIsAdminSidebarCollapsed(!isAdminSidebarCollapsed)}
+                        logoUrl={appLogoUrl || logoUrl} 
+                        restaurantName={restaurantName} branchName={selectedBranch.name} currentUser={currentUser}
+                        onViewChange={setCurrentView} currentView={currentView} onToggleEditMode={() => setIsEditMode(!isEditMode)} isEditMode={isEditMode}
+                        onOpenSettings={() => setModalState(prev => ({...prev, isSettings: true}))} onOpenUserManager={() => setModalState(prev => ({...prev, isUserManager: true}))}
+                        onManageBranches={() => setModalState(prev => ({...prev, isBranchManager: true}))} onChangeBranch={() => setSelectedBranch(null)} onLogout={handleLogout}
+                        kitchenBadgeCount={totalKitchenBadgeCount} tablesBadgeCount={tablesBadgeCount} leaveBadgeCount={leaveBadgeCount} stockBadgeCount={stockBadgeCount}
+                        maintenanceBadgeCount={maintenanceBadgeCount}
+                        onUpdateCurrentUser={handleUpdateCurrentUser} onUpdateLogoUrl={setLogoUrl} onUpdateRestaurantName={setRestaurantName}
+                        isOrderNotificationsEnabled={isOrderNotificationsEnabled} onToggleOrderNotifications={toggleOrderNotifications}
+                        printerConfig={printerConfig}
                     />
                 </Suspense>
             )}
@@ -881,16 +844,18 @@ export const App: React.FC = () => {
                         tablesBadgeCount={tablesBadgeCount} vacantTablesBadgeCount={vacantTablesCount} leaveBadgeCount={leaveBadgeCount} stockBadgeCount={stockBadgeCount} 
                         maintenanceBadgeCount={maintenanceBadgeCount} currentUser={currentUser} onLogout={handleLogout}
                         onOpenUserManager={() => setModalState(prev => ({ ...prev, isUserManager: true }))} 
-                        logoUrl={appLogoUrl || logoUrl} // Use App Logo if available
+                        logoUrl={appLogoUrl || logoUrl} 
                         onLogoChangeClick={() => {}}
                         restaurantName={restaurantName} onRestaurantNameChange={setRestaurantName} branchName={selectedBranch.name}
                         onChangeBranch={() => setSelectedBranch(null)} onManageBranches={() => setModalState(prev => ({ ...prev, isBranchManager: true }))}
-                        printerConfig={printerConfig} // Pass printer config
+                        printerConfig={printerConfig}
+                        isAutoPrintEnabled={isAutoPrintEnabled}
+                        onToggleAutoPrint={toggleAutoPrint}
                     />
                 )}
                 
                 <main className={`flex-1 flex overflow-hidden ${!isDesktop ? 'pb-16' : ''}`}>
-                    {/* Desktop POS View */}
+                    {/* ... (Keep POS View logic) ... */}
                     {currentView === 'pos' && isDesktop && (
                         <div className="flex-1 flex overflow-hidden relative">
                             <div className="flex-1 overflow-y-auto">
@@ -919,9 +884,7 @@ export const App: React.FC = () => {
                                         onToggleAvailability={handleToggleAvailability}
                                         isOrderNotificationsEnabled={isOrderNotificationsEnabled}
                                         onToggleOrderNotifications={toggleOrderNotifications}
-                                        // NEW PROPS
                                         deliveryProviders={deliveryProviders}
-                                        // Pass dummy/empty function for desktop sidebar if needed, or handle inside Sidebar
                                         onOpenSettings={() => setModalState(prev => ({ ...prev, isSettings: true }))}
                                     />
                                 )}
@@ -935,7 +898,6 @@ export const App: React.FC = () => {
                         </div>
                     )}
 
-                    {/* Non-Desktop Views */}
                     {!isDesktop && (
                         <div className="flex-1 flex flex-col overflow-hidden">
                             {currentView === 'pos' ? (
@@ -953,10 +915,9 @@ export const App: React.FC = () => {
                                         onToggleAvailability={handleToggleAvailability}
                                         isOrderNotificationsEnabled={isOrderNotificationsEnabled}
                                         onToggleOrderNotifications={toggleOrderNotifications}
-                                        // NEW PROPS
                                         deliveryProviders={deliveryProviders}
-                                        onToggleEditMode={() => setIsEditMode(!isEditMode)} // Pass toggle function
-                                        onOpenSettings={() => setModalState(prev => ({ ...prev, isSettings: true }))} // Pass settings open function
+                                        onToggleEditMode={() => setIsEditMode(!isEditMode)}
+                                        onOpenSettings={() => setModalState(prev => ({ ...prev, isSettings: true }))}
                                     />
                                 </div>
                             ) : (
@@ -968,11 +929,22 @@ export const App: React.FC = () => {
                                         onProfileClick={handleMobileProfileClick}
                                         isOrderNotificationsEnabled={isOrderNotificationsEnabled}
                                         onToggleOrderNotifications={toggleOrderNotifications}
-                                        onOpenSettings={() => setModalState(prev => ({ ...prev, isSettings: true }))} // Pass settings open function
+                                        onOpenSettings={() => setModalState(prev => ({ ...prev, isSettings: true }))}
                                     />
                                     <div className="flex-1 overflow-y-auto">
                                         <Suspense fallback={<PageLoading />}>
-                                            {currentView === 'kitchen' && <KitchenView activeOrders={activeOrders} onCompleteOrder={handleCompleteOrder} onStartCooking={handleStartCooking} onPrintOrder={handlePrintKitchenOrder} />}
+                                            {/* KitchenView passed with NEW Props */}
+                                            {currentView === 'kitchen' && (
+                                                <KitchenView 
+                                                    activeOrders={activeOrders} 
+                                                    onCompleteOrder={handleCompleteOrder} 
+                                                    onStartCooking={handleStartCooking} 
+                                                    onPrintOrder={handlePrintKitchenOrder}
+                                                    isAutoPrintEnabled={isAutoPrintEnabled} // Pass prop
+                                                    onToggleAutoPrint={toggleAutoPrint}     // Pass handler
+                                                />
+                                            )}
+                                            {/* ... Other mobile views ... */}
                                             {currentView === 'tables' && <TableLayout tables={tables} activeOrders={activeOrders} onTableSelect={(id) => { setSelectedTableId(id); setCurrentView('pos'); }} onShowBill={handleShowBill} onGeneratePin={handleGeneratePin} currentUser={currentUser} printerConfig={printerConfig} floors={floors} selectedBranch={selectedBranch} restaurantName={restaurantName} logoUrl={logoUrl} />}
                                             {currentView === 'dashboard' && <Dashboard completedOrders={completedOrders} cancelledOrders={cancelledOrders} openingTime={openingTime || '10:00'} closingTime={closingTime || '22:00'} currentUser={currentUser} />}
                                             {currentView === 'history' && <SalesHistory completedOrders={completedOrders} cancelledOrders={cancelledOrders} printHistory={printHistory} onReprint={() => {}} onSplitOrder={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isSplitCompleted: true}))}} isEditMode={isEditMode} onEditOrder={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isEditCompleted: true}))}} onInitiateCashBill={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isCashBill: true}))}} onDeleteHistory={handleDeleteHistory} currentUser={currentUser} onReprintReceipt={handleReprintReceipt} />}
@@ -1000,7 +972,17 @@ export const App: React.FC = () => {
                     {/* Desktop Other Views */}
                     {isDesktop && currentView !== 'pos' && (
                         <Suspense fallback={<PageLoading />}>
-                            {currentView === 'kitchen' && <KitchenView activeOrders={activeOrders} onCompleteOrder={handleCompleteOrder} onStartCooking={handleStartCooking} onPrintOrder={handlePrintKitchenOrder} />}
+                            {/* KitchenView passed with NEW Props */}
+                            {currentView === 'kitchen' && (
+                                <KitchenView 
+                                    activeOrders={activeOrders} 
+                                    onCompleteOrder={handleCompleteOrder} 
+                                    onStartCooking={handleStartCooking} 
+                                    onPrintOrder={handlePrintKitchenOrder}
+                                    isAutoPrintEnabled={isAutoPrintEnabled} // Pass prop
+                                    onToggleAutoPrint={toggleAutoPrint}     // Pass handler
+                                />
+                            )}
                             {currentView === 'tables' && <TableLayout tables={tables} activeOrders={activeOrders} onTableSelect={(id) => { setSelectedTableId(id); setCurrentView('pos'); }} onShowBill={handleShowBill} onGeneratePin={handleGeneratePin} currentUser={currentUser} printerConfig={printerConfig} floors={floors} selectedBranch={selectedBranch} restaurantName={restaurantName} logoUrl={logoUrl} />}
                             {currentView === 'dashboard' && <Dashboard completedOrders={completedOrders} cancelledOrders={cancelledOrders} openingTime={openingTime || '10:00'} closingTime={closingTime || '22:00'} currentUser={currentUser} />}
                             {currentView === 'history' && <SalesHistory completedOrders={completedOrders} cancelledOrders={cancelledOrders} printHistory={printHistory} onReprint={() => {}} onSplitOrder={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isSplitCompleted: true}))}} isEditMode={isEditMode} onEditOrder={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isEditCompleted: true}))}} onInitiateCashBill={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isCashBill: true}))}} onDeleteHistory={handleDeleteHistory} currentUser={currentUser} onReprintReceipt={handleReprintReceipt} />}
@@ -1025,7 +1007,7 @@ export const App: React.FC = () => {
             
             {!isDesktop && currentUser && <BottomNavBar items={mobileNavItems} currentView={currentView} onViewChange={setCurrentView} />}
 
-            {/* Modals */}
+            {/* Modals ... (Keep existing modals) ... */}
             <LoginModal isOpen={false} onClose={() => {}} />
             <MenuItemModal isOpen={modalState.isMenuItem} onClose={handleModalClose} onSave={handleSaveMenuItem} itemToEdit={itemToEdit} categories={categories} onAddCategory={handleAddCategory} />
             <OrderSuccessModal isOpen={modalState.isOrderSuccess} onClose={handleModalClose} orderId={lastPlacedOrderId!} />
@@ -1061,7 +1043,6 @@ export const App: React.FC = () => {
                         setPrinterConfig(printer); 
                         setOpeningTime(open); 
                         setClosingTime(close); 
-                        // NEW: Save additional fields
                         setRestaurantAddress(address);
                         setRestaurantPhone(phone);
                         setTaxId(tax);
@@ -1100,14 +1081,11 @@ export const App: React.FC = () => {
                 onClose={handleModalClose} 
                 restaurantName={restaurantName} 
                 logoUrl={logoUrl}
-                // NEW: Pass bill details
                 restaurantAddress={restaurantAddress}
                 restaurantPhone={restaurantPhone}
                 taxId={taxId}
                 signatureUrl={signatureUrl}
-                // Pass menuItems for autocomplete
                 menuItems={menuItems}
-                // Pass printerConfig for printing
                 printerConfig={printerConfig}
             />
             <SplitCompletedBillModal isOpen={modalState.isSplitCompleted} order={orderForModal as CompletedOrder | null} onClose={handleModalClose} onConfirmSplit={() => {}} />

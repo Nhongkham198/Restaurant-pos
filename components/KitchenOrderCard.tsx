@@ -7,6 +7,7 @@ interface KitchenOrderCardProps {
     onCompleteOrder: (orderId: number) => void;
     onStartCooking: (orderId: number) => void;
     onPrintOrder: (orderId: number) => void;
+    isAutoPrintEnabled: boolean; // Use global setting
 }
 
 const formatTime = (totalSeconds: number) => {
@@ -15,7 +16,13 @@ const formatTime = (totalSeconds: number) => {
     return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 };
 
-export const KitchenOrderCard: React.FC<KitchenOrderCardProps> = ({ order, onCompleteOrder, onStartCooking, onPrintOrder }) => {
+export const KitchenOrderCard: React.FC<KitchenOrderCardProps> = ({ 
+    order, 
+    onCompleteOrder, 
+    onStartCooking, 
+    onPrintOrder,
+    isAutoPrintEnabled 
+}) => {
     const [elapsedSeconds, setElapsedSeconds] = useState(0);
     
     // Checklist state: Persist to localStorage to survive page refreshes
@@ -64,6 +71,14 @@ export const KitchenOrderCard: React.FC<KitchenOrderCardProps> = ({ order, onCom
         onCompleteOrder(order.id);
     };
 
+    const handleStart = () => {
+        // Use the global setting passed down from App -> KitchenView -> KitchenOrderCard
+        if (isAutoPrintEnabled) {
+            onPrintOrder(order.id);
+        }
+        onStartCooking(order.id);
+    };
+
     const isCooking = order.status === 'cooking';
     const isOverdue = order.isOverdue ?? false;
     const isLineMan = order.orderType === 'lineman';
@@ -107,7 +122,7 @@ export const KitchenOrderCard: React.FC<KitchenOrderCardProps> = ({ order, onCom
                 </div>
                 <div className="flex flex-col items-end flex-shrink-0 ml-2">
                     <span className="text-3xl font-mono font-bold">{formatTime(elapsedSeconds)}</span>
-                    <span className="text-xs font-bold opacity-90 truncate max-w-[100px]">{isLineMan ? 'Delivery' : `โต๊ะ ${order.tableName}`}</span>
+                    <span className="text-xs font-bold opacity-90 truncate max-w-[100px]">{isLineMan ? 'Delivery' : `โต๊ะ ${order.tableName} (${order.floor})`}</span>
                 </div>
             </div>
 
@@ -224,10 +239,10 @@ export const KitchenOrderCard: React.FC<KitchenOrderCardProps> = ({ order, onCom
                     </button>
                 ) : (
                     <button
-                        onClick={() => onStartCooking(order.id)}
+                        onClick={handleStart}
                         className="flex-1 bg-gray-700 hover:bg-blue-600 text-white font-bold py-3 rounded text-xl uppercase tracking-widest transition-colors border-2 border-gray-600 hover:border-blue-500"
                     >
-                        START (เริ่ม)
+                        START {isAutoPrintEnabled && <span className="text-xs ml-1">(+พิมพ์)</span>}
                     </button>
                 )}
             </div>
