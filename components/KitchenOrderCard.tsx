@@ -7,7 +7,6 @@ interface KitchenOrderCardProps {
     onCompleteOrder: (orderId: number) => void;
     onStartCooking: (orderId: number) => void;
     onPrintOrder: (orderId: number) => void;
-    isAutoPrintEnabled: boolean; // Use global setting
 }
 
 const formatTime = (totalSeconds: number) => {
@@ -20,8 +19,7 @@ export const KitchenOrderCard: React.FC<KitchenOrderCardProps> = ({
     order, 
     onCompleteOrder, 
     onStartCooking, 
-    onPrintOrder,
-    isAutoPrintEnabled 
+    onPrintOrder
 }) => {
     const [elapsedSeconds, setElapsedSeconds] = useState(0);
     
@@ -72,10 +70,6 @@ export const KitchenOrderCard: React.FC<KitchenOrderCardProps> = ({
     };
 
     const handleStart = () => {
-        // Use the global setting passed down from App -> KitchenView -> KitchenOrderCard
-        if (isAutoPrintEnabled) {
-            onPrintOrder(order.id);
-        }
         onStartCooking(order.id);
     };
 
@@ -242,7 +236,7 @@ export const KitchenOrderCard: React.FC<KitchenOrderCardProps> = ({
                         onClick={handleStart}
                         className="flex-1 bg-gray-700 hover:bg-blue-600 text-white font-bold py-3 rounded text-xl uppercase tracking-widest transition-colors border-2 border-gray-600 hover:border-blue-500"
                     >
-                        START {isAutoPrintEnabled && <span className="text-xs ml-1">(+พิมพ์)</span>}
+                        START
                     </button>
                 )}
             </div>
