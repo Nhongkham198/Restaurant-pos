@@ -63,10 +63,10 @@ const trimCanvas = (canvas: HTMLCanvasElement) => {
 };
 
 // --- Constants for EXACT Printable Widths (Smart Fit) ---
-// 58mm Paper: Physical head width is usually 384 dots. We use 360 to have a tiny safe margin.
-// 80mm Paper: Physical head width is usually 576 dots. We use 550 to have a tiny safe margin.
-const TARGET_WIDTH_58MM = 360; 
-const TARGET_WIDTH_80MM = 550; 
+// 58mm Paper: Physical head width is usually 384 dots. We use 375 to have a tiny safe margin but fill more space.
+// 80mm Paper: Physical head width is usually 576 dots. We use 575 to have a tiny safe margin but fill more space.
+const TARGET_WIDTH_58MM = 375; 
+const TARGET_WIDTH_80MM = 575; 
 
 // --- Core Generator ---
 const generateImageFromHtml = async (htmlContent: string, targetWidthPx: number): Promise<string> => {
