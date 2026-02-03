@@ -599,12 +599,33 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
                                     {receiptOpts.showRestaurantName && <div className="font-bold text-base mb-1">ร้านอาหารตัวอย่าง</div>}
                                     {receiptOpts.showAddress && <div className="text-center whitespace-pre-wrap mb-1">{receiptOpts.address || settingsForm.restaurantAddress}</div>}
                                     {receiptOpts.showPhoneNumber && <div className="text-center mb-2">Tel: {receiptOpts.phoneNumber || settingsForm.restaurantPhone}</div>}
+                                    
                                     <div className="w-full border-b border-dashed border-gray-400 my-2"></div>
-                                    {receiptOpts.showItems && <div className="w-full space-y-1 mb-2"><div className="flex justify-between"><span>1. ข้าวกะเพรา</span><span>60.00</span></div><div className="flex justify-between"><span>2. น้ำเปล่า</span><span>15.00</span></div></div>}
+                                    <div style={{fontSize: '14px', fontWeight: 'bold', textAlign: 'center', marginBottom: '10px'}}>ใบเสร็จรับเงิน</div>
+
+                                    <div className="w-full text-left space-y-0.5 mb-2">
+                                        {receiptOpts.showTable && <div>โต๊ะ: 5</div>}
+                                        {receiptOpts.showOrderId && <div>Order: #001</div>}
+                                        {receiptOpts.showDateTime && <div>วันที่: {new Date().toLocaleDateString('th-TH')} {new Date().toLocaleTimeString('th-TH', {hour: '2-digit', minute:'2-digit'})}</div>}
+                                        {receiptOpts.showStaff && <div>พนักงาน: Admin</div>}
+                                    </div>
+
+                                    {receiptOpts.showItems && (
+                                        <>
+                                            <div className="w-full border-b border-dashed border-gray-400 mb-2"></div>
+                                            <div className="w-full space-y-1 mb-2">
+                                                <div className="flex justify-between"><span>1. ข้าวกะเพรา</span><span>60.00</span></div>
+                                                <div className="flex justify-between"><span>2. น้ำเปล่า</span><span>15.00</span></div>
+                                            </div>
+                                        </>
+                                    )}
+
                                     <div className="w-full border-b border-dashed border-gray-400 my-2"></div>
                                     <div className="w-full space-y-1">
                                         {receiptOpts.showSubtotal && <div className="flex justify-between"><span>รวมเงิน</span><span>75.00</span></div>}
-                                        {receiptOpts.showTotal && <div className="flex justify-between font-bold text-sm mt-1"><span>ยอดสุทธิ</span><span>75.00</span></div>}
+                                        {receiptOpts.showTax && <div className="flex justify-between"><span>ภาษี (7%)</span><span>5.25</span></div>}
+                                        {receiptOpts.showTotal && <div className="flex justify-between font-bold text-sm mt-1"><span>ยอดสุทธิ</span><span>80.25</span></div>}
+                                        {receiptOpts.showPaymentMethod && <div className="text-center mt-2">(ชำระโดย: เงินสด)</div>}
                                     </div>
                                     {receiptOpts.showThankYouMessage && <div className="mt-4 text-center font-bold">*** {receiptOpts.thankYouMessage} ***</div>}
                                 </div>
