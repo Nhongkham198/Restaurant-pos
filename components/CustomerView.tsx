@@ -146,6 +146,41 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         return sessionStorage.getItem(`customer_completed_${table.id}`) === 'true';
     });
 
+    // --- NEW: Loading Screen State ---
+    const [isLoadingScreen, setIsLoadingScreen] = useState(true);
+    const [loadingProgress, setLoadingProgress] = useState(0);
+
+    // --- NEW: Loading Logic ---
+    useEffect(() => {
+        // If session is already marked as completed or user already saw the loader in this session, we might skip
+        // But per request, let's show it on load.
+        // Optimization: If session completed (Thank you screen), don't show loader.
+        if (isSessionCompleted) {
+            setIsLoadingScreen(false);
+            return;
+        }
+
+        const interval = setInterval(() => {
+            setLoadingProgress((prev) => {
+                const next = prev + Math.floor(Math.random() * 8) + 2; // Random increment
+                if (next >= 100) {
+                    clearInterval(interval);
+                    return 100;
+                }
+                return next;
+            });
+        }, 50); // Speed of loading
+
+        if (loadingProgress === 100) {
+            // Small delay to let user see 100% before hiding
+            setTimeout(() => {
+                setIsLoadingScreen(false);
+            }, 500);
+        }
+
+        return () => clearInterval(interval);
+    }, [isSessionCompleted, loadingProgress]);
+
     // ... (Keep cart and order state hooks)
     const cartKey = `customer_cart_${table.id}`;
     const [cartItems, setCartItems] = useState<OrderItem[]>(() => {
@@ -644,6 +679,38 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         }
     }, [allBranchOrders, isAuthenticated, table.id, myItems.length, t]);
 
+    // --- Loading Screen Render ---
+    if (isLoadingScreen) {
+        return (
+            <div className="fixed inset-0 z-[100] bg-white flex flex-col items-center justify-center animate-fade-in">
+                {/* Cute Cartoon Image */}
+                <div className="mb-8 relative">
+                    {/* Using a placeholder for a cute dancing bear - replace with local asset if needed */}
+                    <img 
+                        src="https://media.tenor.com/On7kvXhzml4AAAAi/loading-bear.gif"
+                        alt="Loading..." 
+                        className="w-48 h-48 object-contain"
+                    />
+                </div>
+                
+                {/* Korean Style Text */}
+                <h2 className="text-xl font-bold text-gray-700 mb-4 font-sans animate-pulse">กำลังเตรียมเมนูอร่อย...</h2>
+
+                {/* Progress Bar Container */}
+                <div className="w-64 h-6 bg-gray-100 rounded-full overflow-hidden border-2 border-pink-100 shadow-inner relative">
+                    {/* Animated Progress Fill */}
+                    <div 
+                        className="h-full bg-gradient-to-r from-pink-300 to-pink-500 transition-all duration-100 ease-out flex items-center justify-end pr-2 shadow-sm"
+                        style={{ width: `${loadingProgress}%` }}
+                    >
+                    </div>
+                </div>
+                
+                {/* Percentage Text */}
+                <p className="mt-2 text-pink-500 font-bold text-lg font-mono">{loadingProgress}%</p>
+            </div>
+        );
+    }
     
     if (isSessionCompleted) {
         return (
