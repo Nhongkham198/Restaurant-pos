@@ -264,11 +264,7 @@ export const App: React.FC = () => {
     // --- ESSENTIAL DATA (Loaded for Everyone including Customers) ---
     const [menuItems, setMenuItems] = useFirestoreSync<MenuItem[]>(branchId, 'menuItems', DEFAULT_MENU_ITEMS);
     const [categories, setCategories] = useFirestoreSync<string[]>(branchId, 'categories', DEFAULT_CATEGORIES);
-    
-    // FIX: Use empty array as initial state for tables to ensure PageLoading shows until data is fetched
-    // This prevents the 'Table Not Found' error when an ID like 9999 is used before Firestore syncs.
-    const [tables, setTables] = useFirestoreSync<Table[]>(branchId, 'tables', []);
-    
+    const [tables, setTables] = useFirestoreSync<Table[]>(branchId, 'tables', DEFAULT_TABLES);
     const [floors, setFloors] = useFirestoreSync<string[]>(branchId, 'floors', DEFAULT_FLOORS);
     const [recommendedMenuItemIds, setRecommendedMenuItemIds] = useFirestoreSync<number[]>(branchId, 'recommendedMenuItemIds', []);
     
@@ -761,6 +757,8 @@ export const App: React.FC = () => {
     const handlePaymentSuccessClose = async (shouldPrint: boolean) => { const order = orderForModal as CompletedOrder; handleModalClose(); if (shouldPrint && order && printerConfig?.cashier) { try { await printerService.printReceipt(order, printerConfig.cashier, restaurantName, logoUrl); } catch (printError: any) { console.error("Receipt print failed:", printError); Swal.fire('พิมพ์ไม่สำเร็จ', 'ไม่สามารถเชื่อมต่อเครื่องพิมพ์ใบเสร็จได้', 'error'); } } };
     const handleReprintReceipt = async (order: CompletedOrder) => { if (!printerConfig?.cashier) { Swal.fire({ icon: 'warning', title: 'ไม่พบการตั้งค่าเครื่องพิมพ์', text: 'กรุณาตั้งค่าเครื่องพิมพ์ใบเสร็จก่อนใช้งาน', confirmButtonText: 'ไปที่ตั้งค่า' }).then((result) => { if (result.isConfirmed) { setModalState(prev => ({ ...prev, isSettings: true })); } }); return; } try { Swal.fire({ title: 'กำลังส่งคำสั่งพิมพ์...', allowOutsideClick: false, didOpen: () => { Swal.showLoading(); } }); await printerService.printReceipt(order, printerConfig.cashier, restaurantName, logoUrl); Swal.close(); Swal.fire({ icon: 'success', title: 'ส่งคำสั่งพิมพ์แล้ว', timer: 1500, showConfirmButton: false }); } catch (error: any) { console.error("Reprint failed:", error); Swal.close(); Swal.fire('พิมพ์ไม่สำเร็จ', error.message || 'ไม่สามารถเชื่อมต่อเครื่องพิมพ์ได้', 'error'); } };
     const handleSaveMenuItem = (itemData: Omit<MenuItem, 'id'> & { id?: number }) => { setMenuItems(prev => { if (itemData.id) return prev.map(item => item.id === itemData.id ? { ...item, ...itemData } as MenuItem : item); const newId = Math.max(0, ...prev.map(i => i.id)) + 1; return [...prev, { ...itemData, id: newId }]; }); handleModalClose(); };
+    const handleDeleteMenuItem = (id: number) => { Swal.fire({ title: 'ยืนยันการลบ?', text: "คุณต้องการลบเมนูนี้ใช่หรือไม่?", icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: 'ใช่, ลบเลย!' }).then((result) => { if (result.isConfirmed) setMenuItems(prev => prev.filter(item => item.id !== id)); }); };
+    const handleAddCategory = (name: string) => { if (!categories.includes(name)) setCategories(prev => [...prev, name]); };
     const handleUpdateCategory = (oldName: string, newName: string) => { setCategories(prev => Array.from(new Set(prev.map(c => c === oldName ? newName : c)))); setMenuItems(prev => prev.map(item => item.category === oldName ? { ...item, category: newName } : item)); };
     const handleDeleteCategory = (name: string) => { setCategories(prev => prev.filter(c => c !== name)); };
     const handleAddTable = (floor: string) => { const newId = Math.max(0, ...tables.map(t => t.id)) + 1; const tablesOnFloor = tables.filter(t => t.floor === floor); const newTableName = `T${tablesOnFloor.length + 1}`; setTables(prev => [...prev, { id: newId, name: newTableName, floor: floor, activePin: null, reservation: null }]); };
@@ -789,9 +787,6 @@ export const App: React.FC = () => {
         }
 
         const customerTable = tables.find(t => t.id === targetTableId);
-        
-        // FIX: Only show loading if tables is empty OR if data is still syncing
-        // This effectively delays the 'Not Found' screen until data is actually fetched from Firestore.
         const effectiveTable = customerTable || (targetTableId && tables.length === 0 ? {
             id: targetTableId,
             name: 'Loading...',
@@ -821,10 +816,7 @@ export const App: React.FC = () => {
                 </Suspense>
              );
         }
-        
-        // While tables is empty, we must show loading to give Firestore time to sync
         if (tables.length === 0) return <PageLoading />;
-        
         return (
             <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4 text-center">
                 <div>
@@ -848,262 +840,211 @@ export const App: React.FC = () => {
 
     if (!selectedBranch) return <div>Error: No branch selected. Please log out and try again.</div>
 
-    // ... (Remainder of file remains unchanged)
-    
-    // --- Layout for Staff/Admin ---
+    // ... (Keep MobileHeader component) ...
+    const MobileHeader = ({ user, restaurantName, onOpenSearch, onProfileClick, isOrderNotificationsEnabled, onToggleOrderNotifications, onOpenSettings }: { user: User, restaurantName: string, onOpenSearch: () => void, onProfileClick: () => void, isOrderNotificationsEnabled: boolean, onToggleOrderNotifications: () => void, onOpenSettings: () => void }) => (
+        <header className="bg-gray-900 text-white p-3 flex justify-between items-center flex-shrink-0 md:hidden z-30 shadow-lg relative">
+            <div className="flex items-center gap-3 cursor-pointer" onClick={onProfileClick}>
+                <img src={user.profilePictureUrl || "https://img.icons8.com/fluency/48/user-male-circle.png"} alt={user.username} className="h-10 w-10 rounded-full object-cover border-2 border-gray-700"/>
+                <div>
+                    <p className="font-semibold text-white leading-none">{user.username}</p>
+                    <span className="text-xs bg-gray-700 text-gray-300 px-1.5 py-0.5 rounded font-mono">{user.role}</span>
+                </div>
+            </div>
+            <h1 className="text-xl font-bold text-red-500 absolute left-1/2 -translate-x-1/2 whitespace-nowrap hidden sm:block">{restaurantName}</h1>
+            <div className="flex items-center gap-3">
+                <button onClick={onOpenSettings} className="p-2 text-gray-300 rounded-full hover:bg-gray-700" aria-label="Settings">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                </button>
+                <label className="relative inline-flex items-center cursor-pointer" title="เปิด/ปิด เสียงแจ้งเตือน">
+                    <input type="checkbox" checked={isOrderNotificationsEnabled} onChange={onToggleOrderNotifications} className="sr-only peer" />
+                    <div className="w-9 h-5 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-green-500"></div>
+                </label>
+                <button onClick={onOpenSearch} className="p-2 text-gray-300 rounded-full hover:bg-gray-700" aria-label="Search Menu">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                </button>
+            </div>
+        </header>
+    );
+
+    // Main App Layout
     return (
-        <div className="flex h-screen bg-gray-100 overflow-hidden font-sans">
-            {/* Sidebar Navigation */}
-            {(isAdminViewOnDesktop || (isDesktop && !isOrderSidebarVisible)) && (
-                <Suspense fallback={null}>
+        <div className={`h-screen w-screen flex flex-col md:flex-row bg-gray-100 overflow-hidden ${isDesktop ? 'landscape-mode' : ''}`} onClick={handleAudioUnlock}>
+            {/* Desktop Admin Sidebar */}
+            {isAdminViewOnDesktop && (
+                <Suspense fallback={<div className="w-64 bg-gray-800 h-full animate-pulse"></div>}>
                     <AdminSidebar 
-                        isCollapsed={isAdminSidebarCollapsed}
-                        onToggleCollapse={() => setIsAdminSidebarCollapsed(!isAdminSidebarCollapsed)}
-                        logoUrl={logoUrl}
-                        restaurantName={restaurantName}
-                        branchName={selectedBranch.name}
-                        currentUser={currentUser}
-                        onViewChange={setCurrentView}
-                        currentView={currentView}
-                        onToggleEditMode={() => setIsEditMode(!isEditMode)}
-                        isEditMode={isEditMode}
-                        onOpenSettings={() => setModalState(prev => ({...prev, isSettings: true}))}
-                        onOpenUserManager={() => setModalState(prev => ({...prev, isUserManager: true}))}
-                        onManageBranches={() => setModalState(prev => ({...prev, isBranchManager: true}))}
-                        onChangeBranch={() => setSelectedBranch(null)}
-                        onLogout={handleLogout}
-                        kitchenBadgeCount={totalKitchenBadgeCount}
-                        tablesBadgeCount={tablesBadgeCount}
-                        leaveBadgeCount={leaveBadgeCount}
-                        stockBadgeCount={stockBadgeCount}
+                        isCollapsed={isAdminSidebarCollapsed} onToggleCollapse={() => setIsAdminSidebarCollapsed(!isAdminSidebarCollapsed)}
+                        logoUrl={appLogoUrl || logoUrl} // Prioritize App Logo (Red)
+                        restaurantName={restaurantName} branchName={selectedBranch.name} currentUser={currentUser}
+                        onViewChange={setCurrentView} currentView={currentView} onToggleEditMode={() => setIsEditMode(!isEditMode)} isEditMode={isEditMode}
+                        onOpenSettings={() => setModalState(prev => ({...prev, isSettings: true}))} onOpenUserManager={() => setModalState(prev => ({...prev, isUserManager: true}))}
+                        onManageBranches={() => setModalState(prev => ({...prev, isBranchManager: true}))} onChangeBranch={() => setSelectedBranch(null)} onLogout={handleLogout}
+                        kitchenBadgeCount={totalKitchenBadgeCount} tablesBadgeCount={tablesBadgeCount} leaveBadgeCount={leaveBadgeCount} stockBadgeCount={stockBadgeCount}
                         maintenanceBadgeCount={maintenanceBadgeCount}
-                        onUpdateCurrentUser={handleUpdateCurrentUser}
-                        onUpdateLogoUrl={setLogoUrl}
-                        onUpdateRestaurantName={setRestaurantName}
-                        isOrderNotificationsEnabled={isOrderNotificationsEnabled}
-                        onToggleOrderNotifications={toggleOrderNotifications}
+                        onUpdateCurrentUser={handleUpdateCurrentUser} onUpdateLogoUrl={setLogoUrl} onUpdateRestaurantName={setRestaurantName}
+                        isOrderNotificationsEnabled={isOrderNotificationsEnabled} onToggleOrderNotifications={toggleOrderNotifications}
                         printerConfig={printerConfig}
                     />
                 </Suspense>
             )}
+            
+            <div className="flex-1 flex flex-col overflow-hidden transition-all duration-300" style={{ marginLeft: isAdminViewOnDesktop ? (isAdminSidebarCollapsed ? '5rem' : '16rem') : '0' }}>
+                {/* Header for Desktop POS/Kitchen staff */}
+                {isDesktop && !isAdminViewOnDesktop && (
+                    <Header
+                        currentView={currentView} onViewChange={setCurrentView} isEditMode={isEditMode} onToggleEditMode={() => setIsEditMode(!isEditMode)}
+                        onOpenSettings={() => setModalState(prev => ({ ...prev, isSettings: true }))} cookingBadgeCount={cookingBadgeCount} waitingBadgeCount={waitingBadgeCount}
+                        tablesBadgeCount={tablesBadgeCount} vacantTablesBadgeCount={vacantTablesCount} leaveBadgeCount={leaveBadgeCount} stockBadgeCount={stockBadgeCount} 
+                        maintenanceBadgeCount={maintenanceBadgeCount} currentUser={currentUser} onLogout={handleLogout}
+                        onOpenUserManager={() => setModalState(prev => ({ ...prev, isUserManager: true }))} 
+                        logoUrl={appLogoUrl || logoUrl} // Prioritize App Logo (Red)
+                        onLogoChangeClick={() => {}}
+                        restaurantName={restaurantName} onRestaurantNameChange={setRestaurantName} branchName={selectedBranch.name}
+                        onChangeBranch={() => setSelectedBranch(null)} onManageBranches={() => setModalState(prev => ({ ...prev, isBranchManager: true }))}
+                        printerConfig={printerConfig}
+                        isAutoPrintEnabled={isAutoPrintEnabled}
+                        onToggleAutoPrint={toggleAutoPrint}
+                    />
+                )}
+                
+                <main className={`flex-1 flex overflow-hidden ${!isDesktop ? 'pb-16' : ''}`}>
+                    {/* ... (Keep POS View logic) ... */}
+                    {currentView === 'pos' && isDesktop && (
+                        <div className="flex-1 flex overflow-hidden relative">
+                            <div className="flex-1 overflow-y-auto">
+                                <Menu
+                                    menuItems={menuItems} setMenuItems={setMenuItems} categories={categories} onSelectItem={handleAddItemToOrder}
+                                    isEditMode={isEditMode} onEditItem={(item) => { setItemToEdit(item); setModalState(prev => ({...prev, isMenuItem: true})); }}
+                                    onAddNewItem={() => { setItemToEdit(null); setModalState(prev => ({...prev, isMenuItem: true})); }}
+                                    onDeleteItem={handleDeleteMenuItem} onUpdateCategory={handleUpdateCategory} onDeleteCategory={handleDeleteCategory}
+                                    onAddCategory={handleAddCategory} onImportMenu={(items, cats) => { setMenuItems(items); setCategories(prev => Array.from(new Set([...prev, ...cats]))); }}
+                                    recommendedMenuItemIds={recommendedMenuItemIds}
+                                    onToggleVisibility={handleToggleVisibility}
+                                    // New Props for Toggle Button in Menu
+                                    onToggleOrderSidebar={() => setIsOrderSidebarVisible(!isOrderSidebarVisible)}
+                                    isOrderSidebarVisible={isOrderSidebarVisible}
+                                    cartItemCount={totalCartItemCount}
+                                />
+                            </div>
+                            <aside className={`flex-shrink-0 transition-all duration-300 overflow-hidden ${isOrderSidebarVisible ? 'w-96' : 'w-0'}`}>
+                                {isOrderSidebarVisible && (
+                                    <Sidebar
+                                        currentOrderItems={currentOrderItems} onQuantityChange={handleQuantityChange} onRemoveItem={handleRemoveItem} onClearOrder={handleClearOrder}
+                                        onPlaceOrder={handlePlaceOrder} isPlacingOrder={isPlacingOrder} tables={tables} selectedTable={selectedTable} onSelectTable={setSelectedTableId}
+                                        customerName={customerName} onCustomerNameChange={setCustomerName} customerCount={customerCount} onCustomerCountChange={setCustomerCount}
+                                        isEditMode={isEditMode} onAddNewTable={handleAddTable} onRemoveLastTable={handleRemoveLastTable} floors={floors} selectedFloor={selectedSidebarFloor}
+                                        onFloorChange={setSelectedSidebarFloor} onAddFloor={handleAddFloor} onRemoveFloor={handleRemoveFloor} sendToKitchen={sendToKitchen}
+                                        onSendToKitchenChange={(enabled, details) => { setSendToKitchen(enabled); setNotSentToKitchenDetails(details); }}
+                                        onUpdateReservation={(tableId, reservation) => setTables(prev => prev.map(t => t.id === tableId ? {...t, reservation} : t))}
+                                        onOpenSearch={() => setModalState(prev => ({...prev, isMenuSearch: true}))} currentUser={currentUser} onEditOrderItem={handleUpdateOrderItem}
+                                        onViewChange={setCurrentView} restaurantName={restaurantName} onLogout={handleLogout}
+                                        onToggleAvailability={handleToggleAvailability}
+                                        isOrderNotificationsEnabled={isOrderNotificationsEnabled}
+                                        onToggleOrderNotifications={toggleOrderNotifications}
+                                        deliveryProviders={deliveryProviders}
+                                        onOpenSettings={() => setModalState(prev => ({ ...prev, isSettings: true }))}
+                                    />
+                                )}
+                            </aside>
+                            {/* Old Floating Button Removed */}
+                        </div>
+                    )}
 
-            {/* Main Content Area */}
-            <div className={`flex-1 flex flex-col h-full overflow-hidden transition-all duration-300 ${
-                (isAdminViewOnDesktop || (isDesktop && !isOrderSidebarVisible)) 
-                    ? (isAdminSidebarCollapsed ? 'ml-20' : 'ml-64') 
-                    : ''
-            }`}>
-                {/* Header (Only for non-mobile, non-admin views or specialized views) */}
-                {/* Logic: Show header if Desktop AND (Not AdminView OR AdminView) - basically always show header on desktop? */}
-                {/* The Header component handles view switching logic internally */}
-                <Header 
-                    currentView={currentView} 
-                    onViewChange={setCurrentView}
-                    isEditMode={isEditMode}
-                    onToggleEditMode={() => setIsEditMode(!isEditMode)}
-                    onOpenSettings={() => setModalState(prev => ({...prev, isSettings: true}))}
-                    cookingBadgeCount={cookingBadgeCount}
-                    waitingBadgeCount={waitingBadgeCount}
-                    tablesBadgeCount={tablesBadgeCount}
-                    vacantTablesBadgeCount={vacantTablesCount}
-                    leaveBadgeCount={leaveBadgeCount}
-                    stockBadgeCount={stockBadgeCount}
-                    maintenanceBadgeCount={maintenanceBadgeCount}
-                    currentUser={currentUser}
-                    onLogout={handleLogout}
-                    onOpenUserManager={() => setModalState(prev => ({...prev, isUserManager: true}))}
-                    logoUrl={logoUrl}
-                    onLogoChangeClick={() => isEditMode ? document.getElementById('logo-upload')?.click() : null}
-                    restaurantName={restaurantName}
-                    onRestaurantNameChange={setRestaurantName}
-                    branchName={selectedBranch.name}
-                    onChangeBranch={() => setSelectedBranch(null)}
-                    onManageBranches={() => setModalState(prev => ({...prev, isBranchManager: true}))}
-                    printerConfig={printerConfig}
-                    isAutoPrintEnabled={isAutoPrintEnabled}
-                    onToggleAutoPrint={toggleAutoPrint}
-                />
-
-                <main className="flex-1 overflow-hidden relative flex">
-                    {/* View Switcher */}
-                    <div className="flex-1 h-full overflow-hidden relative">
-                        <Suspense fallback={<PageLoading />}>
-                            {currentView === 'pos' && (
-                                <div className="h-full flex flex-col md:flex-row">
-                                    <div className="flex-1 h-full overflow-hidden">
-                                        <Menu 
-                                            menuItems={menuItems.filter(item => isEditMode || item.isVisible !== false)}
-                                            setMenuItems={setMenuItems}
-                                            categories={categories}
-                                            onSelectItem={handleAddItemToOrder}
-                                            isEditMode={isEditMode}
-                                            onEditItem={setItemToEdit}
-                                            onAddNewItem={() => { setItemToEdit(null); setModalState(prev => ({...prev, isMenuItem: true})); }}
-                                            onDeleteItem={(id) => { if(window.confirm('ลบเมนูนี้?')) setMenuItems(prev => prev.filter(i => i.id !== id)); }}
-                                            onUpdateCategory={handleUpdateCategory}
-                                            onDeleteCategory={handleDeleteCategory}
-                                            onAddCategory={(name) => setCategories(prev => [...prev, name])}
-                                            onImportMenu={(items, newCats) => { setMenuItems(items); setCategories(prev => Array.from(new Set([...prev, ...newCats]))); }}
-                                            recommendedMenuItemIds={recommendedMenuItemIds}
-                                            onToggleVisibility={handleToggleVisibility}
-                                        />
+                    {!isDesktop && (
+                        <div className="flex-1 flex flex-col overflow-hidden">
+                            {currentView === 'pos' ? (
+                                <div className="w-full flex flex-col h-full overflow-hidden">
+                                    <Sidebar
+                                        isMobilePage={true} currentOrderItems={currentOrderItems} onQuantityChange={handleQuantityChange} onRemoveItem={handleRemoveItem}
+                                        onClearOrder={handleClearOrder} onPlaceOrder={handlePlaceOrder} isPlacingOrder={isPlacingOrder} tables={tables} selectedTable={selectedTable}
+                                        onSelectTable={setSelectedTableId} customerName={customerName} onCustomerNameChange={setCustomerName} customerCount={customerCount}
+                                        onCustomerCountChange={setCustomerCount} isEditMode={isEditMode} onAddNewTable={handleAddTable} onRemoveLastTable={handleRemoveLastTable}
+                                        floors={floors} selectedFloor={selectedSidebarFloor} onFloorChange={setSelectedSidebarFloor} onAddFloor={handleAddFloor} onRemoveFloor={handleRemoveFloor}
+                                        sendToKitchen={sendToKitchen} onSendToKitchenChange={(enabled, details) => { setSendToKitchen(enabled); setNotSentToKitchenDetails(details); }}
+                                        onUpdateReservation={(tableId, reservation) => setTables(prev => prev.map(t => t.id === tableId ? {...t, reservation} : t))}
+                                        onOpenSearch={() => setModalState(prev => ({...prev, isMenuSearch: true}))} currentUser={currentUser} onEditOrderItem={handleUpdateOrderItem}
+                                        onViewChange={setCurrentView} restaurantName={restaurantName} onLogout={handleLogout}
+                                        onToggleAvailability={handleToggleAvailability}
+                                        isOrderNotificationsEnabled={isOrderNotificationsEnabled}
+                                        onToggleOrderNotifications={toggleOrderNotifications}
+                                        deliveryProviders={deliveryProviders}
+                                        onToggleEditMode={() => setIsEditMode(!isEditMode)}
+                                        onOpenSettings={() => setModalState(prev => ({ ...prev, isSettings: true }))}
+                                    />
+                                </div>
+                            ) : (
+                                <div className="w-full flex flex-col h-full">
+                                    <MobileHeader 
+                                        user={currentUser!} 
+                                        restaurantName={restaurantName} 
+                                        onOpenSearch={() => setModalState(prev => ({...prev, isMenuSearch: true}))} 
+                                        onProfileClick={handleMobileProfileClick}
+                                        isOrderNotificationsEnabled={isOrderNotificationsEnabled}
+                                        onToggleOrderNotifications={toggleOrderNotifications}
+                                        onOpenSettings={() => setModalState(prev => ({ ...prev, isSettings: true }))}
+                                    />
+                                    <div className="flex-1 overflow-y-auto">
+                                        <Suspense fallback={<PageLoading />}>
+                                            {/* KitchenView passed with NEW Props */}
+                                            {currentView === 'kitchen' && (
+                                                <KitchenView 
+                                                    activeOrders={activeOrders} 
+                                                    onCompleteOrder={handleCompleteOrder} 
+                                                    onStartCooking={handleStartCooking} 
+                                                    onPrintOrder={handlePrintKitchenOrder}
+                                                    isAutoPrintEnabled={isAutoPrintEnabled} // Pass prop
+                                                    onToggleAutoPrint={toggleAutoPrint}     // Pass handler
+                                                />
+                                            )}
+                                            {/* ... Other mobile views ... */}
+                                            {currentView === 'tables' && <TableLayout tables={tables} activeOrders={activeOrders} onTableSelect={(id) => { setSelectedTableId(id); setCurrentView('pos'); }} onShowBill={handleShowBill} onGeneratePin={handleGeneratePin} currentUser={currentUser} printerConfig={printerConfig} floors={floors} selectedBranch={selectedBranch} restaurantName={restaurantName} logoUrl={logoUrl} />}
+                                            {currentView === 'dashboard' && <Dashboard completedOrders={completedOrders} cancelledOrders={cancelledOrders} openingTime={openingTime || '10:00'} closingTime={closingTime || '22:00'} currentUser={currentUser} />}
+                                            {currentView === 'history' && <SalesHistory completedOrders={completedOrders} cancelledOrders={cancelledOrders} printHistory={printHistory} onReprint={() => {}} onSplitOrder={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isSplitCompleted: true}))}} isEditMode={isEditMode} onEditOrder={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isEditCompleted: true}))}} onInitiateCashBill={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isCashBill: true}))}} onDeleteHistory={handleDeleteHistory} currentUser={currentUser} onReprintReceipt={handleReprintReceipt} />}
+                                            {currentView === 'stock' && <StockManagement stockItems={stockItems} setStockItems={setStockItems} stockCategories={stockCategories} setStockCategories={setStockCategories} stockUnits={stockUnits} setStockUnits={setStockUnits} currentUser={currentUser} />}
+                                            {currentView === 'stock-analytics' && <StockAnalytics stockItems={stockItems} />}
+                                            {currentView === 'leave' && <LeaveCalendarView leaveRequests={leaveRequests} currentUser={currentUser} onOpenRequestModal={(date) => { setLeaveRequestInitialDate(date); setModalState(prev => ({...prev, isLeaveRequest: true})); }} branches={branches} onUpdateStatus={(id, status) => setLeaveRequests(prev => prev.map(r => r.id === id ? {...r, status} : r))} onDeleteRequest={async (id) => {setLeaveRequests(prev => prev.filter(r => r.id !== id)); return true;}} selectedBranch={selectedBranch} />}
+                                            {currentView === 'leave-analytics' && <LeaveAnalytics leaveRequests={leaveRequests} users={users} />}
+                                            {currentView === 'maintenance' && (
+                                                <MaintenanceView 
+                                                    maintenanceItems={maintenanceItems}
+                                                    setMaintenanceItems={setMaintenanceItems}
+                                                    maintenanceLogs={maintenanceLogs}
+                                                    setMaintenanceLogs={setMaintenanceLogs}
+                                                    currentUser={currentUser}
+                                                    isEditMode={isEditMode}
+                                                />
+                                            )}
+                                        </Suspense>
                                     </div>
-                                    {/* Right Sidebar (Order) for POS View */}
-                                    {isDesktop && isOrderSidebarVisible && (
-                                        <div className="w-96 border-l border-gray-200 bg-white h-full flex flex-col shadow-xl z-20">
-                                            <Sidebar
-                                                currentOrderItems={currentOrderItems}
-                                                onQuantityChange={handleQuantityChange}
-                                                onRemoveItem={handleRemoveItem}
-                                                onClearOrder={handleClearOrder}
-                                                onPlaceOrder={handlePlaceOrder}
-                                                isPlacingOrder={isPlacingOrder}
-                                                tables={tables}
-                                                selectedTable={selectedTable}
-                                                onSelectTable={setSelectedTableId}
-                                                customerName={customerName}
-                                                onCustomerNameChange={setCustomerName}
-                                                customerCount={customerCount}
-                                                onCustomerCountChange={setCustomerCount}
-                                                isEditMode={isEditMode}
-                                                onAddNewTable={handleAddTable}
-                                                onRemoveLastTable={handleRemoveLastTable}
-                                                floors={floors}
-                                                selectedFloor={selectedSidebarFloor}
-                                                onFloorChange={setSelectedSidebarFloor}
-                                                onAddFloor={handleAddFloor}
-                                                onRemoveFloor={handleRemoveFloor}
-                                                sendToKitchen={sendToKitchen}
-                                                onSendToKitchenChange={(val, details) => { setSendToKitchen(val); setNotSentToKitchenDetails(details); }}
-                                                onUpdateReservation={(tableId, res) => setTables(prev => prev.map(t => t.id === tableId ? { ...t, reservation: res } : t))}
-                                                onOpenSearch={() => setModalState(prev => ({...prev, isMenuSearch: true}))}
-                                                currentUser={currentUser}
-                                                onEditOrderItem={handleUpdateOrderItem}
-                                                onViewChange={setCurrentView}
-                                                restaurantName={restaurantName}
-                                                onLogout={handleLogout}
-                                                onToggleAvailability={handleToggleAvailability}
-                                                isOrderNotificationsEnabled={isOrderNotificationsEnabled}
-                                                onToggleOrderNotifications={toggleOrderNotifications}
-                                                deliveryProviders={deliveryProviders}
-                                                onToggleEditMode={() => setIsEditMode(!isEditMode)}
-                                                onOpenSettings={() => setModalState(prev => ({...prev, isSettings: true}))}
-                                            />
-                                        </div>
-                                    )}
                                 </div>
                             )}
-                            
+                        </div>
+                    )}
+
+                    {/* Desktop Other Views */}
+                    {isDesktop && currentView !== 'pos' && (
+                        <Suspense fallback={<PageLoading />}>
+                            {/* KitchenView passed with NEW Props */}
                             {currentView === 'kitchen' && (
                                 <KitchenView 
                                     activeOrders={activeOrders} 
-                                    onCompleteOrder={handleCompleteOrder}
-                                    onStartCooking={handleStartCooking}
+                                    onCompleteOrder={handleCompleteOrder} 
+                                    onStartCooking={handleStartCooking} 
                                     onPrintOrder={handlePrintKitchenOrder}
-                                    isAutoPrintEnabled={isAutoPrintEnabled}
-                                    onToggleAutoPrint={toggleAutoPrint}
+                                    isAutoPrintEnabled={isAutoPrintEnabled} // Pass prop
+                                    onToggleAutoPrint={toggleAutoPrint}     // Pass handler
                                 />
                             )}
-
-                            {currentView === 'tables' && (
-                                <TableLayout 
-                                    tables={tables}
-                                    activeOrders={activeOrders}
-                                    onTableSelect={(id) => { setSelectedTableId(id); setCurrentView('pos'); }}
-                                    onShowBill={handleShowBill}
-                                    onGeneratePin={handleGeneratePin}
-                                    currentUser={currentUser}
-                                    printerConfig={printerConfig}
-                                    floors={floors}
-                                    selectedBranch={selectedBranch}
-                                    restaurantName={restaurantName}
-                                    logoUrl={logoUrl}
-                                />
-                            )}
-
-                            {currentView === 'dashboard' && (
-                                <Dashboard 
-                                    completedOrders={completedOrders}
-                                    cancelledOrders={cancelledOrders}
-                                    openingTime={openingTime || '10:00'}
-                                    closingTime={closingTime || '22:00'}
-                                    currentUser={currentUser}
-                                />
-                            )}
-
-                            {currentView === 'history' && (
-                                <SalesHistory 
-                                    completedOrders={completedOrders}
-                                    cancelledOrders={cancelledOrders}
-                                    printHistory={printHistory}
-                                    onReprint={handlePrintKitchenOrder}
-                                    onSplitOrder={(order) => { setOrderForModal(order); setModalState(prev => ({...prev, isSplitCompleted: true})); }}
-                                    isEditMode={isEditMode}
-                                    onEditOrder={(order) => { setOrderForModal(order); setModalState(prev => ({...prev, isEditCompleted: true})); }}
-                                    onInitiateCashBill={(order) => { setOrderForModal(order); setModalState(prev => ({...prev, isCashBill: true})); }}
-                                    onDeleteHistory={handleDeleteHistory}
-                                    currentUser={currentUser}
-                                    onReprintReceipt={handleReprintReceipt}
-                                />
-                            )}
-
-                            {currentView === 'stock' && (
-                                <StockManagement 
-                                    stockItems={stockItems}
-                                    setStockItems={setStockItems}
-                                    stockCategories={stockCategories}
-                                    setStockCategories={setStockCategories}
-                                    stockUnits={stockUnits}
-                                    setStockUnits={setStockUnits}
-                                    currentUser={currentUser}
-                                />
-                            )}
-
-                            {currentView === 'stock-analytics' && (
-                                <StockAnalytics stockItems={stockItems} />
-                            )}
-
-                            {currentView === 'leave' && (
-                                <LeaveCalendarView 
-                                    leaveRequests={leaveRequests}
-                                    currentUser={currentUser}
-                                    onOpenRequestModal={(date) => {
-                                        setLeaveRequestInitialDate(date || null);
-                                        setModalState(prev => ({...prev, isLeaveRequest: true}));
-                                    }}
-                                    branches={branches}
-                                    onUpdateStatus={async (id, status) => {
-                                        try {
-                                            await functionsService.updateLeaveStatus({
-                                                requestId: id,
-                                                status,
-                                                approverId: currentUser!.id
-                                            });
-                                            // Optimistic update handled by hook, or refetch
-                                        } catch (e) {
-                                            Swal.fire('Error', 'Failed to update status', 'error');
-                                        }
-                                    }}
-                                    onDeleteRequest={async (id) => {
-                                        try {
-                                            await functionsService.deleteLeaveRequest({ requestId: id });
-                                            return true;
-                                        } catch (e) {
-                                            Swal.fire('Error', 'Failed to delete request', 'error');
-                                            return false;
-                                        }
-                                    }}
-                                    selectedBranch={selectedBranch}
-                                />
-                            )}
-
-                            {currentView === 'leave-analytics' && (
-                                <LeaveAnalytics 
-                                    leaveRequests={leaveRequests}
-                                    users={users}
-                                />
-                            )}
-
+                            {currentView === 'tables' && <TableLayout tables={tables} activeOrders={activeOrders} onTableSelect={(id) => { setSelectedTableId(id); setCurrentView('pos'); }} onShowBill={handleShowBill} onGeneratePin={handleGeneratePin} currentUser={currentUser} printerConfig={printerConfig} floors={floors} selectedBranch={selectedBranch} restaurantName={restaurantName} logoUrl={logoUrl} />}
+                            {currentView === 'dashboard' && <Dashboard completedOrders={completedOrders} cancelledOrders={cancelledOrders} openingTime={openingTime || '10:00'} closingTime={closingTime || '22:00'} currentUser={currentUser} />}
+                            {currentView === 'history' && <SalesHistory completedOrders={completedOrders} cancelledOrders={cancelledOrders} printHistory={printHistory} onReprint={() => {}} onSplitOrder={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isSplitCompleted: true}))}} isEditMode={isEditMode} onEditOrder={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isEditCompleted: true}))}} onInitiateCashBill={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isCashBill: true}))}} onDeleteHistory={handleDeleteHistory} currentUser={currentUser} onReprintReceipt={handleReprintReceipt} />}
+                            {currentView === 'stock' && <StockManagement stockItems={stockItems} setStockItems={setStockItems} stockCategories={stockCategories} setStockCategories={setStockCategories} stockUnits={stockUnits} setStockUnits={setStockUnits} currentUser={currentUser} />}
+                            {currentView === 'stock-analytics' && <StockAnalytics stockItems={stockItems} />}
+                            {currentView === 'leave' && <LeaveCalendarView leaveRequests={leaveRequests} currentUser={currentUser} onOpenRequestModal={(date) => { setLeaveRequestInitialDate(date); setModalState(prev => ({...prev, isLeaveRequest: true})); }} branches={branches} onUpdateStatus={(id, status) => setLeaveRequests(prev => prev.map(r => r.id === id ? {...r, status} : r))} onDeleteRequest={async (id) => {setLeaveRequests(prev => prev.filter(r => r.id !== id)); return true;}} selectedBranch={selectedBranch} />}
+                            {currentView === 'leave-analytics' && <LeaveAnalytics leaveRequests={leaveRequests} users={users} />}
                             {currentView === 'maintenance' && (
                                 <MaintenanceView 
                                     maintenanceItems={maintenanceItems}
@@ -1115,252 +1056,100 @@ export const App: React.FC = () => {
                                 />
                             )}
                         </Suspense>
-                    </div>
+                    )}
                 </main>
-
-                {/* Mobile Bottom Navigation - Only show on mobile/tablet AND if not in specific admin views */}
-                {!isDesktop && (
-                    <BottomNavBar 
-                        items={mobileNavItems} 
-                        currentView={currentView}
-                        onViewChange={setCurrentView}
-                    />
-                )}
             </div>
+            
+            {!isDesktop && currentUser && <BottomNavBar items={mobileNavItems} currentView={currentView} onViewChange={setCurrentView} />}
 
-            {/* --- Modals --- */}
-            {/* These need to be rendered at the root level to overlay correctly */}
+            {/* Modals ... (Keep existing modals) ... */}
+            <LoginModal isOpen={false} onClose={() => {}} />
+            <MenuItemModal isOpen={modalState.isMenuItem} onClose={handleModalClose} onSave={handleSaveMenuItem} itemToEdit={itemToEdit} categories={categories} onAddCategory={handleAddCategory} />
+            <OrderSuccessModal isOpen={modalState.isOrderSuccess} onClose={handleModalClose} orderId={lastPlacedOrderId!} />
+            <SplitBillModal isOpen={modalState.isSplitBill} order={orderForModal as ActiveOrder | null} onClose={handleModalClose} onConfirmSplit={handleConfirmSplit} />
+            <TableBillModal 
+                isOpen={modalState.isTableBill} 
+                onClose={handleModalClose} 
+                order={orderForModal as ActiveOrder | null} 
+                onInitiatePayment={(order) => { setOrderForModal(order); setModalState(prev => ({...prev, isPayment: true, isTableBill: false})); }} 
+                onInitiateMove={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isMoveTable: true, isTableBill: false})); }} 
+                onSplit={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isSplitBill: true, isTableBill: false})); }} 
+                onUpdateOrder={(id, items, count) => handleUpdateOrderFromModal(id, items, count)}
+                isEditMode={isEditMode} 
+                currentUser={currentUser} 
+                onInitiateCancel={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isCancelOrder: true, isTableBill: false}))}} 
+                activeOrders={activeOrders} 
+                onInitiateMerge={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isMergeBill: true, isTableBill: false}))}}
+                onMergeAndPay={handleMergeAndPay}
+            />
+            <PaymentModal isOpen={modalState.isPayment} order={orderForModal as ActiveOrder | null} onClose={handleModalClose} onConfirmPayment={handleConfirmPayment} qrCodeUrl={qrCodeUrl} isEditMode={isEditMode} onOpenSettings={() => setModalState(prev => ({...prev, isSettings: true}))} isConfirmingPayment={isConfirmingPayment} />
+            <PaymentSuccessModal isOpen={modalState.isPaymentSuccess} onClose={handlePaymentSuccessClose} orderNumber={(orderForModal as CompletedOrder)?.orderNumber || 0} />
             
             <Suspense fallback={null}>
-                {modalState.isMenuItem && (
-                    <MenuItemModal
-                        isOpen={modalState.isMenuItem}
-                        onClose={handleModalClose}
-                        onSave={handleSaveMenuItem}
-                        itemToEdit={itemToEdit}
-                        categories={categories}
-                        onAddCategory={(name) => setCategories(prev => [...prev, name])}
-                    />
-                )}
-
-                {modalState.isOrderSuccess && lastPlacedOrderId && (
-                    <OrderSuccessModal
-                        isOpen={modalState.isOrderSuccess}
-                        onClose={handleModalClose}
-                        orderId={lastPlacedOrderId}
-                        warningMessage={null}
-                    />
-                )}
-
-                <SplitBillModal
-                    isOpen={modalState.isSplitBill}
-                    order={orderForModal as ActiveOrder}
-                    onClose={handleModalClose}
-                    onConfirmSplit={handleConfirmSplit}
-                />
-
-                <TableBillModal
-                    isOpen={modalState.isTableBill}
-                    onClose={handleModalClose}
-                    order={orderForModal as ActiveOrder}
-                    onInitiatePayment={(order) => { setOrderForModal(order); setModalState(prev => ({ ...prev, isPayment: true, isTableBill: false })); }}
-                    onInitiateMove={(order) => { setOrderForModal(order); setModalState(prev => ({...prev, isMoveTable: true, isTableBill: false})); }}
-                    onSplit={(order) => { setOrderForModal(order); setModalState(prev => ({...prev, isSplitBill: true, isTableBill: false})); }}
-                    isEditMode={isEditMode}
-                    onUpdateOrder={handleUpdateOrderFromModal}
-                    currentUser={currentUser}
-                    onInitiateCancel={(order) => { setOrderForModal(order); setModalState(prev => ({...prev, isCancelOrder: true, isTableBill: false})); }}
-                    activeOrders={activeOrders}
-                    onInitiateMerge={(order) => { setOrderForModal(order); setModalState(prev => ({...prev, isMergeBill: true, isTableBill: false})); }}
-                    onMergeAndPay={handleMergeAndPay}
-                />
-
-                <PaymentModal
-                    isOpen={modalState.isPayment}
-                    order={orderForModal as ActiveOrder}
-                    onClose={handleModalClose}
-                    onConfirmPayment={handleConfirmPayment}
-                    qrCodeUrl={qrCodeUrl}
-                    isEditMode={isEditMode}
-                    onOpenSettings={() => setModalState(prev => ({...prev, isSettings: true}))}
-                    isConfirmingPayment={isConfirmingPayment}
-                />
-
-                <PaymentSuccessModal
-                    isOpen={modalState.isPaymentSuccess}
-                    onClose={handlePaymentSuccessClose}
-                    orderNumber={orderForModal?.orderNumber || 0}
-                />
-
-                {modalState.isSettings && (
-                    <SettingsModal
-                        isOpen={modalState.isSettings}
-                        onClose={handleModalClose}
-                        onSave={(logo, appLogo, qr, sound, staffSound, printer, open, close, address, phone, tax, sig) => {
-                            setLogoUrl(logo); setAppLogoUrl(appLogo); setQrCodeUrl(qr); setNotificationSoundUrl(sound); setStaffCallSoundUrl(staffSound); setPrinterConfig(printer); setOpeningTime(open); setClosingTime(close);
-                            setRestaurantAddress(address); setRestaurantPhone(phone); setTaxId(tax); setSignatureUrl(sig);
-                            handleModalClose();
-                        }}
-                        currentLogoUrl={logoUrl}
-                        currentAppLogoUrl={appLogoUrl}
-                        currentQrCodeUrl={qrCodeUrl}
-                        currentNotificationSoundUrl={notificationSoundUrl}
-                        currentStaffCallSoundUrl={staffCallSoundUrl}
-                        currentPrinterConfig={printerConfig}
-                        currentOpeningTime={openingTime}
-                        currentClosingTime={closingTime}
-                        onSavePrinterConfig={setPrinterConfig}
-                        menuItems={menuItems}
-                        currentRecommendedMenuItemIds={recommendedMenuItemIds}
-                        onSaveRecommendedItems={setRecommendedMenuItemIds}
-                        deliveryProviders={deliveryProviders}
-                        onSaveDeliveryProviders={setDeliveryProviders}
-                        currentRestaurantAddress={restaurantAddress}
-                        currentRestaurantPhone={restaurantPhone}
-                        currentTaxId={taxId}
-                        currentSignatureUrl={signatureUrl}
-                    />
-                )}
-
-                <EditCompletedOrderModal 
-                    isOpen={modalState.isEditCompleted}
-                    order={orderForModal as CompletedOrder}
-                    onClose={handleModalClose}
-                    onSave={async (updated) => {
-                        // Optimistic update
-                        if (newCompletedOrders.some(o => o.id === updated.id)) {
-                            await newCompletedOrdersActions.update(updated.id, { items: updated.items });
-                        } else {
-                            // Legacy update - simplistic
-                            setLegacyCompletedOrders(prev => prev.map(o => o.id === updated.id ? { ...o, items: updated.items } : o));
-                        }
-                        handleModalClose();
-                    }}
-                    menuItems={menuItems}
-                />
-
-                <UserManagerModal 
-                    isOpen={modalState.isUserManager}
-                    onClose={handleModalClose}
-                    users={users}
-                    setUsers={setUsers}
-                    currentUser={currentUser}
-                    branches={branches}
-                    isEditMode={isEditMode}
-                    tables={tables}
-                />
-
-                <BranchManagerModal 
-                    isOpen={modalState.isBranchManager}
-                    onClose={handleModalClose}
-                    branches={branches}
-                    setBranches={setBranches}
-                    currentUser={currentUser}
-                />
-
-                <MoveTableModal 
-                    isOpen={modalState.isMoveTable}
-                    onClose={handleModalClose}
-                    order={orderForModal as ActiveOrder}
-                    tables={tables}
-                    activeOrders={activeOrders}
-                    onConfirmMove={handleConfirmMoveTable}
-                    floors={floors}
-                />
-
-                <CancelOrderModal 
-                    isOpen={modalState.isCancelOrder}
-                    order={orderForModal as ActiveOrder}
-                    onClose={handleModalClose}
-                    onConfirm={handleConfirmCancelOrder}
-                />
-
-                <CashBillModal
-                    isOpen={modalState.isCashBill}
-                    onClose={handleModalClose}
-                    order={orderForModal as CompletedOrder}
-                    restaurantName={restaurantName}
-                    logoUrl={logoUrl}
-                    restaurantAddress={restaurantAddress}
-                    restaurantPhone={restaurantPhone}
-                    taxId={taxId}
-                    signatureUrl={signatureUrl}
-                    menuItems={menuItems}
-                    printerConfig={printerConfig}
-                />
-
-                <SplitCompletedBillModal 
-                    isOpen={modalState.isSplitCompleted}
-                    order={orderForModal as CompletedOrder}
-                    onClose={handleModalClose}
-                    onConfirmSplit={(itemsToSplit) => {
-                        console.log("Splitting completed items:", itemsToSplit);
-                        Swal.fire('ฟีเจอร์นี้ยังไม่เปิดใช้งาน', 'อยู่ในระหว่างการพัฒนา', 'info');
-                        handleModalClose();
-                    }}
-                />
-
-                <ItemCustomizationModal 
-                    isOpen={modalState.isCustomization}
-                    onClose={handleModalClose}
-                    item={itemToCustomize}
-                    orderItemToEdit={orderItemToEdit}
-                    onConfirm={orderItemToEdit ? handleConfirmCustomization : (itemToAdd) => {
-                        // Logic to add to cart (handled via Sidebar usually, but here we need to bridge)
-                        // If we are in POS view, Sidebar is mounted. 
-                        // If this modal is triggered from MenuSearchModal...
-                        setCurrentOrderItems(prev => {
-                            const existingItemIndex = prev.findIndex(i => i.cartItemId === itemToAdd.cartItemId);
-                            if (existingItemIndex !== -1) {
-                                const newItems = [...prev];
-                                newItems[existingItemIndex].quantity += itemToAdd.quantity;
-                                return newItems;
-                            }
-                            return [...prev, itemToAdd];
-                        });
-                        handleModalClose();
-                        Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'เพิ่มลงตะกร้าแล้ว', showConfirmButton: false, timer: 1500 });
-                    }}
-                />
-
-                <LeaveRequestModal 
-                    isOpen={modalState.isLeaveRequest}
-                    onClose={handleModalClose}
-                    currentUser={currentUser}
-                    onSave={async (req) => {
-                        try {
-                            if (!selectedBranch) throw new Error("No branch selected");
-                            await functionsService.submitLeaveRequest({
-                                ...req,
-                                branchId: selectedBranch.id
-                            });
-                            Swal.fire('สำเร็จ', 'ส่งคำขอวันลาเรียบร้อยแล้ว', 'success');
-                            handleModalClose();
-                        } catch (e) {
-                            Swal.fire('Error', 'Failed to submit request', 'error');
-                        }
-                    }}
-                    leaveRequests={leaveRequests}
-                    initialDate={leaveRequestInitialDate}
-                />
-
-                <MenuSearchModal 
-                    isOpen={modalState.isMenuSearch}
-                    onClose={handleModalClose}
-                    menuItems={menuItems}
-                    onSelectItem={handleAddItemToOrder}
-                    onToggleAvailability={handleToggleAvailability}
-                />
-
-                <MergeBillModal
-                    isOpen={modalState.isMergeBill}
-                    onClose={handleModalClose}
-                    order={orderForModal as ActiveOrder}
-                    allActiveOrders={activeOrders}
-                    tables={tables}
-                    onConfirmMerge={handleConfirmMerge}
+                <SettingsModal 
+                    isOpen={modalState.isSettings} 
+                    onClose={handleModalClose} 
+                    onSave={(newLogo, newAppLogo, qr, sound, staffSound, printer, open, close, address, phone, tax, signature) => { 
+                        setLogoUrl(newLogo); 
+                        setAppLogoUrl(newAppLogo); 
+                        setQrCodeUrl(qr); 
+                        setNotificationSoundUrl(sound); 
+                        setStaffCallSoundUrl(staffSound); 
+                        setPrinterConfig(printer); 
+                        setOpeningTime(open); 
+                        setClosingTime(close); 
+                        setRestaurantAddress(address);
+                        setRestaurantPhone(phone);
+                        setTaxId(tax);
+                        setSignatureUrl(signature);
+                        handleModalClose(); 
+                    }} 
+                    currentLogoUrl={logoUrl} 
+                    currentAppLogoUrl={appLogoUrl} 
+                    currentQrCodeUrl={qrCodeUrl} 
+                    currentNotificationSoundUrl={notificationSoundUrl} 
+                    currentStaffCallSoundUrl={staffCallSoundUrl} 
+                    currentPrinterConfig={printerConfig} 
+                    currentOpeningTime={openingTime} 
+                    currentClosingTime={closingTime} 
+                    onSavePrinterConfig={setPrinterConfig} 
+                    menuItems={menuItems} 
+                    currentRecommendedMenuItemIds={recommendedMenuItemIds} 
+                    onSaveRecommendedItems={setRecommendedMenuItemIds} 
+                    deliveryProviders={deliveryProviders} 
+                    onSaveDeliveryProviders={setDeliveryProviders}
+                    currentRestaurantAddress={restaurantAddress}
+                    currentRestaurantPhone={restaurantPhone}
+                    currentTaxId={taxId}
+                    currentSignatureUrl={signatureUrl}
                 />
             </Suspense>
+
+            <EditCompletedOrderModal isOpen={modalState.isEditCompleted} order={orderForModal as CompletedOrder | null} onClose={handleModalClose} onSave={async ({id, items}) => { if(newCompletedOrders.some(o => o.id === id)) { await newCompletedOrdersActions.update(id, { items }); } else { setLegacyCompletedOrders(prev => prev.map(o => o.id === id ? {...o, items} : o)); } }} menuItems={menuItems} />
+            <UserManagerModal isOpen={modalState.isUserManager} onClose={handleModalClose} users={users} setUsers={setUsers} currentUser={currentUser!} branches={branches} isEditMode={isEditMode} tables={tables} />
+            <BranchManagerModal isOpen={modalState.isBranchManager} onClose={handleModalClose} branches={branches} setBranches={setBranches} currentUser={currentUser} />
+            <MoveTableModal isOpen={modalState.isMoveTable} onClose={handleModalClose} order={orderForModal as ActiveOrder | null} tables={tables} activeOrders={activeOrders} onConfirmMove={handleConfirmMoveTable} floors={floors} />
+            <CancelOrderModal isOpen={modalState.isCancelOrder} onClose={handleModalClose} order={orderForModal as ActiveOrder | null} onConfirm={handleConfirmCancelOrder} />
+            <CashBillModal 
+                isOpen={modalState.isCashBill} 
+                order={orderForModal as CompletedOrder | null} 
+                onClose={handleModalClose} 
+                restaurantName={restaurantName} 
+                logoUrl={logoUrl}
+                restaurantAddress={restaurantAddress}
+                restaurantPhone={restaurantPhone}
+                taxId={taxId}
+                signatureUrl={signatureUrl}
+                menuItems={menuItems}
+                printerConfig={printerConfig}
+            />
+            <SplitCompletedBillModal isOpen={modalState.isSplitCompleted} order={orderForModal as CompletedOrder | null} onClose={handleModalClose} onConfirmSplit={() => {}} />
+            <ItemCustomizationModal isOpen={modalState.isCustomization} onClose={handleModalClose} item={itemToCustomize} onConfirm={handleConfirmCustomization} orderItemToEdit={orderItemToEdit} />
+            <LeaveRequestModal isOpen={modalState.isLeaveRequest} onClose={handleModalClose} currentUser={currentUser} onSave={(req) => {const newId = Math.max(0, ...leaveRequests.map(r => r.id)) + 1; setLeaveRequests(prev => [...prev, {...req, id: newId, status: 'pending', branchId: selectedBranch!.id}]); handleModalClose(); }} leaveRequests={leaveRequests} initialDate={leaveRequestInitialDate} />
+            <MenuSearchModal isOpen={modalState.isMenuSearch} onClose={handleModalClose} menuItems={menuItems} onSelectItem={handleAddItemToOrder} onToggleAvailability={handleToggleAvailability} />
+            <MergeBillModal isOpen={modalState.isMergeBill} onClose={handleModalClose} order={orderForModal as ActiveOrder} allActiveOrders={activeOrders} tables={tables} onConfirmMerge={handleConfirmMerge} />
         </div>
     );
 };
+
+export default App;

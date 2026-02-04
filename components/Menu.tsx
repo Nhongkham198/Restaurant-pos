@@ -22,9 +22,13 @@ interface MenuProps {
     onImportMenu: (importedItems: MenuItem[], newCategories: string[]) => void;
     recommendedMenuItemIds: number[];
     onToggleVisibility?: (id: number) => void;
-    hideCategories?: boolean; // New prop to hide category tabs
-    title?: string; // NEW: Allow custom title
-    searchPlaceholder?: string; // NEW: Allow custom search placeholder
+    hideCategories?: boolean;
+    title?: string;
+    searchPlaceholder?: string;
+    // New Props for Sidebar Toggle
+    onToggleOrderSidebar?: () => void;
+    isOrderSidebarVisible?: boolean;
+    cartItemCount?: number;
 }
 
 export const Menu: React.FC<MenuProps> = ({ 
@@ -42,9 +46,12 @@ export const Menu: React.FC<MenuProps> = ({
     onImportMenu,
     recommendedMenuItemIds,
     onToggleVisibility,
-    hideCategories = false, // Default to false
-    title = 'เมนูอาหาร', // Default title
-    searchPlaceholder = 'ค้นหาเมนู...' // Default placeholder
+    hideCategories = false,
+    title = 'เมนูอาหาร',
+    searchPlaceholder = 'ค้นหาเมนู...',
+    onToggleOrderSidebar,
+    isOrderSidebarVisible,
+    cartItemCount = 0
 }) => {
     const [selectedCategory, setSelectedCategory] = useState('ทั้งหมด');
     const [searchTerm, setSearchTerm] = useState('');
@@ -71,20 +78,14 @@ export const Menu: React.FC<MenuProps> = ({
         }).filter((catName): catName is string => typeof catName === 'string');
     }, [categories]);
 
-    // FIX: Sync selectedCategory when categories prop changes (e.g. language switch)
     useEffect(() => {
-        // Safety check to ensure categories are loaded before forcing a switch
         if (normalizedCategories.length === 0) return;
-
-        // If the currently selected category is not in the new list...
         if (!normalizedCategories.includes(selectedCategory)) {
-            // Check if it's the "All" category switching languages
             if (selectedCategory === 'ทั้งหมด' && normalizedCategories.includes('All')) {
                 setSelectedCategory('All');
             } else if (selectedCategory === 'All' && normalizedCategories.includes('ทั้งหมด')) {
                 setSelectedCategory('ทั้งหมด');
             } else {
-                // Otherwise, reset to the first category if available
                 if (normalizedCategories.length > 0) {
                     setSelectedCategory(normalizedCategories[0]);
                 }
@@ -100,7 +101,6 @@ export const Menu: React.FC<MenuProps> = ({
         const dragItemId = dragItem.current;
         const dragOverItemId = dragOverItem.current;
 
-        // Perform the sort on the original menuItems array
         const _menuItems = [...menuItems];
 
         const dragItemIndex = _menuItems.findIndex(item => item.id === dragItemId);
@@ -162,14 +162,10 @@ export const Menu: React.FC<MenuProps> = ({
             el.scrollBy({ left: scrollAmount, behavior: 'smooth' });
         }
     };
-    // --- End Category Scroller Logic ---
-
 
     const filteredItems = useMemo(() => {
-        // If categories are hidden, force "All" behavior (show everything) unless searching
         if (hideCategories) {
              if (searchTerm.trim()) {
-                // Improved Search: Split terms by whitespace and check if all terms exist in name
                 const searchParts = searchTerm.toLowerCase().trim().split(/\s+/);
                 return menuItems.filter(item => 
                     searchParts.every(part => item.name.toLowerCase().includes(part))
@@ -178,9 +174,6 @@ export const Menu: React.FC<MenuProps> = ({
             return menuItems;
         }
 
-        // Determine the "effective" category to use for filtering.
-        // If the state `selectedCategory` is not present in the current `normalizedCategories` list (e.g. during language switch),
-        // we fallback to the first category (usually "All" or "ทั้งหมด") to prevent an empty list.
         const isSelectedValid = normalizedCategories.includes(selectedCategory);
         let effectiveCategory = selectedCategory;
         
@@ -194,17 +187,13 @@ export const Menu: React.FC<MenuProps> = ({
              }
         }
 
-        // If there's a search term, filter all items regardless of category.
         if (searchTerm.trim()) {
-            // Improved Search: Split terms by whitespace and check if all terms exist in name
             const searchParts = searchTerm.toLowerCase().trim().split(/\s+/);
             return menuItems.filter(item => 
                 searchParts.every(part => item.name.toLowerCase().includes(part))
             );
         }
 
-        // If no search term, filter by the effective category.
-        // Support both Thai 'ทั้งหมด' and English 'All' for the "Show All" logic
         if (effectiveCategory === 'ทั้งหมด' || effectiveCategory === 'All') {
             return menuItems;
         }
@@ -447,7 +436,7 @@ export const Menu: React.FC<MenuProps> = ({
                 Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถอ่านไฟล์ Excel ได้ กรุณาตรวจสอบรูปแบบไฟล์', 'error');
             } finally {
                 if (fileInputRef.current) {
-                    fileInputRef.current.value = ''; // Reset file input to allow re-upload of the same file
+                    fileInputRef.current.value = '';
                 }
             }
         };
@@ -459,7 +448,6 @@ export const Menu: React.FC<MenuProps> = ({
         setMenuItems(updated);
     };
 
-    // --- Virtual Keyboard Handlers ---
     const handleVirtualKeyPress = (key: string) => {
         setSearchTerm(prev => prev + key);
     };
@@ -472,7 +460,6 @@ export const Menu: React.FC<MenuProps> = ({
         setSearchTerm('');
     };
 
-    // Determine the "effective" category to highlight in the UI.
     const isSelectedValid = normalizedCategories.includes(selectedCategory);
     let effectiveCategoryForUI = selectedCategory;
     
@@ -498,34 +485,33 @@ export const Menu: React.FC<MenuProps> = ({
             {/* Header and Search */}
             <div className="mb-4 flex-shrink-0">
                 <h2 className="text-2xl font-bold text-gray-800">{title}</h2>
-                {/* MODIFIED: Changed layout to flex-col on mobile, flex-row on desktop */}
                 <div className="mt-2 flex flex-col md:flex-row items-stretch md:items-center gap-4">
-                    <div className={`relative ${hideCategories ? 'w-full' : 'w-full md:w-auto'}`}>
-                         <span className="absolute inset-y-0 left-0 flex items-center pl-3">
-                            <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                            </svg>
-                        </span>
-                        {/* Search input with padding right for keyboard button */}
-                        <input
-                            type="text"
-                            placeholder={searchPlaceholder}
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            className={`w-full ${hideCategories ? '' : 'md:w-64'} pl-10 pr-12 py-2 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50 text-gray-900`}
-                        />
-                        {/* Keyboard Toggle Button (Modified: Visible on all screens) */}
-                        <button 
-                            className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-blue-600 transition-colors"
-                            onClick={() => setIsKeyboardOpen(!isKeyboardOpen)}
-                            title={isKeyboardOpen ? "ปิดแป้นพิมพ์" : "เปิดแป้นพิมพ์ไทย"}
-                        >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                            </svg>
-                        </button>
+                    <div className={`relative ${hideCategories ? 'w-full' : 'w-full md:w-auto'} flex gap-2`}>
+                         <div className="relative flex-1">
+                            <span className="absolute inset-y-0 left-0 flex items-center pl-3">
+                                <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                </svg>
+                            </span>
+                            <input
+                                type="text"
+                                placeholder={searchPlaceholder}
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className={`w-full ${hideCategories ? '' : 'md:w-64'} pl-10 pr-12 py-2 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50 text-gray-900`}
+                            />
+                            <button 
+                                className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-blue-600 transition-colors"
+                                onClick={() => setIsKeyboardOpen(!isKeyboardOpen)}
+                                title={isKeyboardOpen ? "ปิดแป้นพิมพ์" : "เปิดแป้นพิมพ์ไทย"}
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                </svg>
+                            </button>
+                         </div>
                     </div>
-                    {/* Category Filters - Hide if hideCategories is true */}
+                    
                     {!hideCategories && (
                         <div className="flex-1 overflow-hidden relative w-full">
                             {showLeftArrow && (
@@ -639,10 +625,37 @@ export const Menu: React.FC<MenuProps> = ({
                         onDragEnd={handleDragSort}
                         isRecommended={recommendedMenuItemIds.includes(item.id)}
                         onToggleAvailability={() => handleToggleAvailability(item.id)}
-                        onToggleVisibility={() => onToggleVisibility && onToggleVisibility(item.id)} // Pass handler
+                        onToggleVisibility={() => onToggleVisibility && onToggleVisibility(item.id)}
                     />
                 ))}
             </div>
+
+            {/* SIDEBAR TOGGLE BUTTON - MOVED & STYLED AS REQUESTED */}
+            {onToggleOrderSidebar && (
+                <button
+                    onClick={onToggleOrderSidebar}
+                    className={`absolute right-0 top-1/4 z-20 
+                                bg-blue-600 border-l-2 border-t-2 border-b-2 border-white shadow-xl 
+                                p-0 rounded-l-xl text-white hover:bg-blue-700 transition-all 
+                                flex items-center justify-center h-24 w-10
+                                focus:outline-none`}
+                    title={isOrderSidebarVisible ? "ซ่อนรายการ" : "แสดงรายการ"}
+                >
+                    <div className="relative flex items-center justify-center w-full h-full">
+                        {/* Arrow Icon */}
+                        <svg xmlns="http://www.w3.org/2000/svg" className={`h-8 w-8 transition-transform ${isOrderSidebarVisible ? '' : 'rotate-180'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                        </svg>
+                        
+                        {/* Badge: Top Left, Bigger */}
+                        {cartItemCount > 0 && (
+                            <span className="absolute -top-4 -left-4 flex h-10 w-10 items-center justify-center rounded-full bg-red-600 text-lg font-bold text-white shadow-lg border-2 border-white animate-bounce z-30">
+                                {cartItemCount > 99 ? '99+' : cartItemCount}
+                            </span>
+                        )}
+                    </div>
+                </button>
+            )}
 
             {/* Virtual Keyboard Overlay */}
             {isKeyboardOpen && (
