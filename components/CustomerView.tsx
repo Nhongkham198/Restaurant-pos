@@ -147,16 +147,21 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     });
 
     // --- NEW: Loading Screen State ---
-    const [isLoadingScreen, setIsLoadingScreen] = useState(true);
+    // Update logic: Check sessionStorage to skip loading on refresh
+    const [isLoadingScreen, setIsLoadingScreen] = useState(() => {
+        // If session is completed, no loading needed
+        if (sessionStorage.getItem(`customer_completed_${table.id}`) === 'true') return false;
+        // If flag 'has_seen_loading' exists for this table, skip loading
+        if (sessionStorage.getItem(`has_seen_loading_${table.id}`)) return false;
+        // Otherwise show loading
+        return true;
+    });
     const [loadingProgress, setLoadingProgress] = useState(0);
 
-    // --- NEW: Loading Logic (Updated for 12 Seconds) ---
+    // --- NEW: Loading Logic (Updated for 12 Seconds & No Repeat on Refresh) ---
     useEffect(() => {
-        // If session is already marked as completed, skip loading
-        if (isSessionCompleted) {
-            setIsLoadingScreen(false);
-            return;
-        }
+        // If not showing loading screen, do nothing
+        if (!isLoadingScreen) return;
 
         // Logic: 100% / 12 seconds = 8.33% per second
         // Or simpler: Update every 120ms, increment by 1%. 
@@ -175,11 +180,13 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
             // Small delay to let user see 100% before hiding
             setTimeout(() => {
                 setIsLoadingScreen(false);
+                // Mark as seen in session storage
+                sessionStorage.setItem(`has_seen_loading_${table.id}`, 'true');
             }, 500); 
         }
 
         return () => clearInterval(interval);
-    }, [isSessionCompleted, loadingProgress]);
+    }, [isLoadingScreen, loadingProgress, table.id]);
 
     // ... (Keep cart and order state hooks)
     const cartKey = `customer_cart_${table.id}`;
@@ -916,7 +923,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                         </div>
                         <div className="p-3 bg-white border-t flex flex-col gap-2">
                             <button onClick={handleSaveBillAsImage} disabled={myItems.length === 0} className="w-full bg-green-600 text-white font-bold py-3 rounded-xl shadow-lg hover:bg-green-700 transition-colors text-base flex items-center justify-center gap-2 disabled:bg-gray-400">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 9.293a1 1 0 011.414 0L10 11.586l2.293-2.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" /><path fillRule="evenodd" d="M10 3a1 1 0 011 1v5.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 011.414-1.414L9 9.586V4a1 1 0 011-1z" clipRule="evenodd" /></svg>
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 9.293a1 1 0 011.414 0L10 11.586l2.293-2.293a1 1 0 011.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" /><path fillRule="evenodd" d="M10 3a1 1 0 011 1v5.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 011.414-1.414L9 9.586V4a1 1 0 011-1z" clipRule="evenodd" /></svg>
                                 {t('บันทึกรายการของฉัน')}
                             </button>
                             <button onClick={() => setIsActiveOrderListOpen(false)} className="w-full py-2 text-gray-700 font-semibold rounded-lg hover:bg-gray-100">{t('ปิด')}</button>
