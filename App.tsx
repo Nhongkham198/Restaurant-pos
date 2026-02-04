@@ -848,4 +848,4 @@ export const App: React.FC = () => {
 
     if (!selectedBranch) return <div>Error: No branch selected. Please log out and try again.</div>
 
-    // ... (Remainder of file remains unchanged)
+}    // ... (Remainder of file remains unchanged)}
