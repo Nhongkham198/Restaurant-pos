@@ -8,7 +8,7 @@ import Swal from 'sweetalert2';
 
 declare var html2canvas: any;
 
-// ... (KEEP DICTIONARY CONSTANTS AS IS)
+// ... (KEEP DICTIONARY CONSTANTS AS IS - NO CHANGE)
 // ... existing code ...
 const RAW_DICTIONARY: Record<string, string> = {
     // UI Elements
@@ -150,7 +150,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     const [isLoadingScreen, setIsLoadingScreen] = useState(true);
     const [loadingProgress, setLoadingProgress] = useState(0);
 
-    // --- NEW: Loading Logic ---
+    // --- NEW: Loading Logic (Updated for 12 Seconds) ---
     useEffect(() => {
         // If session is already marked as completed, skip loading
         if (isSessionCompleted) {
@@ -158,23 +158,24 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
             return;
         }
 
+        // Logic: 100% / 12 seconds = 8.33% per second
+        // Or simpler: Update every 120ms, increment by 1%. 
+        // 100 steps * 120ms = 12,000ms = 12 seconds.
         const interval = setInterval(() => {
             setLoadingProgress((prev) => {
-                // Simulate loading progress
-                const next = prev + Math.floor(Math.random() * 8) + 2; 
-                if (next >= 100) {
+                if (prev >= 100) {
                     clearInterval(interval);
                     return 100;
                 }
-                return next;
+                return prev + 1; // Increment exactly 1% per tick
             });
-        }, 50); // Speed of loading
+        }, 120); // 120ms * 100 steps = 12 seconds
 
         if (loadingProgress === 100) {
             // Small delay to let user see 100% before hiding
             setTimeout(() => {
                 setIsLoadingScreen(false);
-            }, 800); // Slight delay for smoother transition
+            }, 500); 
         }
 
         return () => clearInterval(interval);
