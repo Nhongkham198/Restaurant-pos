@@ -8,7 +8,8 @@ import Swal from 'sweetalert2';
 
 declare var html2canvas: any;
 
-// ... existing raw dictionary and normalized dictionary logic ...
+// ... (KEEP DICTIONARY CONSTANTS AS IS)
+// ... existing code ...
 const RAW_DICTIONARY: Record<string, string> = {
     // UI Elements
     'เมนูอาหาร 🍽️': 'Menu 🍽️',
@@ -98,7 +99,9 @@ const RAW_DICTIONARY: Record<string, string> = {
     'เมนูทานเล่น': 'Snacks'
 };
 
+// ... (KEEP NORMALIZED_DICTIONARY AS IS)
 const NORMALIZED_DICTIONARY = Object.keys(RAW_DICTIONARY).reduce((acc, key) => {
+    // Remove all whitespace from the key
     const normalizedKey = key.replace(/\s+/g, '');
     acc[normalizedKey] = RAW_DICTIONARY[key];
     return acc;
@@ -116,7 +119,7 @@ interface CustomerViewProps {
     recommendedMenuItemIds: number[];
     logoUrl: string | null;
     restaurantName: string;
-    onLogout?: () => void;
+    onLogout?: () => void; // Added onLogout prop
 }
 
 export const CustomerView: React.FC<CustomerViewProps> = ({
@@ -133,6 +136,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     restaurantName,
     onLogout
 }) => {
+    // ... (Keep existing state hooks)
     const [lang, setLang] = useState<'TH' | 'EN'>('TH');
 
     const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -142,6 +146,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         return sessionStorage.getItem(`customer_completed_${table.id}`) === 'true';
     });
 
+    // ... (Keep cart and order state hooks)
     const cartKey = `customer_cart_${table.id}`;
     const [cartItems, setCartItems] = useState<OrderItem[]>(() => {
         const savedCart = localStorage.getItem(cartKey);
@@ -164,16 +169,24 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         }
     });
 
+    // ... (Keep translation helper)
     const t = useCallback((text: string) => {
         if (lang === 'TH') return text;
         if (!text || typeof text !== 'string') return text;
+        
+        // 1. Try exact match first (optimization)
         if (RAW_DICTIONARY[text]) return RAW_DICTIONARY[text];
+
+        // 2. Try trimmed match
         const trimmed = text.trim();
         if (RAW_DICTIONARY[trimmed]) return RAW_DICTIONARY[trimmed];
+
+        // 3. Try space-insensitive match (remove all spaces)
         const normalized = text.replace(/\s+/g, '');
         return NORMALIZED_DICTIONARY[normalized] || text;
     }, [lang]);
 
+    // ... (Keep memoized localized data)
     const localizedCategories = useMemo(() => {
         return categories.map(c => t(c));
     }, [categories, t]);
@@ -182,7 +195,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         return menuItems.map(item => ({
             ...item,
             name: lang === 'EN' ? (item.nameEn || item.name) : item.name,
-            category: t(item.category),
+            category: t(item.category), // Translate item category to match category list
             optionGroups: item.optionGroups?.map(group => ({
                 ...group,
                 name: lang === 'EN' ? (group.nameEn || group.name) : group.name,
@@ -194,6 +207,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         }));
     }, [menuItems, lang, t]);
 
+    // ... (Keep effects for persistence)
     useEffect(() => {
         localStorage.setItem(cartKey, JSON.stringify(cartItems));
     }, [cartItems, cartKey]);
@@ -202,6 +216,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         localStorage.setItem(myOrdersKey, JSON.stringify(myOrderNumbers));
     }, [myOrderNumbers, myOrdersKey]);
 
+    // ... (Keep UI state)
     const [isCartOpen, setIsCartOpen] = useState(false);
     const [isActiveOrderListOpen, setIsActiveOrderListOpen] = useState(false);
     const [itemToCustomize, setItemToCustomize] = useState<MenuItem | null>(null);
@@ -210,10 +225,13 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     const prevMyItemsCountRef = useRef<number>(0);
     const isProcessingPaymentRef = useRef(false);
     
+    // ... (Keep Session Logic)
     useEffect(() => {
         if (isSessionCompleted) return;
+
         const sessionKey = `customer_session_${table.id}`;
         const savedSession = localStorage.getItem(sessionKey);
+        
         if (savedSession) {
             try {
                 const { name } = JSON.parse(savedSession);
@@ -242,36 +260,39 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         setIsSessionCompleted(true);
     };
 
-    // --- ENHANCED: Real-time Table Move Detection ---
+    // --- NEW: Real-time Table Move Detection ---
     useEffect(() => {
+        // Only run if we have active orders and aren't already completed
         if (myOrderNumbers.length === 0 || isSessionCompleted) return;
 
-        // FIX: Ensure we only follow orders from TODAY to avoid ghost redirects 
-        // to old or test table IDs (like 9999) from previous dates.
-        const todayStr = new Date().toDateString();
-
+        // Check if any of "my orders" are currently active at a DIFFERENT table
+        // We use allBranchOrders to scan the entire restaurant state
         const movedOrder = allBranchOrders.find(o =>
-            // 1. Order belongs to this device
+            // 1. Order belongs to this device (by ID) OR merged into this device's order
             (myOrderNumbers.includes(o.orderNumber) || (o.mergedOrderNumbers && o.mergedOrderNumbers.some(n => myOrderNumbers.includes(n)))) &&
-            // 2. Order is active
+            // 2. Order is active (not completed/cancelled)
             o.status !== 'completed' &&
             o.status !== 'cancelled' &&
             // 3. Table ID in database is DIFFERENT from the current page's table ID
             o.tableId !== table.id &&
-            // 4. Ensure it's a valid physical table
-            o.tableId > 0 &&
-            // 5. CRITICAL: Only today's orders
-            new Date(o.orderTime).toDateString() === todayStr
+            // 4. Ensure it's a valid table (not a placeholder like -99 for delivery)
+            o.tableId > 0
         );
 
         if (movedOrder) {
-            const newTableId = movedOrder.tableId;
-            console.log(`[Auto-Follow] Order moved to Table ${newTableId}. Redirecting...`);
+            // Found a move!
+            console.log(`[Auto-Follow] Order moved to Table ${movedOrder.tableId}. Redirecting...`);
 
+            const newTableId = movedOrder.tableId;
+
+            // 1. Construct the new URL
             const currentUrl = new URL(window.location.href);
             currentUrl.searchParams.set('tableId', String(newTableId));
 
-            // Migrate Local Storage Data to keep session consistent
+            // 2. MIGRATE LOCAL STORAGE DATA to the new Table ID
+            // This ensures the customer keeps their session name, cart, and order history
+            
+            // Migrate Session Name
             const oldSessionKey = `customer_session_${table.id}`;
             const newSessionKey = `customer_session_${newTableId}`;
             const sessionData = localStorage.getItem(oldSessionKey);
@@ -279,16 +300,19 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                 localStorage.setItem(newSessionKey, sessionData);
             }
 
+            // Migrate My Orders List
             const oldOrdersKey = `customer_my_orders_${table.id}`;
             const newOrdersKey = `customer_my_orders_${newTableId}`;
             const ordersData = localStorage.getItem(oldOrdersKey);
             if (ordersData) {
+                // Merge if target exists, otherwise set
                 const existing = JSON.parse(localStorage.getItem(newOrdersKey) || '[]');
                 const old = JSON.parse(ordersData);
                 const combined = [...new Set([...existing, ...old])];
                 localStorage.setItem(newOrdersKey, JSON.stringify(combined));
             }
 
+            // Migrate Cart (Optional but good UX)
             const oldCartKey = `customer_cart_${table.id}`;
             const newCartKey = `customer_cart_${newTableId}`;
             const cartData = localStorage.getItem(oldCartKey);
@@ -296,28 +320,35 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                 localStorage.setItem(newCartKey, cartData);
             }
 
+            // 3. Force Redirect to the new URL (Reloads page with new context)
             window.location.replace(currentUrl.toString());
         }
     }, [allBranchOrders, myOrderNumbers, table.id, isSessionCompleted]);
+    // -------------------------------------------
 
-    // ... Remainder of the component remains exactly as is ...
-    // (Identifying Items, Totals, Order Handlers, Render Logic, etc.)
+    // ... (Keep Identify Items Logic)
     const { myItems, otherItems } = useMemo(() => {
         const mine: OrderItem[] = [];
         const others: { item: OrderItem, owner: string }[] = [];
         const myOrderSet = new Set(myOrderNumbers);
         const currentNormName = customerName?.trim().toLowerCase();
+
         const tableOrders = Array.isArray(allBranchOrders) 
             ? allBranchOrders.filter(o => String(o.tableId) === String(table.id) && o.status !== 'cancelled' && o.status !== 'completed')
             : [];
+
         tableOrders.forEach(order => {
             const orderName = order.customerName || t('ไม่ระบุชื่อ');
             const orderNormName = order.customerName?.trim().toLowerCase();
             const isMyOrderByName = isAuthenticated && currentNormName && orderNormName === currentNormName;
+
             order.items.forEach(item => {
                 const originId = item.originalOrderNumber ?? order.orderNumber;
                 const isMyItemById = myOrderSet.has(originId);
+
+                // Find original item to get Name EN if needed
                 const originalItem = menuItems.find(m => m.id === item.id);
+                
                 const displayItem = {
                     ...item,
                     name: lang === 'EN' ? (originalItem?.nameEn || item.name) : item.name,
@@ -326,6 +357,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                         name: lang === 'EN' ? (opt.nameEn || opt.name) : opt.name
                     }))
                 };
+
                 if (isMyItemById || isMyOrderByName) {
                     mine.push(displayItem);
                 } else {
@@ -333,12 +365,17 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                 }
             });
         });
+
         return { myItems: mine, otherItems: others };
     }, [allBranchOrders, myOrderNumbers, isAuthenticated, customerName, table.id, lang, menuItems, t]);
 
-    const myTotal = useMemo(() => myItems.reduce((sum, item) => sum + (item.finalPrice * item.quantity), 0), [myItems]);
+    const myTotal = useMemo(() => {
+        return myItems.reduce((sum, item) => sum + (item.finalPrice * item.quantity), 0);
+    }, [myItems]);
+
     const grandTotal = myTotal + otherItems.reduce((sum, { item }) => sum + (item.finalPrice * item.quantity), 0);
 
+    // ... (Keep update myOrderNumbers effect)
     useEffect(() => {
         if (!isAuthenticated || !customerName) return;
         try {
@@ -358,23 +395,34 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         }
     }, [activeOrders, customerName, isAuthenticated, myOrderNumbers]);
 
+
+    // ... (Keep Payment Detect Effect - No changes)
     useEffect(() => {
         if (!isAuthenticated || isSessionCompleted) return;
+    
         const currentCount = myItems.length;
         const prevCount = prevMyItemsCountRef.current;
         const isTransitioning = prevCount > 0 && currentCount === 0;
+        
         if (isTransitioning || (isProcessingPaymentRef.current && currentCount === 0)) {
             isProcessingPaymentRef.current = true;
+    
             const myJustCompletedOrders = completedOrders.filter(o =>
-                myOrderNumbers.some(myNum => o.orderNumber === myNum || (o.mergedOrderNumbers && o.mergedOrderNumbers.includes(myNum)))
+                myOrderNumbers.some(myNum =>
+                    o.orderNumber === myNum || (o.mergedOrderNumbers && o.mergedOrderNumbers.includes(myNum))
+                )
             );
+    
             if (myJustCompletedOrders.length === 0) return; 
+
             const latestCompletedOrder = myJustCompletedOrders.sort((a, b) => b.completionTime - a.completionTime)[0];
             const processedKey = `processed_complete_${latestCompletedOrder.id}`;
             if (sessionStorage.getItem(processedKey)) return;
             sessionStorage.setItem(processedKey, 'true');
+    
             const subtotal = latestCompletedOrder.items.reduce((sum, item) => sum + item.finalPrice * item.quantity, 0);
             const total = subtotal + latestCompletedOrder.taxAmount;
+    
             const billHtml = `
                 <div id="customer-final-bill" class="text-left p-4 bg-white font-sans text-black">
                     ${logoUrl ? `<img src="${logoUrl}" alt="Logo" class="mx-auto h-20 w-auto object-contain mb-4" crossOrigin="anonymous" />` : ''}
@@ -398,7 +446,12 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                             <span>ยอดรวม</span>
                             <span>${subtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })} ฿</span>
                         </div>
-                        ${latestCompletedOrder.taxAmount > 0 ? `<div class="flex justify-between"><span>ภาษี (${latestCompletedOrder.taxRate}%)</span><span>${latestCompletedOrder.taxAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} ฿</span></div>` : ''}
+                        ${latestCompletedOrder.taxAmount > 0 ? `
+                        <div class="flex justify-between">
+                            <span>ภาษี (${latestCompletedOrder.taxRate}%)</span>
+                            <span>${latestCompletedOrder.taxAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} ฿</span>
+                        </div>
+                        ` : ''}
                         <div class="flex justify-between font-bold text-base mt-2 pt-2 border-t border-gray-400">
                             <span>ยอดสุทธิ</span>
                             <span>${total.toLocaleString(undefined, { minimumFractionDigits: 2 })} ฿</span>
@@ -407,6 +460,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                     <p class="text-center text-sm font-semibold mt-6">ขอบคุณที่มาอุดหนุนร้านเรานะคะ 🙏</p>
                 </div>
             `;
+    
             Swal.fire({
                 title: 'ชำระเงินเรียบร้อย!',
                 html: `<div class="max-h-60 overflow-y-auto border rounded-lg">${billHtml}</div><p class="mt-4 text-sm text-red-500 font-bold">ระบบจะปิดอัตโนมัติใน 15 วินาที...</p>`,
@@ -414,6 +468,8 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                 showDenyButton: true,
                 confirmButtonText: 'บันทึกบิล & ออก',
                 denyButtonText: 'ไม่บันทึก & ออก',
+                confirmButtonColor: '#3085d6',
+                denyButtonColor: '#aaa',
                 allowOutsideClick: false,
                 timer: 15000, 
                 timerProgressBar: true,
@@ -440,15 +496,22 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                 }
                 handlePaymentCompleteLock();
             });
+            
             isProcessingPaymentRef.current = false;
             prevMyItemsCountRef.current = 0;
             return;
         }
+    
         isProcessingPaymentRef.current = false;
         prevMyItemsCountRef.current = currentCount;
+
     }, [myItems.length, isAuthenticated, completedOrders, myOrderNumbers, logoUrl, restaurantName, customerName, isSessionCompleted, t]);
     
-    const handleSelectItem = (item: MenuItem) => setItemToCustomize(item);
+
+    // ... (Keep handleSelectItem and other handlers)
+    const handleSelectItem = (item: MenuItem) => {
+        setItemToCustomize(item);
+    };
 
     const handleConfirmCustomization = (itemToAdd: OrderItem) => {
         setCartItems(prev => {
@@ -462,10 +525,13 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: t('เพิ่มลงตะกร้าแล้ว'), showConfirmButton: false, timer: 1500 });
     };
 
-    const handleRemoveItem = (cartItemId: string) => setCartItems(prev => prev.filter(i => i.cartItemId !== cartItemId));
+    const handleRemoveItem = (cartItemId: string) => {
+        setCartItems(prev => prev.filter(i => i.cartItemId !== cartItemId));
+    };
 
     const handleSubmitOrder = async () => {
         if (cartItems.length === 0) return;
+
         const result = await Swal.fire({
             title: t('ยืนยันการสั่งอาหาร?'),
             text: `${t('สั่งอาหาร')} ${cartItems.reduce((sum, i) => sum + i.quantity, 0)} ${t('รายการ')}`,
@@ -475,9 +541,12 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
             cancelButtonText: t('ตรวจสอบก่อน'),
             confirmButtonColor: '#10B981'
         });
+
         if (result.isConfirmed) {
             Swal.fire({ title: t('กำลังส่งรายการ...'), allowOutsideClick: false, didOpen: () => { Swal.showLoading(); } });
+
             try {
+                // Revert names to Thai for backend
                 const itemsToSend = cartItems.map(cartItem => {
                     const originalItem = menuItems.find(m => m.id === cartItem.id);
                     return {
@@ -491,10 +560,13 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                         })
                     };
                 });
+
                 await onPlaceOrder(itemsToSend, customerName, 1); 
                 setCartItems([]);
                 setIsCartOpen(false);
+
                 await Swal.fire({ icon: 'success', title: t('สั่งอาหารสำเร็จ!'), text: t('รายการอาหารถูกส่งเข้าครัวแล้ว'), timer: 2500, showConfirmButton: false });
+
             } catch (error) {
                 Swal.fire({ icon: 'error', title: t('เกิดข้อผิดพลาด'), text: t('ไม่สามารถสั่งอาหารได้ กรุณาลองใหม่อีกครั้ง') });
             }
@@ -535,7 +607,9 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                 confirmButtonText: t('ใช่'),
                 cancelButtonText: t('ยกเลิก')
             }).then((result) => {
-                if (result.isConfirmed) onLogout();
+                if (result.isConfirmed) {
+                    onLogout();
+                }
             });
         }
     };
@@ -543,13 +617,17 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     const cartTotalAmount = useMemo(() => cartItems.reduce((sum, i) => sum + (i.finalPrice * i.quantity), 0), [cartItems]);
     const totalCartItemsCount = useMemo(() => cartItems.reduce((sum, i) => sum + i.quantity, 0), [cartItems]);
 
+    // ... (Keep Order Status Logic)
     const orderStatus = useMemo(() => {
         try {
             if (myItems.length === 0) return null;
             if (!Array.isArray(allBranchOrders)) return null;
+
             const myTableOrders = allBranchOrders.filter(o => String(o.tableId) === String(table.id));
             if (myTableOrders.length === 0) return { text: t('รอคิว'), color: 'bg-blue-600 text-white border-blue-700' };
+
             if (myTableOrders.some(o => o.status === 'cooking')) return { text: t('กำลังปรุง... 🍳'), color: 'bg-orange-500 text-white border-orange-600' };
+
             const waitingOrders = myTableOrders.filter(o => o.status === 'waiting');
             if (waitingOrders.length > 0) {
                 const myEarliestOrderTime = Math.min(...waitingOrders.map(o => o.orderTime));
@@ -557,16 +635,20 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                 if (queueCount === 0) return { text: `${t('รอคิว')} (${t('คิวที่ 1')} ☝️)`, color: 'bg-blue-600 text-white border-blue-700' };
                 return { text: `${t('รอคิว...')} (${t('อีก')} ${queueCount} ${t('คิว')}) ⏳`, color: 'bg-blue-600 text-white border-blue-700' };
             }
+
             if (myTableOrders.every(o => o.status === 'served')) return { text: t('เสิร์ฟครบแล้ว 😋'), color: 'bg-green-500 text-white border-green-600' };
+
             return { text: t('รอคิว'), color: 'bg-blue-600 text-white border-blue-700' };
         } catch (e) {
             return myItems.length > 0 ? { text: t('รอคิว'), color: 'bg-blue-600 text-white border-blue-700' } : null;
         }
-    }, [allBranchOrders, table.id, myItems.length, t]);
+    }, [allBranchOrders, isAuthenticated, table.id, myItems.length, t]);
 
+    
     if (isSessionCompleted) {
         return (
             <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6 text-center animate-fade-in">
+                {/* ... (Keep session completed view) */}
                  <div className="bg-white p-10 rounded-2xl shadow-xl w-full max-w-sm border-t-8 border-green-500">
                     <div className="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
@@ -579,54 +661,244 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                     </div>
                     <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 text-blue-800 text-sm">
                         <p className="font-semibold mb-1">ต้องการสั่งอาหารเพิ่ม?</p>
-                        <p className="opacity-80">กรุณาสแกน QR Code ที่โต๊ะใหมีกครั้ง</p>
+                        <p className="opacity-80">กรุณาสแกน QR Code ที่โต๊ะใหม่อีกครั้ง</p>
                     </div>
                 </div>
             </div>
         );
     }
 
-    if (!isAuthenticated) return <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div><p className="mt-4 text-gray-600">กำลังเข้าสู่ระบบ...</p></div>;
+    if (!isAuthenticated) {
+        return (
+            <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+                <p className="mt-4 text-gray-600">กำลังเข้าสู่ระบบ...</p>
+            </div>
+        );
+    }
 
+    // --- MAIN RENDER ---
     return (
         <div className="h-screen flex flex-col bg-gray-50 overflow-hidden">
             <header className="bg-white shadow-md z-30 relative">
                 <div className="flex justify-between items-center px-4 py-2 border-b border-gray-100 bg-gray-50/50">
-                    <h1 className="font-bold text-gray-800 text-lg flex items-center gap-2">{t('เมนูอาหาร 🍽️')}</h1>
+                    <h1 className="font-bold text-gray-800 text-lg flex items-center gap-2">
+                        {t('เมนูอาหาร 🍽️')}
+                    </h1>
                     <div className="flex items-center gap-3">
                          <div className="flex bg-gray-200 rounded-lg p-1">
                             <button onClick={() => setLang('TH')} className={`px-3 py-1 rounded-md text-sm font-bold transition-all ${lang === 'TH' ? 'bg-white shadow text-blue-600' : 'text-gray-500'}`}>🇹🇭 TH</button>
                             <button onClick={() => setLang('EN')} className={`px-3 py-1 rounded-md text-sm font-bold transition-all ${lang === 'EN' ? 'bg-white shadow text-blue-600' : 'text-gray-500'}`}>🇬🇧 EN</button>
                         </div>
-                        {onLogout && <button onClick={handleLogoutClick} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-200" title={t('ออกจากระบบ')}><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg></button>}
+                        {onLogout && (
+                            <button 
+                                onClick={handleLogoutClick}
+                                className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-200"
+                                title={t('ออกจากระบบ')}
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                                </svg>
+                            </button>
+                        )}
                     </div>
                 </div>
+
                 <div className="px-4 py-3 flex justify-between items-start">
+                    {/* ... (Keep existing header content) ... */}
                     <div className="flex-1">
                         <div className="flex flex-wrap items-center gap-2 mb-1">
-                            <span className="text-sm font-medium text-gray-600 bg-gray-100 px-3 py-1 rounded-full border border-gray-200 whitespace-nowrap">{t('โต๊ะ')} <span className="text-gray-900 font-bold">{table.name} ({table.floor})</span></span>
-                            {orderStatus && <span className={`text-xs font-bold px-3 py-1 rounded-full border shadow-sm ${orderStatus.color} whitespace-nowrap flex items-center gap-1 z-10`}>{orderStatus.text}</span>}
+                            <span className="text-sm font-medium text-gray-600 bg-gray-100 px-3 py-1 rounded-full border border-gray-200 whitespace-nowrap">
+                                {t('โต๊ะ')} <span className="text-gray-900 font-bold">{table.name} ({table.floor})</span>
+                            </span>
+                            {orderStatus && (
+                                <span className={`text-xs font-bold px-3 py-1 rounded-full border shadow-sm ${orderStatus.color} whitespace-nowrap flex items-center gap-1 z-10`}>
+                                    {orderStatus.text}
+                                </span>
+                            )}
                         </div>
                         <p className="text-xs text-gray-400 pl-1">{t('คุณ')}{customerName}</p>
                     </div>
+
                     <div className="flex items-start gap-2 flex-shrink-0">
-                        <button onClick={handleCallStaffClick} className="flex flex-col items-center justify-center p-2 bg-yellow-50 text-yellow-700 border border-yellow-200 rounded-lg shadow-sm hover:bg-yellow-100 transition-colors" title={t('เรียกพนักงาน')}><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z" /></svg><span className="text-[10px] font-bold mt-0.5">{t('เรียก')}</span></button>
+                        <button onClick={handleCallStaffClick} className="flex flex-col items-center justify-center p-2 bg-yellow-50 text-yellow-700 border border-yellow-200 rounded-lg shadow-sm hover:bg-yellow-100 transition-colors" title={t('เรียกพนักงาน')}>
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z" /></svg>
+                            <span className="text-[10px] font-bold mt-0.5">{t('เรียก')}</span>
+                        </button>
                         <div className="flex flex-col items-end gap-1 cursor-pointer hover:opacity-80 transition-opacity group bg-white p-1 rounded" onClick={() => setIsActiveOrderListOpen(true)}>
                             <div className="text-right">
-                                <div className="flex items-center justify-end gap-1 text-gray-400 text-[10px]"><span>{t('ยอดของฉัน')}</span><svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg></div>
-                                <div className="flex items-center gap-1 justify-end"><span className="text-base font-bold text-blue-600 leading-none border-b border-dashed border-blue-300 group-hover:text-blue-700 transition-colors">{myTotal.toLocaleString()} ฿</span><svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg></div>
+                                <div className="flex items-center justify-end gap-1 text-gray-400 text-[10px]">
+                                    <span>{t('ยอดของฉัน')}</span>
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                </div>
+                                <div className="flex items-center gap-1 justify-end">
+                                    <span className="text-base font-bold text-blue-600 leading-none border-b border-dashed border-blue-300 group-hover:text-blue-700 transition-colors">{myTotal.toLocaleString()} ฿</span>
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
             </header>
+            
             <div className="flex-1 overflow-hidden relative">
-                <Menu menuItems={localizedMenuItems} setMenuItems={() => {}} categories={localizedCategories} onSelectItem={handleSelectItem} isEditMode={false} onEditItem={() => {}} onAddNewItem={() => {}} onDeleteItem={() => {}} onUpdateCategory={() => {}} onDeleteCategory={() => {}} onAddCategory={() => {}} onImportMenu={() => {}} recommendedMenuItemIds={recommendedMenuItemIds} hideCategories={true} title={t('เมนูอาหาร')} searchPlaceholder={t('ค้นหาเมนู...')} />
+                <Menu 
+                    menuItems={localizedMenuItems}
+                    setMenuItems={() => {}}
+                    categories={localizedCategories}
+                    onSelectItem={handleSelectItem}
+                    isEditMode={false}
+                    onEditItem={() => {}}
+                    onAddNewItem={() => {}}
+                    onDeleteItem={() => {}}
+                    onUpdateCategory={() => {}}
+                    onDeleteCategory={() => {}}
+                    onAddCategory={() => {}}
+                    onImportMenu={() => {}}
+                    recommendedMenuItemIds={recommendedMenuItemIds}
+                    hideCategories={true}
+                    title={t('เมนูอาหาร')} // NEW: Pass localized title
+                    searchPlaceholder={t('ค้นหาเมนู...')} // NEW: Pass localized placeholder
+                />
             </div>
-            {totalCartItemsCount > 0 && <div className="absolute bottom-6 left-4 right-4 z-20"><button onClick={() => setIsCartOpen(true)} className="w-full bg-blue-600 text-white shadow-xl rounded-xl p-4 flex justify-between items-center animate-bounce-in"><div className="flex items-center gap-3"><span className="bg-white text-blue-600 font-bold w-8 h-8 rounded-full flex items-center justify-center">{totalCartItemsCount}</span><div className="text-left leading-tight"><span className="font-bold text-lg block">{t('ดูตะกร้า')}</span><span className="text-xs font-light text-blue-100">{t('ยังไม่รวมกับยอดบิล')}</span></div></div><span className="font-bold text-lg">{cartTotalAmount.toLocaleString()} ฿</span></button></div>}
-            {isActiveOrderListOpen && <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-end sm:items-center" onClick={() => setIsActiveOrderListOpen(false)}><div className="bg-white w-full sm:max-w-md h-[80vh] sm:h-auto sm:max-h-[90vh] rounded-t-2xl sm:rounded-xl shadow-2xl flex flex-col overflow-hidden animate-slide-up" onClick={e => e.stopPropagation()}><div ref={billContentRef} className="flex-grow overflow-y-auto"><div className="p-4 border-b bg-gray-50 flex flex-col items-center sticky top-0 z-10">{logoUrl && <img src={logoUrl} alt="Logo" className="h-16 w-auto object-contain mb-2" crossOrigin="anonymous" />}<h3 className="font-bold text-gray-800 text-lg">{t('รายการของฉัน')} ({t('คุณ')}{customerName}) 🧾</h3><p className="text-sm text-gray-600">{t('โต๊ะ')} {table.name} ({table.floor})</p></div><div className="p-4 space-y-4">{myItems.length === 0 && otherItems.length === 0 ? <div className="text-center text-gray-400 py-10">{t('ยังไม่มีรายการที่สั่ง')}</div> : <>{myItems.length > 0 && <div className="bg-blue-50/50 p-2 rounded-lg border border-blue-100"><h4 className="font-bold text-blue-800 text-sm mb-2 flex items-center gap-1">{t('รายการของคุณ')} <span className="text-xs font-normal text-blue-600">({customerName})</span> 👤</h4><ul className="space-y-3">{myItems.map((item, idx) => <li key={`mine-${idx}`} className="flex justify-between text-sm text-gray-700 border-b border-blue-100 pb-2 last:border-0"><div><span className="font-medium">{item.quantity}x {item.name}</span>{item.isTakeaway && <span className="text-purple-600 text-xs ml-1">({t('สั่งกลับบ้าน')})</span>}{item.selectedOptions.length > 0 && <div className="text-xs text-gray-500 ml-1">{item.selectedOptions.map(o => o.name).join(', ')}</div>}</div><span className="font-mono text-gray-600 font-bold">{(item.finalPrice * item.quantity).toLocaleString()}</span></li>)}</ul></div>}{otherItems.length > 0 && <div className="bg-gray-50 p-2 rounded-lg border border-gray-200 mt-2"><h4 className="font-bold text-gray-600 text-sm mb-2">{t('รายการของเพื่อนร่วมโต๊ะ')} 👥</h4><ul className="space-y-3">{otherItems.map(({ item, owner }, idx) => <li key={`other-${idx}`} className="flex justify-between text-sm text-gray-700 border-b border-gray-200 pb-2 last:border-0"><div><div className="flex items-center gap-2"><span className="font-medium">{item.quantity}x {item.name}</span><span className="text-[10px] bg-gray-200 px-1.5 rounded text-gray-600">{owner}</span></div>{item.isTakeaway && <span className="text-purple-600 text-xs ml-1">({t('สั่งกลับบ้าน')})</span>}{item.selectedOptions.length > 0 && <div className="text-xs text-gray-500 ml-1">{item.selectedOptions.map(o => o.name).join(', ')}</div>}</div><span className="font-mono text-gray-500">{(item.finalPrice * item.quantity).toLocaleString()}</span></li>)}</ul></div>}</>}</div><div className="p-4 bg-gray-50 border-t sticky bottom-0"><div className="space-y-2"><div className="flex justify-between items-center text-base text-gray-600"><span>{t('ยอดของฉัน')}</span><span className="font-bold text-blue-600">{myTotal.toLocaleString()} ฿</span></div><div className="flex justify-between items-center text-xl font-bold text-gray-800 pt-2 border-t border-gray-200"><span>{t('ยอดรวมทั้งโต๊ะ')}</span><span>{grandTotal.toLocaleString()} ฿</span></div></div><p className="text-xs text-gray-500 text-center mt-2">{t('* ราคานี้เป็นเฉพาะรายการที่คุณสั่ง')}</p></div></div><div className="p-3 bg-white border-t flex flex-col gap-2"><button onClick={handleSaveBillAsImage} disabled={myItems.length === 0} className="w-full bg-green-600 text-white font-bold py-3 rounded-xl shadow-lg hover:bg-green-700 transition-colors text-base flex items-center justify-center gap-2 disabled:bg-gray-400"><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 9.293a1 1 0 011.414 0L10 11.586l2.293-2.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" /><path fillRule="evenodd" d="M10 3a1 1 0 011 1v5.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 011.414-1.414L9 9.586V4a1 1 0 011-1z" clipRule="evenodd" /></svg>{t('บันทึกรายการของฉัน')}</button><button onClick={() => setIsActiveOrderListOpen(false)} className="w-full py-2 text-gray-700 font-semibold rounded-lg hover:bg-gray-100">{t('ปิด')}</button></div></div></div>}
-            {isCartOpen && <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-end sm:justify-center items-end sm:items-center"><div className="bg-white w-full sm:max-w-md h-[90vh] sm:h-[80vh] rounded-t-2xl sm:rounded-2xl shadow-2xl flex flex-col animate-slide-up"><div className="p-4 border-b flex justify-between items-center"><h2 className="text-xl font-bold text-gray-800">{t('รายการในตะกร้า (ยังไม่สั่ง)')}</h2><button onClick={() => setIsCartOpen(false)} className="p-2 bg-gray-100 rounded-full hover:bg-gray-200"><svg className="w-6 h-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button></div><div className="flex-1 overflow-y-auto p-4 space-y-4">{cartItems.map(item => <div key={item.cartItemId} className="flex justify-between items-start border-b pb-4"><div className="flex-1"><p className="font-bold text-gray-800">{item.name}</p><p className="text-sm text-gray-500">{item.selectedOptions.map(o => o.name).join(', ')}</p>{item.notes && <p className="text-sm text-yellow-600">** {item.notes}</p>}<p className="text-blue-600 font-semibold mt-1">{item.finalPrice.toLocaleString()} ฿ x {item.quantity}</p></div><button onClick={() => handleRemoveItem(item.cartItemId)} className="text-red-500 p-2">{t('ลบ')}</button></div>)}{cartItems.length === 0 && <div className="text-center text-gray-400 py-10">{t('ไม่มีสินค้าในตะกร้า')}</div>}</div><div className="p-4 border-t bg-gray-50"><div className="flex justify-between mb-4 text-lg font-bold"><span>{t('ยอดในตะกร้า')}</span><span>{cartTotalAmount.toLocaleString()} ฿</span></div><button onClick={handleSubmitOrder} className="w-full bg-green-600 text-white font-bold py-4 rounded-xl shadow-lg hover:bg-green-700 transition-colors text-lg">{t('ยืนยันสั่งอาหาร 🚀')}</button></div></div></div>}
-            <ItemCustomizationModal isOpen={!!itemToCustomize} onClose={() => setItemToCustomize(null)} item={itemToCustomize} onConfirm={handleConfirmCustomization} />
+
+            {/* Float Cart Button */}
+            {totalCartItemsCount > 0 && (
+                <div className="absolute bottom-6 left-4 right-4 z-20">
+                    <button onClick={() => setIsCartOpen(true)} className="w-full bg-blue-600 text-white shadow-xl rounded-xl p-4 flex justify-between items-center animate-bounce-in">
+                        <div className="flex items-center gap-3">
+                            <span className="bg-white text-blue-600 font-bold w-8 h-8 rounded-full flex items-center justify-center">{totalCartItemsCount}</span>
+                            <div className="text-left leading-tight">
+                                <span className="font-bold text-lg block">{t('ดูตะกร้า')}</span>
+                                <span className="text-xs font-light text-blue-100">{t('ยังไม่รวมกับยอดบิล')}</span>
+                            </div>
+                        </div>
+                        <span className="font-bold text-lg">{cartTotalAmount.toLocaleString()} ฿</span>
+                    </button>
+                </div>
+            )}
+
+            {/* My Orders List Modal */}
+            {isActiveOrderListOpen && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-end sm:items-center" onClick={() => setIsActiveOrderListOpen(false)}>
+                    <div className="bg-white w-full sm:max-w-md h-[80vh] sm:h-auto sm:max-h-[90vh] rounded-t-2xl sm:rounded-xl shadow-2xl flex flex-col overflow-hidden animate-slide-up" onClick={e => e.stopPropagation()}>
+                        <div ref={billContentRef} className="flex-grow overflow-y-auto">
+                            <div className="p-4 border-b bg-gray-50 flex flex-col items-center sticky top-0 z-10">
+                                {logoUrl && <img src={logoUrl} alt="Logo" className="h-16 w-auto object-contain mb-2" crossOrigin="anonymous" />}
+                                <h3 className="font-bold text-gray-800 text-lg">{t('รายการของฉัน')} ({t('คุณ')}{customerName}) 🧾</h3>
+                                <p className="text-sm text-gray-600">{t('โต๊ะ')} {table.name} ({table.floor})</p>
+                            </div>
+                            <div className="p-4 space-y-4">
+                                {myItems.length === 0 && otherItems.length === 0 ? (
+                                    <div className="text-center text-gray-400 py-10">{t('ยังไม่มีรายการที่สั่ง')}</div>
+                                ) : (
+                                    <>
+                                        {myItems.length > 0 && (
+                                            <div className="bg-blue-50/50 p-2 rounded-lg border border-blue-100">
+                                                <h4 className="font-bold text-blue-800 text-sm mb-2 flex items-center gap-1">{t('รายการของคุณ')} <span className="text-xs font-normal text-blue-600">({customerName})</span> 👤</h4>
+                                                <ul className="space-y-3">
+                                                    {myItems.map((item, idx) => (
+                                                        <li key={`mine-${idx}`} className="flex justify-between text-sm text-gray-700 border-b border-blue-100 pb-2 last:border-0">
+                                                            <div>
+                                                                <span className="font-medium">{item.quantity}x {item.name}</span>
+                                                                {item.isTakeaway && <span className="text-purple-600 text-xs ml-1">({t('สั่งกลับบ้าน')})</span>}
+                                                                {item.selectedOptions.length > 0 && <div className="text-xs text-gray-500 ml-1">{item.selectedOptions.map(o => o.name).join(', ')}</div>}
+                                                            </div>
+                                                            <span className="font-mono text-gray-600 font-bold">{(item.finalPrice * item.quantity).toLocaleString()}</span>
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                        )}
+                                        {otherItems.length > 0 && (
+                                            <div className="bg-gray-50 p-2 rounded-lg border border-gray-200 mt-2">
+                                                <h4 className="font-bold text-gray-600 text-sm mb-2">{t('รายการของเพื่อนร่วมโต๊ะ')} 👥</h4>
+                                                <ul className="space-y-3">
+                                                    {otherItems.map(({ item, owner }, idx) => (
+                                                        <li key={`other-${idx}`} className="flex justify-between text-sm text-gray-700 border-b border-gray-200 pb-2 last:border-0">
+                                                            <div>
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="font-medium">{item.quantity}x {item.name}</span>
+                                                                    <span className="text-[10px] bg-gray-200 px-1.5 rounded text-gray-600">{owner}</span>
+                                                                </div>
+                                                                {item.isTakeaway && <span className="text-purple-600 text-xs ml-1">({t('สั่งกลับบ้าน')})</span>}
+                                                                {item.selectedOptions.length > 0 && <div className="text-xs text-gray-500 ml-1">{item.selectedOptions.map(o => o.name).join(', ')}</div>}
+                                                            </div>
+                                                            <span className="font-mono text-gray-500">{(item.finalPrice * item.quantity).toLocaleString()}</span>
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                        )}
+                                    </>
+                                )}
+                            </div>
+                            <div className="p-4 bg-gray-50 border-t sticky bottom-0">
+                                <div className="space-y-2">
+                                    <div className="flex justify-between items-center text-base text-gray-600">
+                                        <span>{t('ยอดของฉัน')}</span>
+                                        <span className="font-bold text-blue-600">{myTotal.toLocaleString()} ฿</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-xl font-bold text-gray-800 pt-2 border-t border-gray-200">
+                                        <span>{t('ยอดรวมทั้งโต๊ะ')}</span>
+                                        <span>{grandTotal.toLocaleString()} ฿</span>
+                                    </div>
+                                </div>
+                                <p className="text-xs text-gray-500 text-center mt-2">{t('* ราคานี้เป็นเฉพาะรายการที่คุณสั่ง')}</p>
+                            </div>
+                        </div>
+                        <div className="p-3 bg-white border-t flex flex-col gap-2">
+                            <button onClick={handleSaveBillAsImage} disabled={myItems.length === 0} className="w-full bg-green-600 text-white font-bold py-3 rounded-xl shadow-lg hover:bg-green-700 transition-colors text-base flex items-center justify-center gap-2 disabled:bg-gray-400">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 9.293a1 1 0 011.414 0L10 11.586l2.293-2.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" /><path fillRule="evenodd" d="M10 3a1 1 0 011 1v5.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 011.414-1.414L9 9.586V4a1 1 0 011-1z" clipRule="evenodd" /></svg>
+                                {t('บันทึกรายการของฉัน')}
+                            </button>
+                            <button onClick={() => setIsActiveOrderListOpen(false)} className="w-full py-2 text-gray-700 font-semibold rounded-lg hover:bg-gray-100">{t('ปิด')}</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Cart Modal */}
+            {isCartOpen && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-end sm:justify-center items-end sm:items-center">
+                    <div className="bg-white w-full sm:max-w-md h-[90vh] sm:h-[80vh] rounded-t-2xl sm:rounded-2xl shadow-2xl flex flex-col animate-slide-up">
+                        <div className="p-4 border-b flex justify-between items-center">
+                            <h2 className="text-xl font-bold text-gray-800">{t('รายการในตะกร้า (ยังไม่สั่ง)')}</h2>
+                            <button onClick={() => setIsCartOpen(false)} className="p-2 bg-gray-100 rounded-full hover:bg-gray-200">
+                                <svg className="w-6 h-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                            </button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                            {cartItems.map(item => (
+                                <div key={item.cartItemId} className="flex justify-between items-start border-b pb-4">
+                                    <div className="flex-1">
+                                        <p className="font-bold text-gray-800">{item.name}</p>
+                                        <p className="text-sm text-gray-500">{item.selectedOptions.map(o => o.name).join(', ')}</p>
+                                        {item.notes && <p className="text-sm text-yellow-600">** {item.notes}</p>}
+                                        <p className="text-blue-600 font-semibold mt-1">{item.finalPrice.toLocaleString()} ฿ x {item.quantity}</p>
+                                    </div>
+                                    <button onClick={() => handleRemoveItem(item.cartItemId)} className="text-red-500 p-2">{t('ลบ')}</button>
+                                </div>
+                            ))}
+                            {cartItems.length === 0 && <div className="text-center text-gray-400 py-10">{t('ไม่มีสินค้าในตะกร้า')}</div>}
+                        </div>
+                        <div className="p-4 border-t bg-gray-50">
+                            <div className="flex justify-between mb-4 text-lg font-bold">
+                                <span>{t('ยอดในตะกร้า')}</span>
+                                <span>{cartTotalAmount.toLocaleString()} ฿</span>
+                            </div>
+                            <button onClick={handleSubmitOrder} className="w-full bg-green-600 text-white font-bold py-4 rounded-xl shadow-lg hover:bg-green-700 transition-colors text-lg">{t('ยืนยันสั่งอาหาร 🚀')}</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            <ItemCustomizationModal 
+                isOpen={!!itemToCustomize} 
+                onClose={() => setItemToCustomize(null)} 
+                item={itemToCustomize} 
+                onConfirm={handleConfirmCustomization} 
+            />
         </div>
     );
 };
