@@ -152,9 +152,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
 
     // --- NEW: Loading Logic ---
     useEffect(() => {
-        // If session is already marked as completed or user already saw the loader in this session, we might skip
-        // But per request, let's show it on load.
-        // Optimization: If session completed (Thank you screen), don't show loader.
+        // If session is already marked as completed, skip loading
         if (isSessionCompleted) {
             setIsLoadingScreen(false);
             return;
@@ -162,7 +160,8 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
 
         const interval = setInterval(() => {
             setLoadingProgress((prev) => {
-                const next = prev + Math.floor(Math.random() * 8) + 2; // Random increment
+                // Simulate loading progress
+                const next = prev + Math.floor(Math.random() * 8) + 2; 
                 if (next >= 100) {
                     clearInterval(interval);
                     return 100;
@@ -175,7 +174,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
             // Small delay to let user see 100% before hiding
             setTimeout(() => {
                 setIsLoadingScreen(false);
-            }, 500);
+            }, 800); // Slight delay for smoother transition
         }
 
         return () => clearInterval(interval);
@@ -679,35 +678,35 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         }
     }, [allBranchOrders, isAuthenticated, table.id, myItems.length, t]);
 
-    // --- Loading Screen Render ---
+    // --- Loading Screen Render (CUTE KOREAN BEAR) ---
     if (isLoadingScreen) {
         return (
-            <div className="fixed inset-0 z-[100] bg-white flex flex-col items-center justify-center animate-fade-in">
-                {/* Cute Cartoon Image */}
-                <div className="mb-8 relative">
-                    {/* Using a placeholder for a cute dancing bear - replace with local asset if needed */}
+            <div className="fixed inset-0 z-[9999] bg-[#fff0f5] flex flex-col items-center justify-center animate-fade-in font-sans"> 
+                {/* Cute Cartoon Image - Milk & Mocha Bear */}
+                <div className="mb-6 relative">
                     <img 
                         src="https://media.tenor.com/On7kvXhzml4AAAAi/loading-bear.gif"
                         alt="Loading..." 
-                        className="w-48 h-48 object-contain"
+                        className="w-48 h-48 object-contain mix-blend-multiply" 
                     />
                 </div>
                 
-                {/* Korean Style Text */}
-                <h2 className="text-xl font-bold text-gray-700 mb-4 font-sans animate-pulse">กำลังเตรียมเมนูอร่อย...</h2>
+                {/* Cute Greeting */}
+                <h2 className="text-2xl font-bold text-pink-500 mb-2 tracking-wide font-sarabun">อันยอง! กำลังเตรียมความอร่อย...</h2>
+                <p className="text-gray-400 text-sm mb-6 font-sarabun">กรุณารอสักครู่ (Please wait)</p>
 
                 {/* Progress Bar Container */}
-                <div className="w-64 h-6 bg-gray-100 rounded-full overflow-hidden border-2 border-pink-100 shadow-inner relative">
+                <div className="w-64 h-5 bg-white rounded-full overflow-hidden border-2 border-pink-200 shadow-inner relative">
                     {/* Animated Progress Fill */}
                     <div 
-                        className="h-full bg-gradient-to-r from-pink-300 to-pink-500 transition-all duration-100 ease-out flex items-center justify-end pr-2 shadow-sm"
+                        className="h-full bg-gradient-to-r from-pink-300 to-pink-500 rounded-full transition-all duration-100 ease-out flex items-center justify-end pr-1"
                         style={{ width: `${loadingProgress}%` }}
                     >
                     </div>
                 </div>
                 
                 {/* Percentage Text */}
-                <p className="mt-2 text-pink-500 font-bold text-lg font-mono">{loadingProgress}%</p>
+                <p className="mt-3 text-pink-400 font-bold text-xl font-mono">{loadingProgress}%</p>
             </div>
         );
     }
