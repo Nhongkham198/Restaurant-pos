@@ -690,21 +690,37 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     if (isLoadingScreen) {
         return (
             <div className="fixed inset-0 z-[9999] bg-[#fff0f5] flex flex-col items-center justify-center animate-fade-in font-sans"> 
-                {/* Cute Cartoon Image - Milk & Mocha Bear */}
-                <div className="mb-6 relative">
-                    <img 
-                        src="https://media.tenor.com/On7kvXhzml4AAAAi/loading-bear.gif"
-                        alt="Loading..." 
-                        className="w-48 h-48 object-contain mix-blend-multiply" 
-                    />
+                {/* App Logo or Cute Cartoon Image */}
+                <div className="mb-6 relative flex items-center justify-center">
+                    {logoUrl ? (
+                        <div className="relative">
+                             {/* Decorative ring */}
+                             <div className="absolute inset-0 border-4 border-pink-200 rounded-full animate-ping opacity-30"></div>
+                             <div className="w-44 h-44 bg-white rounded-full shadow-xl flex items-center justify-center p-3 border-4 border-white z-10 relative">
+                                <img 
+                                    src={logoUrl}
+                                    alt="Logo" 
+                                    className="w-full h-full object-contain rounded-full" 
+                                />
+                             </div>
+                        </div>
+                    ) : (
+                        <img 
+                            src="https://media.tenor.com/On7kvXhzml4AAAAi/loading-bear.gif"
+                            alt="Loading..." 
+                            className="w-48 h-48 object-contain mix-blend-multiply" 
+                        />
+                    )}
                 </div>
                 
                 {/* Cute Greeting */}
-                <h2 className="text-2xl font-bold text-pink-500 mb-2 tracking-wide font-sarabun">อันยอง! กำลังเตรียมความอร่อย...</h2>
-                <p className="text-gray-400 text-sm mb-6 font-sarabun">กรุณารอสักครู่ (Please wait)</p>
+                <h2 className="text-2xl font-bold text-pink-500 mb-2 tracking-wide font-sarabun text-center drop-shadow-sm">
+                    {restaurantName || 'อันยอง! กำลังเตรียมความอร่อย...'}
+                </h2>
+                <p className="text-gray-400 text-sm mb-8 font-sarabun">กรุณารอสักครู่ (Please wait)</p>
 
                 {/* Progress Bar Container */}
-                <div className="w-64 h-5 bg-white rounded-full overflow-hidden border-2 border-pink-200 shadow-inner relative">
+                <div className="w-64 h-4 bg-white rounded-full overflow-hidden border border-pink-200 shadow-inner relative">
                     {/* Animated Progress Fill */}
                     <div 
                         className="h-full bg-gradient-to-r from-pink-300 to-pink-500 rounded-full transition-all duration-100 ease-out flex items-center justify-end pr-1"
@@ -714,7 +730,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                 </div>
                 
                 {/* Percentage Text */}
-                <p className="mt-3 text-pink-400 font-bold text-xl font-mono">{loadingProgress}%</p>
+                <p className="mt-3 text-pink-400 font-bold text-lg font-mono">{loadingProgress}%</p>
             </div>
         );
     }
