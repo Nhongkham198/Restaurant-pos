@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useCallback, useRef, Suspense } from 'react';
 
 import { 
@@ -382,6 +381,8 @@ export const App: React.FC = () => {
     const notifiedMaintenanceRef = useRef<Set<number>>(new Set());
     // Ref to track processed auto-prints to avoid duplication
     const autoPrintProcessedIds = useRef<Set<number>>(new Set());
+    // NEW: Ref to track the latest staff call time to prevent duplicate alerts on refresh
+    const latestStaffCallTimeRef = useRef(Date.now());
 
     // ... Computed Values ... (Same as before)
     const waitingBadgeCount = useMemo(() => activeOrders.filter(o => o.status === 'waiting').length, [activeOrders]);
@@ -537,6 +538,48 @@ export const App: React.FC = () => {
         }
         prevActiveOrdersRef.current = activeOrders;
     }, [activeOrders, currentUser, notificationSoundUrl, isAudioUnlocked, isOrderNotificationsEnabled]);
+
+    // NEW: Staff Call Notification Watcher
+    useEffect(() => {
+        // Filter for calls that happened AFTER the app was loaded (or last checked)
+        // This prevents alerting for old calls stored in the database when refreshing the page
+        const newCalls = staffCalls.filter(call => call.timestamp > latestStaffCallTimeRef.current);
+
+        if (newCalls.length > 0) {
+            // Update the ref to the latest timestamp to avoid re-alerting
+            const maxTimestamp = Math.max(...newCalls.map(c => c.timestamp));
+            latestStaffCallTimeRef.current = maxTimestamp;
+
+            // Only alert if the user is a staff member (not a customer table)
+            if (currentUser && currentUser.role !== 'table') {
+                
+                // 1. Play Sound
+                if (staffCallSoundUrl && isAudioUnlocked) {
+                    const audio = new Audio(staffCallSoundUrl);
+                    audio.play().catch(console.error);
+                }
+
+                // 2. Show Visual Popup
+                // Get the most recent call details
+                const latestCall = newCalls.sort((a, b) => b.timestamp - a.timestamp)[0];
+                
+                Swal.fire({
+                    title: '🔔 มีลูกค้าเรียก!',
+                    html: `
+                        <div class="text-lg font-bold text-gray-800">โต๊ะ ${latestCall.tableName}</div>
+                        <div class="text-sm text-gray-600">ลูกค้า: ${latestCall.customerName}</div>
+                    `,
+                    icon: 'info',
+                    position: 'top', // Changed from 'top-center'
+                    showConfirmButton: true,
+                    confirmButtonText: 'รับทราบ',
+                    timer: 10000, // 10 seconds
+                    timerProgressBar: true,
+                    backdrop: `rgba(0,0,0,0.4)` // Dim background slightly to grab attention
+                });
+            }
+        }
+    }, [staffCalls, staffCallSoundUrl, isAudioUnlocked, currentUser]);
 
     // NEW: Global Auto Print Effect (Replaces logic in KitchenView)
     useEffect(() => {

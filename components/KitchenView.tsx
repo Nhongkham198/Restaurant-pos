@@ -33,31 +33,6 @@ export const KitchenView: React.FC<KitchenViewProps> = ({
         return { waitingOrders: waiting, cookingOrders: cooking };
     }, [activeOrders]);
 
-    // --- Generate Marquee Text ---
-    const marqueeText = useMemo(() => {
-        const parts: string[] = [];
-
-        if (cookingOrders.length > 0) {
-            const cookingList = cookingOrders.map(o => {
-                const itemsStr = o.items.map(i => `${i.name}${i.quantity > 1 ? ` x${i.quantity}` : ''}`).join(', ');
-                return `[โต๊ะ ${o.tableName}: ${itemsStr}]`;
-            }).join(' ');
-            parts.push(`🔥 กำลังทำ: ${cookingList}`);
-        }
-
-        if (waitingOrders.length > 0) {
-            const waitingList = waitingOrders.map(o => {
-                const itemsStr = o.items.map(i => `${i.name}${i.quantity > 1 ? ` x${i.quantity}` : ''}`).join(', ');
-                return `[โต๊ะ ${o.tableName}: ${itemsStr}]`;
-            }).join(' ');
-            parts.push(`⏳ รอคิว: ${waitingList}`);
-        }
-
-        if (parts.length === 0) return "✅ ครัวว่าง พร้อมรับออเดอร์...";
-
-        return parts.join('      |      ');
-    }, [cookingOrders, waitingOrders]);
-
     return (
         <div className="flex flex-col h-full w-full bg-gray-900 overflow-hidden font-sans">
             
@@ -83,32 +58,6 @@ export const KitchenView: React.FC<KitchenViewProps> = ({
                         <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-500 hover:bg-gray-500 transition-colors"></div>
                     </label>
                 </div>
-            </div>
-
-            {/* --- MARQUEE TICKER --- */}
-            <div className="bg-black border-b-2 border-yellow-600 overflow-hidden relative flex-shrink-0" style={{ height: '40px' }}>
-                <div className="absolute inset-0 flex items-center">
-                    <div className="animate-marquee whitespace-nowrap text-yellow-400 font-mono font-bold text-lg">
-                        {marqueeText}
-                    </div>
-                </div>
-                {/* Inline styles for marquee animation to avoid external css dependency */}
-                <style>{`
-                    @keyframes marquee {
-                        0% { transform: translateX(100%); }
-                        100% { transform: translateX(-100%); }
-                    }
-                    .animate-marquee {
-                        display: inline-block;
-                        padding-left: 100%; /* Ensure it starts off-screen */
-                        animation: marquee 45s linear infinite; /* Adjust speed here (higher = slower) */
-                        min-width: 100%;
-                    }
-                    /* Ensure text doesn't wrap and stays centered vertically */
-                    .animate-marquee {
-                        line-height: 40px; 
-                    }
-                `}</style>
             </div>
 
             {activeOrders.length === 0 ? (
