@@ -383,6 +383,8 @@ export const App: React.FC = () => {
     const autoPrintProcessedIds = useRef<Set<number>>(new Set());
     // NEW: Ref to track the latest staff call time to prevent duplicate alerts on refresh
     const latestStaffCallTimeRef = useRef(Date.now());
+    // NEW: Ref to track active orders for change detection (better auto print)
+    const prevOrdersForAutoPrint = useRef<ActiveOrder[] | null>(null);
 
     // ... Computed Values ... (Same as before)
     const waitingBadgeCount = useMemo(() => activeOrders.filter(o => o.status === 'waiting').length, [activeOrders]);
@@ -583,33 +585,44 @@ export const App: React.FC = () => {
 
     // NEW: Global Auto Print Effect (Replaces logic in KitchenView)
     useEffect(() => {
-        // Only run if Auto Print is ON
-        if (!isAutoPrintEnabled) return;
-        
-        // Only run on Staff devices (POS/Admin/Kitchen) to avoid CORS/Network issues on Customer phones
-        if (!currentUser || currentUser.role === 'table') return;
+        // 1. Initialize ref if null (First run / Refresh)
+        if (prevOrdersForAutoPrint.current === null) {
+            prevOrdersForAutoPrint.current = activeOrders;
+            return;
+        }
 
-        // Ensure we have printer config
-        if (!printerConfig?.kitchen?.ipAddress) return;
+        // 2. Only run logic if Auto Print is ON and user is Staff
+        if (!isAutoPrintEnabled || !currentUser || currentUser.role === 'table' || !printerConfig?.kitchen?.ipAddress) {
+            // Even if disabled, we must keep the ref updated to avoid printing backlog when enabled later
+            prevOrdersForAutoPrint.current = activeOrders;
+            return;
+        }
 
-        activeOrders.forEach(order => {
-            // Only consider 'waiting' orders
+        // 3. Find NEW orders (present in current, missing in prev)
+        // We use ID to identify orders
+        const prevIds = new Set(prevOrdersForAutoPrint.current.map(o => o.id));
+        const newOrders = activeOrders.filter(o => !prevIds.has(o.id));
+
+        newOrders.forEach(order => {
+            // Only 'waiting' orders
             if (order.status === 'waiting') {
-                // Check if this order is "new" relative to app load
-                // AND hasn't been processed by this session yet
-                if (order.id > mountTimeRef.current && !autoPrintProcessedIds.current.has(order.id)) {
-                    
-                    // Mark as processed immediately
-                    autoPrintProcessedIds.current.add(order.id);
-                    
-                    // Trigger print
-                    console.log(`[AutoPrint] Printing incoming order #${order.orderNumber} for Table ${order.tableName}`);
-                    printerService.printKitchenOrder(order, printerConfig.kitchen)
-                        .then(() => console.log(`[AutoPrint] Success #${order.orderNumber}`))
-                        .catch(err => console.error(`[AutoPrint] Failed #${order.orderNumber}:`, err));
-                }
+                // Check if already processed (e.g. by manual staff placement)
+                if (autoPrintProcessedIds.current.has(order.id)) return;
+
+                // Mark as processed
+                autoPrintProcessedIds.current.add(order.id);
+
+                // Print
+                console.log(`[AutoPrint] Printing incoming order #${order.orderNumber} for Table ${order.tableName}`);
+                printerService.printKitchenOrder(order, printerConfig.kitchen!)
+                    .then(() => console.log(`[AutoPrint] Success #${order.orderNumber}`))
+                    .catch(err => console.error(`[AutoPrint] Failed #${order.orderNumber}:`, err));
             }
         });
+
+        // 4. Update ref
+        prevOrdersForAutoPrint.current = activeOrders;
+
     }, [activeOrders, isAutoPrintEnabled, currentUser, printerConfig]);
 
     // ... (Other effects for maintenance, stock alerts - omitted for brevity but preserved in logic) ...
