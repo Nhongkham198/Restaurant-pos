@@ -285,8 +285,8 @@ export const printerService = {
         // Header Logic
         let headerHtml = '';
         if (logoUrl && opts.showLogo) {
-            // FIX: Increased max-height for larger logo and centered it
-            headerHtml += `<div style="text-align: center; margin-bottom: 5px;"><img src="${logoUrl}" style="max-height: 150px; max-width: 100%; object-fit: contain;" crossOrigin="anonymous"/></div>`;
+            // FIX: Increased max-height for larger logo and centered it using display: block and margin: 0 auto
+            headerHtml += `<div style="text-align: center; margin-bottom: 5px;"><img src="${logoUrl}" style="max-height: 150px; max-width: 100%; object-fit: contain; display: block; margin: 0 auto;" crossOrigin="anonymous"/></div>`;
         }
         if (opts.showRestaurantName) {
             headerHtml += `<div style="font-size: ${fsLarge}; font-weight: 900; line-height: 1.2; margin-bottom: 4px; text-align: center;">${restaurantName}</div>`;
@@ -508,7 +508,7 @@ export const printerService = {
         
         const html = `
             <div style="text-align: center; padding: 10px; font-family: 'Sarabun', sans-serif; width: 100%; box-sizing: border-box; color: #000;">
-                <div style="font-size: ${fsTitle}; font-weight: 900; line-height: 1;">${table.name}</div>
+                <div style="font-size: ${fsTitle}; font-weight: 900; line-height: 1.2;">${table.name}</div>
                 <div style="font-size: ${fsSub}; margin-bottom: 5px;">(${table.floor})</div>
                 <div style="border-top: 3px solid #000; margin: 5px 0;"></div>
                 <div style="margin: 10px auto; width: ${qrSize}px; height: ${qrSize}px; border: 3px solid #000; padding: 5px;">

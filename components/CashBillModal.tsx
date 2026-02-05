@@ -611,7 +611,7 @@ export const CashBillModal: React.FC<CashBillModalProps> = ({
                         {/* Header */}
                         <div className={`flex ${isA4 ? 'justify-between items-start flex-row' : 'flex-col items-center text-center'} mb-6`}>
                             <div className={`flex ${isA4 ? 'gap-4 w-2/3' : 'flex-col items-center gap-2 w-full'}`}>
-                                {logoUrl && <img src={logoUrl} alt="Logo" className={`${isA4 ? 'h-20 w-20' : 'h-16 w-16'} object-contain`} crossOrigin="anonymous" />}
+                                {logoUrl && <img src={logoUrl} alt="Logo" className={`${isA4 ? 'h-20 w-20' : 'h-16 w-16'} object-contain mx-auto`} crossOrigin="anonymous" />}
                                 <div className="flex-1">
                                     <div className={`${isA4 ? 'text-2xl' : 'text-lg'} font-bold mb-1`}>
                                         <EditableField value={shopName} onChange={setShopName} align={isA4 ? 'left' : 'center'} />
