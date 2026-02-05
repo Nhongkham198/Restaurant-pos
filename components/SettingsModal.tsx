@@ -592,42 +592,138 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
                                 </div>
                             </div>
                             
-                            {/* Preview */}
+                            {/* Cashier Receipt Liveview Preview (UPDATED) */}
                             <div className="bg-gray-200 p-4 rounded-xl flex items-center justify-center min-h-[400px]">
-                                <div className="bg-white shadow-lg w-[280px] p-4 text-black font-mono text-xs leading-snug flex flex-col items-center">
-                                    {receiptOpts.showLogo && settingsForm.logoUrl && <img src={settingsForm.logoUrl} alt="Logo" className="h-12 w-auto object-contain mb-2" />}
-                                    {receiptOpts.showRestaurantName && <div className="font-bold text-base mb-1">ร้านอาหารตัวอย่าง</div>}
-                                    {receiptOpts.showAddress && <div className="text-center whitespace-pre-wrap mb-1">{receiptOpts.address || settingsForm.restaurantAddress}</div>}
-                                    {receiptOpts.showPhoneNumber && <div className="text-center mb-2">Tel: {receiptOpts.phoneNumber || settingsForm.restaurantPhone}</div>}
-                                    
-                                    <div className="w-full border-b border-dashed border-gray-400 my-2"></div>
-                                    <div style={{fontSize: '14px', fontWeight: 'bold', textAlign: 'center', marginBottom: '10px'}}>ใบเสร็จรับเงิน</div>
+                                <div className={`bg-white shadow-lg p-4 text-black font-sans leading-tight flex flex-col ${conf.paperWidth === '58mm' ? 'w-[280px]' : 'w-[350px]'}`} style={{ fontFamily: "'Sarabun', sans-serif" }}>
+                                    {/* Header */}
+                                    <div className="text-center mb-2">
+                                        {receiptOpts.showLogo && settingsForm.logoUrl && <img src={settingsForm.logoUrl} alt="Logo" className="h-16 w-auto mx-auto mb-2 object-contain" />}
+                                        {receiptOpts.showRestaurantName && <div className="font-bold text-xl mb-1">ร้านอาหารตัวอย่าง</div>}
+                                        {receiptOpts.showAddress && <div className="text-xs">{receiptOpts.address || settingsForm.restaurantAddress}</div>}
+                                        {receiptOpts.showPhoneNumber && <div className="text-xs">โทร: {receiptOpts.phoneNumber || settingsForm.restaurantPhone}</div>}
+                                    </div>
 
-                                    <div className="w-full text-left space-y-0.5 mb-2">
-                                        {receiptOpts.showTable && <div>โต๊ะ: 5</div>}
+                                    <div className="border-b border-dashed border-black my-2"></div>
+                                    <div className="text-center font-bold text-lg mb-2">ใบเสร็จรับเงิน</div>
+
+                                    {/* Meta */}
+                                    <div className="text-sm mb-2 space-y-0.5">
+                                        {receiptOpts.showTable && <div>โต๊ะ: <span className="font-bold">5</span></div>}
                                         {receiptOpts.showOrderId && <div>Order: #001</div>}
                                         {receiptOpts.showDateTime && <div>วันที่: {new Date().toLocaleDateString('th-TH')} {new Date().toLocaleTimeString('th-TH', {hour: '2-digit', minute:'2-digit'})}</div>}
                                         {receiptOpts.showStaff && <div>พนักงาน: Admin</div>}
                                     </div>
 
+                                    {/* Items Table */}
                                     {receiptOpts.showItems && (
-                                        <>
-                                            <div className="w-full border-b border-dashed border-gray-400 mb-2"></div>
-                                            <div className="w-full space-y-1 mb-2">
-                                                <div className="flex justify-between"><span>1. ข้าวกะเพรา</span><span>60.00</span></div>
-                                                <div className="flex justify-between"><span>2. น้ำเปล่า</span><span>15.00</span></div>
-                                            </div>
-                                        </>
+                                        <table className="w-full text-sm mb-2 border-collapse">
+                                            <thead>
+                                                <tr>
+                                                    <th className="text-left py-1 border-b-2 border-black">รายการ</th>
+                                                    <th className="text-right py-1 border-b-2 border-black">Qty</th>
+                                                    <th className="text-right py-1 border-b-2 border-black">รวม</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr>
+                                                    <td className="py-2 align-top">
+                                                        <div className="font-bold">ข้าวกะเพรา</div>
+                                                        <div className="text-xs text-gray-600">- หมูกรอบ</div>
+                                                    </td>
+                                                    <td className="text-right align-top py-2">2</td>
+                                                    <td className="text-right align-top py-2">120.00</td>
+                                                </tr>
+                                                <tr>
+                                                    <td className="py-2 align-top">
+                                                        <div className="font-bold">น้ำเปล่า</div>
+                                                    </td>
+                                                    <td className="text-right align-top py-2">1</td>
+                                                    <td className="text-right align-top py-2">15.00</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
                                     )}
 
-                                    <div className="w-full border-b border-dashed border-gray-400 my-2"></div>
-                                    <div className="w-full space-y-1">
-                                        {receiptOpts.showSubtotal && <div className="flex justify-between"><span>รวมเงิน</span><span>75.00</span></div>}
-                                        {receiptOpts.showTax && <div className="flex justify-between"><span>ภาษี (7%)</span><span>5.25</span></div>}
-                                        {receiptOpts.showTotal && <div className="flex justify-between font-bold text-sm mt-1"><span>ยอดสุทธิ</span><span>80.25</span></div>}
-                                        {receiptOpts.showPaymentMethod && <div className="text-center mt-2">(ชำระโดย: เงินสด)</div>}
+                                    {/* Totals */}
+                                    <div className="border-t-2 border-dotted border-black pt-2 mt-2 space-y-1 text-sm">
+                                        {receiptOpts.showSubtotal && <div className="flex justify-between"><span>รวมเงิน</span><span>135.00</span></div>}
+                                        {receiptOpts.showTax && <div className="flex justify-between"><span>ภาษี (7%)</span><span>9.45</span></div>}
+                                        {receiptOpts.showTotal && <div className="flex justify-between font-bold text-lg border-t border-black pt-1 mt-1"><span>ยอดสุทธิ</span><span>144.45</span></div>}
+                                        {receiptOpts.showPaymentMethod && <div className="text-center text-xs mt-2">(ชำระโดย: เงินสด)</div>}
                                     </div>
-                                    {receiptOpts.showThankYouMessage && <div className="mt-4 text-center font-bold">*** {receiptOpts.thankYouMessage} ***</div>}
+
+                                    {/* Footer */}
+                                    {receiptOpts.showThankYouMessage && (
+                                        <div className="mt-4 text-center font-bold text-sm">*** {receiptOpts.thankYouMessage} ***</div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Kitchen Printer Liveview Preview */}
+                {type === 'kitchen' && (
+                    <div className="mt-6 pt-6 border-t border-gray-200">
+                        <h4 className="text-lg font-bold text-gray-800 mb-4">ตัวอย่างใบรายการ (Live Preview)</h4>
+                        <div className="bg-gray-200 p-4 rounded-xl flex items-center justify-center min-h-[400px] overflow-auto">
+                            <div 
+                                className={`bg-white shadow-lg p-3 text-black font-sans leading-tight transition-all duration-300 shrink-0 ${
+                                    conf.paperWidth === '58mm' ? 'w-[280px]' : 'w-[350px]'
+                                }`}
+                                style={{ minHeight: '400px', fontFamily: "'Sarabun', sans-serif" }}
+                            >
+                                {/* Header */}
+                                <div className="text-center border-b-4 border-black pb-3 mb-3">
+                                    <div className="text-lg font-bold">ใบรายการอาหาร (ครัว)</div>
+                                    <div className="text-4xl font-black my-2 leading-none break-words">โต๊ะ 5</div>
+                                    <div className="text-2xl font-bold mb-2">(Indoor)</div>
+                                    <div className="flex justify-between text-lg font-bold border-t-2 border-black pt-2 mt-2">
+                                        <span>Order: #001</span>
+                                        <span>12:30</span>
+                                    </div>
+                                </div>
+
+                                {/* Items Container */}
+                                <div className="space-y-4">
+                                    {/* Mock Item 1 */}
+                                    <div className="border-b border-dotted border-gray-400 pb-3">
+                                        <table className="w-full">
+                                            <tbody>
+                                                <tr className="align-top">
+                                                    <td className="w-[15%] text-right font-black text-2xl leading-none">2 x</td>
+                                                    <td style={{ paddingLeft: '25px' }}>
+                                                        <div className="font-black text-2xl leading-none mb-1">ข้าวกะเพรา</div>
+                                                        <div className="text-lg text-gray-700">+ ไข่ดาว (สุก)</div>
+                                                        <div className="text-lg text-gray-700">+ พิเศษ</div>
+                                                        <div className="mt-1 inline-block bg-black text-white px-1.5 py-0.5 rounded text-base font-bold">Note: ไม่ใส่ถั่ว</div>
+                                                    </td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+
+                                    {/* Mock Item 2 (Takeaway) */}
+                                    <div className="border-b border-dotted border-gray-400 pb-3">
+                                        <table className="w-full">
+                                            <tbody>
+                                                <tr className="align-top">
+                                                    <td className="w-[15%] text-right font-black text-2xl leading-none">1 x</td>
+                                                    <td style={{ paddingLeft: '25px' }}>
+                                                        <div className="font-black text-2xl leading-none mb-1">ต้มยำกุ้ง</div>
+                                                        <div className="mt-2 mb-1">
+                                                            <span className="font-black text-lg border-[3px] border-black px-4 py-1 inline-block">กลับบ้าน</span>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+
+                                {/* Footer */}
+                                <div className="border-t-4 border-black mt-4 pt-2 text-center text-lg">
+                                    --- จบรายการ ---
                                 </div>
                             </div>
                         </div>

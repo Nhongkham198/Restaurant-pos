@@ -1,4 +1,3 @@
-
 import type { ActiveOrder, KitchenPrinterSettings, Table, CompletedOrder, CashierPrinterSettings, ReceiptPrintSettings, PrinterConnectionType } from '../types';
 
 declare global {
@@ -186,35 +185,47 @@ export const printerService = {
         // Generate Items HTML
         let itemsHtml = '';
         order.items.forEach(item => {
+            // Options: Removed left padding as table column handles indentation visually
             const optionsHtml = item.selectedOptions?.length > 0 
-                ? `<div style="font-size: ${fsNormal}; color: #333; padding-left: 10px; margin-top: 2px; font-weight: normal;">+ ${item.selectedOptions.map(o => o.name).join(', ')}</div>` 
+                ? `<div style="font-size: ${fsNormal}; color: #333; margin-top: 2px; font-weight: normal;">+ ${item.selectedOptions.map(o => o.name).join(', ')}</div>` 
                 : '';
             
+            // Notes: Removed left margin
             const notesHtml = item.notes 
-                ? `<div style="font-size: ${fsNormal}; font-weight: bold; background-color: #000; color: #fff; display: inline-block; padding: 2px 6px; border-radius: 4px; margin-top: 5px; margin-left: 10px;">Note: ${item.notes}</div>` 
+                ? `<div style="font-size: ${fsNormal}; font-weight: bold; background-color: #000; color: #fff; display: inline-block; padding: 2px 6px; border-radius: 4px; margin-top: 5px;">Note: ${item.notes}</div>` 
                 : '';
             
+            // Takeaway: 
+            // 1. Shrink box width (inline-block)
+            // 2. Aligned left with text (removed text-align: center from container)
             const takeawayHtml = item.isTakeaway 
-                ? `<div style="font-size: ${fsNormal}; font-weight: 900; border: 2px solid #000; display: inline-block; padding: 2px 6px; margin-left: 10px; margin-top: 5px;">กลับบ้าน</div>` 
+                ? `<div style="margin-top: 10px;">
+                     <span style="font-size: ${fsNormal}; font-weight: 900; border: 3px solid #000; padding: 4px 10px; display: inline-block; line-height: 1;">กลับบ้าน</span>
+                   </div>` 
                 : '';
 
-            // FIX: Added padding-bottom 15px (increased from 8px) and margin-bottom 20px (increased from 10px) to separate items more clearly
+            // Layout: Using TABLE to strictly separate Quantity (Col 1) and Content (Col 2/3 Area)
+            // ADDED: padding-left: 25px to the content column to push text right (approx 3 chars spacing)
             itemsHtml += `
-                <div style="margin-bottom: 20px; border-bottom: 1px dotted #ccc; padding-bottom: 15px;">
-                    <div style="font-size: ${fsLarge}; font-weight: 900; line-height: 1.2; display: flex; align-items: start;">
-                        <span style="min-width: 30px; text-align: right; margin-right: 5px;">${item.quantity}</span>
-                        <span style="word-break: break-word;">x ${item.name}</span>
-                    </div>
-                    ${optionsHtml}
-                    ${notesHtml}
-                    ${takeawayHtml}
+                <div style="margin-bottom: 15px; border-bottom: 1px dotted #ccc; padding-bottom: 15px;">
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <tr>
+                            <td style="vertical-align: top; width: 15%; text-align: right; font-size: ${fsLarge}; font-weight: 900; line-height: 1.2;">
+                                ${item.quantity} x
+                            </td>
+                            <td style="vertical-align: top; padding-left: 25px;">
+                                <div style="font-size: ${fsLarge}; font-weight: 900; line-height: 1.2; margin-bottom: 2px;">${item.name}</div>
+                                ${optionsHtml}
+                                ${notesHtml}
+                                ${takeawayHtml}
+                            </td>
+                        </tr>
+                    </table>
                 </div>
             `;
         });
 
         // Full Kitchen Template
-        // FIX: Removed border-top on Order/Time row
-        // FIX: Added margin top/bottom to Table Name and Floor to separate them
         const htmlContent = `
             <div style="width: 100%; box-sizing: border-box; font-family: 'Sarabun', sans-serif; color: #000; padding: 5px;">
                 <div style="text-align: center; margin-bottom: 5px; border-bottom: 3px solid #000; padding-bottom: 8px;">
@@ -285,7 +296,6 @@ export const printerService = {
         // Header Logic
         let headerHtml = '';
         if (logoUrl && opts.showLogo) {
-            // FIX: Increased max-height for larger logo and centered it
             headerHtml += `<div style="text-align: center; margin-bottom: 5px;"><img src="${logoUrl}" style="max-height: 150px; max-width: 100%; object-fit: contain;" crossOrigin="anonymous"/></div>`;
         }
         if (opts.showRestaurantName) {
@@ -301,14 +311,13 @@ export const printerService = {
         // Items Logic with Table Layout for Alignment
         let itemsHtml = '';
         if (opts.showItems) {
+            // Updated to match LivePreview: border-b-2 for header
             itemsHtml += `<table style="width: 100%; font-size: ${fsNormal}; border-collapse: collapse; margin-bottom: 5px; table-layout: fixed;">`;
-            // FIX: Padding bottom added to headers to prevent line intersection
-            // FIX: Border bottom moved to headers instead of row
             itemsHtml += `
                 <tr style="">
-                    <th style="text-align:left; width: ${is58mm ? '55%' : '60%'}; padding-bottom: 8px; border-bottom: 2px solid #000;">รายการ</th>
-                    <th style="text-align:right; width: ${is58mm ? '15%' : '15%'}; padding-bottom: 8px; border-bottom: 2px solid #000;">Qty</th>
-                    <th style="text-align:right; width: ${is58mm ? '30%' : '25%'}; padding-bottom: 8px; border-bottom: 2px solid #000;">รวม</th>
+                    <th style="text-align:left; width: ${is58mm ? '55%' : '60%'}; padding-bottom: 4px; border-bottom: 2px solid #000;">รายการ</th>
+                    <th style="text-align:right; width: ${is58mm ? '15%' : '15%'}; padding-bottom: 4px; border-bottom: 2px solid #000;">Qty</th>
+                    <th style="text-align:right; width: ${is58mm ? '30%' : '25%'}; padding-bottom: 4px; border-bottom: 2px solid #000;">รวม</th>
                 </tr>`;
             
             order.items.forEach(item => {
@@ -330,15 +339,16 @@ export const printerService = {
         // Totals Logic
         const subtotal = order.items.reduce((s, i) => s + i.finalPrice * i.quantity, 0);
         const total = subtotal + order.taxAmount;
-        // FIX: Increased top padding for totals
-        let totalsHtml = `<div style="font-size: ${fsNormal}; border-top: 2px dotted #000; padding-top: 10px; margin-top: 10px;">`;
+        // Match LivePreview: border-t-2 border-dotted
+        let totalsHtml = `<div style="font-size: ${fsNormal}; border-top: 2px dotted #000; padding-top: 8px; margin-top: 8px;">`;
         
         if (opts.showSubtotal) totalsHtml += `<div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span>รวมเงิน</span><span>${subtotal.toFixed(2)}</span></div>`;
         if (opts.showTax && order.taxAmount > 0) totalsHtml += `<div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span>ภาษี (${order.taxRate}%)</span><span>${order.taxAmount.toFixed(2)}</span></div>`;
-        if (opts.showTotal) totalsHtml += `<div style="display: flex; justify-content: space-between; font-weight: 900; font-size: ${fsLarge}; margin-top: 8px; border-top: 1px solid #000; padding-top: 8px;"><span>ยอดสุทธิ</span><span>${total.toFixed(2)}</span></div>`;
+        // Match LivePreview: border-t (solid)
+        if (opts.showTotal) totalsHtml += `<div style="display: flex; justify-content: space-between; font-weight: 900; font-size: ${fsLarge}; margin-top: 4px; border-top: 1px solid #000; padding-top: 4px;"><span>ยอดสุทธิ</span><span>${total.toFixed(2)}</span></div>`;
         if (opts.showPaymentMethod) {
             const method = order.paymentDetails.method === 'cash' ? 'เงินสด' : 'โอนจ่าย';
-            totalsHtml += `<div style="text-align: center; margin-top: 12px; font-size: ${fsSmall};">(ชำระโดย: ${method})</div>`;
+            totalsHtml += `<div style="text-align: center; margin-top: 8px; font-size: ${fsSmall};">(ชำระโดย: ${method})</div>`;
         }
         totalsHtml += `</div>`;
 
@@ -346,10 +356,10 @@ export const printerService = {
         const htmlContent = `
             <div style="width: 100%; box-sizing: border-box; font-family: 'Sarabun', sans-serif; color: #000; padding: 5px 0;">
                 ${headerHtml}
-                <div style="border-bottom: 1px dashed #000; margin: 10px 0;"></div>
-                <div style="text-align: center; font-size: ${fsLarge}; font-weight: bold; margin-bottom: 10px;">ใบเสร็จรับเงิน</div>
+                <div style="border-bottom: 1px dashed #000; margin: 8px 0;"></div>
+                <div style="text-align: center; font-size: ${fsLarge}; font-weight: bold; margin-bottom: 8px;">ใบเสร็จรับเงิน</div>
                 
-                <div style="font-size: ${fsSmall}; margin-bottom: 12px; line-height: 1.4;">
+                <div style="font-size: ${fsSmall}; margin-bottom: 8px; line-height: 1.4;">
                     ${opts.showTable ? `<div>โต๊ะ: <span style="font-weight:bold; font-size: ${fsNormal};">${order.tableName}</span></div>` : ''}
                     ${opts.showOrderId ? `<div>Order: #${order.orderNumber}</div>` : ''}
                     ${opts.showDateTime ? `<div>วันที่: ${new Date(order.completionTime).toLocaleString('th-TH')}</div>` : ''}
@@ -359,7 +369,7 @@ export const printerService = {
                 ${itemsHtml}
                 ${totalsHtml}
 
-                ${opts.showThankYouMessage && opts.thankYouMessage ? `<div style="text-align: center; margin-top: 20px; font-size: ${fsNormal}; font-weight: bold; line-height: 1.8; padding-bottom: 15px;">*** ${opts.thankYouMessage} ***</div>` : ''}
+                ${opts.showThankYouMessage && opts.thankYouMessage ? `<div style="text-align: center; margin-top: 16px; font-size: ${fsNormal}; font-weight: bold; line-height: 1.8;">*** ${opts.thankYouMessage} ***</div>` : ''}
             </div>
         `;
 
