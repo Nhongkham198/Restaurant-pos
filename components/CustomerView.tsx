@@ -685,31 +685,28 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         }
     }, [allBranchOrders, isAuthenticated, table.id, myItems.length, t]);
 
-    // --- Loading Screen Render (PREMIUM LOGO VERSION) ---
+    // --- Loading Screen Render (MODIFIED) ---
     if (isLoadingScreen) {
         return (
             <div className="fixed inset-0 z-[9999] bg-white flex flex-col items-center justify-center animate-fade-in font-sans">
                 {/* Logo or Name Section */}
                 <div className="mb-10 relative flex justify-center items-center p-6">
-                    {logoUrl ? (
-                        <div className="relative">
-                            {/* Subtle Glow/Shimmer behind logo */}
-                            <div className="absolute inset-0 bg-gray-200 rounded-full blur-2xl opacity-40 animate-pulse"></div>
+                    <div className="relative">
+                        {/* Subtle Glow/Shimmer behind logo */}
+                        <div className="absolute inset-0 bg-gray-200 rounded-full blur-2xl opacity-40 animate-pulse"></div>
+                        {logoUrl ? (
                             <img
                                 src={logoUrl}
                                 alt="Restaurant Logo"
-                                className="w-48 h-48 object-contain relative z-10 animate-pulse drop-shadow-xl"
+                                className="w-48 h-48 object-contain relative z-10 drop-shadow-xl"
                                 crossOrigin="anonymous"
                             />
-                        </div>
-                    ) : (
-                        <div className="relative">
-                             <div className="absolute inset-0 bg-gray-200 blur-2xl opacity-30 animate-pulse"></div>
-                             <h1 className="relative z-10 text-4xl md:text-5xl font-bold text-gray-800 tracking-wider animate-pulse text-center leading-tight drop-shadow-sm font-sarabun">
-                                {restaurantName || 'Welcome'}
-                            </h1>
-                        </div>
-                    )}
+                        ) : (
+                            // Placeholder that waits for the logo, instead of showing text.
+                            // This creates a "loading" state for the logo area itself.
+                             <div className="w-48 h-48 object-contain relative z-10 shimmer-effect rounded-lg"></div>
+                        )}
+                    </div>
                 </div>
 
                 {/* Text */}
@@ -736,7 +733,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     if (isSessionCompleted) {
         return (
             <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6 text-center animate-fade-in">
-                {/* ... (Keep session completed view) */}
+                {/* ... (Keep session completed view) ... */}
                  <div className="bg-white p-10 rounded-2xl shadow-xl w-full max-w-sm border-t-8 border-green-500">
                     <div className="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
