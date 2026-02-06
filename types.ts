@@ -123,6 +123,7 @@ export interface ActiveOrder extends BaseOrder {
     orderTime: number; // timestamp
     cookingStartTime?: number; // timestamp
     isOverdue?: boolean;
+    isPrintedToKitchen?: boolean; // To prevent duplicate auto-prints
     // Fields allowed during transition to completed/cancelled within active collection
     completionTime?: number;
     paymentDetails?: PaymentDetails;

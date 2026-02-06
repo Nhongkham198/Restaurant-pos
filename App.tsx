@@ -381,7 +381,7 @@ export const App: React.FC = () => {
     const notifiedDailyStockRef = useRef<string>('');
     const notifiedMaintenanceRef = useRef<Set<number>>(new Set());
     // Ref to track processed auto-prints to avoid duplication
-    const autoPrintProcessedIds = useRef<Set<number>>(new Set());
+    // const autoPrintProcessedIds = useRef<Set<number>>(new Set()); // REPLACED
     // NEW: Ref to track the latest staff call time to prevent duplicate alerts on refresh
     const latestStaffCallTimeRef = useRef(Date.now());
     // NEW: Ref to track active orders for change detection (better auto print)
@@ -586,45 +586,44 @@ export const App: React.FC = () => {
 
     // NEW: Global Auto Print Effect (Replaces logic in KitchenView)
     useEffect(() => {
-        // 1. Initialize ref if null (First run / Refresh)
         if (prevOrdersForAutoPrint.current === null) {
             prevOrdersForAutoPrint.current = activeOrders;
             return;
         }
-
-        // 2. Only run logic if Auto Print is ON and user is Staff
-        if (!isAutoPrintEnabled || !currentUser || currentUser.role === 'table' || !printerConfig?.kitchen?.ipAddress) {
-            // Even if disabled, we must keep the ref updated to avoid printing backlog when enabled later
+    
+        if (!isAutoPrintEnabled || !currentUser || currentUser.role === 'table' || !printerConfig?.kitchen?.ipAddress || !branchId) {
             prevOrdersForAutoPrint.current = activeOrders;
             return;
         }
-
-        // 3. Find NEW orders (present in current, missing in prev)
-        // We use ID to identify orders
+    
         const prevIds = new Set(prevOrdersForAutoPrint.current.map(o => o.id));
         const newOrders = activeOrders.filter(o => !prevIds.has(o.id));
-
-        newOrders.forEach(order => {
-            // Only 'waiting' orders
-            if (order.status === 'waiting') {
-                // Check if already processed (e.g. by manual staff placement)
-                if (autoPrintProcessedIds.current.has(order.id)) return;
-
-                // Mark as processed
-                autoPrintProcessedIds.current.add(order.id);
-
-                // Print
-                console.log(`[AutoPrint] Printing incoming order #${order.orderNumber} for Table ${order.tableName}`);
-                printerService.printKitchenOrder(order, printerConfig.kitchen!)
-                    .then(() => console.log(`[AutoPrint] Success #${order.orderNumber}`))
-                    .catch(err => console.error(`[AutoPrint] Failed #${order.orderNumber}:`, err));
+    
+        newOrders.forEach(async (order) => {
+            // Only auto-print 'waiting' orders that haven't been printed yet (e.g., from customers)
+            if (order.status === 'waiting' && !order.isPrintedToKitchen) {
+                console.log(`[AutoPrint] Detected unprinted order #${order.orderNumber}. Attempting to print.`);
+                
+                // "Claim" the print job by updating Firestore. This prevents other devices from printing it.
+                try {
+                    const orderRef = db.collection(`branches/${branchId}/activeOrders`).doc(order.id.toString());
+                    // We update first to minimize race conditions.
+                    await orderRef.update({ isPrintedToKitchen: true });
+    
+                    // Now that we've claimed it, print it.
+                    await printerService.printKitchenOrder(order, printerConfig.kitchen!);
+                    console.log(`[AutoPrint] Success #${order.orderNumber}`);
+                } catch (err) {
+                     console.error(`[AutoPrint] Failed to claim or print order #${order.orderNumber}:`, err);
+                     // If printing fails, we don't revert the flag to avoid print loops.
+                     // A manual reprint might be necessary.
+                }
             }
         });
-
-        // 4. Update ref
+    
         prevOrdersForAutoPrint.current = activeOrders;
-
-    }, [activeOrders, isAutoPrintEnabled, currentUser, printerConfig]);
+    
+    }, [activeOrders, isAutoPrintEnabled, currentUser, printerConfig, branchId]);
 
     // ... (Other effects for maintenance, stock alerts - omitted for brevity but preserved in logic) ...
 
@@ -752,30 +751,55 @@ export const App: React.FC = () => {
              return;
         }
         
-        const counterRef = db.doc(`branches/${branchIdStr}/orderCounter/data`); await db.runTransaction(async (transaction: firebase.firestore.Transaction) => { const counterDoc = await transaction.get(counterRef); const counterData = (counterDoc.data() as { value: OrderCounter | undefined })?.value; const today = new Date(); const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`; let nextOrderId = 1; if (counterData && typeof counterData.count === 'number' && typeof counterData.lastResetDate === 'string' && counterData.lastResetDate === todayStr) { nextOrderId = counterData.count + 1; } const itemsWithOrigin = orderItems.map(item => ({ ...item, originalOrderNumber: nextOrderId, })); const orderTableName = isLineMan ? (deliveryProviderName || 'Delivery') : (tableOverride ? tableOverride.name : 'Unknown'); const orderFloor = isLineMan ? 'Delivery' : (tableOverride ? tableOverride.floor : 'Unknown'); const orderTableId = isLineMan ? -99 : (tableOverride ? tableOverride.id : 0); const shouldSendToKitchen = isCustomerMode || sendToKitchen || isLineMan; const newOrder: ActiveOrder = { id: Date.now(), orderNumber: nextOrderId, manualOrderNumber: lineManNumber || null, tableId: orderTableId, tableName: orderTableName, customerName: custName, floor: orderFloor, customerCount: custCount, items: itemsWithOrigin, status: shouldSendToKitchen ? 'waiting' : 'served', orderTime: Date.now(), orderType: isLineMan ? 'lineman' : 'dine-in', taxRate: isTaxEnabled ? taxRate : 0, taxAmount: 0, placedBy: currentUser ? currentUser.username : (custName || `โต๊ะ ${orderTableName}`), }; const subtotal = newOrder.items.reduce((sum, item) => sum + item.finalPrice * item.quantity, 0); newOrder.taxAmount = newOrder.taxRate > 0 ? subtotal * (newOrder.taxRate / 100) : 0; transaction.set(counterRef, { value: { count: nextOrderId, lastResetDate: todayStr } }); const newOrderDocRef = db.collection(`branches/${branchIdStr}/activeOrders`).doc(newOrder.id.toString()); transaction.set(newOrderDocRef, { ...newOrder, lastUpdated: firebase.firestore.FieldValue.serverTimestamp() }); return { newOrder, shouldSendToKitchen }; }).then(async (result) => { const { newOrder, shouldSendToKitchen } = result; setLastPlacedOrderId(newOrder.orderNumber); setModalState(prev => ({ ...prev, isOrderSuccess: true })); 
+        const counterRef = db.doc(`branches/${branchIdStr}/orderCounter/data`); await db.runTransaction(async (transaction: firebase.firestore.Transaction) => { const counterDoc = await transaction.get(counterRef); const counterData = (counterDoc.data() as { value: OrderCounter | undefined })?.value; const today = new Date(); const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`; let nextOrderId = 1; if (counterData && typeof counterData.count === 'number' && typeof counterData.lastResetDate === 'string' && counterData.lastResetDate === todayStr) { nextOrderId = counterData.count + 1; } const itemsWithOrigin = orderItems.map(item => ({ ...item, originalOrderNumber: nextOrderId, })); const orderTableName = isLineMan ? (deliveryProviderName || 'Delivery') : (tableOverride ? tableOverride.name : 'Unknown'); const orderFloor = isLineMan ? 'Delivery' : (tableOverride ? tableOverride.floor : 'Unknown'); const orderTableId = isLineMan ? -99 : (tableOverride ? tableOverride.id : 0); 
+            const shouldSendToKitchen = isCustomerMode || sendToKitchen || isLineMan;
+            // A staff member placing an order will print it directly. Mark it as printed.
+            // A customer placing an order will not print directly. Mark it as NOT printed.
+            const isPrintedImmediatelyByThisDevice = !isCustomerMode && shouldSendToKitchen;
+            
+            const newOrder: ActiveOrder = { 
+                id: Date.now(), 
+                orderNumber: nextOrderId, 
+                manualOrderNumber: lineManNumber || null, 
+                tableId: orderTableId, 
+                tableName: orderTableName, 
+                customerName: custName, 
+                floor: orderFloor, 
+                customerCount: custCount, 
+                items: itemsWithOrigin, 
+                status: shouldSendToKitchen ? 'waiting' : 'served', 
+                orderTime: Date.now(), 
+                orderType: isLineMan ? 'lineman' : 'dine-in', 
+                taxRate: isTaxEnabled ? taxRate : 0, 
+                taxAmount: 0, 
+                placedBy: currentUser ? currentUser.username : (custName || `โต๊ะ ${orderTableName}`),
+                isPrintedToKitchen: isPrintedImmediatelyByThisDevice,
+            }; 
+            const subtotal = newOrder.items.reduce((sum, item) => sum + item.finalPrice * item.quantity, 0); 
+            newOrder.taxAmount = newOrder.taxRate > 0 ? subtotal * (newOrder.taxRate / 100) : 0; 
+            transaction.set(counterRef, { value: { count: nextOrderId, lastResetDate: todayStr } }); 
+            const newOrderDocRef = db.collection(`branches/${branchIdStr}/activeOrders`).doc(newOrder.id.toString()); 
+            transaction.set(newOrderDocRef, { ...newOrder, lastUpdated: firebase.firestore.FieldValue.serverTimestamp() }); 
+            return { newOrder, shouldSendToKitchen, isPrintedImmediatelyByThisDevice }; 
+        }).then(async (result) => { 
+            const { newOrder, shouldSendToKitchen, isPrintedImmediatelyByThisDevice } = result;
+            setLastPlacedOrderId(newOrder.orderNumber); 
+            setModalState(prev => ({ ...prev, isOrderSuccess: true })); 
         
-        // --- PRINT LOGIC MODIFICATION ---
-        // If this is a local staff placing an order, we prevent the global listener from double-printing by marking it processed here.
-        // If this is a Customer (isCustomerMode), we DO NOT print here (because no network access). 
-        // The Global Listener in App.tsx (running on staff devices) will pick it up and print.
-        
-        if (currentUser && currentUser.role !== 'table') {
-             // Local Staff Order: Mark as processed to prevent Global Listener from printing it again
-             autoPrintProcessedIds.current.add(newOrder.id);
-             
-             // Try to print directly (since we have network access)
-             if (shouldSendToKitchen && printerConfig?.kitchen?.ipAddress) {
+            // --- PRINT LOGIC MODIFICATION ---
+            // If this device just created a staff order, it's responsible for the one and only print.
+            // The isPrintedToKitchen flag will prevent the global listener on other devices from re-printing it.
+            if (isPrintedImmediatelyByThisDevice && printerConfig?.kitchen?.ipAddress) {
                 try {
                     await printerService.printKitchenOrder(newOrder, printerConfig.kitchen);
                 } catch (printError: any) {
                     console.error("Kitchen print failed (Direct):", printError);
                     Swal.fire('พิมพ์ไม่สำเร็จ', 'ไม่สามารถเชื่อมต่อเครื่องพิมพ์ครัวได้', 'error');
                 }
-             }
-        }
-        // Else: Customer Order -> Global Listener on Staff Device will print it.
-
-     }); } catch (error: any) { console.error("Failed to place order:", error); Swal.fire('เกิดข้อผิดพลาด', error.message || 'ไม่สามารถสร้างออเดอร์ได้', 'error'); } finally { setIsPlacingOrder(false); if (!isCustomerMode) { setCurrentOrderItems([]); setCustomerName(''); setCustomerCount(1); setSelectedTableId(null); } } };
+            }
+            // Customer orders are NOT printed here. The global listener on a staff device will handle it.
+        }); 
+    } catch (error: any) { console.error("Failed to place order:", error); Swal.fire('เกิดข้อผิดพลาด', error.message || 'ไม่สามารถสร้างออเดอร์ได้', 'error'); } finally { setIsPlacingOrder(false); if (!isCustomerMode) { setCurrentOrderItems([]); setCustomerName(''); setCustomerCount(1); setSelectedTableId(null); } } };
     const handleStartCooking = (orderId: number) => { if (!isOnline) return; activeOrdersActions.update(orderId, { status: 'cooking', cookingStartTime: Date.now() }); };
     
     // UPDATED: handleCompleteOrder to show provider name for delivery orders
