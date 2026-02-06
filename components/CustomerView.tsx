@@ -1,5 +1,4 @@
 
-// ... existing imports
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import type { MenuItem, Table, OrderItem, ActiveOrder, StaffCall, CompletedOrder } from '../types';
 import { Menu } from './Menu';
@@ -686,35 +685,50 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         }
     }, [allBranchOrders, isAuthenticated, table.id, myItems.length, t]);
 
-    // --- Loading Screen Render (CUTE KOREAN BEAR) ---
+    // --- Loading Screen Render (PREMIUM LOGO VERSION) ---
     if (isLoadingScreen) {
         return (
-            <div className="fixed inset-0 z-[9999] bg-[#fff0f5] flex flex-col items-center justify-center animate-fade-in font-sans"> 
-                {/* Cute Cartoon Image - Milk & Mocha Bear */}
-                <div className="mb-6 relative">
-                    <img 
-                        src="https://media.tenor.com/On7kvXhzml4AAAAi/loading-bear.gif"
-                        alt="Loading..." 
-                        className="w-48 h-48 object-contain mix-blend-multiply" 
-                    />
+            <div className="fixed inset-0 z-[9999] bg-white flex flex-col items-center justify-center animate-fade-in font-sans">
+                {/* Logo or Name Section */}
+                <div className="mb-10 relative flex justify-center items-center p-6">
+                    {logoUrl ? (
+                        <div className="relative">
+                            {/* Subtle Glow/Shimmer behind logo */}
+                            <div className="absolute inset-0 bg-gray-200 rounded-full blur-2xl opacity-40 animate-pulse"></div>
+                            <img
+                                src={logoUrl}
+                                alt="Restaurant Logo"
+                                className="w-48 h-48 object-contain relative z-10 animate-pulse drop-shadow-xl"
+                                crossOrigin="anonymous"
+                            />
+                        </div>
+                    ) : (
+                        <div className="relative">
+                             <div className="absolute inset-0 bg-gray-200 blur-2xl opacity-30 animate-pulse"></div>
+                             <h1 className="relative z-10 text-4xl md:text-5xl font-bold text-gray-800 tracking-wider animate-pulse text-center leading-tight drop-shadow-sm font-sarabun">
+                                {restaurantName || 'Welcome'}
+                            </h1>
+                        </div>
+                    )}
                 </div>
-                
-                {/* Cute Greeting */}
-                <h2 className="text-2xl font-bold text-pink-500 mb-2 tracking-wide font-sarabun">อันยอง! กำลังเตรียมความอร่อย...</h2>
-                <p className="text-gray-400 text-sm mb-6 font-sarabun">กรุณารอสักครู่ (Please wait)</p>
 
-                {/* Progress Bar Container */}
-                <div className="w-64 h-5 bg-white rounded-full overflow-hidden border-2 border-pink-200 shadow-inner relative">
-                    {/* Animated Progress Fill */}
-                    <div 
-                        className="h-full bg-gradient-to-r from-pink-300 to-pink-500 rounded-full transition-all duration-100 ease-out flex items-center justify-end pr-1"
+                {/* Text */}
+                <div className="text-center space-y-2 mb-8">
+                    <h2 className="text-lg font-medium text-gray-600 tracking-wide font-sarabun">กำลังเตรียมความอร่อย...</h2>
+                    <p className="text-gray-400 text-xs font-sarabun uppercase tracking-[0.2em]">Please wait</p>
+                </div>
+
+                {/* Sleek Progress Bar */}
+                <div className="w-48 h-1 bg-gray-100 rounded-full overflow-hidden relative">
+                    <div
+                        className="h-full bg-gray-800 rounded-full transition-all duration-100 ease-out shadow-[0_0_10px_rgba(0,0,0,0.2)]"
                         style={{ width: `${loadingProgress}%` }}
                     >
                     </div>
                 </div>
-                
+
                 {/* Percentage Text */}
-                <p className="mt-3 text-pink-400 font-bold text-xl font-mono">{loadingProgress}%</p>
+                <p className="mt-3 text-gray-400 font-mono text-xs font-semibold">{loadingProgress}%</p>
             </div>
         );
     }
