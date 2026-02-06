@@ -191,13 +191,34 @@ export const printerService = {
                 : '';
             
             const notesHtml = item.notes 
-                ? `<div style="font-size: ${fsNormal}; font-weight: bold; background-color: #000; color: #fff; display: inline-block; padding: 4px 8px; border-radius: 4px; margin-top: 10px; margin-left: 10px;">Note: ${item.notes}</div>` 
+                ? `<div style="font-size: ${fsNormal}; font-weight: bold; background-color: #000; color: #fff; display: inline-block; padding: 5px 8px; border-radius: 4px; margin-top: 15px; margin-left: 10px;">Note: ${item.notes}</div>` 
                 : '';
             
-            const takeawayHtml = item.isTakeaway 
+            const isItemTakeaway = item.isTakeaway || order.orderType === 'lineman' || order.orderType === 'takeaway';
+
+            const takeawayHtml = isItemTakeaway 
                 ? `<div style="font-size: ${fsNormal}; font-weight: 900; border: 2px solid #000; display: inline-block; padding: 2px 6px; margin-left: 10px; margin-top: 5px;">กลับบ้าน</div>` 
                 : '';
 
+            let cutleryHtml = '';
+            if (isItemTakeaway && item.takeawayCutlery && item.takeawayCutlery.length > 0) {
+                let cutleryText = '';
+                if (item.takeawayCutlery.includes('none')) {
+                    cutleryText = 'ไม่รับ';
+                } else {
+                    cutleryText = item.takeawayCutlery.map(c => {
+                        if (c === 'spoon-fork') return 'ช้อนส้อม';
+                        if (c === 'chopsticks') return 'ตะเกียบ';
+                        if (c === 'other') return item.takeawayCutleryNotes || 'อื่นๆ';
+                        return '';
+                    }).filter(Boolean).join(', ');
+                }
+
+                if (cutleryText) {
+                    cutleryHtml = `<div style="font-size: ${fsNormal}; font-weight: bold; background-color: #000; color: #fff; display: inline-block; padding: 5px 8px; border-radius: 4px; margin-top: 10px; margin-left: 10px;">เครื่องใช้: ${cutleryText}</div>`;
+                }
+            }
+            
             // FIX: Added padding-bottom 15px (increased from 8px) and margin-bottom 20px (increased from 10px) to separate items more clearly
             itemsHtml += `
                 <div style="margin-bottom: 20px; border-bottom: 1px dotted #ccc; padding-bottom: 15px;">
@@ -208,6 +229,7 @@ export const printerService = {
                     ${optionsHtml}
                     ${notesHtml}
                     ${takeawayHtml}
+                    ${cutleryHtml}
                 </div>
             `;
         });
