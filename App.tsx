@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useCallback, useRef, Suspense } from 'react';
 
 import { 
@@ -874,12 +875,27 @@ export const App: React.FC = () => {
         }
         if (tables.length === 0) return <PageLoading />;
         return (
-            <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4 text-center">
-                <div>
-                    <h2 className="text-xl font-bold text-gray-800 mb-2">ไม่พบข้อมูลโต๊ะ</h2>
-                    <p className="text-gray-600">กรุณาติดต่อพนักงานเพื่อตรวจสอบการตั้งค่า (Table ID: {targetTableId || 'Not Set'})</p>
-                    <button onClick={handleLogout} className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg">กลับหน้า Login</button>
+            <div className="min-h-screen w-full flex flex-col items-center justify-center bg-gray-100 p-4 text-center">
+                <div className="bg-white p-8 rounded-2xl shadow-lg max-w-sm w-full">
+                    <div className="mx-auto flex items-center justify-center h-20 w-20 rounded-full bg-red-100 mb-6">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                    </div>
+                    <h2 className="text-2xl font-bold text-gray-800 mb-2">เกิดข้อผิดพลาด</h2>
+                    <p className="text-gray-600 mb-4">
+                        ไม่พบข้อมูลโต๊ะที่ท่านสแกน QR Code อาจไม่อัปเดตหรือไม่ถูกต้อง
+                    </p>
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                        <p className="font-semibold text-yellow-800">กรุณาแจ้งพนักงานเพื่อดำเนินการ</p>
+                        <p className="mt-2 text-xs text-yellow-700">
+                            (สำหรับพนักงาน: Table ID <code className="font-mono bg-yellow-200 px-1 rounded">{targetTableId || 'Not Set'}</code> ไม่ถูกต้อง)
+                        </p>
+                    </div>
                 </div>
+                <p className="text-xs text-gray-400 mt-6">
+                    POS System by SEOUL GOOD
+                </p>
             </div>
         );
     }
