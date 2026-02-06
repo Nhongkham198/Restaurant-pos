@@ -196,7 +196,7 @@ export const printerService = {
             
             const isItemTakeaway = item.isTakeaway || order.orderType === 'lineman' || order.orderType === 'takeaway';
 
-            const takeawayHtml = isItemTakeaway 
+            const takeawayHtml = (isItemTakeaway && order.orderType !== 'lineman')
                 ? `<div style="font-size: ${fsNormal}; font-weight: 900; border: 2px solid #000; display: inline-block; padding: 2px 6px; margin-left: 10px; margin-top: 5px;">กลับบ้าน</div>` 
                 : '';
 
@@ -215,7 +215,7 @@ export const printerService = {
                 }
 
                 if (cutleryText) {
-                    cutleryHtml = `<div style="font-size: ${fsNormal}; font-weight: bold; background-color: #000; color: #fff; display: inline-block; padding: 5px 8px; border-radius: 4px; margin-top: 10px; margin-left: 10px;">เครื่องใช้: ${cutleryText}</div>`;
+                    cutleryHtml = `<div style="font-size: ${fsNormal}; font-weight: bold; background-color: #000; color: #fff; display: inline-block; padding: 5px 8px; border-radius: 4px; margin-top: 10px; margin-left: 10px;">รับ: ${cutleryText}</div>`;
                 }
             }
             
