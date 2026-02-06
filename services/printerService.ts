@@ -191,7 +191,7 @@ export const printerService = {
                 : '';
             
             const notesHtml = item.notes 
-                ? `<div style="font-size: ${fsNormal}; font-weight: bold; background-color: #000; color: #fff; display: inline-block; padding: 2px 6px; border-radius: 4px; margin-top: 5px; margin-left: 10px;">Note: ${item.notes}</div>` 
+                ? `<div style="font-size: ${fsNormal}; font-weight: bold; background-color: #000; color: #fff; display: inline-block; padding: 4px 8px; border-radius: 4px; margin-top: 10px; margin-left: 10px;">Note: ${item.notes}</div>` 
                 : '';
             
             const takeawayHtml = item.isTakeaway 
