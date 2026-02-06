@@ -109,46 +109,10 @@ const PageLoading = () => (
     </div>
 );
 
-// Initial App Loading Screen
-const LoadingScreen: React.FC<{ progress: number; logoUrl: string | null; restaurantName: string }> = ({ progress, logoUrl, restaurantName }) => (
-    <div className="fixed inset-0 z-[9999] bg-white flex flex-col items-center justify-center transition-opacity duration-500">
-        <div className="mb-10 relative flex justify-center items-center p-6">
-            {logoUrl ? (
-                <img
-                    src={logoUrl}
-                    alt="Restaurant Logo"
-                    className="w-48 h-48 object-contain relative z-10 drop-shadow-lg"
-                    crossOrigin="anonymous"
-                />
-            ) : (
-                <h1 className="relative z-10 text-5xl font-bold text-gray-400 tracking-wider font-sans">
-                    {restaurantName}
-                </h1>
-            )}
-        </div>
-        <div className="text-center space-y-2 mb-8">
-            <h2 className="text-lg font-medium text-gray-600 tracking-wide">กำลังเตรียมความอร่อย...</h2>
-            <p className="text-gray-400 text-xs uppercase tracking-[0.2em]">Please Wait</p>
-        </div>
-        <div className="w-48 h-1 bg-gray-200 rounded-full overflow-hidden relative">
-            <div
-                className="h-full bg-gray-800 rounded-full transition-all duration-150 ease-out"
-                style={{ width: `${progress}%` }}
-            ></div>
-        </div>
-        <p className="mt-3 text-gray-400 font-mono text-xs font-semibold">{progress}%</p>
-    </div>
-);
-
-
 export const App: React.FC = () => {
     // 1. STATE INITIALIZATION
     const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 1024);
     const [isOnline, setIsOnline] = useState(navigator.onLine);
-
-    // --- LOADING STATE ---
-    const [isAppLoading, setIsAppLoading] = useState(() => !sessionStorage.getItem('hasLoadedOnce'));
-    const [loadingProgress, setLoadingProgress] = useState(0);
 
     // --- AUTH & BRANCH STATE ---
     const [users, setUsers] = useFirestoreSync<User[]>(null, 'users', DEFAULT_USERS);
@@ -422,26 +386,6 @@ export const App: React.FC = () => {
     const latestStaffCallTimeRef = useRef(Date.now());
     // NEW: Ref to track active orders for change detection (better auto print)
     const prevOrdersForAutoPrint = useRef<ActiveOrder[] | null>(null);
-
-    // Initial Loading Effect
-    useEffect(() => {
-        if (!isAppLoading) return;
-        const interval = setInterval(() => {
-            setLoadingProgress(prev => {
-                if (prev >= 100) {
-                    clearInterval(interval);
-                    setTimeout(() => {
-                        setIsAppLoading(false);
-                        sessionStorage.setItem('hasLoadedOnce', 'true');
-                    }, 500); // Small delay to show 100%
-                    return 100;
-                }
-                return prev + 1;
-            });
-        }, 30); // ~3 seconds total loading time
-        return () => clearInterval(interval);
-    }, [isAppLoading]);
-
 
     // ... Computed Values ... (Same as before)
     const waitingBadgeCount = useMemo(() => activeOrders.filter(o => o.status === 'waiting').length, [activeOrders]);
@@ -890,9 +834,6 @@ export const App: React.FC = () => {
     const handleUpdateOrderFromModal = async (orderId: number, items: OrderItem[], customerCount: number) => { if (!isOnline) return; if (items.length === 0) { const orderToCancel = activeOrders.find(o => o.id === orderId); if (orderToCancel) { await handleConfirmCancelOrder(orderToCancel, 'อื่นๆ', 'ยกเลิกอัตโนมัติ (รายการอาหารถูกลบหมด)'); Swal.fire({ icon: 'info', title: 'ยกเลิกบิลอัตโนมัติ', text: 'บิลถูกยกเลิกเนื่องจากไม่มีรายการอาหารเหลืออยู่', timer: 2000, showConfirmButton: false }); } else { handleModalClose(); } } else { await activeOrdersActions.update(orderId, { items, customerCount }); handleModalClose(); } };
     
     // RENDER LOGIC
-    if (isAppLoading) {
-        return <LoadingScreen progress={loadingProgress} logoUrl={logoUrl} restaurantName={restaurantName} />;
-    }
 
     // 1. Force Customer View for Table Role OR explicit Customer Mode
     if (isCustomerMode || currentUser?.role === 'table') {
@@ -901,79 +842,6 @@ export const App: React.FC = () => {
         if (currentUser?.role === 'table' && currentUser.assignedTableId) {
             targetTableId = currentUser.assignedTableId;
         }
-
-        const myOrdersKey = useMemo(() => targetTableId ? `customer_my_orders_${targetTableId}` : null, [targetTableId]);
-
-        const [myOrderNumbers, setMyOrderNumbers] = useState<number[]>(() => {
-            if (!myOrdersKey) return [];
-            const saved = localStorage.getItem(myOrdersKey);
-            return saved ? JSON.parse(saved) : [];
-        });
-
-        useEffect(() => {
-            if (myOrdersKey) {
-                localStorage.setItem(myOrdersKey, JSON.stringify(myOrderNumbers));
-            }
-        }, [myOrderNumbers, myOrdersKey]);
-
-        // When table ID changes, reload the order numbers for the new table
-        useEffect(() => {
-            if (myOrdersKey) {
-                const saved = localStorage.getItem(myOrdersKey);
-                setMyOrderNumbers(saved ? JSON.parse(saved) : []);
-            } else {
-                setMyOrderNumbers([]);
-            }
-        }, [myOrdersKey]);
-        
-        // --- SEAMLESS TABLE MOVE HANDLER ---
-        useEffect(() => {
-            if (myOrderNumbers.length === 0 || !customerTableId) return;
-
-            const movedOrder = rawActiveOrders.find(o =>
-                (myOrderNumbers.includes(o.orderNumber) || (o.mergedOrderNumbers && o.mergedOrderNumbers.some(n => myOrderNumbers.includes(n)))) &&
-                o.status !== 'completed' &&
-                o.status !== 'cancelled' &&
-                o.tableId !== customerTableId &&
-                o.tableId > 0
-            );
-
-            if (movedOrder) {
-                const newTableId = movedOrder.tableId;
-                console.log(`[Auto-Follow] Detected move to Table ${newTableId}. Handling state change.`);
-
-                const oldSessionKey = `customer_session_${customerTableId}`;
-                const newSessionKey = `customer_session_${newTableId}`;
-                const sessionData = localStorage.getItem(oldSessionKey);
-                if (sessionData && !localStorage.getItem(newSessionKey)) {
-                    localStorage.setItem(newSessionKey, sessionData);
-                }
-
-                const oldOrdersKey = `customer_my_orders_${customerTableId}`;
-                const newOrdersKey = `customer_my_orders_${newTableId}`;
-                const ordersData = localStorage.getItem(oldOrdersKey);
-                if (ordersData) {
-                    const existing = JSON.parse(localStorage.getItem(newOrdersKey) || '[]');
-                    const old = JSON.parse(ordersData);
-                    const combined = [...new Set([...existing, ...old])];
-                    localStorage.setItem(newOrdersKey, JSON.stringify(combined));
-                }
-
-                const oldCartKey = `customer_cart_${customerTableId}`;
-                const newCartKey = `customer_cart_${newTableId}`;
-                const cartData = localStorage.getItem(oldCartKey);
-                if (cartData && !localStorage.getItem(newCartKey)) {
-                    localStorage.setItem(newCartKey, cartData);
-                }
-                
-                const currentUrl = new URL(window.location.href);
-                currentUrl.searchParams.set('tableId', String(newTableId));
-                window.history.pushState({}, '', currentUrl.toString());
-
-                setCustomerTableId(newTableId);
-            }
-        }, [rawActiveOrders, myOrderNumbers, customerTableId]);
-
 
         const customerTable = tables.find(t => t.id === targetTableId);
         const effectiveTable = customerTable || (targetTableId && tables.length === 0 ? {
@@ -993,17 +861,9 @@ export const App: React.FC = () => {
                         menuItems={visibleMenuItems}
                         categories={categories}
                         activeOrders={activeOrders.filter(o => o.tableId === targetTableId)}
-                        allBranchOrders={rawActiveOrders}
+                        allBranchOrders={activeOrders}
                         completedOrders={completedOrders}
-                        onPlaceOrder={(items, name) => {
-                            handlePlaceOrder(items, name, 1, effectiveTable).then(() => {
-                                // After placing, find the latest order ID and add it
-                                const latestOrder = [...rawActiveOrders].sort((a,b) => b.id - a.id)[0];
-                                if(latestOrder) {
-                                     setMyOrderNumbers(prev => [...new Set([...prev, latestOrder.orderNumber])]);
-                                }
-                            })
-                        }}
+                        onPlaceOrder={(items, name) => handlePlaceOrder(items, name, 1, effectiveTable)}
                         onStaffCall={(table, custName) => setStaffCalls(prev => [...prev, {id: Date.now(), tableId: table.id, tableName: `${table.name} (${table.floor})`, customerName: custName, branchId: selectedBranch ? selectedBranch.id : Number(branchId || 0), timestamp: Date.now()}])}
                         recommendedMenuItemIds={recommendedMenuItemIds}
                         logoUrl={appLogoUrl || logoUrl}
