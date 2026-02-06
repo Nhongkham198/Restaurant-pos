@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useMemo, useCallback, useRef, Suspense } from 'react';
 
 import { 
@@ -63,6 +64,8 @@ const LeaveAnalytics = React.lazy(() => import('./components/LeaveAnalytics').th
 const AdminSidebar = React.lazy(() => import('./components/AdminSidebar')); // Default export
 const MaintenanceView = React.lazy(() => import('./components/MaintenanceView').then(module => ({ default: module.MaintenanceView })));
 const CustomerView = React.lazy(() => import('./components/CustomerView').then(module => ({ default: module.CustomerView })));
+const QueueDisplay = React.lazy(() => import('./components/QueueDisplay').then(module => ({ default: module.QueueDisplay })));
+
 
 import { BottomNavBar } from './components/BottomNavBar';
 
@@ -200,6 +203,9 @@ export const App: React.FC = () => {
             return newValue;
         });
     };
+    
+    // --- SPECIAL DISPLAY MODES ---
+    const [isQueueMode, setIsQueueMode] = useState(() => window.location.pathname === '/queue');
 
     // --- CUSTOMER MODE STATE ---
     const [isCustomerMode, setIsCustomerMode] = useState(() => {
@@ -239,7 +245,8 @@ export const App: React.FC = () => {
     
     // --- BRANCH-SPECIFIC STATE (SYNCED WITH FIRESTORE) ---
     const urlBranchId = useMemo(() => new URLSearchParams(window.location.search).get('branchId'), []);
-    const branchId = selectedBranch ? selectedBranch.id.toString() : (isCustomerMode && urlBranchId ? urlBranchId : null);
+    const branchId = selectedBranch ? selectedBranch.id.toString() : (isCustomerMode || isQueueMode) && urlBranchId ? urlBranchId : null;
+
 
     // OPTIMIZATION: Determine if we should load heavy admin data (History, Stock, Maintenance)
     // We only load this if the user is NOT a customer (role != 'table') AND not in customer mode.
@@ -250,16 +257,19 @@ export const App: React.FC = () => {
     // Use this ID for heavy hooks. If null, the hook skips loading.
     const heavyDataBranchId = shouldLoadHeavyData ? branchId : null;
 
-    // Effect to hydrate selectedBranch from URL if missing (for Customer Mode)
+    // Effect to hydrate selectedBranch from URL if missing (for Customer & Queue Mode)
     useEffect(() => {
-        if (isCustomerMode && !selectedBranch && branches.length > 0 && urlBranchId) {
+        if ((isCustomerMode || isQueueMode) && !selectedBranch && branches.length > 0 && urlBranchId) {
             const b = branches.find(br => br.id.toString() === urlBranchId);
             if (b) {
                 setSelectedBranch(b);
-                localStorage.setItem('customerSelectedBranch', JSON.stringify(b));
+                if (isCustomerMode) {
+                    localStorage.setItem('customerSelectedBranch', JSON.stringify(b));
+                }
             }
         }
-    }, [isCustomerMode, selectedBranch, branches, urlBranchId]);
+    }, [isCustomerMode, isQueueMode, selectedBranch, branches, urlBranchId]);
+
 
     // --- ESSENTIAL DATA (Loaded for Everyone including Customers) ---
     const [menuItems, setMenuItems] = useFirestoreSync<MenuItem[]>(branchId, 'menuItems', DEFAULT_MENU_ITEMS);
@@ -858,6 +868,29 @@ export const App: React.FC = () => {
     const handleUpdateOrderFromModal = async (orderId: number, items: OrderItem[], customerCount: number) => { if (!isOnline) return; if (items.length === 0) { const orderToCancel = activeOrders.find(o => o.id === orderId); if (orderToCancel) { await handleConfirmCancelOrder(orderToCancel, 'อื่นๆ', 'ยกเลิกอัตโนมัติ (รายการอาหารถูกลบหมด)'); Swal.fire({ icon: 'info', title: 'ยกเลิกบิลอัตโนมัติ', text: 'บิลถูกยกเลิกเนื่องจากไม่มีรายการอาหารเหลืออยู่', timer: 2000, showConfirmButton: false }); } else { handleModalClose(); } } else { await activeOrdersActions.update(orderId, { items, customerCount }); handleModalClose(); } };
     
     // RENDER LOGIC
+    
+    // 0. Render Queue Display Mode
+    if (isQueueMode) {
+        if (!branchId) {
+            return (
+                <div className="h-screen w-screen flex flex-col items-center justify-center bg-gray-900 text-white">
+                    <h1 className="text-2xl font-bold">กรุณาระบุสาขา</h1>
+                    <p className="text-gray-400 mt-2">โปรดเพิ่ม `?branchId=...` ใน URL ของคุณ</p>
+                </div>
+            );
+        }
+        if (!selectedBranch) return <PageLoading />;
+
+        return (
+            <Suspense fallback={<PageLoading />}>
+                <QueueDisplay
+                    activeOrders={activeOrders}
+                    restaurantName={restaurantName}
+                    logoUrl={appLogoUrl || logoUrl}
+                />
+            </Suspense>
+        );
+    }
 
     // 1. Force Customer View for Table Role OR explicit Customer Mode
     if (isCustomerMode || currentUser?.role === 'table') {
