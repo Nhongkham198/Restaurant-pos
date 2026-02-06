@@ -843,10 +843,13 @@ export const App: React.FC = () => {
         }
 
         const customerTable = tables.find(t => t.id === targetTableId);
-        // FIX: Strictly require table to exist in the loaded data.
-        // If tables are loading (length 0), the PageLoading below will handle it.
-        // If tables are loaded and table is missing, effectiveTable is null -> Error Screen.
-        const effectiveTable = customerTable;
+        const effectiveTable = customerTable || (targetTableId && tables.length === 0 ? {
+            id: targetTableId,
+            name: 'Loading...',
+            floor: '-',
+            activePin: null,
+            reservation: null
+        } as Table : null);
 
         if (effectiveTable) {
              const visibleMenuItems = menuItems.filter(item => item.isVisible !== false);
