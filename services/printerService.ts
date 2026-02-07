@@ -312,10 +312,10 @@ export const printerService = {
         const opts = config.receiptOptions;
 
         // Optimized Font Sizes for Receipt (Bigger!)
-        const fsSmall = is58mm ? '18px' : '20px';
-        const fsNormal = is58mm ? '22px' : '24px';
-        const fsLarge = is58mm ? '28px' : '32px';
-        const fsXLarge = is58mm ? '36px' : '42px';
+        const fsSmall = is58mm ? '22px' : '24px';
+        const fsNormal = is58mm ? '26px' : '28px';
+        const fsLarge = is58mm ? '32px' : '36px';
+        const fsXLarge = is58mm ? '40px' : '46px';
 
         // Header Logic
         let headerHtml = '';
@@ -447,10 +447,10 @@ export const printerService = {
         const total = subtotal + order.taxAmount;
 
         // Optimized Font Sizes (Bigger!)
-        const fsSmall = is58mm ? '18px' : '20px';
-        const fsNormal = is58mm ? '22px' : '24px';
-        const fsLarge = is58mm ? '28px' : '32px';
-        const fsXLarge = is58mm ? '36px' : '42px';
+        const fsSmall = is58mm ? '22px' : '24px';
+        const fsNormal = is58mm ? '26px' : '28px';
+        const fsLarge = is58mm ? '32px' : '36px';
+        const fsXLarge = is58mm ? '40px' : '46px';
 
         const htmlContent = `
             <div style="width: 100%; box-sizing: border-box; font-family: 'Sarabun', sans-serif; color: #000; padding: 5px 0;">
