@@ -1,4 +1,5 @@
 
+
 import type { ActiveOrder, KitchenPrinterSettings, Table, CompletedOrder, CashierPrinterSettings, ReceiptPrintSettings, PrinterConnectionType } from '../types';
 
 declare global {
@@ -180,26 +181,33 @@ export const printerService = {
         const fsLarge = is58mm ? '32px' : '40px';
         const fsXLarge = is58mm ? '48px' : '56px';
         
+        // Reduced size for Item names (Requested by user for better aesthetics)
+        const fsItem = is58mm ? '26px' : '34px'; 
+        
         const displayOrderNumber = order.manualOrderNumber ? `#${order.manualOrderNumber}` : `#${String(order.orderNumber).padStart(3, '0')}`;
         const timeStr = new Date(order.orderTime).toLocaleTimeString('th-TH', {hour: '2-digit', minute:'2-digit'});
 
         // Generate Items HTML
         let itemsHtml = '';
         order.items.forEach(item => {
+            // Options: Align with item name in the right column
             const optionsHtml = item.selectedOptions?.length > 0 
-                ? `<div style="font-size: ${fsNormal}; color: #333; padding-left: 10px; margin-top: 2px; font-weight: normal;">+ ${item.selectedOptions.map(o => o.name).join(', ')}</div>` 
+                ? `<div style="font-size: ${fsNormal}; color: #333; margin-top: 2px; font-weight: normal;">+ ${item.selectedOptions.map(o => o.name).join(', ')}</div>` 
                 : '';
             
+            // Notes: Align with item name
             const notesHtml = item.notes 
-                ? `<div style="font-size: ${fsNormal}; font-weight: bold; background-color: #000; color: #fff; display: inline-block; padding: 5px 8px; border-radius: 4px; margin-top: 15px; margin-left: 10px;">Note: ${item.notes}</div>` 
+                ? `<div style="font-size: ${fsNormal}; font-weight: bold; background-color: #000; color: #fff; display: inline-block; padding: 5px 8px; border-radius: 4px; margin-top: 5px;">Note: ${item.notes}</div>` 
                 : '';
             
             const isItemTakeaway = item.isTakeaway || order.orderType === 'lineman' || order.orderType === 'takeaway';
 
+            // Takeaway Badge: Align with item name
             const takeawayHtml = (isItemTakeaway && order.orderType !== 'lineman')
-                ? `<div style="font-size: ${fsNormal}; font-weight: 900; border: 2px solid #000; display: inline-block; padding: 2px 6px; margin-left: 10px; margin-top: 5px;">กลับบ้าน</div>` 
+                ? `<div style="font-size: ${fsNormal}; font-weight: 900; border: 2px solid #000; display: inline-block; padding: 2px 6px; margin-top: 5px;">กลับบ้าน</div>` 
                 : '';
 
+            // Cutlery: Align with item name
             let cutleryHtml = '';
             if (isItemTakeaway && item.takeawayCutlery && item.takeawayCutlery.length > 0) {
                 let cutleryText = '';
@@ -215,28 +223,33 @@ export const printerService = {
                 }
 
                 if (cutleryText) {
-                    cutleryHtml = `<div style="font-size: ${fsNormal}; font-weight: bold; background-color: #000; color: #fff; display: inline-block; padding: 5px 8px; border-radius: 4px; margin-top: 10px; margin-left: 10px;">รับ: ${cutleryText}</div>`;
+                    cutleryHtml = `<div style="font-size: ${fsNormal}; font-weight: bold; background-color: #000; color: #fff; display: inline-block; padding: 5px 8px; border-radius: 4px; margin-top: 5px;">รับ: ${cutleryText}</div>`;
                 }
             }
             
-            // FIX: Added padding-bottom 15px (increased from 8px) and margin-bottom 20px (increased from 10px) to separate items more clearly
+            // NEW 2-Column Layout
             itemsHtml += `
-                <div style="margin-bottom: 20px; border-bottom: 1px dotted #ccc; padding-bottom: 15px;">
-                    <div style="font-size: ${fsLarge}; font-weight: 900; line-height: 1.2; display: flex; align-items: start;">
-                        <span style="min-width: 30px; text-align: right; margin-right: 5px;">${item.quantity}</span>
-                        <span style="word-break: break-word;">x ${item.name}</span>
+                <div style="margin-bottom: 20px; border-bottom: 1px dotted #ccc; padding-bottom: 15px; display: flex; align-items: flex-start;">
+                    <!-- Left Column: Quantity -->
+                    <div style="width: 15%; min-width: 45px; text-align: right; font-size: ${fsItem}; font-weight: 900; line-height: 1.1; padding-right: 12px; flex-shrink: 0;">
+                        ${item.quantity}x
                     </div>
-                    ${optionsHtml}
-                    ${notesHtml}
-                    ${takeawayHtml}
-                    ${cutleryHtml}
+                    
+                    <!-- Right Column: Details -->
+                    <div style="flex: 1; display: flex; flex-direction: column; align-items: flex-start;">
+                        <div style="font-size: ${fsItem}; font-weight: 900; line-height: 1.1; word-break: break-word;">
+                            ${item.name}
+                        </div>
+                        ${optionsHtml}
+                        ${notesHtml}
+                        ${takeawayHtml}
+                        ${cutleryHtml}
+                    </div>
                 </div>
             `;
         });
 
         // Full Kitchen Template
-        // FIX: Removed border-top on Order/Time row
-        // FIX: Added margin top/bottom to Table Name and Floor to separate them
         const htmlContent = `
             <div style="width: 100%; box-sizing: border-box; font-family: 'Sarabun', sans-serif; color: #000; padding: 5px;">
                 <div style="text-align: center; margin-bottom: 5px; border-bottom: 3px solid #000; padding-bottom: 8px;">
