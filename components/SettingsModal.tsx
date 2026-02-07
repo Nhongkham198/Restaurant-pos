@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useRef } from 'react';
 import type { PrinterConfig, ReceiptPrintSettings, KitchenPrinterSettings, CashierPrinterSettings, MenuItem, DeliveryProvider, PrinterStatus, PrinterConnectionType } from '../types';
 import { printerService } from '../services/printerService';
@@ -59,7 +60,8 @@ const DEFAULT_RECEIPT_OPTIONS: ReceiptPrintSettings = {
     showTotal: true,
     showPaymentMethod: true,
     showThankYouMessage: true,
-    thankYouMessage: 'ขอบคุณที่ใช้บริการ'
+    thankYouMessage: 'ขอบคุณที่ใช้บริการ',
+    showQrCode: true,
 };
 
 const StatusIndicator: React.FC<{ status: PrinterStatus; label: string }> = ({ status, label }) => {
@@ -559,7 +561,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
                                                 showPhoneNumber: 'เบอร์โทร', showTable: 'โต๊ะ', showStaff: 'พนักงาน',
                                                 showDateTime: 'วัน/เวลา', showOrderId: 'เลขที่ออเดอร์', showItems: 'รายการอาหาร',
                                                 showSubtotal: 'ยอดรวม', showTax: 'ภาษี', showTotal: 'ยอดสุทธิ',
-                                                showPaymentMethod: 'การชำระเงิน', showThankYouMessage: 'ข้อความขอบคุณ'
+                                                showPaymentMethod: 'การชำระเงิน', showThankYouMessage: 'ข้อความขอบคุณ',
+                                                showQrCode: 'QR Code รับเงิน'
                                             };
                                             return (
                                                 <label key={key} className="flex items-center gap-2 cursor-pointer">
@@ -595,7 +598,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
                             {/* Preview */}
                             <div className="bg-gray-200 p-4 rounded-xl flex items-center justify-center min-h-[400px]">
                                 <div className="bg-white shadow-lg w-[280px] p-4 text-black font-mono text-xs leading-snug flex flex-col items-center">
-                                    {receiptOpts.showLogo && settingsForm.logoUrl && <img src={settingsForm.logoUrl} alt="Logo" className="h-12 w-auto object-contain mb-2" />}
+                                    {receiptOpts.showLogo && settingsForm.logoUrl && <img src={settingsForm.logoUrl} alt="Logo" className="h-12 w-auto object-contain mb-2" crossOrigin="anonymous" />}
                                     {receiptOpts.showRestaurantName && <div className="font-bold text-base mb-1">ร้านอาหารตัวอย่าง</div>}
                                     {receiptOpts.showAddress && <div className="text-center whitespace-pre-wrap mb-1">{receiptOpts.address || settingsForm.restaurantAddress}</div>}
                                     {receiptOpts.showPhoneNumber && <div className="text-center mb-2">Tel: {receiptOpts.phoneNumber || settingsForm.restaurantPhone}</div>}
@@ -628,6 +631,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
                                         {receiptOpts.showPaymentMethod && <div className="text-center mt-2">(ชำระโดย: เงินสด)</div>}
                                     </div>
                                     {receiptOpts.showThankYouMessage && <div className="mt-4 text-center font-bold">*** {receiptOpts.thankYouMessage} ***</div>}
+                                    {receiptOpts.showQrCode && settingsForm.qrCodeUrl && (
+                                        <div className="mt-4 text-center border-t border-dashed border-gray-400 pt-3">
+                                            <div className="font-bold text-sm mb-1">สแกนเพื่อชำระเงิน</div>
+                                            <img src={settingsForm.qrCodeUrl} alt="QR Code" className="h-24 w-auto object-contain mx-auto" crossOrigin="anonymous"/>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>

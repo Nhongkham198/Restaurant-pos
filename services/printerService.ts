@@ -300,7 +300,7 @@ export const printerService = {
     },
 
     // --- 2. Receipt / Check Bill Printing ---
-    printReceipt: async (order: CompletedOrder, config: CashierPrinterSettings, restaurantName: string, logoUrl?: string | null): Promise<void> => {
+    printReceipt: async (order: CompletedOrder, config: CashierPrinterSettings, restaurantName: string, logoUrl?: string | null, qrCodeUrl?: string | null): Promise<void> => {
         if (!config.ipAddress) throw new Error("ไม่ได้ตั้งค่า IP ของ Print Server");
 
         const url = `http://${config.ipAddress}:${config.port || 3000}/print-image`;
@@ -377,6 +377,17 @@ export const printerService = {
         }
         totalsHtml += `</div>`;
 
+        // NEW: QR Code Logic
+        let qrCodeHtml = '';
+        if (qrCodeUrl && opts.showQrCode) {
+            qrCodeHtml = `
+                <div style="text-align: center; margin-top: 15px; padding-top: 15px; border-top: 1px dashed #000;">
+                    <div style="font-size: ${fsNormal}; font-weight: bold; margin-bottom: 8px;">สแกนเพื่อชำระเงิน</div>
+                    <img src="${qrCodeUrl}" style="max-height: 200px; max-width: 200px; object-fit: contain; display: block; margin: 0 auto;" crossOrigin="anonymous"/>
+                </div>
+            `;
+        }
+
         // Full Receipt Template
         const htmlContent = `
             <div style="width: 100%; box-sizing: border-box; font-family: 'Sarabun', sans-serif; color: #000; padding: 5px 0;">
@@ -395,6 +406,7 @@ export const printerService = {
                 ${totalsHtml}
 
                 ${opts.showThankYouMessage && opts.thankYouMessage ? `<div style="text-align: center; margin-top: 20px; font-size: ${fsNormal}; font-weight: bold; line-height: 1.8; padding-bottom: 15px;">*** ${opts.thankYouMessage} ***</div>` : ''}
+                ${qrCodeHtml}
             </div>
         `;
 

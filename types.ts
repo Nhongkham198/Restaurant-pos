@@ -1,4 +1,5 @@
 
+
 import type { ReactNode } from 'react';
 
 export interface Branch {
@@ -189,6 +190,7 @@ export interface ReceiptPrintSettings {
     showPaymentMethod: boolean;
     showThankYouMessage: boolean;
     thankYouMessage: string;
+    showQrCode?: boolean;
 }
 
 export type PrinterConnectionType = 'network' | 'usb';
