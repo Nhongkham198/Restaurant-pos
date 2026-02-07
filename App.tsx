@@ -894,33 +894,33 @@ export const App: React.FC = () => {
 
     // 1. Force Customer View for Table Role OR explicit Customer Mode
     if (isCustomerMode || currentUser?.role === 'table') {
-        // ... (Keep Customer View Logic) ...
         let targetTableId = customerTableId;
         if (currentUser?.role === 'table' && currentUser.assignedTableId) {
             targetTableId = currentUser.assignedTableId;
         }
 
-        const customerTable = tables.find(t => t.id === targetTableId);
-        const effectiveTable = customerTable || (targetTableId && tables.length === 0 ? {
-            id: targetTableId,
-            name: 'Loading...',
-            floor: '-',
-            activePin: null,
-            reservation: null
-        } as Table : null);
+        // Handle loading state: if we expect a table ID but the tables array isn't populated yet,
+        // show the loading component. This prevents the "table not found" error from flashing
+        // while data is still being fetched from Firestore (race condition).
+        if (targetTableId && tables.length === 0) {
+            return <PageLoading />;
+        }
 
-        if (effectiveTable) {
+        const customerTable = tables.find(t => t.id === targetTableId);
+        
+        // If the table is found after loading, render the main customer view.
+        if (customerTable) {
              const visibleMenuItems = menuItems.filter(item => item.isVisible !== false);
              return (
                 <Suspense fallback={<PageLoading />}>
                     <CustomerView 
-                        table={effectiveTable}
+                        table={customerTable}
                         menuItems={visibleMenuItems}
                         categories={categories}
                         activeOrders={activeOrders.filter(o => o.tableId === targetTableId)}
                         allBranchOrders={activeOrders}
                         completedOrders={completedOrders}
-                        onPlaceOrder={(items, name) => handlePlaceOrder(items, name, 1, effectiveTable)}
+                        onPlaceOrder={(items, name) => handlePlaceOrder(items, name, 1, customerTable)}
                         onStaffCall={(table, custName) => setStaffCalls(prev => [...prev, {id: Date.now(), tableId: table.id, tableName: `${table.name} (${table.floor})`, customerName: custName, branchId: selectedBranch ? selectedBranch.id : Number(branchId || 0), timestamp: Date.now()}])}
                         recommendedMenuItemIds={recommendedMenuItemIds}
                         logoUrl={appLogoUrl || logoUrl}
@@ -930,7 +930,9 @@ export const App: React.FC = () => {
                 </Suspense>
              );
         }
-        if (tables.length === 0) return <PageLoading />;
+
+        // If after loading tables, the specific table ID is still not found, show the error screen.
+        // This is now a confirmed error, not a race condition.
         return (
             <div className="min-h-screen w-full flex flex-col items-center justify-center bg-gray-100 p-4 text-center">
                 <div className="bg-white p-8 rounded-2xl shadow-lg max-w-sm w-full">
