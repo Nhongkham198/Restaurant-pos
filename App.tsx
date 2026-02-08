@@ -899,16 +899,23 @@ export const App: React.FC = () => {
             targetTableId = currentUser.assignedTableId;
         }
 
-        // Handle loading state: if we expect a table ID but the tables array isn't populated yet,
-        // show the loading component. This prevents the "table not found" error from flashing
-        // while data is still being fetched from Firestore (race condition).
-        if (targetTableId && tables.length === 0) {
-            return <PageLoading />;
+        // --- IMPROVEMENT: NON-BLOCKING CUSTOMER MODE ---
+        
+        let customerTable = tables.find(t => t.id === targetTableId);
+
+        // OPTIMIZATION: If data is still loading (tables empty), create a temporary placeholder
+        // so the customer can see the menu immediately.
+        if (!customerTable && tables.length === 0 && targetTableId) {
+            customerTable = {
+                id: targetTableId,
+                name: 'กำลังโหลด...',
+                floor: '-',
+                activePin: null,
+                reservation: null
+            };
         }
 
-        const customerTable = tables.find(t => t.id === targetTableId);
-        
-        // If the table is found after loading, render the main customer view.
+        // If the table is found OR we made a temp one, render the main customer view.
         if (customerTable) {
              const visibleMenuItems = menuItems.filter(item => item.isVisible !== false);
              return (
@@ -931,7 +938,7 @@ export const App: React.FC = () => {
              );
         }
 
-        // If after loading tables, the specific table ID is still not found, show the error screen.
+        // If after loading tables, the specific table ID is still not found AND we aren't loading anymore, show the error screen.
         // This is now a confirmed error, not a race condition.
         return (
             <div className="min-h-screen w-full flex flex-col items-center justify-center bg-gray-100 p-4 text-center">
