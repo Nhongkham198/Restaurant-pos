@@ -637,6 +637,49 @@ export const App: React.FC = () => {
 
     // ... (Other effects for maintenance, stock alerts - omitted for brevity but preserved in logic) ...
 
+    // Ref to track the previous view to detect navigation INTO stock page
+    const prevViewForStockAlertRef = useRef<View | null>(null);
+
+    // NEW: Effect to show out-of-stock popup when entering stock view
+    useEffect(() => {
+        const isEnteringStock = currentView === 'stock' && prevViewForStockAlertRef.current !== 'stock';
+        
+        if (isEnteringStock) {
+            // Filter out-of-stock items (quantity <= 0)
+            const outOfStockItems = stockItems.filter(item => {
+                const qty = Number(item.quantity) || 0;
+                return qty <= 0;
+            });
+
+            if (outOfStockItems.length > 0) {
+                const listHtml = outOfStockItems.map(item => 
+                    `<li style="text-align: left; margin-bottom: 4px;">
+                        <span style="font-weight: bold; color: #374151;">${item.name}</span> 
+                        <span style="color: #dc2626; font-size: 0.9em;">(คงเหลือ: ${item.quantity} ${item.unit})</span>
+                    </li>`
+                ).join('');
+
+                Swal.fire({
+                    title: '⚠️ แจ้งเตือนสินค้าหมด!',
+                    html: `
+                        <div style="font-size: 0.95rem; color: #4b5563;">
+                            <p style="margin-bottom: 12px;">พบสินค้าหมดสต็อกจำนวน <strong style="color: #dc2626; font-size: 1.1rem;">${outOfStockItems.length}</strong> รายการ:</p>
+                            <ul style="background-color: #fef2f2; border: 1px solid #fee2e2; border-radius: 8px; padding: 12px 12px 12px 28px; max-height: 250px; overflow-y: auto;">
+                                ${listHtml}
+                            </ul>
+                        </div>
+                    `,
+                    icon: 'warning',
+                    confirmButtonText: 'รับทราบ',
+                    confirmButtonColor: '#ef4444' // Red button
+                });
+            }
+        }
+
+        // Update ref for next render
+        prevViewForStockAlertRef.current = currentView;
+    }, [currentView, stockItems]);
+
     // --- USER PERSISTENCE ---
     useEffect(() => {
         if (currentUser) {
