@@ -753,7 +753,37 @@ export const App: React.FC = () => {
     const handleUpdateOrderItem = (itemToUpdate: OrderItem) => { setItemToCustomize(itemToUpdate); setOrderItemToEdit(itemToUpdate); setModalState(prev => ({ ...prev, isCustomization: true })); };
     const handleQuantityChange = (cartItemId: string, newQuantity: number) => { setCurrentOrderItems(prevItems => { if (newQuantity <= 0) return prevItems.filter(i => i.cartItemId !== cartItemId); return prevItems.map(i => i.cartItemId === cartItemId ? { ...i, quantity: newQuantity } : i); }); };
     const handleRemoveItem = (cartItemId: string) => { setCurrentOrderItems(prevItems => prevItems.filter(i => i.cartItemId !== cartItemId)); };
-    const handlePlaceOrder = async (orderItems: OrderItem[] = currentOrderItems, custName: string = customerName, custCount: number = customerCount, tableOverride: Table | null = selectedTable, isLineMan: boolean = false, lineManNumber?: string, deliveryProviderName?: string) => { if (!isLineMan && !tableOverride) { Swal.fire('กรุณาเลือกโต๊ะ', 'ต้องเลือกโต๊ะสำหรับออเดอร์ หรือเลือก LineMan', 'warning'); return; } if (orderItems.length === 0) return; if (!isOnline) { Swal.fire('เชื่อมต่ออินเทอร์เน็ตไม่ได้', 'ไม่สามารถสั่งอาหารได้ในขณะนี้', 'error'); return; } setIsPlacingOrder(true); try { 
+    const handlePlaceOrder = async (orderItems: OrderItem[] = currentOrderItems, custName: string = customerName, custCount: number = customerCount, tableOverride: Table | null = selectedTable, isLineMan: boolean = false, lineManNumber?: string, deliveryProviderName?: string) => { 
+        if (!isLineMan && !tableOverride) { 
+            Swal.fire('กรุณาเลือกโต๊ะ', 'ต้องเลือกโต๊ะสำหรับออเดอร์ หรือเลือก Delivery', 'warning'); 
+            return; 
+        } 
+
+        // --- GATEKEEPER LOGIC: Check for Optimistic Table ---
+        let finalTable = tableOverride;
+        if (!isLineMan && finalTable && finalTable.name === 'กำลังโหลด...') {
+            // Customer is ordering from a dummy table. Check if real data has arrived.
+            const realTable = tables.find(t => t.id === finalTable!.id);
+            
+            if (realTable) {
+                // Data is here, swap to real table
+                finalTable = realTable;
+            } else {
+                // Data still missing or invalid ID
+                Swal.fire({
+                    icon: 'error',
+                    title: 'ไม่พบข้อมูลโต๊ะ',
+                    text: 'กรุณาลองใหม่อีกครั้ง หรือติดต่อพนักงาน (รหัสโต๊ะอาจไม่ถูกต้อง)',
+                });
+                return;
+            }
+        }
+        // ----------------------------------------------------
+
+        if (orderItems.length === 0) return; 
+        if (!isOnline) { Swal.fire('เชื่อมต่ออินเทอร์เน็ตไม่ได้', 'ไม่สามารถสั่งอาหารได้ในขณะนี้', 'error'); return; } 
+        setIsPlacingOrder(true); 
+        try { 
         // FIX: Use branchId variable which supports URL fallback
         const branchIdStr = branchId;
         if (!branchIdStr) {
@@ -761,7 +791,7 @@ export const App: React.FC = () => {
              return;
         }
         
-        const counterRef = db.doc(`branches/${branchIdStr}/orderCounter/data`); await db.runTransaction(async (transaction: firebase.firestore.Transaction) => { const counterDoc = await transaction.get(counterRef); const counterData = (counterDoc.data() as { value: OrderCounter | undefined })?.value; const today = new Date(); const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`; let nextOrderId = 1; if (counterData && typeof counterData.count === 'number' && typeof counterData.lastResetDate === 'string' && counterData.lastResetDate === todayStr) { nextOrderId = counterData.count + 1; } const itemsWithOrigin = orderItems.map(item => ({ ...item, originalOrderNumber: nextOrderId, })); const orderTableName = isLineMan ? (deliveryProviderName || 'Delivery') : (tableOverride ? tableOverride.name : 'Unknown'); const orderFloor = isLineMan ? 'Delivery' : (tableOverride ? tableOverride.floor : 'Unknown'); const orderTableId = isLineMan ? -99 : (tableOverride ? tableOverride.id : 0); 
+        const counterRef = db.doc(`branches/${branchIdStr}/orderCounter/data`); await db.runTransaction(async (transaction: firebase.firestore.Transaction) => { const counterDoc = await transaction.get(counterRef); const counterData = (counterDoc.data() as { value: OrderCounter | undefined })?.value; const today = new Date(); const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`; let nextOrderId = 1; if (counterData && typeof counterData.count === 'number' && typeof counterData.lastResetDate === 'string' && counterData.lastResetDate === todayStr) { nextOrderId = counterData.count + 1; } const itemsWithOrigin = orderItems.map(item => ({ ...item, originalOrderNumber: nextOrderId, })); const orderTableName = isLineMan ? (deliveryProviderName || 'Delivery') : (finalTable ? finalTable.name : 'Unknown'); const orderFloor = isLineMan ? 'Delivery' : (finalTable ? finalTable.floor : 'Unknown'); const orderTableId = isLineMan ? -99 : (finalTable ? finalTable.id : 0); 
             const shouldSendToKitchen = isCustomerMode || sendToKitchen || isLineMan;
             // A staff member placing an order will print it directly. Mark it as printed.
             // A customer placing an order will not print directly. Mark it as NOT printed.
@@ -903,9 +933,9 @@ export const App: React.FC = () => {
         
         let customerTable = tables.find(t => t.id === targetTableId);
 
-        // OPTIMIZATION: If data is still loading (tables empty), create a temporary placeholder
-        // so the customer can see the menu immediately.
-        if (!customerTable && tables.length === 0 && targetTableId) {
+        // OPTIMISTIC LOADING: If table not found in list yet, create a dummy immediately
+        // This ensures the menu opens instantly (< 3s) while data loads in background.
+        if (!customerTable && targetTableId) {
             customerTable = {
                 id: targetTableId,
                 name: 'กำลังโหลด...',
