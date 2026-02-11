@@ -175,8 +175,8 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
                     assignedTableId: formData.role === 'table' ? Number(formData.assignedTableId) : undefined
                 };
 
-                // Update password only if a new one is provided AND user is Admin
-                if (formData.password && currentUser.role === 'admin') {
+                // Update password only if a new one is provided AND user is Admin OR Branch Admin
+                if (formData.password && (currentUser.role === 'admin' || currentUser.role === 'branch-admin')) {
                     updatedUser.password = formData.password;
                 }
     
@@ -297,7 +297,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
     };
 
     // Helper to determine if password editing is allowed
-    const canEditPassword = !editingUser || currentUser.role === 'admin';
+    const canEditPassword = !editingUser || currentUser.role === 'admin' || currentUser.role === 'branch-admin';
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4" onClick={onClose}>
