@@ -172,8 +172,17 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
                     username: formData.username.trim(),
                     role: formData.role,
                     leaveQuotas: formData.leaveQuotas,
-                    assignedTableId: formData.role === 'table' ? Number(formData.assignedTableId) : undefined
+                    // FIX: Do NOT set assignedTableId to undefined here, it causes Firestore error.
+                    // We handle it below.
                 };
+
+                // FIX: Handle assignedTableId carefully
+                if (formData.role === 'table') {
+                    updatedUser.assignedTableId = Number(formData.assignedTableId);
+                } else {
+                    // Explicitly delete key if not table role
+                    delete updatedUser.assignedTableId;
+                }
 
                 // Update password only if a new one is provided AND user is Admin OR Branch Admin
                 if (formData.password && (currentUser.role === 'admin' || currentUser.role === 'branch-admin')) {
@@ -213,8 +222,13 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
                 password: formData.password, // Password is mandatory for new users
                 role: formData.role,
                 leaveQuotas: formData.leaveQuotas,
-                assignedTableId: formData.role === 'table' ? Number(formData.assignedTableId) : undefined
+                // FIX: Do NOT set assignedTableId here initially to avoid undefined.
             };
+
+            // FIX: Add assignedTableId ONLY if role is table
+            if (formData.role === 'table') {
+                newUser.assignedTableId = Number(formData.assignedTableId);
+            }
 
             if (formData.profilePictureUrl && formData.profilePictureUrl.trim()) {
                 newUser.profilePictureUrl = formData.profilePictureUrl;
