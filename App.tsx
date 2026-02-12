@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect, useMemo, useCallback, useRef, Suspense } from 'react';
 
 import { 
@@ -396,6 +394,8 @@ export const App: React.FC = () => {
     const latestStaffCallTimeRef = useRef(Date.now());
     // NEW: Ref to track active orders for change detection (better auto print)
     const prevOrdersForAutoPrint = useRef<ActiveOrder[] | null>(null);
+    // NEW: Ref to track max leave request ID to detect new ones
+    const maxKnownLeaveIdRef = useRef<number>(-1);
 
     // ... Computed Values ... (Same as before)
     const waitingBadgeCount = useMemo(() => activeOrders.filter(o => o.status === 'waiting').length, [activeOrders]);
@@ -593,6 +593,75 @@ export const App: React.FC = () => {
             }
         }
     }, [staffCalls, staffCallSoundUrl, isAudioUnlocked, currentUser]);
+
+    // NEW: Leave Request Notification Watcher (Popup)
+    useEffect(() => {
+        // Wait for initial load
+        if (leaveRequests.length === 0) return;
+
+        const currentMaxId = Math.max(0, ...leaveRequests.map(r => r.id));
+
+        // Initial set to avoid alerting on existing data (first load)
+        if (maxKnownLeaveIdRef.current === -1) {
+            maxKnownLeaveIdRef.current = currentMaxId;
+            return;
+        }
+
+        // Check for new items (ID greater than max known)
+        if (currentMaxId > maxKnownLeaveIdRef.current) {
+            // Find the specific new requests that are PENDING
+            const newRequests = leaveRequests.filter(req => req.id > maxKnownLeaveIdRef.current && req.status === 'pending');
+
+            // Define who sees the alert (same permissions as badge)
+            const canApprove = currentUser?.role === 'admin' ||
+                               currentUser?.role === 'branch-admin' ||
+                               currentUser?.role === 'auditor';
+
+            // Filter by branch permission if not Admin
+            const visibleNewRequests = newRequests.filter(req => {
+                if (currentUser?.role === 'admin') return true;
+                return currentUser?.allowedBranchIds?.includes(req.branchId);
+            });
+
+            if (visibleNewRequests.length > 0 && canApprove) {
+                // Play sound (Reuse notification sound if available)
+                if (notificationSoundUrl && isAudioUnlocked) {
+                    const audio = new Audio(notificationSoundUrl);
+                    audio.play().catch(() => {});
+                }
+
+                // Show Popup
+                const count = visibleNewRequests.length;
+                const latest = visibleNewRequests[visibleNewRequests.length - 1]; // Get latest
+                const typeLabel = latest.type === 'sick' ? 'ลาป่วย' : latest.type === 'personal' ? 'ลากิจ' : 'อื่นๆ';
+                
+                Swal.fire({
+                    title: '📝 มีคำขอวันลาใหม่!',
+                    html: `
+                        <div class="text-left text-sm">
+                            <p><strong>พนักงาน:</strong> ${latest.username}</p>
+                            <p><strong>ประเภท:</strong> ${typeLabel}</p>
+                            <p><strong>เหตุผล:</strong> ${latest.reason}</p>
+                            ${count > 1 ? `<p class="mt-2 text-blue-600 font-bold">และอีก ${count - 1} รายการ...</p>` : ''}
+                        </div>
+                    `,
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonText: 'ตรวจสอบทันที',
+                    confirmButtonColor: '#3b82f6',
+                    cancelButtonText: 'ไว้ทีหลัง',
+                    backdrop: `rgba(0,0,0,0.4)`
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        setCurrentView('leave');
+                    }
+                });
+            }
+
+            // Always update ref to avoid loops
+            maxKnownLeaveIdRef.current = currentMaxId;
+        }
+    }, [leaveRequests, currentUser, notificationSoundUrl, isAudioUnlocked]);
 
     // NEW: Global Auto Print Effect (Replaces logic in KitchenView)
     useEffect(() => {
