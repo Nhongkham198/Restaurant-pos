@@ -137,7 +137,7 @@ export const LeaveCalendarView: React.FC<LeaveCalendarViewProps> = ({ leaveReque
         }
 
         const data = visibleRequests.map(req => ({
-            'วันที่ยื่น': new Date(req.id).toLocaleDateString('th-TH'),
+            'วันที่ยื่น': req.submittedAt ? new Date(req.submittedAt).toLocaleDateString('th-TH') : '-',
             'พนักงาน': req.username,
             'สาขา': getBranchName(req.branchId),
             'ประเภท': getTypeLabel(req.type),
@@ -303,7 +303,10 @@ export const LeaveCalendarView: React.FC<LeaveCalendarViewProps> = ({ leaveReque
                                 <tbody className="text-sm text-gray-800">
                                     {[...visibleRequests].sort((a, b) => b.id - a.id).map(req => (
                                         <tr key={req.id} className="border-b hover:bg-gray-50">
-                                            <td className="py-3 px-4 text-gray-500">{new Date(req.id).toLocaleDateString('th-TH')}</td>
+                                            <td className="py-3 px-4 text-gray-500">
+                                                {/* FIX: Use submittedAt if available, otherwise show placeholder to avoid 2513 date */}
+                                                {req.submittedAt ? new Date(req.submittedAt).toLocaleDateString('th-TH') : '-'}
+                                            </td>
                                             <td className="py-3 px-4 font-medium">{req.username}</td>
                                             <td className="py-3 px-4 text-gray-600">{getBranchName(req.branchId)}</td>
                                             <td className="py-3 px-4">{getTypeLabel(req.type)}</td>

@@ -59,16 +59,17 @@ export const LeaveRequestModal: React.FC<LeaveRequestModalProps> = ({ isOpen, on
             const end = new Date(endDate);
             
             start.setHours(0,0,0,0);
-            end.setHours(0,0,0,0);
+            end.setHours(23,59,59,999);
     
             if (end < start) {
                 return 0;
             }
     
             const diffTime = end.getTime() - start.getTime();
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+            // Using Math.round to account for the almost-full-day difference from 00:00 to 23:59:59
+            const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
             
-            return diffDays;
+            return diffDays > 0 ? diffDays : 1;
     
         } catch (e) {
             return 0;
@@ -90,8 +91,10 @@ export const LeaveRequestModal: React.FC<LeaveRequestModalProps> = ({ isOpen, on
                 if (req.isHalfDay) {
                     diffDays = 0.5;
                 } else {
+                    // Consistent logic with duration calculation above
                     const diffTime = Math.abs(req.endDate - req.startDate);
-                    diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+                    diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+                    if (diffDays <= 0) diffDays = 1;
                 }
                 
                 if (req.type === 'sick') used.sick += diffDays;

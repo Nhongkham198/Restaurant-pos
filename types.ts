@@ -1,5 +1,4 @@
 
-
 import type { ReactNode } from 'react';
 
 export interface Branch {
@@ -255,6 +254,7 @@ export interface LeaveRequest {
     status: 'pending' | 'approved' | 'rejected';
     isHalfDay?: boolean; // Added support for half-day leave
     acknowledgedBy?: number[]; // IDs of admins/managers who have seen the notification
+    submittedAt?: number; // timestamp for when the request was created
 }
 
 export interface StaffCall {

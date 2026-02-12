@@ -37,7 +37,10 @@ export const LeaveAnalytics: React.FC<LeaveAnalyticsProps> = ({ leaveRequests, u
             if (req.isHalfDay) {
                 duration = 0.5;
             } else {
-                duration = Math.ceil((req.endDate - req.startDate) / (1000 * 60 * 60 * 24)) + 1;
+                // Fix: duration calculation. endDate is set to 23:59:59, so the difference is already the full duration.
+                // Math.round handles the close-to-full-day difference (e.g. 0.999 days -> 1 day).
+                const days = Math.round((req.endDate - req.startDate) / (1000 * 60 * 60 * 24));
+                duration = days > 0 ? days : 1; // Fallback to 1 if calculation is 0 (e.g. legacy data)
             }
             
             userStats[userKey].totalDays += duration;
