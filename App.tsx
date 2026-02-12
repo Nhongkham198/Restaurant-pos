@@ -952,7 +952,43 @@ export const App: React.FC = () => {
             }
             // Customer orders are NOT printed here. The global listener on a staff device will handle it.
         }); 
-    } catch (error: any) { console.error("Failed to place order:", error); Swal.fire('เกิดข้อผิดพลาด', error.message || 'ไม่สามารถสร้างออเดอร์ได้', 'error'); } finally { setIsPlacingOrder(false); if (!isCustomerMode) { setCurrentOrderItems([]); setCustomerName(''); setCustomerCount(1); setSelectedTableId(null); } } };
+        } catch (error: any) {
+            console.error("Failed to place order:", error);
+            const errorMessage = (error.message || '').toLowerCase();
+            
+            // IMPROVED ERROR HANDLING FOR QUOTA
+            if (errorMessage.includes('quota') || errorMessage.includes('resource_exhausted')) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'โควต้าการใช้งานเต็ม',
+                    html: `
+                        <div class="text-left text-gray-700">
+                            <p class="font-bold">โควต้าการบันทึกข้อมูลสำหรับวันนี้เต็มแล้ว</p>
+                            <p class="mt-2 text-sm">ออเดอร์นี้จึงไม่ถูกบันทึกเข้าระบบ</p>
+                            <hr class="my-3"/>
+                            <p class="text-sm"><strong>สาเหตุ:</strong> แอปพลิเคชันนี้ใช้แผนบริการฟรีของ Firebase ซึ่งมีจำกัดการใช้งานรายวัน</p>
+                            <p class="text-sm mt-2"><strong>วิธีแก้ไข:</strong></p>
+                            <ul class="list-disc list-inside text-sm pl-4 mt-1">
+                                <li><strong>ชั่วคราว:</strong> ระบบจะกลับมาใช้งานได้อีกครั้งในวันพรุ่งนี้ (โควต้าจะรีเซ็ตทุกวัน)</li>
+                                <li><strong>ถาวร:</strong> อัปเกรดแผน Firebase เป็น <strong class="text-orange-500">Blaze (Pay-as-you-go)</strong> เพื่อใช้งานได้ไม่จำกัด</li>
+                            </ul>
+                        </div>
+                    `,
+                    confirmButtonText: 'รับทราบ',
+                });
+            } else {
+                Swal.fire('เกิดข้อผิดพลาด', error.message || 'ไม่สามารถสร้างออเดอร์ได้', 'error');
+            }
+        } finally { 
+            setIsPlacingOrder(false); 
+            if (!isCustomerMode) { 
+                setCurrentOrderItems([]); 
+                setCustomerName(''); 
+                setCustomerCount(1); 
+                setSelectedTableId(null); 
+            } 
+        } 
+    };
     const handleStartCooking = (orderId: number) => { if (!isOnline) return; activeOrdersActions.update(orderId, { status: 'cooking', cookingStartTime: Date.now() }); };
     
     // UPDATED: handleCompleteOrder to show provider name for delivery orders
