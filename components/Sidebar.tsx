@@ -317,20 +317,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
     };
 
     // --- Dynamic Color Logic for Confirm Button ---
-    const confirmButtonColorClass = useMemo(() => {
-        if (isDelivery && selectedProvider) {
-            const name = selectedProvider.name.toLowerCase();
-            const id = selectedProvider.id.toLowerCase();
-            
-            if (name.includes('shopee') || id.includes('shopee')) return 'bg-orange-500 hover:bg-orange-600 shadow-orange-900/30';
-            if (name.includes('robin') || id.includes('robin')) return 'bg-purple-600 hover:bg-purple-700 shadow-purple-900/30';
-            if (name.includes('panda') || id.includes('panda')) return 'bg-pink-500 hover:bg-pink-600 shadow-pink-900/30';
-            // LineMan, Grab, or default delivery
-            return 'bg-green-600 hover:bg-green-700 shadow-green-900/30';
+    // Modified: Use provider.color directly if available
+    const confirmButtonStyle = useMemo(() => {
+        if (isDelivery && selectedProvider && selectedProvider.color) {
+            return {
+                backgroundColor: selectedProvider.color,
+                // Add a slight shadow based on color if needed, or stick to simple
+            };
         }
         
-        // Default Dine-in Blue
-        return 'bg-blue-600 hover:bg-blue-700 shadow-blue-900/30';
+        // Default Blue for Dine-in or fallback
+        return {
+            backgroundColor: '#2563eb' // tailwind blue-600
+        };
     }, [isDelivery, selectedProvider]);
 
     return (
@@ -360,7 +359,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                             aria-label="Settings"
                         >
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.572 1.065c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                             </svg>
                         </button>
@@ -463,30 +462,48 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     </div>
                 </div>
 
-                {/* Delivery Provider Buttons (Dynamic) - NOW HIDDEN ON MOBILE */}
+                {/* Delivery Provider Buttons (Dynamic Colors) - NOW HIDDEN ON MOBILE */}
                 {!isMobilePage && activeProviders.length > 0 && (
                     <div className="bg-gray-800 p-2 rounded-lg border border-gray-700">
                         <div className="grid grid-cols-2 gap-2">
                             {activeProviders.map(provider => {
                                 const isSelected = selectedProvider?.id === provider.id;
+                                // Use custom color or default gray
+                                const buttonStyle = isSelected && provider.color
+                                    ? { borderColor: provider.color, backgroundColor: 'rgba(55, 65, 81, 1)' } // gray-700 base with colored border
+                                    : {};
+                                const textStyle = isSelected && provider.color
+                                    ? { color: provider.color }
+                                    : {};
+                                const ringStyle = isSelected && provider.color
+                                    ? { boxShadow: `0 0 0 2px ${provider.color}` }
+                                    : {};
+
                                 return (
                                     <button
                                         key={provider.id}
                                         onClick={() => handleProviderClick(provider)}
+                                        style={buttonStyle}
                                         className={`flex items-center gap-2 p-2 rounded-lg border transition-all ${
                                             isSelected 
-                                                ? 'bg-gray-700 border-green-500 shadow-sm' 
+                                                ? 'bg-gray-700 shadow-sm' 
                                                 : 'bg-transparent border-gray-600 hover:bg-gray-700 hover:border-gray-50'
                                         }`}
                                     >
-                                        <div className={`w-5 h-5 rounded-md flex items-center justify-center overflow-hidden flex-shrink-0 bg-white ${isSelected ? 'ring-2 ring-green-500' : ''}`}>
+                                        <div 
+                                            className={`w-5 h-5 rounded-md flex items-center justify-center overflow-hidden flex-shrink-0 bg-white`}
+                                            style={ringStyle}
+                                        >
                                             {provider.iconUrl ? (
                                                 <img src={provider.iconUrl} alt={provider.name} className="w-full h-full object-cover" onError={(e) => e.currentTarget.style.display = 'none'} />
                                             ) : (
                                                 <span className="text-xs text-gray-800 font-bold">{provider.name.charAt(0)}</span>
                                             )}
                                         </div>
-                                        <span className={`text-sm font-semibold truncate ${isSelected ? 'text-green-400' : 'text-gray-300'}`}>
+                                        <span 
+                                            className={`text-sm font-semibold truncate ${!isSelected ? 'text-gray-300' : ''}`}
+                                            style={textStyle}
+                                        >
                                             {provider.name} {isSelected && deliveryOrderNumber ? `#${deliveryOrderNumber}` : ''}
                                         </span>
                                     </button>
@@ -608,7 +625,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     <button
                         onClick={handleConfirmPlaceOrder}
                         disabled={isPlacingOrder}
-                        className={`col-span-2 flex-grow p-3 rounded-xl text-white font-bold shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-all transform active:scale-95 ${confirmButtonColorClass}`}
+                        style={!isPlacingOrder ? confirmButtonStyle : {}} // Apply dynamic style
+                        className={`col-span-2 flex-grow p-3 rounded-xl text-white font-bold shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-all transform active:scale-95 hover:brightness-110`}
                     >
                         {isPlacingOrder ? (
                             <>
@@ -681,13 +699,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
                                         isNumpadSubmittedRef.current = false; // Reset ref here too
                                     }}
                                     className="flex flex-col items-center justify-center p-4 border rounded-xl hover:bg-blue-50 hover:border-blue-300 transition-all gap-2"
+                                    style={{ borderColor: provider.color }}
                                 >
                                     {provider.iconUrl ? (
                                         <img src={provider.iconUrl} alt={provider.name} className="w-12 h-12 object-cover rounded-md" onError={(e) => e.currentTarget.style.display = 'none'} />
                                     ) : (
-                                        <div className="w-12 h-12 rounded-md bg-gray-200 flex items-center justify-center text-gray-500 font-bold text-xl">{provider.name.charAt(0)}</div>
+                                        <div 
+                                            className="w-12 h-12 rounded-md flex items-center justify-center text-white font-bold text-xl"
+                                            style={{ backgroundColor: provider.color || '#9ca3af' }}
+                                        >
+                                            {provider.name.charAt(0)}
+                                        </div>
                                     )}
-                                    <span className="font-semibold text-gray-800 text-sm text-center">{provider.name}</span>
+                                    <span 
+                                        className="font-semibold text-gray-800 text-sm text-center"
+                                        style={{ color: provider.color }}
+                                    >
+                                        {provider.name}
+                                    </span>
                                 </button>
                             ))}
                         </div>

@@ -20,6 +20,7 @@ export const DEFAULT_DELIVERY_PROVIDERS: DeliveryProvider[] = [
         id: 'lineman', 
         name: 'LineMan', 
         iconUrl: 'https://play-lh.googleusercontent.com/9t-Q8WmwJ8zXjHhEAgqM5f5zZk3G7y7yX9y3y3y3y3y3y3y3y3y3y3y3y3y3y3', // Placeholder, user will provide real ones usually
+        color: '#10b981', // Green
         isEnabled: true,
         isDefault: true 
     },
@@ -27,6 +28,7 @@ export const DEFAULT_DELIVERY_PROVIDERS: DeliveryProvider[] = [
         id: 'shopeefood', 
         name: 'ShopeeFood', 
         iconUrl: 'https://play-lh.googleusercontent.com/1-1-1-1-1-1-1-1-1-1-1-1-1-1-1-1-1-1-1-1-1-1-1-1', // Placeholder
+        color: '#f97316', // Orange
         isEnabled: false,
         isDefault: true 
     },
@@ -34,6 +36,7 @@ export const DEFAULT_DELIVERY_PROVIDERS: DeliveryProvider[] = [
         id: 'grabfood', 
         name: 'GrabFood', 
         iconUrl: '', 
+        color: '#22c55e', // Green
         isEnabled: false,
         isDefault: true 
     },
@@ -41,6 +44,7 @@ export const DEFAULT_DELIVERY_PROVIDERS: DeliveryProvider[] = [
         id: 'robinhood', 
         name: 'Robinhood', 
         iconUrl: '', 
+        color: '#a855f7', // Purple
         isEnabled: false,
         isDefault: true 
     }

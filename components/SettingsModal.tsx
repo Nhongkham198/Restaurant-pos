@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useRef } from 'react';
 import type { PrinterConfig, ReceiptPrintSettings, KitchenPrinterSettings, CashierPrinterSettings, MenuItem, DeliveryProvider, PrinterStatus, PrinterConnectionType } from '../types';
 import { printerService } from '../services/printerService';
@@ -386,6 +385,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
     const handleDeliveryToggle = (providerId: string) => {
         setTempDeliveryProviders(prev => prev.map(p => 
             p.id === providerId ? { ...p, isEnabled: !p.isEnabled } : p
+        ));
+    };
+
+    const handleDeliveryFieldChange = (providerId: string, field: 'iconUrl' | 'color', value: string) => {
+        setTempDeliveryProviders(prev => prev.map(p => 
+            p.id === providerId ? { ...p, [field]: value } : p
         ));
     };
 
@@ -803,26 +808,65 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
                     {activeTab === 'delivery' && (
                         <div className="bg-white p-6 rounded-lg shadow-sm max-w-3xl mx-auto">
                             <h3 className="text-lg font-bold text-gray-800 mb-4">จัดการ Delivery Providers</h3>
-                            <div className="space-y-3">
+                            <div className="space-y-4">
                                 {tempDeliveryProviders.map(provider => (
-                                    <div key={provider.id} className="flex items-center justify-between p-3 border rounded-lg bg-gray-50">
-                                        <div className="flex items-center gap-3">
-                                            {provider.iconUrl ? (
-                                                <img src={provider.iconUrl} alt={provider.name} className="w-8 h-8 rounded object-cover" />
-                                            ) : (
-                                                <div className="w-8 h-8 rounded bg-gray-300 flex items-center justify-center font-bold text-gray-600">{provider.name.charAt(0)}</div>
-                                            )}
-                                            <span className="font-semibold text-gray-700">{provider.name}</span>
+                                    <div key={provider.id} className="p-4 border rounded-lg bg-gray-50 space-y-3">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-3">
+                                                <div 
+                                                    className="w-10 h-10 rounded-md flex items-center justify-center overflow-hidden flex-shrink-0"
+                                                    style={{ backgroundColor: provider.color || '#e5e7eb' }}
+                                                >
+                                                    {provider.iconUrl ? (
+                                                        <img src={provider.iconUrl} alt={provider.name} className="w-full h-full object-cover" />
+                                                    ) : (
+                                                        <span className="text-white font-bold text-lg">{provider.name.charAt(0)}</span>
+                                                    )}
+                                                </div>
+                                                <span className="font-bold text-gray-800 text-lg">{provider.name}</span>
+                                            </div>
+                                            <label className="relative inline-flex items-center cursor-pointer">
+                                                <input 
+                                                    type="checkbox" 
+                                                    checked={provider.isEnabled} 
+                                                    onChange={() => handleDeliveryToggle(provider.id)} 
+                                                    className="sr-only peer" 
+                                                />
+                                                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                            </label>
                                         </div>
-                                        <label className="relative inline-flex items-center cursor-pointer">
-                                            <input 
-                                                type="checkbox" 
-                                                checked={provider.isEnabled} 
-                                                onChange={() => handleDeliveryToggle(provider.id)} 
-                                                className="sr-only peer" 
-                                            />
-                                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                                        </label>
+                                        
+                                        {/* Edit Fields */}
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-gray-200">
+                                            <div>
+                                                <label className="block text-xs font-bold text-gray-500 mb-1">URL รูปไอคอน</label>
+                                                <input 
+                                                    type="text" 
+                                                    value={provider.iconUrl || ''} 
+                                                    onChange={(e) => handleDeliveryFieldChange(provider.id, 'iconUrl', e.target.value)}
+                                                    placeholder="https://..."
+                                                    className="w-full text-sm border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-bold text-gray-500 mb-1">สีประจำค่าย</label>
+                                                <div className="flex items-center gap-2">
+                                                    <input 
+                                                        type="color" 
+                                                        value={provider.color || '#000000'} 
+                                                        onChange={(e) => handleDeliveryFieldChange(provider.id, 'color', e.target.value)}
+                                                        className="h-9 w-12 border border-gray-300 rounded cursor-pointer p-0.5 bg-white"
+                                                    />
+                                                    <input 
+                                                        type="text" 
+                                                        value={provider.color || ''} 
+                                                        onChange={(e) => handleDeliveryFieldChange(provider.id, 'color', e.target.value)}
+                                                        placeholder="#RRGGBB"
+                                                        className="flex-1 text-sm border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 uppercase"
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
                                 ))}
                             </div>

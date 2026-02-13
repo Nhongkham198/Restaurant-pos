@@ -17,6 +17,7 @@ export interface DeliveryProvider {
     id: string;
     name: string;
     iconUrl: string; // URL for the logo
+    color?: string; // New: Brand color for buttons/badges
     isEnabled: boolean;
     isDefault?: boolean; // System defaults like LineMan
 }
