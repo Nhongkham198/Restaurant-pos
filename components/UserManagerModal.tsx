@@ -314,7 +314,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
     const canEditPassword = !editingUser || currentUser.role === 'admin' || currentUser.role === 'branch-admin';
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4" onClick={onClose}>
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl transform transition-all flex flex-col" style={{maxHeight: '90vh'}} onClick={e => e.stopPropagation()}>
                 <div className="p-6 border-b">
                     <h3 className="text-2xl font-bold text-gray-900">จัดการผู้ใช้งาน</h3>
@@ -392,7 +392,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
                                                         className="p-2 text-red-600 hover:bg-red-100 rounded-full disabled:text-gray-400 disabled:hover:bg-transparent disabled:cursor-not-allowed"
                                                         title={isActionDisabled ? disabledTitle : 'ลบ'}
                                                     >
-                                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                                                     </button>
                                                </div>
                                             </div>
@@ -460,7 +460,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
                                                         onChange={() => handleBranchChange(branch.id)}
                                                         className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                                                     />
-                                                    <span className="text-gray-800">{branch.name}</span>
+                                                    <span className="text-gray-800">{branch.name} (#{branch.id})</span>
                                                 </label>
                                             ))}
                                         </div>
