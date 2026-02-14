@@ -9,10 +9,12 @@ import 'firebase/compat/firestore';
 export function useFirestoreSync<T>(
     branchId: string | null,
     collectionKey: string,
-    initialValue: T
+    initialValue: T,
+    fallbackValue?: T // NEW: Optional fallback value to seed DB if empty
 ): [T, React.Dispatch<React.SetStateAction<T>>] {
     const [value, setValue] = useState<T>(initialValue);
     const initialValueRef = useRef(initialValue);
+    const fallbackValueRef = useRef(fallbackValue);
     
     // Keep a ref to the current value to avoid stale closures
     const valueRef = useRef(value);
@@ -88,10 +90,26 @@ export function useFirestoreSync<T>(
 
                         setValue(valueToSet as T);
                     } else {
-                        setValue(currentInitialValue);
+                        // Document exists but value is missing/undefined. 
+                        // If we have a fallback, Seed it. Otherwise use initial.
+                        if (fallbackValueRef.current !== undefined) {
+                            console.log(`[Firestore] Seeding missing value for ${collectionKey} (Doc exists)`);
+                            docRef.set({ value: fallbackValueRef.current }, { merge: true });
+                            setValue(fallbackValueRef.current);
+                        } else {
+                            setValue(currentInitialValue);
+                        }
                     }
                 } else {
-                    setValue(currentInitialValue);
+                    // Document does NOT exist.
+                    // If we have a fallback, Seed it. Otherwise use initial.
+                    if (fallbackValueRef.current !== undefined) {
+                        console.log(`[Firestore] Seeding new document for ${collectionKey}`);
+                        docRef.set({ value: fallbackValueRef.current });
+                        setValue(fallbackValueRef.current);
+                    } else {
+                        setValue(currentInitialValue);
+                    }
                 }
             },
             (error) => {

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useCallback, useRef, Suspense } from 'react';
 
 import { 
@@ -116,8 +117,10 @@ export const App: React.FC = () => {
     const [isOnline, setIsOnline] = useState(navigator.onLine);
 
     // --- AUTH & BRANCH STATE ---
-    const [users, setUsers] = useFirestoreSync<User[]>(null, 'users', DEFAULT_USERS);
-    const [branches, setBranches] = useFirestoreSync<Branch[]>(null, 'branches', DEFAULT_BRANCHES);
+    // FIX: Initialize with empty arrays but pass DEFAULT_USERS/BRANCHES as the fallback seed value.
+    // This ensures that if the DB is empty, it seeds the defaults. If DB has data, it uses that data.
+    const [users, setUsers] = useFirestoreSync<User[]>(null, 'users', [], DEFAULT_USERS);
+    const [branches, setBranches] = useFirestoreSync<Branch[]>(null, 'branches', [], DEFAULT_BRANCHES);
     
     // Load currentUser from localStorage carefully
     const [currentUser, setCurrentUser] = useState<User | null>(() => {
@@ -270,10 +273,11 @@ export const App: React.FC = () => {
 
 
     // --- ESSENTIAL DATA (Loaded for Everyone including Customers) ---
-    const [menuItems, setMenuItems] = useFirestoreSync<MenuItem[]>(branchId, 'menuItems', DEFAULT_MENU_ITEMS);
-    const [categories, setCategories] = useFirestoreSync<string[]>(branchId, 'categories', DEFAULT_CATEGORIES);
-    const [tables, setTables] = useFirestoreSync<Table[]>(branchId, 'tables', DEFAULT_TABLES);
-    const [floors, setFloors] = useFirestoreSync<string[]>(branchId, 'floors', DEFAULT_FLOORS);
+    // FIX: Apply seeding pattern to branch-specific data as well.
+    const [menuItems, setMenuItems] = useFirestoreSync<MenuItem[]>(branchId, 'menuItems', [], DEFAULT_MENU_ITEMS);
+    const [categories, setCategories] = useFirestoreSync<string[]>(branchId, 'categories', [], DEFAULT_CATEGORIES);
+    const [tables, setTables] = useFirestoreSync<Table[]>(branchId, 'tables', [], DEFAULT_TABLES);
+    const [floors, setFloors] = useFirestoreSync<string[]>(branchId, 'floors', [], DEFAULT_FLOORS);
     const [recommendedMenuItemIds, setRecommendedMenuItemIds] = useFirestoreSync<number[]>(branchId, 'recommendedMenuItemIds', []);
     
     // Active Orders: Needed for customers to see queue position and own orders
@@ -306,13 +310,13 @@ export const App: React.FC = () => {
     }, [legacyCancelledOrders, newCancelledOrders]);
 
     // Stock
-    const [stockItems, setStockItems] = useFirestoreSync<StockItem[]>(heavyDataBranchId, 'stockItems', DEFAULT_STOCK_ITEMS);
-    const [stockCategories, setStockCategories] = useFirestoreSync<string[]>(heavyDataBranchId, 'stockCategories', DEFAULT_STOCK_CATEGORIES);
-    const [stockUnits, setStockUnits] = useFirestoreSync<string[]>(heavyDataBranchId, 'stockUnits', DEFAULT_STOCK_UNITS);
+    const [stockItems, setStockItems] = useFirestoreSync<StockItem[]>(heavyDataBranchId, 'stockItems', [], DEFAULT_STOCK_ITEMS);
+    const [stockCategories, setStockCategories] = useFirestoreSync<string[]>(heavyDataBranchId, 'stockCategories', [], DEFAULT_STOCK_CATEGORIES);
+    const [stockUnits, setStockUnits] = useFirestoreSync<string[]>(heavyDataBranchId, 'stockUnits', [], DEFAULT_STOCK_UNITS);
     
     // Maintenance & Logs
     const [printHistory, setPrintHistory] = useFirestoreSync<PrintHistoryEntry[]>(heavyDataBranchId, 'printHistory', []);
-    const [maintenanceItems, setMaintenanceItems] = useFirestoreSync<MaintenanceItem[]>(heavyDataBranchId, 'maintenanceItems', DEFAULT_MAINTENANCE_ITEMS);
+    const [maintenanceItems, setMaintenanceItems] = useFirestoreSync<MaintenanceItem[]>(heavyDataBranchId, 'maintenanceItems', [], DEFAULT_MAINTENANCE_ITEMS);
     const [maintenanceLogs, setMaintenanceLogs] = useFirestoreSync<MaintenanceLog[]>(heavyDataBranchId, 'maintenanceLogs', []);
     
     // Order Counter (For Dashboard stats primarily)
@@ -338,7 +342,7 @@ export const App: React.FC = () => {
     // --- GENERAL SETTINGS STATE (Essential for everyone for Logo/Name/Rules) ---
     const [logoUrl, setLogoUrl] = useFirestoreSync<string | null>(branchId, 'logoUrl', null);
     const [appLogoUrl, setAppLogoUrl] = useFirestoreSync<string | null>(branchId, 'appLogoUrl', null);
-    const [restaurantName, setRestaurantName] = useFirestoreSync<string>(branchId, 'restaurantName', 'ชื่อร้านอาหาร');
+    const [restaurantName, setRestaurantName] = useFirestoreSync<string>(branchId, 'restaurantName', '', 'ชื่อร้านอาหาร');
     const [restaurantAddress, setRestaurantAddress] = useFirestoreSync<string>(branchId, 'restaurantAddress', '');
     const [restaurantPhone, setRestaurantPhone] = useFirestoreSync<string>(branchId, 'restaurantPhone', '');
     const [taxId, setTaxId] = useFirestoreSync<string>(branchId, 'taxId', '');
@@ -348,12 +352,12 @@ export const App: React.FC = () => {
     const [notificationSoundUrl, setNotificationSoundUrl] = useFirestoreSync<string | null>(branchId, 'notificationSoundUrl', null);
     const [staffCallSoundUrl, setStaffCallSoundUrl] = useFirestoreSync<string | null>(branchId, 'staffCallSoundUrl', null);
     const [printerConfig, setPrinterConfig] = useFirestoreSync<PrinterConfig | null>(branchId, 'printerConfig', null);
-    const [openingTime, setOpeningTime] = useFirestoreSync<string | null>(branchId, 'openingTime', '10:00');
-    const [closingTime, setClosingTime] = useFirestoreSync<string | null>(branchId, 'closingTime', '22:00');
+    const [openingTime, setOpeningTime] = useFirestoreSync<string | null>(branchId, 'openingTime', '', '10:00');
+    const [closingTime, setClosingTime] = useFirestoreSync<string | null>(branchId, 'closingTime', '', '22:00');
     const [isTaxEnabled, setIsTaxEnabled] = useFirestoreSync<boolean>(branchId, 'isTaxEnabled', false);
     const [taxRate, setTaxRate] = useFirestoreSync<number>(branchId, 'taxRate', 7);
     const [sendToKitchen, setSendToKitchen] = useFirestoreSync<boolean>(branchId, 'sendToKitchen', true);
-    const [deliveryProviders, setDeliveryProviders] = useFirestoreSync<DeliveryProvider[]>(branchId, 'deliveryProviders', DEFAULT_DELIVERY_PROVIDERS);
+    const [deliveryProviders, setDeliveryProviders] = useFirestoreSync<DeliveryProvider[]>(branchId, 'deliveryProviders', [], DEFAULT_DELIVERY_PROVIDERS);
 
     // --- MODAL STATES ---
     const [modalState, setModalState] = useState({
