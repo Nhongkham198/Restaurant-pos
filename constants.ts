@@ -9,7 +9,7 @@ export const DEFAULT_BRANCHES: Branch[] = [
 export const DEFAULT_USERS: User[] = [
     { id: 1, username: 'admin', password: 'password', role: 'admin' },
     { id: 2, username: 'pos', password: 'password', role: 'pos', allowedBranchIds: [1] },
-    { id: 3, username: 'kitchen', password: 'password', role: 'kitchen', allowedBranchIds: [1] },
+    { id: 3, username: 'kitchen', password: 'password', role: 'kitchen', allowedBranchIds: [1, 2, 3, 4] },
     { id: 4, username: 'manager', password: 'password', role: 'branch-admin', allowedBranchIds: [1] },
     { id: 5, username: 'Sam', password: '198', role: 'admin' },
     { id: 6, username: 'auditor', password: 'password', role: 'auditor', allowedBranchIds: [1] },

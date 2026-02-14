@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useMemo, useCallback, useRef, Suspense } from 'react';
 
 import { 
@@ -866,7 +867,7 @@ export const App: React.FC = () => {
     const handleUpdateOrderItem = (itemToUpdate: OrderItem) => { setItemToCustomize(itemToUpdate); setOrderItemToEdit(itemToUpdate); setModalState(prev => ({ ...prev, isCustomization: true })); };
     const handleQuantityChange = (cartItemId: string, newQuantity: number) => { setCurrentOrderItems(prevItems => { if (newQuantity <= 0) return prevItems.filter(i => i.cartItemId !== cartItemId); return prevItems.map(i => i.cartItemId === cartItemId ? { ...i, quantity: newQuantity } : i); }); };
     const handleRemoveItem = (cartItemId: string) => { setCurrentOrderItems(prevItems => prevItems.filter(i => i.cartItemId !== cartItemId)); };
-    const handlePlaceOrder = async (orderItems: OrderItem[] = currentOrderItems, custName: string = customerName, custCount: number = customerCount, tableOverride: Table | null = selectedTable, isLineMan: boolean = false, lineManNumber?: string, deliveryProviderName?: string) => { 
+    const handlePlaceOrder = async (orderItems: OrderItem[] = currentOrderItems, custName: string = customerName, custCount: number = customerCount, tableOverride: Table | null = selectedTable, isLineMan: boolean = false, lineManNumber?: string, deliveryProviderName?: string): Promise<number | undefined> => { 
         if (!isLineMan && !tableOverride) { 
             Swal.fire('กรุณาเลือกโต๊ะ', 'ต้องเลือกโต๊ะสำหรับออเดอร์ หรือเลือก Delivery', 'warning'); 
             return; 
@@ -901,13 +902,25 @@ export const App: React.FC = () => {
         const branchIdStr = branchId;
         if (!branchIdStr) {
              Swal.fire('เกิดข้อผิดพลาด', 'ไม่พบข้อมูลสาขา (Branch ID Missing)', 'error');
+             setIsPlacingOrder(false); // Stop loading on error
              return;
         }
         
-        const counterRef = db.doc(`branches/${branchIdStr}/orderCounter/data`); await db.runTransaction(async (transaction: firebase.firestore.Transaction) => { const counterDoc = await transaction.get(counterRef); const counterData = (counterDoc.data() as { value: OrderCounter | undefined })?.value; const today = new Date(); const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`; let nextOrderId = 1; if (counterData && typeof counterData.count === 'number' && typeof counterData.lastResetDate === 'string' && counterData.lastResetDate === todayStr) { nextOrderId = counterData.count + 1; } const itemsWithOrigin = orderItems.map(item => ({ ...item, originalOrderNumber: nextOrderId, })); const orderTableName = isLineMan ? (deliveryProviderName || 'Delivery') : (finalTable ? finalTable.name : 'Unknown'); const orderFloor = isLineMan ? 'Delivery' : (finalTable ? finalTable.floor : 'Unknown'); const orderTableId = isLineMan ? -99 : (finalTable ? finalTable.id : 0); 
+        const counterRef = db.doc(`branches/${branchIdStr}/orderCounter/data`);
+        const result = await db.runTransaction(async (transaction: firebase.firestore.Transaction) => { 
+            const counterDoc = await transaction.get(counterRef); 
+            const counterData = (counterDoc.data() as { value: OrderCounter | undefined })?.value; 
+            const today = new Date(); 
+            const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`; 
+            let nextOrderId = 1; 
+            if (counterData && typeof counterData.count === 'number' && typeof counterData.lastResetDate === 'string' && counterData.lastResetDate === todayStr) { 
+                nextOrderId = counterData.count + 1; 
+            } 
+            const itemsWithOrigin = orderItems.map(item => ({ ...item, originalOrderNumber: nextOrderId, })); 
+            const orderTableName = isLineMan ? (deliveryProviderName || 'Delivery') : (finalTable ? finalTable.name : 'Unknown'); 
+            const orderFloor = isLineMan ? 'Delivery' : (finalTable ? finalTable.floor : 'Unknown'); 
+            const orderTableId = isLineMan ? -99 : (finalTable ? finalTable.id : 0); 
             const shouldSendToKitchen = isCustomerMode || sendToKitchen || isLineMan;
-            // A staff member placing an order will print it directly. Mark it as printed.
-            // A customer placing an order will not print directly. Mark it as NOT printed.
             const isPrintedImmediatelyByThisDevice = !isCustomerMode && shouldSendToKitchen;
             
             const newOrder: ActiveOrder = { 
@@ -934,24 +947,24 @@ export const App: React.FC = () => {
             const newOrderDocRef = db.collection(`branches/${branchIdStr}/activeOrders`).doc(newOrder.id.toString()); 
             transaction.set(newOrderDocRef, { ...newOrder, lastUpdated: firebase.firestore.FieldValue.serverTimestamp() }); 
             return { newOrder, shouldSendToKitchen, isPrintedImmediatelyByThisDevice }; 
-        }).then(async (result) => { 
-            const { newOrder, shouldSendToKitchen, isPrintedImmediatelyByThisDevice } = result;
-            setLastPlacedOrderId(newOrder.orderNumber); 
-            setModalState(prev => ({ ...prev, isOrderSuccess: true })); 
-        
-            // --- PRINT LOGIC MODIFICATION ---
-            // If this device just created a staff order, it's responsible for the one and only print.
-            // The isPrintedToKitchen flag will prevent the global listener on other devices from re-printing it.
-            if (isPrintedImmediatelyByThisDevice && printerConfig?.kitchen?.ipAddress) {
-                try {
-                    await printerService.printKitchenOrder(newOrder, printerConfig.kitchen);
-                } catch (printError: any) {
-                    console.error("Kitchen print failed (Direct):", printError);
-                    Swal.fire('พิมพ์ไม่สำเร็จ', 'ไม่สามารถเชื่อมต่อเครื่องพิมพ์ครัวได้', 'error');
-                }
+        });
+
+        const { newOrder, shouldSendToKitchen, isPrintedImmediatelyByThisDevice } = result;
+        setLastPlacedOrderId(newOrder.orderNumber); 
+        setModalState(prev => ({ ...prev, isOrderSuccess: true })); 
+    
+        // --- PRINT LOGIC MODIFICATION ---
+        if (isPrintedImmediatelyByThisDevice && printerConfig?.kitchen?.ipAddress) {
+            try {
+                await printerService.printKitchenOrder(newOrder, printerConfig.kitchen);
+            } catch (printError: any) {
+                console.error("Kitchen print failed (Direct):", printError);
+                Swal.fire('พิมพ์ไม่สำเร็จ', 'ไม่สามารถเชื่อมต่อเครื่องพิมพ์ครัวได้', 'error');
             }
-            // Customer orders are NOT printed here. The global listener on a staff device will handle it.
-        }); 
+        }
+        
+        return newOrder.orderNumber;
+
         } catch (error: any) {
             console.error("Failed to place order:", error);
             const errorMessage = (error.message || '').toLowerCase();
@@ -1104,6 +1117,7 @@ export const App: React.FC = () => {
                         menuItems={visibleMenuItems}
                         categories={categories}
                         activeOrders={activeOrders.filter(o => o.tableId === targetTableId)}
+                        // FIX: Pass `activeOrders` (which contains all active orders for the branch) to the `allBranchOrders` prop.
                         allBranchOrders={activeOrders}
                         completedOrders={completedOrders}
                         onPlaceOrder={(items, name) => handlePlaceOrder(items, name, 1, customerTable)}

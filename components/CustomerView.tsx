@@ -113,7 +113,7 @@ interface CustomerViewProps {
     activeOrders: ActiveOrder[];
     allBranchOrders: ActiveOrder[]; 
     completedOrders: CompletedOrder[];
-    onPlaceOrder: (items: OrderItem[], customerName: string, customerCount: number) => Promise<void> | void;
+    onPlaceOrder: (items: OrderItem[], customerName: string) => Promise<number | void>;
     onStaffCall: (table: Table, customerName: string) => void;
     recommendedMenuItemIds: number[];
     logoUrl: string | null;
@@ -602,7 +602,11 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                     };
                 });
 
-                await onPlaceOrder(itemsToSend, customerName, 1); 
+                const newOrderNumber = await onPlaceOrder(itemsToSend, customerName);
+                if (newOrderNumber) {
+                    setMyOrderNumbers(prev => [...prev, newOrderNumber]);
+                }
+                
                 setCartItems([]);
                 setIsCartOpen(false);
 
