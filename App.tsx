@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useCallback, useRef, Suspense } from 'react';
 
 import { 
@@ -866,110 +865,126 @@ export const App: React.FC = () => {
     const handleUpdateOrderItem = (itemToUpdate: OrderItem) => { setItemToCustomize(itemToUpdate); setOrderItemToEdit(itemToUpdate); setModalState(prev => ({ ...prev, isCustomization: true })); };
     const handleQuantityChange = (cartItemId: string, newQuantity: number) => { setCurrentOrderItems(prevItems => { if (newQuantity <= 0) return prevItems.filter(i => i.cartItemId !== cartItemId); return prevItems.map(i => i.cartItemId === cartItemId ? { ...i, quantity: newQuantity } : i); }); };
     const handleRemoveItem = (cartItemId: string) => { setCurrentOrderItems(prevItems => prevItems.filter(i => i.cartItemId !== cartItemId)); };
+    
     const handlePlaceOrder = async (orderItems: OrderItem[] = currentOrderItems, custName: string = customerName, custCount: number = customerCount, tableOverride: Table | null = selectedTable, isLineMan: boolean = false, lineManNumber?: string, deliveryProviderName?: string): Promise<number | undefined> => { 
         if (!isLineMan && !tableOverride) { 
             Swal.fire('กรุณาเลือกโต๊ะ', 'ต้องเลือกโต๊ะสำหรับออเดอร์ หรือเลือก Delivery', 'warning'); 
             return; 
         } 
 
-        // --- GATEKEEPER LOGIC: Check for Optimistic Table ---
         let finalTable = tableOverride;
         if (!isLineMan && finalTable && finalTable.name === 'กำลังโหลด...') {
-            // Customer is ordering from a dummy table. Check if real data has arrived.
             const realTable = tables.find(t => t.id === finalTable!.id);
-            
             if (realTable) {
-                // Data is here, swap to real table
                 finalTable = realTable;
             } else {
-                // Data still missing or invalid ID
-                Swal.fire({
-                    icon: 'error',
-                    title: 'ไม่พบข้อมูลโต๊ะ',
-                    text: 'กรุณาลองใหม่อีกครั้ง หรือติดต่อพนักงาน (รหัสโต๊ะอาจไม่ถูกต้อง)',
-                });
+                Swal.fire({ icon: 'error', title: 'ไม่พบข้อมูลโต๊ะ', text: 'กรุณาลองใหม่อีกครั้ง หรือติดต่อพนักงาน (รหัสโต๊ะอาจไม่ถูกต้อง)', });
                 return;
             }
         }
-        // ----------------------------------------------------
 
         if (orderItems.length === 0) return; 
         if (!isOnline) { Swal.fire('เชื่อมต่ออินเทอร์เน็ตไม่ได้', 'ไม่สามารถสั่งอาหารได้ในขณะนี้', 'error'); return; } 
         setIsPlacingOrder(true); 
-        try { 
-        // FIX: Use branchId variable which supports URL fallback
-        const branchIdStr = branchId;
-        if (!branchIdStr) {
-             Swal.fire('เกิดข้อผิดพลาด', 'ไม่พบข้อมูลสาขา (Branch ID Missing)', 'error');
-             setIsPlacingOrder(false); // Stop loading on error
-             return;
-        }
-        
-        const counterRef = db.doc(`branches/${branchIdStr}/orderCounter/data`);
-        const result = await db.runTransaction(async (transaction: firebase.firestore.Transaction) => { 
-            const counterDoc = await transaction.get(counterRef); 
-            const counterData = (counterDoc.data() as { value: OrderCounter | undefined })?.value; 
-            const today = new Date(); 
-            const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`; 
-            let nextOrderId = 1; 
-            if (counterData && typeof counterData.count === 'number' && typeof counterData.lastResetDate === 'string' && counterData.lastResetDate === todayStr) { 
-                nextOrderId = counterData.count + 1; 
-            } 
-            const itemsWithOrigin = orderItems.map(item => ({ ...item, originalOrderNumber: nextOrderId, })); 
-            const orderTableName = isLineMan ? (deliveryProviderName || 'Delivery') : (finalTable ? finalTable.name : 'Unknown'); 
-            const orderFloor = isLineMan ? 'Delivery' : (finalTable ? finalTable.floor : 'Unknown'); 
-            const orderTableId = isLineMan ? -99 : (finalTable ? finalTable.id : 0); 
-            const shouldSendToKitchen = isCustomerMode || sendToKitchen || isLineMan;
-            const isPrintedImmediatelyByThisDevice = !isCustomerMode && shouldSendToKitchen;
-            
-            const newOrder: ActiveOrder = { 
-                id: Date.now(), 
-                orderNumber: nextOrderId, 
-                manualOrderNumber: lineManNumber || null, 
-                tableId: orderTableId, 
-                tableName: orderTableName, 
-                customerName: custName, 
-                floor: orderFloor, 
-                customerCount: custCount, 
-                items: itemsWithOrigin, 
-                status: shouldSendToKitchen ? 'waiting' : 'served', 
-                orderTime: Date.now(), 
-                orderType: isLineMan ? 'lineman' : 'dine-in', 
-                taxRate: isTaxEnabled ? taxRate : 0, 
-                taxAmount: 0, 
-                placedBy: currentUser ? currentUser.username : (custName || `โต๊ะ ${orderTableName}`),
-                isPrintedToKitchen: isPrintedImmediatelyByThisDevice,
-            }; 
-            const subtotal = newOrder.items.reduce((sum, item) => sum + item.finalPrice * item.quantity, 0); 
-            newOrder.taxAmount = newOrder.taxRate > 0 ? subtotal * (newOrder.taxRate / 100) : 0; 
-            transaction.set(counterRef, { value: { count: nextOrderId, lastResetDate: todayStr } }); 
-            const newOrderDocRef = db.collection(`branches/${branchIdStr}/activeOrders`).doc(newOrder.id.toString()); 
-            transaction.set(newOrderDocRef, { ...newOrder, lastUpdated: firebase.firestore.FieldValue.serverTimestamp() }); 
-            return { newOrder, shouldSendToKitchen, isPrintedImmediatelyByThisDevice }; 
-        });
 
-        const { newOrder, shouldSendToKitchen, isPrintedImmediatelyByThisDevice } = result;
-        setLastPlacedOrderId(newOrder.orderNumber); 
-        setModalState(prev => ({ ...prev, isOrderSuccess: true })); 
-    
-        // --- PRINT LOGIC MODIFICATION ---
-        if (isPrintedImmediatelyByThisDevice && printerConfig?.kitchen?.ipAddress) {
-            try {
-                await printerService.printKitchenOrder(newOrder, printerConfig.kitchen);
-            } catch (printError: any) {
-                console.error("Kitchen print failed (Direct):", printError);
-                Swal.fire('พิมพ์ไม่สำเร็จ', 'ไม่สามารถเชื่อมต่อเครื่องพิมพ์ครัวได้', 'error');
+        try { 
+            const MAX_RETRIES = 3; // 1 initial attempt + 2 retries
+            let result;
+
+            for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+                try {
+                    const branchIdStr = branchId;
+                    if (!branchIdStr) {
+                        throw new Error('ไม่พบข้อมูลสาขา (Branch ID Missing)');
+                    }
+                    
+                    const counterRef = db.doc(`branches/${branchIdStr}/orderCounter/data`);
+                    result = await db.runTransaction(async (transaction: firebase.firestore.Transaction) => { 
+                        const counterDoc = await transaction.get(counterRef); 
+                        const counterData = (counterDoc.data() as { value: OrderCounter | undefined })?.value; 
+                        const today = new Date(); 
+                        const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`; 
+                        let nextOrderId = 1; 
+                        if (counterData && typeof counterData.count === 'number' && typeof counterData.lastResetDate === 'string' && counterData.lastResetDate === todayStr) { 
+                            nextOrderId = counterData.count + 1; 
+                        } 
+                        const itemsWithOrigin = orderItems.map(item => ({ ...item, originalOrderNumber: nextOrderId, })); 
+                        const orderTableName = isLineMan ? (deliveryProviderName || 'Delivery') : (finalTable ? finalTable.name : 'Unknown'); 
+                        const orderFloor = isLineMan ? 'Delivery' : (finalTable ? finalTable.floor : 'Unknown'); 
+                        const orderTableId = isLineMan ? -99 : (finalTable ? finalTable.id : 0); 
+                        const shouldSendToKitchen = isCustomerMode || sendToKitchen || isLineMan;
+                        const isPrintedImmediatelyByThisDevice = !isCustomerMode && shouldSendToKitchen;
+                        
+                        const newOrder: ActiveOrder = { 
+                            id: Date.now(), 
+                            orderNumber: nextOrderId, 
+                            manualOrderNumber: lineManNumber || null, 
+                            tableId: orderTableId, 
+                            tableName: orderTableName, 
+                            customerName: custName, 
+                            floor: orderFloor, 
+                            customerCount: custCount, 
+                            items: itemsWithOrigin, 
+                            status: shouldSendToKitchen ? 'waiting' : 'served', 
+                            orderTime: Date.now(), 
+                            orderType: isLineMan ? 'lineman' : 'dine-in', 
+                            taxRate: isTaxEnabled ? taxRate : 0, 
+                            taxAmount: 0, 
+                            placedBy: currentUser ? currentUser.username : (custName || `โต๊ะ ${orderTableName}`),
+                            isPrintedToKitchen: isPrintedImmediatelyByThisDevice,
+                        }; 
+                        const subtotal = newOrder.items.reduce((sum, item) => sum + item.finalPrice * item.quantity, 0); 
+                        newOrder.taxAmount = newOrder.taxRate > 0 ? subtotal * (newOrder.taxRate / 100) : 0; 
+                        transaction.set(counterRef, { value: { count: nextOrderId, lastResetDate: todayStr } }); 
+                        const newOrderDocRef = db.collection(`branches/${branchIdStr}/activeOrders`).doc(newOrder.id.toString()); 
+                        transaction.set(newOrderDocRef, { ...newOrder, lastUpdated: firebase.firestore.FieldValue.serverTimestamp() }); 
+                        return { newOrder, shouldSendToKitchen, isPrintedImmediatelyByThisDevice }; 
+                    });
+
+                    // If transaction is successful, break the loop
+                    break;
+                } catch (error: any) {
+                    // Firebase v8 uses `code`, e.g., 'aborted' for contention.
+                    if (error.code === 'aborted' && attempt < MAX_RETRIES) {
+                        console.warn(`Place order contention detected. Retrying attempt ${attempt + 1}...`);
+                        await new Promise(res => setTimeout(res, 100 * attempt)); // Small delay with backoff
+                    } else {
+                        // If it's another error or max retries reached, re-throw to be caught by the outer catch
+                        throw error;
+                    }
+                }
             }
-        }
+
+            if (!result) {
+                 // This should only be reached if retries fail silently, which is unlikely.
+                 throw new Error('Transaction failed after multiple retries without a specific error.');
+            }
+
+            const { newOrder, isPrintedImmediatelyByThisDevice } = result;
+            setLastPlacedOrderId(newOrder.orderNumber); 
+            setModalState(prev => ({ ...prev, isOrderSuccess: true })); 
         
-        return newOrder.orderNumber;
+            if (isPrintedImmediatelyByThisDevice && printerConfig?.kitchen?.ipAddress) {
+                try {
+                    await printerService.printKitchenOrder(newOrder, printerConfig.kitchen);
+                } catch (printError: any) {
+                    console.error("Kitchen print failed (Direct):", printError);
+                    Swal.fire('พิมพ์ไม่สำเร็จ', 'ไม่สามารถเชื่อมต่อเครื่องพิมพ์ครัวได้', 'error');
+                }
+            }
+            
+            return newOrder.orderNumber;
 
         } catch (error: any) {
             console.error("Failed to place order:", error);
             const errorMessage = (error.message || '').toLowerCase();
             
+            // Handle race condition failure after all retries
+            if (error.code === 'aborted') {
+                Swal.fire('ระบบกำลังยุ่ง', 'การส่งออเดอร์พร้อมกันหลายเครื่อง กรุณาลองอีกครั้งในอีกสักครู่', 'warning');
+            }
             // IMPROVED ERROR HANDLING FOR QUOTA
-            if (errorMessage.includes('quota') || errorMessage.includes('resource_exhausted')) {
+            else if (errorMessage.includes('quota') || errorMessage.includes('resource_exhausted')) {
                 Swal.fire({
                     icon: 'error',
                     title: 'โควต้าการใช้งานเต็ม',
@@ -1001,6 +1016,7 @@ export const App: React.FC = () => {
             } 
         } 
     };
+
     const handleStartCooking = (orderId: number) => { if (!isOnline) return; activeOrdersActions.update(orderId, { status: 'cooking', cookingStartTime: Date.now() }); };
     
     // UPDATED: handleCompleteOrder to show provider name for delivery orders
