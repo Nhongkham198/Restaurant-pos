@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useMemo, useCallback, useRef, Suspense } from 'react';
 
 import { 
@@ -1117,7 +1116,6 @@ export const App: React.FC = () => {
                         menuItems={visibleMenuItems}
                         categories={categories}
                         activeOrders={activeOrders.filter(o => o.tableId === targetTableId)}
-                        // FIX: Pass `activeOrders` (which contains all active orders for the branch) to the `allBranchOrders` prop.
                         allBranchOrders={activeOrders}
                         completedOrders={completedOrders}
                         onPlaceOrder={(items, name) => handlePlaceOrder(items, name, 1, customerTable)}

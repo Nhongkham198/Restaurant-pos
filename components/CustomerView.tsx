@@ -113,7 +113,7 @@ interface CustomerViewProps {
     activeOrders: ActiveOrder[];
     allBranchOrders: ActiveOrder[]; 
     completedOrders: CompletedOrder[];
-    onPlaceOrder: (items: OrderItem[], customerName: string) => Promise<number | void>;
+    onPlaceOrder: (items: OrderItem[], customerName: string) => Promise<number | void | undefined>;
     onStaffCall: (table: Table, customerName: string) => void;
     recommendedMenuItemIds: number[];
     logoUrl: string | null;
