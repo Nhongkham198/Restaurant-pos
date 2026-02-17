@@ -253,9 +253,10 @@ export const App: React.FC = () => {
     // --- BRANCH-SPECIFIC STATE (SYNCED WITH FIRESTORE) ---
     const urlBranchId = useMemo(() => new URLSearchParams(window.location.search).get('branchId'), []);
     
-    // CRITICAL FIX: Always trust URL Branch ID for Customer/Queue Mode.
-    // This prevents the app from using a stale branch ID from localStorage (e.g., if a customer visited Branch 1 before).
-    const branchId = ((isCustomerMode || isQueueMode) && urlBranchId) 
+    // CRITICAL FIX: ABSOLUTE PRIORITY TO URL BRANCH ID.
+    // Use URL ID if present, otherwise fall back to selectedBranch.
+    // This ensures that even if isCustomerMode is momentarily false or stale, the correct DB is used.
+    const branchId = urlBranchId 
         ? urlBranchId 
         : (selectedBranch ? selectedBranch.id.toString() : null);
 
@@ -271,9 +272,9 @@ export const App: React.FC = () => {
 
     // Effect to hydrate selectedBranch from URL if missing (for Customer & Queue Mode)
     useEffect(() => {
-        if ((isCustomerMode || isQueueMode) && branches.length > 0 && urlBranchId) {
-            // FIX: If selectedBranch is null OR if it doesn't match the URL branch ID, switch to the correct one.
-            // This fixes the issue where a device remembers Branch 1 but scans a QR for Branch 2.
+        // If there is a URL branch ID, we MUST sync selectedBranch to it.
+        // This fixes the issue where local state lags behind the URL.
+        if (branches.length > 0 && urlBranchId) {
             if (!selectedBranch || selectedBranch.id.toString() !== urlBranchId) {
                 const b = branches.find(br => br.id.toString() === urlBranchId);
                 if (b) {
@@ -284,7 +285,7 @@ export const App: React.FC = () => {
                 }
             }
         }
-    }, [isCustomerMode, isQueueMode, selectedBranch, branches, urlBranchId]);
+    }, [isCustomerMode, selectedBranch, branches, urlBranchId]);
 
 
     // --- ESSENTIAL DATA (Loaded for Everyone including Customers) ---
@@ -539,8 +540,18 @@ export const App: React.FC = () => {
             if (currentUser.assignedTableId) {
                 setCustomerTableId(currentUser.assignedTableId);
             }
+            
+            // AUTO-SELECT BRANCH for 'table' user based on their allowedBranchIds
+            // FIX: Only set if NO URL branchId is present to prevent overriding scans
+            if (!urlBranchId && currentUser.allowedBranchIds && currentUser.allowedBranchIds.length > 0) {
+                const branch = branches.find(b => b.id === currentUser.allowedBranchIds![0]);
+                if (branch) {
+                    setSelectedBranch(branch);
+                    localStorage.setItem('selectedBranch', JSON.stringify(branch));
+                }
+            }
         }
-    }, [currentUser]);
+    }, [currentUser, urlBranchId, branches]); // Added dependencies
 
     useEffect(() => {
         if (!isOnline) return;
@@ -828,7 +839,8 @@ export const App: React.FC = () => {
                 }
 
                 // AUTO-SELECT BRANCH for 'table' user based on their allowedBranchIds
-                if (user.allowedBranchIds && user.allowedBranchIds.length > 0) {
+                // FIX: Only if not already set by URL params above to prevent override
+                if (!urlBranchId && user.allowedBranchIds && user.allowedBranchIds.length > 0) {
                     const branch = branches.find(b => b.id === user.allowedBranchIds![0]);
                     if (branch) {
                         setSelectedBranch(branch);
