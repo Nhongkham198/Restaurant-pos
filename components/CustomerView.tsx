@@ -535,23 +535,28 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
             Swal.fire({ title: t('กำลังส่งรายการ...'), allowOutsideClick: false, didOpen: () => { Swal.showLoading(); } });
 
             try {
+                // **FIX**: Ensure no `undefined` values are sent to Firestore
                 const itemsToSend = cartItems.map(cartItem => {
                     const originalItem = menuItems.find(m => m.id === cartItem.id);
                     return {
                         ...cartItem,
-                        name: originalItem ? originalItem.name : cartItem.name, 
-                        nameEn: originalItem?.nameEn, 
+                        name: originalItem ? originalItem.name : cartItem.name,
+                        nameEn: originalItem?.nameEn || null, // FIX: Use null instead of undefined
                         selectedOptions: cartItem.selectedOptions.map(opt => {
                             const originalGroup = originalItem?.optionGroups?.find(g => g.options.some(o => o.id === opt.id));
                             const originalOpt = originalGroup?.options.find(o => o.id === opt.id);
-                            return { ...opt, name: originalOpt ? originalOpt.name : opt.name };
+                            return {
+                                ...opt,
+                                name: originalOpt ? originalOpt.name : opt.name,
+                                nameEn: originalOpt?.nameEn || null // FIX: Use null for options as well
+                            };
                         })
                     };
                 });
 
                 const newOrderNumber = await onPlaceOrder(itemsToSend, customerName);
                 
-                // **FIX**: Only show success and update state if an order number was successfully returned.
+                // Only show success and update state if an order number was successfully returned.
                 if (newOrderNumber) {
                     setMyOrderNumbers(prev => [...prev, newOrderNumber]);
                     setCartItems([]);
