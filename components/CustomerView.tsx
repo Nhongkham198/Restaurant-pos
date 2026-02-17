@@ -557,7 +557,19 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                 setCartItems([]);
                 setIsCartOpen(false);
 
-                await Swal.fire({ icon: 'success', title: t('สั่งอาหารสำเร็จ!'), text: t('รายการอาหารถูกส่งเข้าครัวแล้ว'), timer: 2500, showConfirmButton: false });
+                // **FIX**: Show order number on success for better confirmation
+                const successTitle = t('สั่งอาหารสำเร็จ!');
+                const successText = newOrderNumber 
+                    ? `ออเดอร์ของคุณคือ #${String(newOrderNumber).padStart(3, '0')}<br/>รายการอาหารถูกส่งเข้าครัวแล้ว`
+                    : t('รายการอาหารถูกส่งเข้าครัวแล้ว');
+
+                await Swal.fire({ 
+                    icon: 'success', 
+                    title: successTitle, 
+                    html: successText,
+                    timer: 3500, // Increased timer for readability
+                    showConfirmButton: false 
+                });
 
             } catch (error) {
                 Swal.fire({ icon: 'error', title: t('เกิดข้อผิดพลาด'), text: t('ไม่สามารถสั่งอาหารได้ กรุณาลองใหม่อีกครั้ง') });
