@@ -569,13 +569,13 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                     });
                 }
                 // If newOrderNumber is undefined (because the function failed), this block is skipped,
-                // and the user sees the error message displayed by the `handlePlaceOrder` function.
+                // and the user sees the error message displayed by the `handlePlaceOrder` function from App.tsx.
 
             } catch (error) {
                 // The error is already displayed by the parent component (App.tsx),
-                // so we just log it here to prevent unhandled promise rejections and stop the loading indicator.
+                // so we just log it here. The user will see the error Swal from the parent,
+                // which replaces the "Sending..." Swal. We don't need to call Swal.close() here.
                 console.error("Order placement failed:", error);
-                Swal.close(); // Ensure the "Sending..." modal is closed if an error is thrown.
             }
         }
     };
