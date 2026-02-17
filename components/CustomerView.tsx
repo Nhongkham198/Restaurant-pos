@@ -486,10 +486,11 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                     document.body.removeChild(link);
                 }
                 handlePaymentCompleteLock();
+                // **FIX**: Reset state refs *after* async operation is complete.
+                isProcessingPaymentRef.current = false;
+                prevMyItemsCountRef.current = 0;
             });
             
-            isProcessingPaymentRef.current = false;
-            prevMyItemsCountRef.current = 0;
             return;
         }
     
