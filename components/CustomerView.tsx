@@ -98,7 +98,6 @@ const RAW_DICTIONARY: Record<string, string> = {
     'เมนูทานเล่น': 'Snacks'
 };
 
-// ... (KEEP NORMALIZED_DICTIONARY AS IS)
 const NORMALIZED_DICTIONARY = Object.keys(RAW_DICTIONARY).reduce((acc, key) => {
     // Remove all whitespace from the key
     const normalizedKey = key.replace(/\s+/g, '');
@@ -118,7 +117,8 @@ interface CustomerViewProps {
     recommendedMenuItemIds: number[];
     logoUrl: string | null;
     restaurantName: string;
-    onLogout?: () => void; // Added onLogout prop
+    branchName?: string; // NEW: Added branchName prop
+    onLogout?: () => void;
 }
 
 export const CustomerView: React.FC<CustomerViewProps> = ({
@@ -133,6 +133,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     recommendedMenuItemIds,
     logoUrl,
     restaurantName,
+    branchName,
     onLogout
 }) => {
     // ... (Keep existing state hooks)
@@ -146,40 +147,28 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     });
 
     // --- NEW: Loading Screen State ---
-    // Update logic: Check sessionStorage to skip loading on refresh
     const [isLoadingScreen, setIsLoadingScreen] = useState(() => {
-        // If session is completed, no loading needed
         if (sessionStorage.getItem(`customer_completed_${table.id}`) === 'true') return false;
-        // If flag 'has_seen_loading' exists for this table, skip loading
         if (sessionStorage.getItem(`has_seen_loading_${table.id}`)) return false;
-        // Otherwise show loading
         return true;
     });
     const [loadingProgress, setLoadingProgress] = useState(0);
 
-    // --- NEW: Loading Logic (Updated for 12 Seconds & No Repeat on Refresh) ---
     useEffect(() => {
-        // If not showing loading screen, do nothing
         if (!isLoadingScreen) return;
-
-        // Logic: 100% / 12 seconds = 8.33% per second
-        // Or simpler: Update every 120ms, increment by 1%. 
-        // 100 steps * 120ms = 12,000ms = 12 seconds.
         const interval = setInterval(() => {
             setLoadingProgress((prev) => {
                 if (prev >= 100) {
                     clearInterval(interval);
                     return 100;
                 }
-                return prev + 1; // Increment exactly 1% per tick
+                return prev + 1; 
             });
-        }, 120); // 120ms * 100 steps = 12 seconds
+        }, 120); 
 
         if (loadingProgress === 100) {
-            // Small delay to let user see 100% before hiding
             setTimeout(() => {
                 setIsLoadingScreen(false);
-                // Mark as seen in session storage
                 sessionStorage.setItem(`has_seen_loading_${table.id}`, 'true');
             }, 500); 
         }
@@ -187,7 +176,6 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         return () => clearInterval(interval);
     }, [isLoadingScreen, loadingProgress, table.id]);
 
-    // ... (Keep cart and order state hooks)
     const cartKey = `customer_cart_${table.id}`;
     const [cartItems, setCartItems] = useState<OrderItem[]>(() => {
         const savedCart = localStorage.getItem(cartKey);
@@ -210,24 +198,16 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         }
     });
 
-    // ... (Keep translation helper)
     const t = useCallback((text: string) => {
         if (lang === 'TH') return text;
         if (!text || typeof text !== 'string') return text;
-        
-        // 1. Try exact match first (optimization)
         if (RAW_DICTIONARY[text]) return RAW_DICTIONARY[text];
-
-        // 2. Try trimmed match
         const trimmed = text.trim();
         if (RAW_DICTIONARY[trimmed]) return RAW_DICTIONARY[trimmed];
-
-        // 3. Try space-insensitive match (remove all spaces)
         const normalized = text.replace(/\s+/g, '');
         return NORMALIZED_DICTIONARY[normalized] || text;
     }, [lang]);
 
-    // ... (Keep memoized localized data)
     const localizedCategories = useMemo(() => {
         return categories.map(c => t(c));
     }, [categories, t]);
@@ -236,7 +216,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         return menuItems.map(item => ({
             ...item,
             name: lang === 'EN' ? (item.nameEn || item.name) : item.name,
-            category: t(item.category), // Translate item category to match category list
+            category: t(item.category),
             optionGroups: item.optionGroups?.map(group => ({
                 ...group,
                 name: lang === 'EN' ? (group.nameEn || group.name) : group.name,
@@ -248,7 +228,6 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         }));
     }, [menuItems, lang, t]);
 
-    // ... (Keep effects for persistence)
     useEffect(() => {
         localStorage.setItem(cartKey, JSON.stringify(cartItems));
     }, [cartItems, cartKey]);
@@ -257,7 +236,6 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         localStorage.setItem(myOrdersKey, JSON.stringify(myOrderNumbers));
     }, [myOrderNumbers, myOrdersKey]);
 
-    // ... (Keep UI state)
     const [isCartOpen, setIsCartOpen] = useState(false);
     const [isActiveOrderListOpen, setIsActiveOrderListOpen] = useState(false);
     const [itemToCustomize, setItemToCustomize] = useState<MenuItem | null>(null);
@@ -266,7 +244,6 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     const prevMyItemsCountRef = useRef<number>(0);
     const isProcessingPaymentRef = useRef(false);
     
-    // ... (Keep Session Logic)
     useEffect(() => {
         if (isSessionCompleted) return;
 
@@ -301,39 +278,22 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         setIsSessionCompleted(true);
     };
 
-    // --- NEW: Real-time Table Move Detection ---
     useEffect(() => {
-        // Only run if we have active orders and aren't already completed
         if (myOrderNumbers.length === 0 || isSessionCompleted) return;
 
-        // Check if any of "my orders" are currently active at a DIFFERENT table
-        // We use allBranchOrders to scan the entire restaurant state
         const movedOrder = allBranchOrders.find(o =>
-            // 1. Order belongs to this device (by ID) OR merged into this device's order
             (myOrderNumbers.includes(o.orderNumber) || (o.mergedOrderNumbers && o.mergedOrderNumbers.some(n => myOrderNumbers.includes(n)))) &&
-            // 2. Order is active (not completed/cancelled)
             o.status !== 'completed' &&
             o.status !== 'cancelled' &&
-            // 3. Table ID in database is DIFFERENT from the current page's table ID
             o.tableId !== table.id &&
-            // 4. Ensure it's a valid table (not a placeholder like -99 for delivery)
             o.tableId > 0
         );
 
         if (movedOrder) {
-            // Found a move!
-            console.log(`[Auto-Follow] Order moved to Table ${movedOrder.tableId}. Redirecting...`);
-
             const newTableId = movedOrder.tableId;
-
-            // 1. Construct the new URL
             const currentUrl = new URL(window.location.href);
             currentUrl.searchParams.set('tableId', String(newTableId));
 
-            // 2. MIGRATE LOCAL STORAGE DATA to the new Table ID
-            // This ensures the customer keeps their session name, cart, and order history
-            
-            // Migrate Session Name
             const oldSessionKey = `customer_session_${table.id}`;
             const newSessionKey = `customer_session_${newTableId}`;
             const sessionData = localStorage.getItem(oldSessionKey);
@@ -341,19 +301,16 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                 localStorage.setItem(newSessionKey, sessionData);
             }
 
-            // Migrate My Orders List
             const oldOrdersKey = `customer_my_orders_${table.id}`;
             const newOrdersKey = `customer_my_orders_${newTableId}`;
             const ordersData = localStorage.getItem(oldOrdersKey);
             if (ordersData) {
-                // Merge if target exists, otherwise set
                 const existing = JSON.parse(localStorage.getItem(newOrdersKey) || '[]');
                 const old = JSON.parse(ordersData);
                 const combined = [...new Set([...existing, ...old])];
                 localStorage.setItem(newOrdersKey, JSON.stringify(combined));
             }
 
-            // Migrate Cart (Optional but good UX)
             const oldCartKey = `customer_cart_${table.id}`;
             const newCartKey = `customer_cart_${newTableId}`;
             const cartData = localStorage.getItem(oldCartKey);
@@ -361,13 +318,10 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                 localStorage.setItem(newCartKey, cartData);
             }
 
-            // 3. Force Redirect to the new URL (Reloads page with new context)
             window.location.replace(currentUrl.toString());
         }
     }, [allBranchOrders, myOrderNumbers, table.id, isSessionCompleted]);
-    // -------------------------------------------
 
-    // ... (Keep Identify Items Logic)
     const { myItems, otherItems } = useMemo(() => {
         const mine: OrderItem[] = [];
         const others: { item: OrderItem, owner: string }[] = [];
@@ -387,7 +341,6 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                 const originId = item.originalOrderNumber ?? order.orderNumber;
                 const isMyItemById = myOrderSet.has(originId);
 
-                // Find original item to get Name EN if needed
                 const originalItem = menuItems.find(m => m.id === item.id);
                 
                 const displayItem = {
@@ -416,7 +369,6 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
 
     const grandTotal = myTotal + otherItems.reduce((sum, { item }) => sum + (item.finalPrice * item.quantity), 0);
 
-    // ... (Keep update myOrderNumbers effect)
     useEffect(() => {
         if (!isAuthenticated || !customerName) return;
         try {
@@ -436,8 +388,6 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         }
     }, [activeOrders, customerName, isAuthenticated, myOrderNumbers]);
 
-
-    // ... (Keep Payment Detect Effect - No changes)
     useEffect(() => {
         if (!isAuthenticated || isSessionCompleted) return;
     
@@ -548,8 +498,6 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
 
     }, [myItems.length, isAuthenticated, completedOrders, myOrderNumbers, logoUrl, restaurantName, customerName, isSessionCompleted, t]);
     
-
-    // ... (Keep handleSelectItem and other handlers)
     const handleSelectItem = (item: MenuItem) => {
         setItemToCustomize(item);
     };
@@ -587,7 +535,6 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
             Swal.fire({ title: t('กำลังส่งรายการ...'), allowOutsideClick: false, didOpen: () => { Swal.showLoading(); } });
 
             try {
-                // Revert names to Thai for backend
                 const itemsToSend = cartItems.map(cartItem => {
                     const originalItem = menuItems.find(m => m.id === cartItem.id);
                     return {
@@ -662,7 +609,6 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     const cartTotalAmount = useMemo(() => cartItems.reduce((sum, i) => sum + (i.finalPrice * i.quantity), 0), [cartItems]);
     const totalCartItemsCount = useMemo(() => cartItems.reduce((sum, i) => sum + i.quantity, 0), [cartItems]);
 
-    // ... (Keep Order Status Logic)
     const orderStatus = useMemo(() => {
         try {
             if (myItems.length === 0) return null;
@@ -689,14 +635,11 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         }
     }, [allBranchOrders, isAuthenticated, table.id, myItems.length, t]);
 
-    // --- Loading Screen Render (MODIFIED) ---
     if (isLoadingScreen) {
         return (
             <div className="fixed inset-0 z-[9999] bg-white flex flex-col items-center justify-center animate-fade-in font-sans">
-                {/* Logo or Name Section */}
                 <div className="mb-10 relative flex justify-center items-center p-6">
                     <div className="relative">
-                        {/* Subtle Glow/Shimmer behind logo */}
                         <div className="absolute inset-0 bg-gray-200 rounded-full blur-2xl opacity-40 animate-pulse"></div>
                         {logoUrl ? (
                             <img
@@ -706,20 +649,14 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                                 crossOrigin="anonymous"
                             />
                         ) : (
-                            // Placeholder that waits for the logo, instead of showing text.
-                            // This creates a "loading" state for the logo area itself.
                              <div className="w-48 h-48 object-contain relative z-10 shimmer-effect rounded-lg"></div>
                         )}
                     </div>
                 </div>
-
-                {/* Text */}
                 <div className="text-center space-y-2 mb-8">
                     <h2 className="text-lg font-medium text-gray-600 tracking-wide font-sarabun">กำลังเตรียมความอร่อย...</h2>
                     <p className="text-gray-400 text-xs font-sarabun uppercase tracking-[0.2em]">Please wait</p>
                 </div>
-
-                {/* Sleek Progress Bar */}
                 <div className="w-48 h-1 bg-gray-100 rounded-full overflow-hidden relative">
                     <div
                         className="h-full bg-gray-800 rounded-full transition-all duration-100 ease-out shadow-[0_0_10px_rgba(0,0,0,0.2)]"
@@ -727,8 +664,6 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                     >
                     </div>
                 </div>
-
-                {/* Percentage Text */}
                 <p className="mt-3 text-gray-400 font-mono text-xs font-semibold">{loadingProgress}%</p>
             </div>
         );
@@ -737,7 +672,6 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     if (isSessionCompleted) {
         return (
             <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6 text-center animate-fade-in">
-                {/* ... (Keep session completed view) ... */}
                  <div className="bg-white p-10 rounded-2xl shadow-xl w-full max-w-sm border-t-8 border-green-500">
                     <div className="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
@@ -766,7 +700,6 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         );
     }
 
-    // --- MAIN RENDER ---
     return (
         <div className="h-screen flex flex-col bg-gray-50 overflow-hidden">
             <header className="bg-white shadow-md z-30 relative">
@@ -794,12 +727,17 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                 </div>
 
                 <div className="px-4 py-3 flex justify-between items-start">
-                    {/* ... (Keep existing header content) ... */}
                     <div className="flex-1">
                         <div className="flex flex-wrap items-center gap-2 mb-1">
                             <span className="text-sm font-medium text-gray-600 bg-gray-100 px-3 py-1 rounded-full border border-gray-200 whitespace-nowrap">
                                 {t('โต๊ะ')} <span className="text-gray-900 font-bold">{table.name} ({table.floor})</span>
                             </span>
+                            {/* Branch Name Display */}
+                            {branchName && (
+                                <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-md border border-blue-200">
+                                    {branchName}
+                                </span>
+                            )}
                             {orderStatus && (
                                 <span className={`text-xs font-bold px-3 py-1 rounded-full border shadow-sm ${orderStatus.color} whitespace-nowrap flex items-center gap-1 z-10`}>
                                     {orderStatus.text}
@@ -846,12 +784,11 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                     onImportMenu={() => {}}
                     recommendedMenuItemIds={recommendedMenuItemIds}
                     hideCategories={true}
-                    title={t('เมนูอาหาร')} // NEW: Pass localized title
-                    searchPlaceholder={t('ค้นหาเมนู...')} // NEW: Pass localized placeholder
+                    title={t('เมนูอาหาร')} 
+                    searchPlaceholder={t('ค้นหาเมนู...')}
                 />
             </div>
 
-            {/* Float Cart Button */}
             {totalCartItemsCount > 0 && (
                 <div className="absolute bottom-6 left-4 right-4 z-20">
                     <button onClick={() => setIsCartOpen(true)} className="w-full bg-blue-600 text-white shadow-xl rounded-xl p-4 flex justify-between items-center animate-bounce-in">
@@ -867,7 +804,6 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                 </div>
             )}
 
-            {/* My Orders List Modal */}
             {isActiveOrderListOpen && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-end sm:items-center" onClick={() => setIsActiveOrderListOpen(false)}>
                     <div className="bg-white w-full sm:max-w-md h-[80vh] sm:h-auto sm:max-h-[90vh] rounded-t-2xl sm:rounded-xl shadow-2xl flex flex-col overflow-hidden animate-slide-up" onClick={e => e.stopPropagation()}>
@@ -947,7 +883,6 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                 </div>
             )}
 
-            {/* Cart Modal */}
             {isCartOpen && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-end sm:justify-center items-end sm:items-center">
                     <div className="bg-white w-full sm:max-w-md h-[90vh] sm:h-[80vh] rounded-t-2xl sm:rounded-2xl shadow-2xl flex flex-col animate-slide-up">

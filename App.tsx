@@ -1,6 +1,8 @@
 
+// ... existing imports ...
 import React, { useState, useEffect, useMemo, useCallback, useRef, Suspense } from 'react';
 
+// ... (Keep existing imports same as before) ...
 import { 
     DEFAULT_BRANCHES, 
     DEFAULT_CATEGORIES, 
@@ -287,6 +289,25 @@ export const App: React.FC = () => {
         }
     }, [isCustomerMode, selectedBranch, branches, urlBranchId]);
 
+    // NEW: Effect to force clear stale localStorage if URL Branch ID is present and differs from stored value
+    useEffect(() => {
+        if (urlBranchId) {
+            const stored = localStorage.getItem('customerSelectedBranch');
+            if (stored) {
+                try {
+                    const parsed = JSON.parse(stored);
+                    if (parsed.id != urlBranchId) {
+                        // Found a mismatch! Clear it to avoid sticky session issues.
+                        console.log('Branch mismatch detected. Clearing stale local storage to enforce URL branch.');
+                        localStorage.removeItem('customerSelectedBranch');
+                    }
+                } catch (e) {
+                    localStorage.removeItem('customerSelectedBranch');
+                }
+            }
+        }
+    }, [urlBranchId]);
+
 
     // --- ESSENTIAL DATA (Loaded for Everyone including Customers) ---
     // FIX: Apply seeding pattern to branch-specific data as well.
@@ -304,7 +325,7 @@ export const App: React.FC = () => {
     }, [rawActiveOrders]);
 
     // --- HEAVY DATA (Loaded ONLY for Staff/Admin - via heavyDataBranchId) ---
-    
+    // ... (Keep heavy data loading logic) ...
     // History
     const [legacyCompletedOrders, setLegacyCompletedOrders] = useFirestoreSync<CompletedOrder[]>(heavyDataBranchId, 'completedOrders', []);
     const [legacyCancelledOrders, setLegacyCancelledOrders] = useFirestoreSync<CancelledOrder[]>(heavyDataBranchId, 'cancelledOrders', []);
@@ -375,6 +396,7 @@ export const App: React.FC = () => {
     const [sendToKitchen, setSendToKitchen] = useFirestoreSync<boolean>(branchId, 'sendToKitchen', true);
     const [deliveryProviders, setDeliveryProviders] = useFirestoreSync<DeliveryProvider[]>(branchId, 'deliveryProviders', [], DEFAULT_DELIVERY_PROVIDERS);
 
+    // ... (Keep modal state and other hooks) ...
     // --- MODAL STATES ---
     const [modalState, setModalState] = useState({
         isMenuItem: false, isOrderSuccess: false, isSplitBill: false, isTableBill: false,
@@ -803,6 +825,7 @@ export const App: React.FC = () => {
     // 4. HANDLERS
     // ============================================================================
     
+    // ... (Keep handler functions same as before) ...
     const requestNotificationPermission = async () => {
         if ('Notification' in window && Notification.permission !== 'granted') {
             try { await Notification.requestPermission(); } catch (error) {}
@@ -1170,6 +1193,8 @@ export const App: React.FC = () => {
                         recommendedMenuItemIds={recommendedMenuItemIds}
                         logoUrl={appLogoUrl || logoUrl}
                         restaurantName={restaurantName}
+                        // NEW: Pass branchName prop to display it on customer view
+                        branchName={selectedBranch ? selectedBranch.name : (branches.find(b => b.id.toString() === branchId)?.name || '')}
                         onLogout={handleLogout}
                     />
                 </Suspense>
