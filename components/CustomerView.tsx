@@ -242,7 +242,6 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     const billContentRef = useRef<HTMLDivElement>(null);
     
     const prevMyItemsCountRef = useRef<number>(0);
-    const isProcessingPaymentRef = useRef(false);
     
     useEffect(() => {
         if (isSessionCompleted) return;
@@ -271,12 +270,12 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         setIsAuthenticated(true);
     };
 
-    const handlePaymentCompleteLock = () => {
+    const handlePaymentCompleteLock = useCallback(() => {
         localStorage.removeItem(cartKey);
         localStorage.removeItem(myOrdersKey);
         sessionStorage.setItem(`customer_completed_${table.id}`, 'true');
         setIsSessionCompleted(true);
-    };
+    }, [cartKey, myOrdersKey, table.id]);
 
     useEffect(() => {
         if (myOrderNumbers.length === 0 || isSessionCompleted) return;
@@ -388,116 +387,43 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         }
     }, [activeOrders, customerName, isAuthenticated, myOrderNumbers]);
 
+    // **MODIFIED EFFECT**: Simplified to immediately show "Thank You" screen upon payment detection.
     useEffect(() => {
+        // These initial guards prevent the effect from running unnecessarily.
         if (!isAuthenticated || isSessionCompleted) return;
     
-        const currentCount = myItems.length;
-        const prevCount = prevMyItemsCountRef.current;
-        const isTransitioning = prevCount > 0 && currentCount === 0;
-        
-        if (isTransitioning || (isProcessingPaymentRef.current && currentCount === 0)) {
-            isProcessingPaymentRef.current = true;
+        // The core condition: did the user's items just transition from having items to having none?
+        const isPaymentTransition = prevMyItemsCountRef.current > 0 && myItems.length === 0;
     
+        if (isPaymentTransition) {
+            // To be certain this was a payment, we confirm that one of this session's orders
+            // now exists in the `completedOrders` list. This prevents accidental triggers.
             const myJustCompletedOrders = completedOrders.filter(o =>
                 myOrderNumbers.some(myNum =>
                     o.orderNumber === myNum || (o.mergedOrderNumbers && o.mergedOrderNumbers.includes(myNum))
                 )
             );
     
-            if (myJustCompletedOrders.length === 0) return; 
-
-            const latestCompletedOrder = myJustCompletedOrders.sort((a, b) => b.completionTime - a.completionTime)[0];
-            const processedKey = `processed_complete_${latestCompletedOrder.id}`;
-            if (sessionStorage.getItem(processedKey)) return;
-            sessionStorage.setItem(processedKey, 'true');
+            if (myJustCompletedOrders.length > 0) {
+                // This is a confirmed payment completion.
+                
+                // To prevent re-triggering if the component re-renders for any reason before the state update,
+                // we use a session key to mark this specific completion event as processed.
+                const latestCompletedOrder = myJustCompletedOrders.sort((a, b) => b.completionTime - a.completionTime)[0];
+                const processedKey = `processed_complete_${latestCompletedOrder.id}`;
     
-            const subtotal = latestCompletedOrder.items.reduce((sum, item) => sum + item.finalPrice * item.quantity, 0);
-            const total = subtotal + latestCompletedOrder.taxAmount;
-    
-            const billHtml = `
-                <div id="customer-final-bill" class="text-left p-4 bg-white font-sans text-black">
-                    ${logoUrl ? `<img src="${logoUrl}" alt="Logo" class="mx-auto h-20 w-auto object-contain mb-4" crossOrigin="anonymous" />` : ''}
-                    <h3 class="text-center text-xl font-bold mb-2">${restaurantName}</h3>
-                    <p class="text-center text-xs text-gray-500 mb-4">ใบเสร็จรับเงิน (อย่างย่อ)</p>
-                    <div class="text-sm space-y-1 mb-4">
-                        <p><strong>โต๊ะ:</strong> ${latestCompletedOrder.tableName} (${latestCompletedOrder.floor})</p>
-                        <p><strong>ลูกค้า:</strong> ${customerName}</p>
-                        <p><strong>วันที่:</strong> ${new Date(latestCompletedOrder.completionTime).toLocaleString('th-TH')}</p>
-                    </div>
-                    <div class="border-t border-b border-dashed border-gray-400 py-2 my-2 space-y-1 text-sm">
-                        ${latestCompletedOrder.items.map(item => `
-                            <div class="flex justify-between">
-                                <span class="pr-2">${item.quantity}x ${item.name}</span>
-                                <span>${(item.finalPrice * item.quantity).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                            </div>
-                        `).join('')}
-                    </div>
-                    <div class="text-sm space-y-1 mt-4">
-                         <div class="flex justify-between">
-                            <span>ยอดรวม</span>
-                            <span>${subtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })} ฿</span>
-                        </div>
-                        ${latestCompletedOrder.taxAmount > 0 ? `
-                        <div class="flex justify-between">
-                            <span>ภาษี (${latestCompletedOrder.taxRate}%)</span>
-                            <span>${latestCompletedOrder.taxAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} ฿</span>
-                        </div>
-                        ` : ''}
-                        <div class="flex justify-between font-bold text-base mt-2 pt-2 border-t border-gray-400">
-                            <span>ยอดสุทธิ</span>
-                            <span>${total.toLocaleString(undefined, { minimumFractionDigits: 2 })} ฿</span>
-                        </div>
-                    </div>
-                    <p class="text-center text-sm font-semibold mt-6">ขอบคุณที่มาอุดหนุนร้านเรานะคะ 🙏</p>
-                </div>
-            `;
-    
-            Swal.fire({
-                title: 'ชำระเงินเรียบร้อย!',
-                html: `<div class="max-h-60 overflow-y-auto border rounded-lg">${billHtml}</div><p class="mt-4 text-sm text-red-500 font-bold">ระบบจะปิดอัตโนมัติใน 15 วินาที...</p>`,
-                icon: 'success',
-                showDenyButton: true,
-                confirmButtonText: 'บันทึกบิล & ออก',
-                denyButtonText: 'ไม่บันทึก & ออก',
-                confirmButtonColor: '#3085d6',
-                denyButtonColor: '#aaa',
-                allowOutsideClick: false,
-                timer: 15000, 
-                timerProgressBar: true,
-                preConfirm: async () => {
-                    const billElement = document.getElementById('customer-final-bill');
-                    if (billElement) {
-                        try {
-                            const canvas = await html2canvas(billElement, { scale: 2, useCORS: true });
-                            return canvas.toDataURL('image/png');
-                        } catch (err) {
-                            return null;
-                        }
-                    }
-                    return null;
+                if (!sessionStorage.getItem(processedKey)) {
+                    sessionStorage.setItem(processedKey, 'true');
+                    // Immediately lock the session and trigger the "Thank You" screen.
+                    handlePaymentCompleteLock();
                 }
-            }).then((result) => {
-                if (result.isConfirmed && result.value) {
-                    const link = document.createElement('a');
-                    link.href = result.value;
-                    link.download = `bill-${latestCompletedOrder.tableName}-${customerName}.png`;
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                }
-                handlePaymentCompleteLock();
-                // **FIX**: Reset state refs *after* async operation is complete.
-                isProcessingPaymentRef.current = false;
-                prevMyItemsCountRef.current = 0;
-            });
-            
-            return;
+            }
         }
     
-        isProcessingPaymentRef.current = false;
-        prevMyItemsCountRef.current = currentCount;
-
-    }, [myItems.length, isAuthenticated, completedOrders, myOrderNumbers, logoUrl, restaurantName, customerName, isSessionCompleted, t]);
+        // Always update the ref for the next render cycle to detect the transition.
+        prevMyItemsCountRef.current = myItems.length;
+    
+    }, [myItems.length, isAuthenticated, completedOrders, myOrderNumbers, isSessionCompleted, handlePaymentCompleteLock]);
     
     const handleSelectItem = (item: MenuItem) => {
         setItemToCustomize(item);
