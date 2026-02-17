@@ -140,8 +140,14 @@ export const App: React.FC = () => {
     const [selectedBranch, setSelectedBranch] = useState<Branch | null>(() => {
         const params = new URLSearchParams(window.location.search);
         const isCustomer = params.get('mode') === 'customer';
+        const urlBranchId = params.get('branchId');
 
         if (isCustomer) {
+            // FIX: Prioritize URL branchId over localStorage to ensure scanning a new QR code works correctly
+            if (urlBranchId) {
+                return null; // Return null here so the useEffect below will hydrate it correctly from the branches list
+            }
+
             const customerBranch = localStorage.getItem('customerSelectedBranch');
             if (customerBranch) {
                 try {
@@ -260,12 +266,16 @@ export const App: React.FC = () => {
 
     // Effect to hydrate selectedBranch from URL if missing (for Customer & Queue Mode)
     useEffect(() => {
-        if ((isCustomerMode || isQueueMode) && !selectedBranch && branches.length > 0 && urlBranchId) {
-            const b = branches.find(br => br.id.toString() === urlBranchId);
-            if (b) {
-                setSelectedBranch(b);
-                if (isCustomerMode) {
-                    localStorage.setItem('customerSelectedBranch', JSON.stringify(b));
+        if ((isCustomerMode || isQueueMode) && branches.length > 0 && urlBranchId) {
+            // FIX: If selectedBranch is null OR if it doesn't match the URL branch ID, switch to the correct one.
+            // This fixes the issue where a device remembers Branch 1 but scans a QR for Branch 2.
+            if (!selectedBranch || selectedBranch.id.toString() !== urlBranchId) {
+                const b = branches.find(br => br.id.toString() === urlBranchId);
+                if (b) {
+                    setSelectedBranch(b);
+                    if (isCustomerMode) {
+                        localStorage.setItem('customerSelectedBranch', JSON.stringify(b));
+                    }
                 }
             }
         }
