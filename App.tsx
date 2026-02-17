@@ -137,6 +137,27 @@ export const App: React.FC = () => {
         return null;
     });
 
+    // --- SPECIAL DISPLAY MODES ---
+    const [isQueueMode, setIsQueueMode] = useState(() => window.location.pathname === '/queue');
+
+    // --- CUSTOMER MODE STATE ---
+    const [isCustomerMode, setIsCustomerMode] = useState(() => {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('mode') === 'customer') return true;
+        
+        // Check persisted user role from localStorage directly to ensure stability on refresh
+        const storedUser = localStorage.getItem('currentUser');
+        if (storedUser) {
+            try {
+                const u = JSON.parse(storedUser);
+                return u.role === 'table';
+            } catch (e) {
+                return false;
+            }
+        }
+        return false;
+    });
+
     const [selectedBranch, setSelectedBranch] = useState<Branch | null>(() => {
         const params = new URLSearchParams(window.location.search);
         const isCustomer = params.get('mode') === 'customer';
@@ -211,27 +232,6 @@ export const App: React.FC = () => {
         });
     };
     
-    // --- SPECIAL DISPLAY MODES ---
-    const [isQueueMode, setIsQueueMode] = useState(() => window.location.pathname === '/queue');
-
-    // --- CUSTOMER MODE STATE ---
-    const [isCustomerMode, setIsCustomerMode] = useState(() => {
-        const params = new URLSearchParams(window.location.search);
-        if (params.get('mode') === 'customer') return true;
-        
-        // Check persisted user role from localStorage directly to ensure stability on refresh
-        const storedUser = localStorage.getItem('currentUser');
-        if (storedUser) {
-            try {
-                const u = JSON.parse(storedUser);
-                return u.role === 'table';
-            } catch (e) {
-                return false;
-            }
-        }
-        return false;
-    });
-
     const [customerTableId, setCustomerTableId] = useState<number | null>(() => {
         const params = new URLSearchParams(window.location.search);
         const tableIdParam = params.get('tableId');
@@ -252,7 +252,12 @@ export const App: React.FC = () => {
     
     // --- BRANCH-SPECIFIC STATE (SYNCED WITH FIRESTORE) ---
     const urlBranchId = useMemo(() => new URLSearchParams(window.location.search).get('branchId'), []);
-    const branchId = selectedBranch ? selectedBranch.id.toString() : (isCustomerMode || isQueueMode) && urlBranchId ? urlBranchId : null;
+    
+    // CRITICAL FIX: Always trust URL Branch ID for Customer/Queue Mode.
+    // This prevents the app from using a stale branch ID from localStorage (e.g., if a customer visited Branch 1 before).
+    const branchId = ((isCustomerMode || isQueueMode) && urlBranchId) 
+        ? urlBranchId 
+        : (selectedBranch ? selectedBranch.id.toString() : null);
 
 
     // OPTIMIZATION: Determine if we should load heavy admin data (History, Stock, Maintenance)
