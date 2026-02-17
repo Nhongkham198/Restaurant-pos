@@ -1016,7 +1016,9 @@ export const App: React.FC = () => {
 
             const { newOrder, isPrintedImmediatelyByThisDevice } = result;
             setLastPlacedOrderId(newOrder.orderNumber); 
-            setModalState(prev => ({ ...prev, isOrderSuccess: true })); 
+            if (!isCustomerMode) {
+                setModalState(prev => ({ ...prev, isOrderSuccess: true })); 
+            }
         
             if (isPrintedImmediatelyByThisDevice && printerConfig?.kitchen?.ipAddress) {
                 try {
@@ -1060,6 +1062,8 @@ export const App: React.FC = () => {
             } else {
                 Swal.fire('เกิดข้อผิดพลาด', error.message || 'ไม่สามารถสร้างออเดอร์ได้', 'error');
             }
+            // Re-throw the error so the calling component knows about the failure.
+            throw error;
         } finally { 
             setIsPlacingOrder(false); 
             if (!isCustomerMode) { 

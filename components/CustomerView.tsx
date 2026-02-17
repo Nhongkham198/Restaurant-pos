@@ -550,29 +550,32 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                 });
 
                 const newOrderNumber = await onPlaceOrder(itemsToSend, customerName);
+                
+                // **FIX**: Only show success and update state if an order number was successfully returned.
                 if (newOrderNumber) {
                     setMyOrderNumbers(prev => [...prev, newOrderNumber]);
+                    setCartItems([]);
+                    setIsCartOpen(false);
+
+                    const successTitle = t('สั่งอาหารสำเร็จ!');
+                    const successText = `ออเดอร์ของคุณคือ #${String(newOrderNumber).padStart(3, '0')}<br/>รายการอาหารถูกส่งเข้าครัวแล้ว`;
+
+                    await Swal.fire({ 
+                        icon: 'success', 
+                        title: successTitle, 
+                        html: successText,
+                        timer: 3500,
+                        showConfirmButton: false 
+                    });
                 }
-                
-                setCartItems([]);
-                setIsCartOpen(false);
-
-                // **FIX**: Show order number on success for better confirmation
-                const successTitle = t('สั่งอาหารสำเร็จ!');
-                const successText = newOrderNumber 
-                    ? `ออเดอร์ของคุณคือ #${String(newOrderNumber).padStart(3, '0')}<br/>รายการอาหารถูกส่งเข้าครัวแล้ว`
-                    : t('รายการอาหารถูกส่งเข้าครัวแล้ว');
-
-                await Swal.fire({ 
-                    icon: 'success', 
-                    title: successTitle, 
-                    html: successText,
-                    timer: 3500, // Increased timer for readability
-                    showConfirmButton: false 
-                });
+                // If newOrderNumber is undefined (because the function failed), this block is skipped,
+                // and the user sees the error message displayed by the `handlePlaceOrder` function.
 
             } catch (error) {
-                Swal.fire({ icon: 'error', title: t('เกิดข้อผิดพลาด'), text: t('ไม่สามารถสั่งอาหารได้ กรุณาลองใหม่อีกครั้ง') });
+                // The error is already displayed by the parent component (App.tsx),
+                // so we just log it here to prevent unhandled promise rejections and stop the loading indicator.
+                console.error("Order placement failed:", error);
+                Swal.close(); // Ensure the "Sending..." modal is closed if an error is thrown.
             }
         }
     };
