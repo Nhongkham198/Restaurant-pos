@@ -4,6 +4,7 @@ import type { MenuItem, Table, OrderItem, ActiveOrder, StaffCall, CompletedOrder
 import { Menu } from './Menu';
 import { ItemCustomizationModal } from './ItemCustomizationModal';
 import Swal from 'sweetalert2';
+import { db } from '../firebaseConfig'; // Import db to enable peeking
 
 declare var html2canvas: any;
 
@@ -117,8 +118,9 @@ interface CustomerViewProps {
     recommendedMenuItemIds: number[];
     logoUrl: string | null;
     restaurantName: string;
-    branchName?: string; // NEW: Added branchName prop
+    branchName?: string; 
     onLogout?: () => void;
+    branchId?: string | null; // NEW: Added branchId to support direct peeking
 }
 
 export const CustomerView: React.FC<CustomerViewProps> = ({
@@ -134,7 +136,8 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     logoUrl,
     restaurantName,
     branchName,
-    onLogout
+    onLogout,
+    branchId
 }) => {
     // ... (Keep existing state hooks)
     const [lang, setLang] = useState<'TH' | 'EN'>('TH');
@@ -175,6 +178,40 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
 
         return () => clearInterval(interval);
     }, [isLoadingScreen, loadingProgress, table.id]);
+
+    // --- NEW: Peeking Logic (แอบมองบิลที่เพิ่งจ่าย) ---
+    const [recentTableCompletedOrders, setRecentTableCompletedOrders] = useState<CompletedOrder[]>([]);
+
+    useEffect(() => {
+        // "Peek" Logic: Subscribe directly to completed orders ONLY for this table to detect payment
+        if (!db || !branchId || !table.id) return;
+
+        // Query: branches/{id}/completedOrders_v2 where tableId == x
+        const unsubscribe = db.collection(`branches/${branchId}/completedOrders_v2`)
+            .where('tableId', '==', table.id)
+            .limit(3) // Check only last 3 orders for this table is enough
+            .onSnapshot((snapshot) => {
+                // Strict Filter: Must be within last 5 minutes (300,000 ms)
+                const fiveMinsAgo = Date.now() - 300000;
+                const recent = snapshot.docs.map(doc => {
+                    const data = doc.data();
+                    return {
+                        ...data,
+                        id: parseInt(doc.id) || 0
+                    } as CompletedOrder;
+                }).filter(o => o.completionTime > fiveMinsAgo);
+                
+                if (recent.length > 0) {
+                    console.log("Peeked new payment!", recent);
+                    setRecentTableCompletedOrders(recent);
+                }
+            }, (err) => {
+                console.warn("Peek completed orders failed", err);
+            });
+
+        return () => unsubscribe();
+    }, [branchId, table.id]);
+    // ----------------------------------------------------
 
     const cartKey = `customer_cart_${table.id}`;
     const [cartItems, setCartItems] = useState<OrderItem[]>(() => {
@@ -398,7 +435,10 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         if (isTransitioning || (isProcessingPaymentRef.current && currentCount === 0)) {
             isProcessingPaymentRef.current = true;
     
-            const myJustCompletedOrders = completedOrders.filter(o =>
+            // Combine normal props with our peeking state
+            const allCompletedSources = [...completedOrders, ...recentTableCompletedOrders];
+            
+            const myJustCompletedOrders = allCompletedSources.filter(o =>
                 myOrderNumbers.some(myNum =>
                     o.orderNumber === myNum || (o.mergedOrderNumbers && o.mergedOrderNumbers.includes(myNum))
                 )
@@ -486,7 +526,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                     document.body.removeChild(link);
                 }
                 handlePaymentCompleteLock();
-                // **FIX**: Reset state refs *after* async operation is complete.
+                // Reset state inside the .then block to avoid race conditions
                 isProcessingPaymentRef.current = false;
                 prevMyItemsCountRef.current = 0;
             });
@@ -497,7 +537,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         isProcessingPaymentRef.current = false;
         prevMyItemsCountRef.current = currentCount;
 
-    }, [myItems.length, isAuthenticated, completedOrders, myOrderNumbers, logoUrl, restaurantName, customerName, isSessionCompleted, t]);
+    }, [myItems.length, isAuthenticated, completedOrders, recentTableCompletedOrders, myOrderNumbers, logoUrl, restaurantName, customerName, isSessionCompleted, t]);
     
     const handleSelectItem = (item: MenuItem) => {
         setItemToCustomize(item);

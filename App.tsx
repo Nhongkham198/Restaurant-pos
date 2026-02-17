@@ -564,7 +564,7 @@ export const App: React.FC = () => {
             }
             
             // AUTO-SELECT BRANCH for 'table' user based on their allowedBranchIds
-            // FIX: Only set if NO URL branchId is present to prevent overriding scans
+            // FIX: Only set if NO URL branchId is present to prevent override
             if (!urlBranchId && currentUser.allowedBranchIds && currentUser.allowedBranchIds.length > 0) {
                 const branch = branches.find(b => b.id === currentUser.allowedBranchIds![0]);
                 if (branch) {
@@ -1200,6 +1200,8 @@ export const App: React.FC = () => {
                         // NEW: Pass branchName prop to display it on customer view
                         branchName={selectedBranch ? selectedBranch.name : (branches.find(b => b.id.toString() === branchId)?.name || '')}
                         onLogout={handleLogout}
+                        // FIX: Pass branchId to enable peeking feature for instant updates
+                        branchId={branchId}
                     />
                 </Suspense>
              );
