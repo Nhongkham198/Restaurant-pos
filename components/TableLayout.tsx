@@ -15,6 +15,7 @@ interface TableCardProps {
     selectedBranch: Branch | null;
     restaurantName: string;
     logoUrl: string | null;
+    qrCodeUrl?: string | null;
 }
 
 const TableCard: React.FC<TableCardProps> = ({ 
@@ -27,7 +28,8 @@ const TableCard: React.FC<TableCardProps> = ({
     printerConfig, 
     selectedBranch,
     restaurantName,
-    logoUrl
+    logoUrl,
+    qrCodeUrl
 }) => {
     const isOccupied = orders.length > 0;
     const hasSplitBill = orders.some(o => o.isSplitChild || o.splitCount);
@@ -220,7 +222,7 @@ const TableCard: React.FC<TableCardProps> = ({
                 didOpen: () => { Swal.showLoading(); }
             });
 
-            await printerService.printBill(order, printerConfig.cashier, restaurantName, logoUrl);
+            await printerService.printBill(order, printerConfig.cashier, restaurantName, logoUrl, qrCodeUrl);
 
             Swal.fire({
                 icon: 'success',
@@ -360,7 +362,8 @@ interface TableLayoutProps {
     floors: string[];
     selectedBranch: Branch | null;
     restaurantName: string; // New prop
-    logoUrl: string | null; // New prop
+    logoUrl: string | null, // New prop
+    qrCodeUrl?: string | null; // Add this
 }
 
 export const TableLayout: React.FC<TableLayoutProps> = ({ 
@@ -374,7 +377,8 @@ export const TableLayout: React.FC<TableLayoutProps> = ({
     floors, 
     selectedBranch,
     restaurantName,
-    logoUrl
+    logoUrl,
+    qrCodeUrl
 }) => {
     const [selectedFloor, setSelectedFloor] = useState<string>('');
 
@@ -431,6 +435,7 @@ export const TableLayout: React.FC<TableLayoutProps> = ({
                                 selectedBranch={selectedBranch}
                                 restaurantName={restaurantName}
                                 logoUrl={logoUrl}
+                                qrCodeUrl={qrCodeUrl}
                             />
                         );
                     })}

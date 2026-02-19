@@ -437,7 +437,7 @@ export const printerService = {
     },
 
     // --- 3. Check Bill (Preliminary Bill) ---
-    printBill: async (order: ActiveOrder, config: CashierPrinterSettings, restaurantName: string, logoUrl?: string | null): Promise<void> => {
+    printBill: async (order: ActiveOrder, config: CashierPrinterSettings, restaurantName: string, logoUrl?: string | null, qrCodeUrl?: string | null): Promise<void> => {
         const is58mm = config.paperWidth === '58mm';
         
         // Use smart fit constants
@@ -451,6 +451,16 @@ export const printerService = {
         const fsNormal = is58mm ? '26px' : '28px';
         const fsLarge = is58mm ? '32px' : '36px';
         const fsXLarge = is58mm ? '40px' : '46px';
+
+        let qrCodeHtml = '';
+        if (qrCodeUrl) {
+            qrCodeHtml = `
+                <div style="text-align: center; margin-top: 15px; padding-top: 15px; border-top: 1px dashed #000;">
+                    <div style="font-size: ${fsNormal}; font-weight: bold; margin-bottom: 8px;">สแกนเพื่อชำระเงิน</div>
+                    <img src="${qrCodeUrl}" style="max-height: 200px; max-width: 200px; object-fit: contain; display: block; margin: 0 auto;" crossOrigin="anonymous"/>
+                </div>
+            `;
+        }
 
         const htmlContent = `
             <div style="width: 100%; box-sizing: border-box; font-family: 'Sarabun', sans-serif; color: #000; padding: 5px 0;">
@@ -490,6 +500,7 @@ export const printerService = {
                         <span>ยอดสุทธิ</span><span>${total.toFixed(2)}</span>
                     </div>
                 </div>
+                ${qrCodeHtml}
             </div>
         `;
 
