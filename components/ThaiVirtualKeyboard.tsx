@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 interface ThaiVirtualKeyboardProps {
     onKeyPress: (key: string) => void;
@@ -10,6 +10,60 @@ interface ThaiVirtualKeyboardProps {
 
 export const ThaiVirtualKeyboard: React.FC<ThaiVirtualKeyboardProps> = ({ onKeyPress, onBackspace, onClose, onClear }) => {
     const [isShift, setIsShift] = useState(false);
+    
+    // Initial position: Centered horizontally, near bottom
+    const [position, setPosition] = useState(() => ({ 
+        x: Math.max(0, window.innerWidth / 2 - 300), 
+        y: Math.max(0, window.innerHeight - 320) 
+    }));
+    
+    const [isDragging, setIsDragging] = useState(false);
+    const dragOffset = useRef({ x: 0, y: 0 });
+
+    const handleMouseDown = (e: React.MouseEvent | React.TouchEvent) => {
+        // Only allow dragging from the header
+        setIsDragging(true);
+        const clientX = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
+        const clientY = 'touches' in e ? e.touches[0].clientY : (e as React.MouseEvent).clientY;
+        
+        dragOffset.current = {
+            x: clientX - position.x,
+            y: clientY - position.y
+        };
+    };
+
+    useEffect(() => {
+        const handleMouseMove = (e: MouseEvent | TouchEvent) => {
+            if (!isDragging) return;
+            e.preventDefault(); // Prevent scrolling while dragging
+            
+            const clientX = 'touches' in e ? e.touches[0].clientX : (e as MouseEvent).clientX;
+            const clientY = 'touches' in e ? e.touches[0].clientY : (e as MouseEvent).clientY;
+            
+            setPosition({
+                x: clientX - dragOffset.current.x,
+                y: clientY - dragOffset.current.y
+            });
+        };
+
+        const handleMouseUp = () => {
+            setIsDragging(false);
+        };
+
+        if (isDragging) {
+            window.addEventListener('mousemove', handleMouseMove);
+            window.addEventListener('mouseup', handleMouseUp);
+            window.addEventListener('touchmove', handleMouseMove, { passive: false });
+            window.addEventListener('touchend', handleMouseUp);
+        }
+
+        return () => {
+            window.removeEventListener('mousemove', handleMouseMove);
+            window.removeEventListener('mouseup', handleMouseUp);
+            window.removeEventListener('touchmove', handleMouseMove);
+            window.removeEventListener('touchend', handleMouseUp);
+        };
+    }, [isDragging]);
 
     // Standard Kedmanee Layout
     const rows = [
@@ -41,17 +95,37 @@ export const ThaiVirtualKeyboard: React.FC<ThaiVirtualKeyboardProps> = ({ onKeyP
     ];
 
     return (
-        <div className="absolute bottom-0 left-0 right-0 bg-gray-200 p-2 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] z-20 border-t border-gray-300 select-none animate-slide-up rounded-b-lg">
-            <div className="max-w-5xl mx-auto flex flex-col gap-1.5">
-                {/* Header / Actions */}
-                <div className="flex justify-between items-center px-1 mb-1">
-                    <span className="text-xs text-gray-500 font-bold uppercase flex items-center gap-2">
+        <div 
+            className="fixed bg-gray-200 p-2 shadow-2xl z-[100] border border-gray-400 select-none rounded-xl"
+            style={{ 
+                left: position.x, 
+                top: position.y,
+                width: 'max-content',
+                maxWidth: '100vw'
+            }}
+            onClick={(e) => e.stopPropagation()}
+        >
+            <div className="flex flex-col gap-1.5">
+                {/* Header / Actions - Drag Handle */}
+                <div 
+                    className="flex justify-between items-center px-2 py-1 mb-1 cursor-move bg-gray-300 rounded-lg hover:bg-gray-400 transition-colors"
+                    onMouseDown={handleMouseDown}
+                    onTouchStart={handleMouseDown}
+                    title="ลากเพื่อย้ายตำแหน่ง"
+                >
+                    <span className="text-xs text-gray-700 font-bold uppercase flex items-center gap-2">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
                         </svg>
                         Thai Keyboard (Kedmanee)
                     </span>
-                    <button onClick={onClose} className="p-1 text-gray-500 hover:text-red-500 hover:bg-gray-300 rounded" title="ปิดคีย์บอร์ด">
+                    <button 
+                        onClick={(e) => { e.stopPropagation(); onClose(); }} 
+                        className="p-1 text-gray-600 hover:text-red-600 hover:bg-gray-200 rounded-full" 
+                        title="ปิดคีย์บอร์ด"
+                        onMouseDown={e => e.stopPropagation()}
+                        onTouchStart={e => e.stopPropagation()}
+                    >
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                             <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
                         </svg>

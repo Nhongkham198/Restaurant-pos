@@ -305,6 +305,18 @@ const TableCard: React.FC<TableCardProps> = ({
                         <p className={`font-bold text-xl text-red-700 mt-2`}>
                             {combinedTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ฿
                         </p>
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onTableSelect(table.id);
+                            }}
+                            className="w-full mt-2 bg-green-500 hover:bg-green-600 text-white font-bold py-1.5 px-3 rounded-lg flex items-center justify-center gap-2 transition-colors text-sm shadow-sm"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                            </svg>
+                            เพิ่มรายการอาหาร
+                        </button>
                     </div>
                 )}
 

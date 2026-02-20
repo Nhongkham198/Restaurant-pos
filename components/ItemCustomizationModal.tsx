@@ -3,6 +3,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import type { MenuItem, MenuOption, OrderItem, MenuOptionGroup, TakeawayCutleryOption } from '../types';
 import Swal from 'sweetalert2';
 import { MenuItemImage } from './MenuItemImage';
+import { ThaiVirtualKeyboard } from './ThaiVirtualKeyboard';
 
 interface ItemCustomizationModalProps {
     isOpen: boolean;
@@ -19,6 +20,7 @@ export const ItemCustomizationModal: React.FC<ItemCustomizationModalProps> = ({ 
     const [isTakeaway, setIsTakeaway] = useState(false);
     const [takeawayCutlery, setTakeawayCutlery] = useState<TakeawayCutleryOption[]>([]);
     const [takeawayCutleryNotes, setTakeawayCutleryNotes] = useState('');
+    const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
 
     useEffect(() => {
         if (item) {
@@ -47,6 +49,7 @@ export const ItemCustomizationModal: React.FC<ItemCustomizationModalProps> = ({ 
                 setTakeawayCutlery([]);
                 setTakeawayCutleryNotes('');
             }
+            setIsKeyboardOpen(false);
         }
     }, [item, orderItemToEdit]);
 
@@ -164,8 +167,8 @@ export const ItemCustomizationModal: React.FC<ItemCustomizationModalProps> = ({ 
     if (!isOpen || !item) return null;
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4" onClick={onClose}>
-            <div className="bg-white rounded-lg shadow-xl w-full max-w-lg transform transition-all flex flex-col" style={{maxHeight: '90vh'}} onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-lg transform transition-all flex flex-col relative" style={{maxHeight: '90vh'}} onClick={e => e.stopPropagation()}>
                 <header className="p-4 border-b flex items-center gap-4 relative">
                     <MenuItemImage
                         src={item.imageUrl}
@@ -211,9 +214,21 @@ export const ItemCustomizationModal: React.FC<ItemCustomizationModalProps> = ({ 
                         </div>
                     ))}
                     <div className="pt-4 border-t">
-                        <label htmlFor="item-notes" className="block text-lg font-semibold text-gray-800 mb-2">
-                            หมายเหตุ (ถ้ามี):
-                        </label>
+                        <div className="flex justify-between items-center mb-2">
+                            <label htmlFor="item-notes" className="block text-lg font-semibold text-gray-800">
+                                หมายเหตุ (ถ้ามี):
+                            </label>
+                            <button
+                                onClick={() => setIsKeyboardOpen(!isKeyboardOpen)}
+                                className={`p-2 rounded-lg transition-colors flex items-center gap-2 ${isKeyboardOpen ? 'bg-blue-100 text-blue-600 border border-blue-200' : 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200'}`}
+                                title={isKeyboardOpen ? "ปิดคีย์บอร์ด" : "เปิดคีย์บอร์ด"}
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                </svg>
+                                <span className="text-sm font-medium">คีย์บอร์ด</span>
+                            </button>
+                        </div>
                         <textarea
                             id="item-notes"
                             rows={2}
@@ -283,7 +298,16 @@ export const ItemCustomizationModal: React.FC<ItemCustomizationModalProps> = ({ 
                         </button>
                     </div>
                 </footer>
+
             </div>
+            {isKeyboardOpen && (
+                <ThaiVirtualKeyboard 
+                    onKeyPress={(key) => setNotes(prev => prev + key)} 
+                    onBackspace={() => setNotes(prev => prev.slice(0, -1))}
+                    onClose={() => setIsKeyboardOpen(false)}
+                    onClear={() => setNotes('')}
+                />
+            )}
         </div>
     );
 };
