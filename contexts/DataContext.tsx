@@ -117,15 +117,9 @@ interface DataContextType {
     setDeliveryProviders: React.Dispatch<React.SetStateAction<DeliveryProvider[]>>;
 }
 
-import { orderService } from '../services/orderService';
-import { offlineService } from '../services/offlineService';
-
 const DataContext = createContext<DataContextType | undefined>(undefined);
 
 export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-    useEffect(() => {
-        offlineService.registerOrderService(orderService);
-    }, []);
     // --- AUTH & BRANCH STATE ---
     const [users, setUsers] = useFirestoreSync<User[]>(null, 'users', [], DEFAULT_USERS);
     const [branches, setBranches] = useFirestoreSync<Branch[]>(null, 'branches', [], DEFAULT_BRANCHES);

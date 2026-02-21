@@ -468,7 +468,8 @@ export const App: React.FC = () => {
             order.id > mountTimeRef.current && 
             order.tableName && 
             order.orderNumber &&
-            !order.isSplitChild // <-- ADD THIS LINE
+            !order.isSplitChild && 
+            (!order.mergedOrderNumbers || order.mergedOrderNumbers.length === 0)
         );
         if (newOrders.length > 0) {
             const audio = new Audio(notificationSoundUrl!);
