@@ -839,6 +839,8 @@ export const App: React.FC = () => {
         );
     }
 
+
+
     // 1. Force Customer View for Table Role OR explicit Customer Mode
     if (isCustomerMode || currentUser?.role === 'table') {
         let targetTableId = customerTableId;
