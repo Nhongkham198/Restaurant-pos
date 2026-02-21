@@ -2,6 +2,8 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { App } from './App';
+import { UIProvider } from './contexts/UIContext';
+import { DataProvider } from './contexts/DataContext';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -11,6 +13,10 @@ if (!rootElement) {
 const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
-    <App />
+    <UIProvider>
+      <DataProvider>
+        <App />
+      </DataProvider>
+    </UIProvider>
   </React.StrictMode>
 );

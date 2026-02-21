@@ -43,6 +43,8 @@ import type {
     DeliveryProvider
 } from './types';
 import { useFirestoreSync, useFirestoreCollection } from './hooks/useFirestoreSync';
+import { useUI } from './contexts/UIContext';
+import { useData } from './contexts/DataContext';
 import { functionsService } from './services/firebaseFunctionsService';
 import { printerService } from './services/printerService';
 import firebase from 'firebase/compat/app';
@@ -119,94 +121,76 @@ export const App: React.FC = () => {
     const [isOnline, setIsOnline] = useState(navigator.onLine);
 
     // --- AUTH & BRANCH STATE ---
-    // FIX: Initialize with empty arrays but pass DEFAULT_USERS/BRANCHES as the fallback seed value.
-    // This ensures that if the DB is empty, it seeds the defaults. If DB has data, it uses that data.
-    const [users, setUsers] = useFirestoreSync<User[]>(null, 'users', [], DEFAULT_USERS);
-    const [branches, setBranches] = useFirestoreSync<Branch[]>(null, 'branches', [], DEFAULT_BRANCHES);
-    
-    // Load currentUser from localStorage carefully
-    const [currentUser, setCurrentUser] = useState<User | null>(() => {
-        const storedUser = localStorage.getItem('currentUser');
-        if (storedUser) {
-            try {
-                return JSON.parse(storedUser);
-            } catch (e) {
-                console.error('Error parsing stored user', e);
-                localStorage.removeItem('currentUser');
-                return null;
-            }
-        }
-        return null;
-    });
+    const {
+        users, setUsers,
+        branches, setBranches,
+        currentUser, setCurrentUser,
+        isCustomerMode, setIsCustomerMode,
+        selectedBranch, setSelectedBranch,
+        customerTableId, setCustomerTableId,
+        branchId, heavyDataBranchId, shouldLoadHeavyData,
+        // Essential Data
+        menuItems, setMenuItems,
+        categories, setCategories,
+        tables, setTables,
+        floors, setFloors,
+        recommendedMenuItemIds, setRecommendedMenuItemIds,
+        activeOrders, rawActiveOrders, activeOrdersActions,
+        // Heavy Data
+        legacyCompletedOrders, setLegacyCompletedOrders,
+        legacyCancelledOrders, setLegacyCancelledOrders,
+        newCompletedOrders, newCompletedOrdersActions,
+        newCancelledOrders, newCancelledOrdersActions,
+        completedOrders, cancelledOrders,
+        stockItems, setStockItems,
+        stockCategories, setStockCategories,
+        stockUnits, setStockUnits,
+        printHistory, setPrintHistory,
+        maintenanceItems, setMaintenanceItems,
+        maintenanceLogs, setMaintenanceLogs,
+        orderCounter, setOrderCounter,
+        staffCalls, setStaffCalls,
+        leaveRequests, setLeaveRequests,
+        // Settings
+        logoUrl, setLogoUrl,
+        appLogoUrl, setAppLogoUrl,
+        restaurantName, setRestaurantName,
+        restaurantAddress, setRestaurantAddress,
+        restaurantPhone, setRestaurantPhone,
+        taxId, setTaxId,
+        signatureUrl, setSignatureUrl,
+        qrCodeUrl, setQrCodeUrl,
+        notificationSoundUrl, setNotificationSoundUrl,
+        staffCallSoundUrl, setStaffCallSoundUrl,
+        printerConfig, setPrinterConfig,
+        openingTime, setOpeningTime,
+        closingTime, setClosingTime,
+        isTaxEnabled, setIsTaxEnabled,
+        taxRate, setTaxRate,
+        sendToKitchen, setSendToKitchen,
+        deliveryProviders, setDeliveryProviders
+    } = useData();
+
+    // Re-introduce urlBranchId for local logic checks
+    const urlBranchId = useMemo(() => new URLSearchParams(window.location.search).get('branchId'), []);
 
     // --- SPECIAL DISPLAY MODES ---
     const [isQueueMode, setIsQueueMode] = useState(() => window.location.pathname === '/queue');
-
-    // --- CUSTOMER MODE STATE ---
-    const [isCustomerMode, setIsCustomerMode] = useState(() => {
-        const params = new URLSearchParams(window.location.search);
-        if (params.get('mode') === 'customer') return true;
-        
-        // Check persisted user role from localStorage directly to ensure stability on refresh
-        const storedUser = localStorage.getItem('currentUser');
-        if (storedUser) {
-            try {
-                const u = JSON.parse(storedUser);
-                return u.role === 'table';
-            } catch (e) {
-                return false;
-            }
-        }
-        return false;
-    });
-
-    const [selectedBranch, setSelectedBranch] = useState<Branch | null>(() => {
-        const params = new URLSearchParams(window.location.search);
-        const isCustomer = params.get('mode') === 'customer';
-        const urlBranchId = params.get('branchId');
-
-        if (isCustomer) {
-            // FIX: Prioritize URL branchId over localStorage to ensure scanning a new QR code works correctly
-            if (urlBranchId) {
-                return null; // Return null here so the useEffect below will hydrate it correctly from the branches list
-            }
-
-            const customerBranch = localStorage.getItem('customerSelectedBranch');
-            if (customerBranch) {
-                try {
-                    return JSON.parse(customerBranch);
-                } catch (e) {
-                    console.error('Error parsing customer branch from localStorage', e);
-                    localStorage.removeItem('customerSelectedBranch');
-                }
-            }
-        }
-        
-        const staffBranch = localStorage.getItem('selectedBranch');
-        if (staffBranch) {
-            try {
-                return JSON.parse(staffBranch);
-            } catch (e) {
-                console.error('Error parsing staff branch from localStorage', e);
-                localStorage.removeItem('selectedBranch');
-            }
-        }
-
-        return null;
-    });
     const [currentFcmToken, setCurrentFcmToken] = useState<string | null>(null);
 
     // --- VIEW & EDIT MODE STATE ---
-    const [currentView, setCurrentView] = useState<View>(() => {
-        const storedView = localStorage.getItem('currentView');
-        if (storedView && ['pos', 'kitchen', 'tables', 'dashboard', 'history', 'stock', 'leave', 'stock-analytics', 'leave-analytics', 'maintenance'].includes(storedView)) {
-            return storedView as View;
-        }
-        return 'pos';
-    });
-    const [isEditMode, setIsEditMode] = useState(false);
-    const [isAdminSidebarCollapsed, setIsAdminSidebarCollapsed] = useState(false);
-    const [isOrderSidebarVisible, setIsOrderSidebarVisible] = useState(true);
+    const {
+        currentView, setCurrentView,
+        isEditMode, setIsEditMode,
+        isAdminSidebarCollapsed, setIsAdminSidebarCollapsed,
+        isOrderSidebarVisible, setIsOrderSidebarVisible,
+        modalState, setModalState,
+        itemToEdit, setItemToEdit,
+        itemToCustomize, setItemToCustomize,
+        orderItemToEdit, setOrderItemToEdit,
+        orderForModal, setOrderForModal,
+        leaveRequestInitialDate, setLeaveRequestInitialDate
+    } = useUI();
 
     // --- NOTIFICATION TOGGLE STATE ---
     const [isOrderNotificationsEnabled, setIsOrderNotificationsEnabled] = useState(() => {
@@ -234,139 +218,10 @@ export const App: React.FC = () => {
         });
     };
     
-    const [customerTableId, setCustomerTableId] = useState<number | null>(() => {
-        const params = new URLSearchParams(window.location.search);
-        const tableIdParam = params.get('tableId');
-        if (tableIdParam) return Number(tableIdParam);
-        
-        // Check persisted user assignment
-        const storedUser = localStorage.getItem('currentUser');
-        if (storedUser) {
-            try {
-                const u = JSON.parse(storedUser);
-                if (u.role === 'table' && u.assignedTableId) return Number(u.assignedTableId);
-            } catch (e) {
-                return null;
-            }
-        }
-        return null;
-    });
-    
-    // --- BRANCH-SPECIFIC STATE (SYNCED WITH FIRESTORE) ---
-    const urlBranchId = useMemo(() => new URLSearchParams(window.location.search).get('branchId'), []);
-    
-    // CRITICAL FIX: ABSOLUTE PRIORITY TO URL BRANCH ID.
-    // Use URL ID if present, otherwise fall back to selectedBranch.
-    // This ensures that even if isCustomerMode is momentarily false or stale, the correct DB is used.
-    const branchId = urlBranchId 
-        ? urlBranchId 
-        : (selectedBranch ? selectedBranch.id.toString() : null);
+    // --- BRANCH & AUTH LOGIC MOVED TO DATA CONTEXT ---
 
 
-    // OPTIMIZATION: Determine if we should load heavy admin data (History, Stock, Maintenance)
-    // We only load this if the user is NOT a customer (role != 'table') AND not in customer mode.
-    const shouldLoadHeavyData = useMemo(() => {
-        return currentUser && currentUser.role !== 'table' && !isCustomerMode;
-    }, [currentUser, isCustomerMode]);
-
-    // Use this ID for heavy hooks. If null, the hook skips loading.
-    const heavyDataBranchId = shouldLoadHeavyData ? branchId : null;
-
-    // Effect to hydrate selectedBranch from URL if missing (for Customer & Queue Mode)
-    useEffect(() => {
-        // If there is a URL branch ID, we MUST sync selectedBranch to it.
-        // This fixes the issue where local state lags behind the URL.
-        if (branches.length > 0 && urlBranchId) {
-            if (!selectedBranch || selectedBranch.id.toString() !== urlBranchId) {
-                const b = branches.find(br => br.id.toString() === urlBranchId);
-                if (b) {
-                    setSelectedBranch(b);
-                    if (isCustomerMode) {
-                        localStorage.setItem('customerSelectedBranch', JSON.stringify(b));
-                    }
-                }
-            }
-        }
-    }, [isCustomerMode, selectedBranch, branches, urlBranchId]);
-
-    // NEW: Effect to force clear stale localStorage if URL Branch ID is present and differs from stored value
-    useEffect(() => {
-        if (urlBranchId) {
-            const stored = localStorage.getItem('customerSelectedBranch');
-            if (stored) {
-                try {
-                    const parsed = JSON.parse(stored);
-                    if (parsed.id != urlBranchId) {
-                        // Found a mismatch! Clear it to avoid sticky session issues.
-                        console.log('Branch mismatch detected. Clearing stale local storage to enforce URL branch.');
-                        localStorage.removeItem('customerSelectedBranch');
-                    }
-                } catch (e) {
-                    localStorage.removeItem('customerSelectedBranch');
-                }
-            }
-        }
-    }, [urlBranchId]);
-
-
-    // --- ESSENTIAL DATA (Loaded for Everyone including Customers) ---
-    // FIX: Apply seeding pattern to branch-specific data as well.
-    const [menuItems, setMenuItems] = useFirestoreSync<MenuItem[]>(branchId, 'menuItems', [], DEFAULT_MENU_ITEMS);
-    const [categories, setCategories] = useFirestoreSync<string[]>(branchId, 'categories', [], DEFAULT_CATEGORIES);
-    const [tables, setTables] = useFirestoreSync<Table[]>(branchId, 'tables', [], DEFAULT_TABLES);
-    const [floors, setFloors] = useFirestoreSync<string[]>(branchId, 'floors', [], DEFAULT_FLOORS);
-    const [recommendedMenuItemIds, setRecommendedMenuItemIds] = useFirestoreSync<number[]>(branchId, 'recommendedMenuItemIds', []);
-    
-    // Active Orders: Needed for customers to see queue position and own orders
-    const [rawActiveOrders, activeOrdersActions] = useFirestoreCollection<ActiveOrder>(branchId, 'activeOrders');
-    
-    const activeOrders = useMemo(() => {
-        return rawActiveOrders.filter(o => o.status !== 'completed' && o.status !== 'cancelled');
-    }, [rawActiveOrders]);
-
-    // --- HEAVY DATA (Loaded ONLY for Staff/Admin - via heavyDataBranchId) ---
-    // ... (Keep heavy data loading logic) ...
-    // History
-    const [legacyCompletedOrders, setLegacyCompletedOrders] = useFirestoreSync<CompletedOrder[]>(heavyDataBranchId, 'completedOrders', []);
-    const [legacyCancelledOrders, setLegacyCancelledOrders] = useFirestoreSync<CancelledOrder[]>(heavyDataBranchId, 'cancelledOrders', []);
-    const [newCompletedOrders, newCompletedOrdersActions] = useFirestoreCollection<CompletedOrder>(heavyDataBranchId, 'completedOrders_v2');
-    const [newCancelledOrders, newCancelledOrdersActions] = useFirestoreCollection<CancelledOrder>(heavyDataBranchId, 'cancelledOrders_v2');
-
-    const completedOrders = useMemo(() => {
-        const combined = [...newCompletedOrders, ...legacyCompletedOrders];
-        const unique = new Map<number, CompletedOrder>();
-        combined.forEach(o => unique.set(o.id, o));
-        return Array.from(unique.values()).sort((a, b) => b.completionTime - a.completionTime);
-    }, [legacyCompletedOrders, newCompletedOrders]);
-
-    const cancelledOrders = useMemo(() => {
-        const combined = [...newCancelledOrders, ...legacyCancelledOrders];
-        const unique = new Map<number, CancelledOrder>();
-        combined.forEach(o => unique.set(o.id, o));
-        return Array.from(unique.values()).sort((a, b) => b.cancellationTime - a.cancellationTime);
-    }, [legacyCancelledOrders, newCancelledOrders]);
-
-    // Stock
-    const [stockItems, setStockItems] = useFirestoreSync<StockItem[]>(heavyDataBranchId, 'stockItems', [], DEFAULT_STOCK_ITEMS);
-    const [stockCategories, setStockCategories] = useFirestoreSync<string[]>(heavyDataBranchId, 'stockCategories', [], DEFAULT_STOCK_CATEGORIES);
-    const [stockUnits, setStockUnits] = useFirestoreSync<string[]>(heavyDataBranchId, 'stockUnits', [], DEFAULT_STOCK_UNITS);
-    
-    // Maintenance & Logs
-    const [printHistory, setPrintHistory] = useFirestoreSync<PrintHistoryEntry[]>(heavyDataBranchId, 'printHistory', []);
-    const [maintenanceItems, setMaintenanceItems] = useFirestoreSync<MaintenanceItem[]>(heavyDataBranchId, 'maintenanceItems', [], DEFAULT_MAINTENANCE_ITEMS);
-    const [maintenanceLogs, setMaintenanceLogs] = useFirestoreSync<MaintenanceLog[]>(heavyDataBranchId, 'maintenanceLogs', []);
-    
-    // Order Counter (For Dashboard stats primarily)
-    const [orderCounter, setOrderCounter] = useFirestoreSync<OrderCounter>(heavyDataBranchId, 'orderCounter', { count: 0, lastResetDate: new Date().toISOString().split('T')[0] });
-
-    // Staff Calls & Leave Requests (Keep separate for now, lightweight enough to load on branchId or specialized logic)
-    // Note: Staff Calls are needed for Staff to RECEIVE. Customers SEND. Customers don't need to load the list.
-    // For now, we leave staffCalls on branchId so the setter works for customers to send calls.
-    const [staffCalls, setStaffCalls] = useFirestoreSync<StaffCall[]>(branchId, 'staffCalls', []);
-    
-    // Leave Requests are typically global or filtered by branch. 
-    // Optimization: Only load if Staff/Admin.
-    const [leaveRequests, setLeaveRequests] = useFirestoreSync<LeaveRequest[]>(shouldLoadHeavyData ? null : 'SKIP', 'leaveRequests', []);
+    // --- DATA STATES MOVED TO DATA CONTEXT ---
 
     // --- POS-SPECIFIC LOCAL STATE ---
     const [currentOrderItems, setCurrentOrderItems] = useState<OrderItem[]>([]);
@@ -376,41 +231,13 @@ export const App: React.FC = () => {
     const [selectedSidebarFloor, setSelectedSidebarFloor] = useState<string>('');
     const [notSentToKitchenDetails, setNotSentToKitchenDetails] = useState<{ reason: string; notes: string } | null>(null);
 
-    // --- GENERAL SETTINGS STATE (Essential for everyone for Logo/Name/Rules) ---
-    const [logoUrl, setLogoUrl] = useFirestoreSync<string | null>(branchId, 'logoUrl', null);
-    const [appLogoUrl, setAppLogoUrl] = useFirestoreSync<string | null>(branchId, 'appLogoUrl', null);
-    const [restaurantName, setRestaurantName] = useFirestoreSync<string>(branchId, 'restaurantName', '', 'ชื่อร้านอาหาร');
-    const [restaurantAddress, setRestaurantAddress] = useFirestoreSync<string>(branchId, 'restaurantAddress', '');
-    const [restaurantPhone, setRestaurantPhone] = useFirestoreSync<string>(branchId, 'restaurantPhone', '');
-    const [taxId, setTaxId] = useFirestoreSync<string>(branchId, 'taxId', '');
-    const [signatureUrl, setSignatureUrl] = useFirestoreSync<string | null>(branchId, 'signatureUrl', null);
-
-    const [qrCodeUrl, setQrCodeUrl] = useFirestoreSync<string | null>(branchId, 'qrCodeUrl', null);
-    const [notificationSoundUrl, setNotificationSoundUrl] = useFirestoreSync<string | null>(branchId, 'notificationSoundUrl', null);
-    const [staffCallSoundUrl, setStaffCallSoundUrl] = useFirestoreSync<string | null>(branchId, 'staffCallSoundUrl', null);
-    const [printerConfig, setPrinterConfig] = useFirestoreSync<PrinterConfig | null>(branchId, 'printerConfig', null);
-    const [openingTime, setOpeningTime] = useFirestoreSync<string | null>(branchId, 'openingTime', '', '10:00');
-    const [closingTime, setClosingTime] = useFirestoreSync<string | null>(branchId, 'closingTime', '', '22:00');
-    const [isTaxEnabled, setIsTaxEnabled] = useFirestoreSync<boolean>(branchId, 'isTaxEnabled', false);
-    const [taxRate, setTaxRate] = useFirestoreSync<number>(branchId, 'taxRate', 7);
-    const [sendToKitchen, setSendToKitchen] = useFirestoreSync<boolean>(branchId, 'sendToKitchen', true);
-    const [deliveryProviders, setDeliveryProviders] = useFirestoreSync<DeliveryProvider[]>(branchId, 'deliveryProviders', [], DEFAULT_DELIVERY_PROVIDERS);
+    // --- SETTINGS MOVED TO DATA CONTEXT ---
 
     // ... (Keep modal state and other hooks) ...
     // --- MODAL STATES ---
-    const [modalState, setModalState] = useState({
-        isMenuItem: false, isOrderSuccess: false, isSplitBill: false, isTableBill: false,
-        isPayment: false, isPaymentSuccess: false, isSettings: false, isEditCompleted: false,
-        isUserManager: false, isBranchManager: false, isMoveTable: false, isCancelOrder: false,
-        isCashBill: false, isSplitCompleted: false, isCustomization: false, isLeaveRequest: false,
-        isMenuSearch: false, isMergeBill: false
-    });
-    const [itemToEdit, setItemToEdit] = useState<MenuItem | null>(null);
-    const [itemToCustomize, setItemToCustomize] = useState<MenuItem | null>(null);
-    const [orderItemToEdit, setOrderItemToEdit] = useState<OrderItem | null>(null); 
-    const [orderForModal, setOrderForModal] = useState<ActiveOrder | CompletedOrder | null>(null);
+    // MOVED TO UI CONTEXT
+    
     const [lastPlacedOrderId, setLastPlacedOrderId] = useState<number | null>(null);
-    const [leaveRequestInitialDate, setLeaveRequestInitialDate] = useState<Date | null>(null);
 
     // --- ASYNC OPERATION STATE ---
     const [isPlacingOrder, setIsPlacingOrder] = useState(false);

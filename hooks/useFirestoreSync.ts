@@ -150,17 +150,16 @@ export function useFirestoreSync<T>(
 }
 
 // Hook for Collection-based Sync (Robust, Granular Updates)
+export interface CollectionActions<T> {
+    add: (item: T) => Promise<void>;
+    update: (id: number | string, data: Partial<T>) => Promise<void>;
+    remove: (id: number | string) => Promise<void>;
+}
+
 export function useFirestoreCollection<T extends { id: number | string }>(
     branchId: string | null,
     collectionName: string
-): [
-    T[], 
-    { 
-        add: (item: T) => Promise<void>, 
-        update: (id: number | string, data: Partial<T>) => Promise<void>, 
-        remove: (id: number | string) => Promise<void> 
-    }
-] {
+): [T[], CollectionActions<T>] {
     const [data, setData] = useState<T[]>([]);
 
     useEffect(() => {
@@ -181,7 +180,7 @@ export function useFirestoreCollection<T extends { id: number | string }>(
         return () => unsubscribe();
     }, [branchId, collectionName]);
 
-    const actions = {
+    const actions: CollectionActions<T> = {
         add: async (item: T) => {
             if (!db || !branchId) return;
             const docId = item.id.toString();
