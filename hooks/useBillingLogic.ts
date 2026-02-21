@@ -156,20 +156,23 @@ export const useBillingLogic = () => {
         } 
     };
 
-    const handleConfirmMerge = async (sourceOrderIds: number[], targetOrderId: number) => { 
-        if (!navigator.onLine) return; 
-        const sourceOrders = activeOrders.filter(o => sourceOrderIds.includes(o.id)); 
-        const targetOrder = activeOrders.find(o => o.id === targetOrderId); 
-        if (!targetOrder || sourceOrders.length === 0) return; 
-        const allItemsToMerge = sourceOrders.flatMap(o => o.items.map(item => ({ ...item, originalOrderNumber: item.originalOrderNumber ?? o.orderNumber, cartItemId: `${item.cartItemId}_m_${o.orderNumber}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}` }))); 
-        const sourceNumbers = sourceOrders.map(o => o.orderNumber); 
-        const newItems = [...targetOrder.items, ...allItemsToMerge]; 
-        const newMergedNumbers = Array.from(new Set([...(targetOrder.mergedOrderNumbers || []), ...sourceNumbers])).sort((a, b) => a - b); 
-        const batch = db.batch(); 
-        const targetRef = db.collection(`branches/${branchId}/activeOrders`).doc(targetOrderId.toString()); 
-        batch.update(targetRef, { items: newItems, mergedOrderNumbers: newMergedNumbers, lastUpdated: firebase.firestore.FieldValue.serverTimestamp() }); 
-        for (const sourceId of sourceOrderIds) { 
-            const sourceRef = db.collection(`branches/${branchId}/activeOrders`).doc(sourceId.toString()); 
+    const mergeOrders = async (sourceOrderIds: number[], targetOrderId: number): Promise<ActiveOrder | null> => {
+        if (!navigator.onLine) return null;
+        const sourceOrders = activeOrders.filter(o => sourceOrderIds.includes(o.id));
+        const targetOrder = activeOrders.find(o => o.id === targetOrderId);
+        if (!targetOrder || sourceOrders.length === 0) return null;
+
+        const allItemsToMerge = sourceOrders.flatMap(o => o.items.map(item => ({ ...item, originalOrderNumber: item.originalOrderNumber ?? o.orderNumber, cartItemId: `${item.cartItemId}_m_${o.orderNumber}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}` })));
+        const sourceNumbers = sourceOrders.map(o => o.orderNumber);
+        const newItems = [...targetOrder.items, ...allItemsToMerge];
+        const newMergedNumbers = Array.from(new Set([...(targetOrder.mergedOrderNumbers || []), ...sourceNumbers])).sort((a, b) => a - b);
+
+        const batch = db.batch();
+        const targetRef = db.collection(`branches/${branchId}/activeOrders`).doc(targetOrderId.toString());
+        batch.update(targetRef, { items: newItems, mergedOrderNumbers: newMergedNumbers, lastUpdated: firebase.firestore.FieldValue.serverTimestamp() });
+
+        for (const sourceId of sourceOrderIds) {
+            const sourceRef = db.collection(`branches/${branchId}/activeOrders`).doc(sourceId.toString());
             const cancellationData = {
                 status: 'cancelled' as const,
                 cancellationReason: 'อื่นๆ' as CancellationReason,
@@ -178,50 +181,33 @@ export const useBillingLogic = () => {
                 cancelledBy: currentUser?.username || 'System',
                 lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
             };
-            batch.update(sourceRef, cancellationData); 
-        } 
-        try { 
-            await batch.commit(); 
-            handleModalClose(); 
-        } catch (error) { 
-            console.error("Merge failed", error); 
-            Swal.fire('Error', 'Failed to merge bills. Please try again.', 'error'); 
-        } 
+            batch.update(sourceRef, cancellationData);
+        }
+
+        try {
+            await batch.commit();
+            const updatedTargetOrder: ActiveOrder = { ...targetOrder, items: newItems, mergedOrderNumbers: newMergedNumbers };
+            return updatedTargetOrder;
+        } catch (error) {
+            console.error("Merge failed", error);
+            Swal.fire('Error', 'Failed to merge bills. Please try again.', 'error');
+            return null;
+        }
     };
 
-    const handleMergeAndPay = async (sourceOrderIds: number[], targetOrderId: number) => { 
-        if (!navigator.onLine) return; 
-        const sourceOrders = activeOrders.filter(o => sourceOrderIds.includes(o.id)); 
-        const targetOrder = activeOrders.find(o => o.id === targetOrderId); 
-        if (!targetOrder || sourceOrders.length === 0) return; 
-        const allItemsToMerge = sourceOrders.flatMap(o => o.items.map(item => ({ ...item, originalOrderNumber: item.originalOrderNumber ?? o.orderNumber, cartItemId: `${item.cartItemId}_m_${o.orderNumber}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}` }))); 
-        const sourceNumbers = sourceOrders.map(o => o.orderNumber); 
-        const newItems = [...targetOrder.items, ...allItemsToMerge]; 
-        const newMergedNumbers = Array.from(new Set([...(targetOrder.mergedOrderNumbers || []), ...sourceNumbers])).sort((a, b) => a - b); 
-        const batch = db.batch(); 
-        const targetRef = db.collection(`branches/${branchId}/activeOrders`).doc(targetOrderId.toString()); 
-        batch.update(targetRef, { items: newItems, mergedOrderNumbers: newMergedNumbers, lastUpdated: firebase.firestore.FieldValue.serverTimestamp() }); 
-        for (const sourceId of sourceOrderIds) { 
-            const sourceRef = db.collection(`branches/${branchId}/activeOrders`).doc(sourceId.toString()); 
-            const cancellationData = {
-                status: 'cancelled' as const,
-                cancellationReason: 'อื่นๆ' as CancellationReason,
-                cancellationNotes: `Merged into Order #${targetOrder.orderNumber}`,
-                cancellationTime: firebase.firestore.FieldValue.serverTimestamp(),
-                cancelledBy: currentUser?.username || 'System',
-                lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
-            };
-            batch.update(sourceRef, cancellationData); 
-        } 
-        try { 
-            await batch.commit(); 
-            const updatedTargetOrder: ActiveOrder = { ...targetOrder, items: newItems, mergedOrderNumbers: newMergedNumbers }; 
-            setOrderForModal(updatedTargetOrder); 
-            setModalState(prev => ({ ...prev, isPayment: true, isTableBill: false })); 
-        } catch (error) { 
-            console.error("Merge and Pay failed", error); 
-            Swal.fire('Error', 'Failed to merge bills. Please try again.', 'error'); 
-        } 
+    const handleConfirmMerge = async (sourceOrderIds: number[], targetOrderId: number) => {
+        const success = await mergeOrders(sourceOrderIds, targetOrderId);
+        if (success) {
+            handleModalClose();
+        }
+    };
+
+    const handleMergeAndPay = async (sourceOrderIds: number[], targetOrderId: number) => {
+        const updatedOrder = await mergeOrders(sourceOrderIds, targetOrderId);
+        if (updatedOrder) {
+            setOrderForModal(updatedOrder);
+            setModalState(prev => ({ ...prev, isPayment: true, isTableBill: false }));
+        }
     };
 
     const handleConfirmCancelOrder = async (orderToCancel: ActiveOrder, reason: CancellationReason, notes?: string) => { 
