@@ -6,6 +6,7 @@ import firebase from 'firebase/compat/app';
 import Swal from 'sweetalert2';
 import { printerService } from '../services/printerService';
 import { ActiveOrder, CompletedOrder, PaymentDetails, OrderItem, CancelledOrder, CancellationReason } from '../types';
+import { orderService } from '../services/orderService';
 
 export const useBillingLogic = () => {
     const { 
@@ -32,35 +33,30 @@ export const useBillingLogic = () => {
         } 
     };
 
-    const handleConfirmPayment = async (orderId: number, paymentDetails: PaymentDetails) => { 
-        if (!navigator.onLine) { 
-            Swal.fire('Offline', 'ไม่สามารถชำระเงินได้ขณะ Offline', 'warning'); 
-            return; 
-        } 
-        setIsConfirmingPayment(true); 
-        const orderToComplete = activeOrders.find(o => o.id === orderId); 
-        if (!orderToComplete) { 
-            setIsConfirmingPayment(false); 
-            return; 
-        } 
-        try { 
-            const completed: CompletedOrder = { 
-                ...orderToComplete, 
-                status: 'completed', 
-                completionTime: Date.now(), 
-                paymentDetails: paymentDetails, 
-                completedBy: currentUser?.username || 'Unknown' 
-            }; 
-            await activeOrdersActions.update(orderId, { status: 'completed', completionTime: completed.completionTime, paymentDetails: paymentDetails }); 
-            await db.collection(`branches/${branchId}/completedOrders_v2`).doc(orderId.toString()).set(completed); 
-        } catch (error) { 
-            console.error("Payment failed", error); 
-            Swal.fire('Error', 'Payment processing failed', 'error'); 
-        } finally { 
-            setIsConfirmingPayment(false); 
-            setModalState(prev => ({ ...prev, isPayment: false, isPaymentSuccess: true })); 
-            setOrderForModal(orderToComplete); 
-        } 
+    const handleConfirmPayment = async (orderId: number, paymentDetails: PaymentDetails) => {
+        if (!navigator.onLine || !currentUser) {
+            Swal.fire('Offline', 'ไม่สามารถชำระเงินได้ขณะ Offline', 'warning');
+            return;
+        }
+        setIsConfirmingPayment(true);
+        const orderToComplete = activeOrders.find(o => o.id === orderId);
+        if (!orderToComplete) {
+            setIsConfirmingPayment(false);
+            return;
+        }
+
+        try {
+            const completedOrder = await orderService.completeOrder(branchId, orderToComplete, paymentDetails, currentUser);
+            // The real-time listener will automatically remove the order from the active list.
+            // No need for activeOrdersActions.update here.
+            setOrderForModal(completedOrder);
+            setModalState(prev => ({ ...prev, isPayment: false, isPaymentSuccess: true }));
+        } catch (error: any) {
+            console.error("Payment failed", error);
+            Swal.fire('Error', error.message || 'Payment processing failed', 'error');
+        } finally {
+            setIsConfirmingPayment(false);
+        }
     };
 
     const handlePaymentSuccessClose = async (shouldPrint: boolean) => { 
@@ -106,123 +102,54 @@ export const useBillingLogic = () => {
         } 
     };
 
-    const handleConfirmSplit = async (itemsToSplit: OrderItem[]) => { 
-        if (!orderForModal || !navigator.onLine) return; 
-        const originalOrder = orderForModal as ActiveOrder; 
-        const newSplitCount = (originalOrder.splitCount || 0) + 1; 
-        const splitOrderId = Date.now(); 
-        try { 
-            const updatedOriginalItems: OrderItem[] = []; 
-            const itemsToRemoveMap = new Map<string, number>(); 
-            itemsToSplit.forEach(item => { 
-                itemsToRemoveMap.set(item.cartItemId, (itemsToRemoveMap.get(item.cartItemId) || 0) + item.quantity); 
-            }); 
-            originalOrder.items.forEach(origItem => { 
-                const qtyToRemove = itemsToRemoveMap.get(origItem.cartItemId); 
-                if (qtyToRemove && qtyToRemove > 0) { 
-                    const remainingQty = origItem.quantity - qtyToRemove; 
-                    if (remainingQty > 0) { 
-                        updatedOriginalItems.push({ ...origItem, quantity: remainingQty }); 
-                        itemsToRemoveMap.set(origItem.cartItemId, 0); 
-                    } else { 
-                        itemsToRemoveMap.set(origItem.cartItemId, 0); 
-                    } 
-                } else { 
-                    updatedOriginalItems.push(origItem); 
-                } 
-            }); 
-            const newTotalPrice = updatedOriginalItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-            const newTotalQuantity = updatedOriginalItems.reduce((sum, item) => sum + item.quantity, 0);
-            const newSplitOrder: ActiveOrder = { 
-                ...originalOrder, 
-                id: splitOrderId, 
-                items: itemsToSplit, 
-                parentOrderId: originalOrder.orderNumber, 
-                isSplitChild: true, 
-                splitIndex: newSplitCount, 
-                mergedOrderNumbers: [], 
-                status: originalOrder.status 
-            }; 
-            const batch = db.batch(); 
-            const originalRef = db.collection(`branches/${branchId}/activeOrders`).doc(originalOrder.id.toString()); 
-            const newRef = db.collection(`branches/${branchId}/activeOrders`).doc(splitOrderId.toString()); 
-            batch.update(originalRef, { items: updatedOriginalItems, splitCount: newSplitCount, totalPrice: newTotalPrice, totalQuantity: newTotalQuantity, lastUpdated: firebase.firestore.FieldValue.serverTimestamp() }); 
-            batch.set(newRef, { ...newSplitOrder, lastUpdated: firebase.firestore.FieldValue.serverTimestamp() }); 
-            await batch.commit(); 
-            handleModalClose(); 
-        } catch (error) { 
-            console.error("Split failed", error); 
-            Swal.fire('Error', 'Failed to split bill', 'error'); 
-        } 
-    };
-
-    const mergeOrders = async (sourceOrderIds: number[], targetOrderId: number): Promise<ActiveOrder | null> => {
-        if (!navigator.onLine) return null;
-        const sourceOrders = activeOrders.filter(o => sourceOrderIds.includes(o.id));
-        const targetOrder = activeOrders.find(o => o.id === targetOrderId);
-        if (!targetOrder || sourceOrders.length === 0) return null;
-
-        const allItemsToMerge = sourceOrders.flatMap(o => o.items.map(item => ({ ...item, originalOrderNumber: item.originalOrderNumber ?? o.orderNumber, cartItemId: `${item.cartItemId}_m_${o.orderNumber}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}` })));
-        const sourceNumbers = sourceOrders.map(o => o.orderNumber);
-        const newItems = [...targetOrder.items, ...allItemsToMerge];
-        const newMergedNumbers = Array.from(new Set([...(targetOrder.mergedOrderNumbers || []), ...sourceNumbers])).sort((a, b) => a - b);
-
-        const batch = db.batch();
-        const targetRef = db.collection(`branches/${branchId}/activeOrders`).doc(targetOrderId.toString());
-        batch.update(targetRef, { items: newItems, mergedOrderNumbers: newMergedNumbers, lastUpdated: firebase.firestore.FieldValue.serverTimestamp() });
-
-        for (const sourceId of sourceOrderIds) {
-            const sourceRef = db.collection(`branches/${branchId}/activeOrders`).doc(sourceId.toString());
-            const cancellationData = {
-                status: 'cancelled' as const,
-                cancellationReason: 'อื่นๆ' as CancellationReason,
-                cancellationNotes: `Merged into Order #${targetOrder.orderNumber}`,
-                cancellationTime: firebase.firestore.FieldValue.serverTimestamp(),
-                cancelledBy: currentUser?.username || 'System',
-                lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
-            };
-            batch.update(sourceRef, cancellationData);
-        }
-
+    const handleConfirmSplit = async (itemsToSplit: OrderItem[]) => {
+        if (!orderForModal || !navigator.onLine) return;
         try {
-            await batch.commit();
-            const updatedTargetOrder: ActiveOrder = { ...targetOrder, items: newItems, mergedOrderNumbers: newMergedNumbers };
-            return updatedTargetOrder;
-        } catch (error) {
-            console.error("Merge failed", error);
-            Swal.fire('Error', 'Failed to merge bills. Please try again.', 'error');
-            return null;
+            await orderService.splitOrder(branchId, orderForModal as ActiveOrder, itemsToSplit);
+            handleModalClose();
+        } catch (error: any) {
+            console.error("Split failed", error);
+            Swal.fire('Error', error.message || 'Failed to split bill', 'error');
         }
     };
 
     const handleConfirmMerge = async (sourceOrderIds: number[], targetOrderId: number) => {
-        const success = await mergeOrders(sourceOrderIds, targetOrderId);
-        if (success) {
+        try {
+            const sourceOrders = activeOrders.filter(o => sourceOrderIds.includes(o.id));
+            const targetOrder = activeOrders.find(o => o.id === targetOrderId);
+            if (!targetOrder) throw new Error('Target order not found');
+            await orderService.mergeOrders(branchId, currentUser, sourceOrders, targetOrder);
             handleModalClose();
+        } catch (error: any) {
+            console.error("Merge failed", error);
+            Swal.fire('Error', error.message || 'Failed to merge bills. Please try again.', 'error');
         }
     };
 
     const handleMergeAndPay = async (sourceOrderIds: number[], targetOrderId: number) => {
-        const updatedOrder = await mergeOrders(sourceOrderIds, targetOrderId);
-        if (updatedOrder) {
+        try {
+            const sourceOrders = activeOrders.filter(o => sourceOrderIds.includes(o.id));
+            const targetOrder = activeOrders.find(o => o.id === targetOrderId);
+            if (!targetOrder) throw new Error('Target order not found');
+            const updatedOrder = await orderService.mergeOrders(branchId, currentUser, sourceOrders, targetOrder);
             setOrderForModal(updatedOrder);
             setModalState(prev => ({ ...prev, isPayment: true, isTableBill: false }));
+        } catch (error: any) {
+            console.error("Merge and Pay failed", error);
+            Swal.fire('Error', error.message || 'Failed to merge bills. Please try again.', 'error');
         }
     };
 
-    const handleConfirmCancelOrder = async (orderToCancel: ActiveOrder, reason: CancellationReason, notes?: string) => { 
-        if (!navigator.onLine) return; 
-        const cancelledOrder: CancelledOrder = { 
-            ...orderToCancel, 
-            status: 'cancelled', 
-            cancellationTime: Date.now(), 
-            cancelledBy: currentUser!.username, 
-            cancellationReason: reason, 
-            cancellationNotes: notes, 
-        }; 
-        await activeOrdersActions.update(orderToCancel.id, { status: 'cancelled', cancellationReason: reason, cancellationNotes: notes }); 
-        await db.collection(`branches/${branchId}/cancelledOrders_v2`).doc(cancelledOrder.id.toString()).set(cancelledOrder); 
-        handleModalClose(); 
+    const handleConfirmCancelOrder = async (orderToCancel: ActiveOrder, reason: CancellationReason, notes?: string) => {
+        if (!navigator.onLine || !currentUser) return;
+        try {
+            await orderService.cancelOrder(branchId, orderToCancel, currentUser, reason, notes);
+            // Note: activeOrdersActions.update is removed because the batch in service now handles the active order update.
+            handleModalClose();
+        } catch (error: any) {
+            console.error("Cancel order failed", error);
+            Swal.fire('Error', error.message || 'Failed to cancel order', 'error');
+        }
     };
 
     return {

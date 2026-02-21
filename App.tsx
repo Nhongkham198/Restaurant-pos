@@ -463,7 +463,13 @@ export const App: React.FC = () => {
         if (prevActiveOrdersRef.current === undefined) { prevActiveOrdersRef.current = activeOrders; return; }
         const shouldNotify = (currentUser?.role === 'kitchen' || isOrderNotificationsEnabled) && notificationSoundUrl && isAudioUnlocked;
         if (!shouldNotify) { prevActiveOrdersRef.current = activeOrders; return; }
-        const newOrders = activeOrders.filter(order => !prevActiveOrdersRef.current!.some(prevOrder => prevOrder.id === order.id) && order.id > mountTimeRef.current && order.tableName && order.orderNumber );
+        const newOrders = activeOrders.filter(order => 
+            !prevActiveOrdersRef.current!.some(prevOrder => prevOrder.id === order.id) && 
+            order.id > mountTimeRef.current && 
+            order.tableName && 
+            order.orderNumber &&
+            !order.isSplitChild // <-- ADD THIS LINE
+        );
         if (newOrders.length > 0) {
             const audio = new Audio(notificationSoundUrl!);
             audio.play().catch(() => {});
