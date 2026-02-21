@@ -45,6 +45,11 @@ import type {
 import { useFirestoreSync, useFirestoreCollection } from './hooks/useFirestoreSync';
 import { useUI } from './contexts/UIContext';
 import { useData } from './contexts/DataContext';
+import { useOrderLogic } from './hooks/useOrderLogic';
+import { useBillingLogic } from './hooks/useBillingLogic';
+import { useTableLogic } from './hooks/useTableLogic';
+import { useMenuLogic } from './hooks/useMenuLogic';
+import { useHistoryLogic } from './hooks/useHistoryLogic';
 import { functionsService } from './services/firebaseFunctionsService';
 import { printerService } from './services/printerService';
 import firebase from 'firebase/compat/app';
@@ -189,7 +194,8 @@ export const App: React.FC = () => {
         itemToCustomize, setItemToCustomize,
         orderItemToEdit, setOrderItemToEdit,
         orderForModal, setOrderForModal,
-        leaveRequestInitialDate, setLeaveRequestInitialDate
+        leaveRequestInitialDate, setLeaveRequestInitialDate,
+        selectedSidebarFloor, setSelectedSidebarFloor
     } = useUI();
 
     // --- NOTIFICATION TOGGLE STATE ---
@@ -228,7 +234,7 @@ export const App: React.FC = () => {
     const [selectedTableId, setSelectedTableId] = useState<number | null>(null);
     const [customerName, setCustomerName] = useState('');
     const [customerCount, setCustomerCount] = useState(1);
-    const [selectedSidebarFloor, setSelectedSidebarFloor] = useState<string>('');
+
     const [notSentToKitchenDetails, setNotSentToKitchenDetails] = useState<{ reason: string; notes: string } | null>(null);
 
     // --- SETTINGS MOVED TO DATA CONTEXT ---
@@ -237,11 +243,48 @@ export const App: React.FC = () => {
     // --- MODAL STATES ---
     // MOVED TO UI CONTEXT
     
-    const [lastPlacedOrderId, setLastPlacedOrderId] = useState<number | null>(null);
+    // --- LOGIC HOOKS ---
+    const { 
+        placeOrder, 
+        isPlacingOrder, 
+        lastPlacedOrderId,
+        handleUpdateOrderFromModal,
+        handleStartCooking,
+        handleCompleteOrder,
+        handlePrintKitchenOrder
+    } = useOrderLogic();
+    const { 
+        isConfirmingPayment, 
+        handleShowBill, 
+        handleConfirmPayment, 
+        handlePaymentSuccessClose, 
+        handleReprintReceipt, 
+        handleConfirmSplit, 
+        handleConfirmMerge, 
+        handleMergeAndPay,
+        handleConfirmCancelOrder
+    } = useBillingLogic();
 
-    // --- ASYNC OPERATION STATE ---
-    const [isPlacingOrder, setIsPlacingOrder] = useState(false);
-    const [isConfirmingPayment, setIsConfirmingPayment] = useState(false);
+    const {
+        handleAddTable,
+        handleRemoveLastTable,
+        handleAddFloor,
+        handleRemoveFloor,
+        handleConfirmMoveTable,
+        handleGeneratePin
+    } = useTableLogic();
+
+    const {
+        handleSaveMenuItem,
+        handleDeleteMenuItem,
+        handleAddCategory,
+        handleUpdateCategory,
+        handleDeleteCategory,
+        handleToggleAvailability,
+        handleToggleVisibility
+    } = useMenuLogic();
+
+    const { handleDeleteHistory } = useHistoryLogic();
     const [isCachingImages, setIsCachingImages] = useState(false);
     const imageCacheTriggeredRef = useRef(false);
     const [isAudioUnlocked, setIsAudioUnlocked] = useState(false);
@@ -748,216 +791,28 @@ export const App: React.FC = () => {
     const handleRemoveItem = (cartItemId: string) => { setCurrentOrderItems(prevItems => prevItems.filter(i => i.cartItemId !== cartItemId)); };
     
     const handlePlaceOrder = async (orderItems: OrderItem[] = currentOrderItems, custName: string = customerName, custCount: number = customerCount, tableOverride: Table | null = selectedTable, isLineMan: boolean = false, lineManNumber?: string, deliveryProviderName?: string): Promise<number | undefined> => { 
-        if (!isLineMan && !tableOverride) { 
-            Swal.fire('กรุณาเลือกโต๊ะ', 'ต้องเลือกโต๊ะสำหรับออเดอร์ หรือเลือก Delivery', 'warning'); 
-            return; 
-        } 
-
-        let finalTable = tableOverride;
-        if (!isLineMan && finalTable && finalTable.name === 'กำลังโหลด...') {
-            const realTable = tables.find(t => t.id === finalTable!.id);
-            if (realTable) {
-                finalTable = realTable;
-            } else {
-                Swal.fire({ icon: 'error', title: 'ไม่พบข้อมูลโต๊ะ', text: 'กรุณาลองใหม่อีกครั้ง หรือติดต่อพนักงาน (รหัสโต๊ะอาจไม่ถูกต้อง)', });
-                return;
-            }
-        }
-
-        if (orderItems.length === 0) return; 
-        if (!isOnline) { Swal.fire('เชื่อมต่ออินเทอร์เน็ตไม่ได้', 'ไม่สามารถสั่งอาหารได้ในขณะนี้', 'error'); return; } 
-        setIsPlacingOrder(true); 
-
-        try { 
-            const MAX_RETRIES = 3; // 1 initial attempt + 2 retries
-            let result;
-
-            for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-                try {
-                    const branchIdStr = branchId;
-                    if (!branchIdStr) {
-                        throw new Error('ไม่พบข้อมูลสาขา (Branch ID Missing)');
-                    }
-                    
-                    const counterRef = db.doc(`branches/${branchIdStr}/orderCounter/data`);
-                    result = await db.runTransaction(async (transaction: firebase.firestore.Transaction) => { 
-                        const counterDoc = await transaction.get(counterRef); 
-                        const counterData = (counterDoc.data() as { value: OrderCounter | undefined })?.value; 
-                        const today = new Date(); 
-                        const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`; 
-                        let nextOrderId = 1; 
-                        if (counterData && typeof counterData.count === 'number' && typeof counterData.lastResetDate === 'string' && counterData.lastResetDate === todayStr) { 
-                            nextOrderId = counterData.count + 1; 
-                        } 
-                        const itemsWithOrigin = orderItems.map(item => ({ ...item, originalOrderNumber: nextOrderId, })); 
-                        const orderTableName = isLineMan ? (deliveryProviderName || 'Delivery') : (finalTable ? finalTable.name : 'Unknown'); 
-                        const orderFloor = isLineMan ? 'Delivery' : (finalTable ? finalTable.floor : 'Unknown'); 
-                        const orderTableId = isLineMan ? -99 : (finalTable ? finalTable.id : 0); 
-                        const shouldSendToKitchen = isCustomerMode || sendToKitchen || isLineMan;
-                        const isPrintedImmediatelyByThisDevice = !isCustomerMode && shouldSendToKitchen;
-                        
-                        const newOrder: ActiveOrder = { 
-                            id: Date.now(), 
-                            orderNumber: nextOrderId, 
-                            manualOrderNumber: lineManNumber || null, 
-                            tableId: orderTableId, 
-                            tableName: orderTableName, 
-                            customerName: custName, 
-                            floor: orderFloor, 
-                            customerCount: custCount, 
-                            items: itemsWithOrigin, 
-                            status: shouldSendToKitchen ? 'waiting' : 'served', 
-                            orderTime: Date.now(), 
-                            orderType: isLineMan ? 'lineman' : 'dine-in', 
-                            taxRate: isTaxEnabled ? taxRate : 0, 
-                            taxAmount: 0, 
-                            placedBy: currentUser ? currentUser.username : (custName || `โต๊ะ ${orderTableName}`),
-                            isPrintedToKitchen: isPrintedImmediatelyByThisDevice,
-                        }; 
-                        const subtotal = newOrder.items.reduce((sum, item) => sum + item.finalPrice * item.quantity, 0); 
-                        newOrder.taxAmount = newOrder.taxRate > 0 ? subtotal * (newOrder.taxRate / 100) : 0; 
-                        transaction.set(counterRef, { value: { count: nextOrderId, lastResetDate: todayStr } }); 
-                        const newOrderDocRef = db.collection(`branches/${branchIdStr}/activeOrders`).doc(newOrder.id.toString()); 
-                        transaction.set(newOrderDocRef, { ...newOrder, lastUpdated: firebase.firestore.FieldValue.serverTimestamp() }); 
-                        return { newOrder, shouldSendToKitchen, isPrintedImmediatelyByThisDevice }; 
-                    });
-
-                    // If transaction is successful, break the loop
-                    break;
-                } catch (error: any) {
-                    // Firebase v8 uses `code`, e.g., 'aborted' for contention.
-                    if (error.code === 'aborted' && attempt < MAX_RETRIES) {
-                        console.warn(`Place order contention detected. Retrying attempt ${attempt + 1}...`);
-                        await new Promise(res => setTimeout(res, 100 * attempt)); // Small delay with backoff
-                    } else {
-                        // If it's another error or max retries reached, re-throw to be caught by the outer catch
-                        throw error;
-                    }
-                }
-            }
-
-            if (!result) {
-                 // This should only be reached if retries fail silently, which is unlikely.
-                 throw new Error('Transaction failed after multiple retries without a specific error.');
-            }
-
-            const { newOrder, isPrintedImmediatelyByThisDevice } = result;
-            setLastPlacedOrderId(newOrder.orderNumber); 
-            if (!isCustomerMode) {
-                setModalState(prev => ({ ...prev, isOrderSuccess: true })); 
-            }
-        
-            if (isPrintedImmediatelyByThisDevice && printerConfig?.kitchen?.ipAddress) {
-                try {
-                    await printerService.printKitchenOrder(newOrder, printerConfig.kitchen);
-                } catch (printError: any) {
-                    console.error("Kitchen print failed (Direct):", printError);
-                    Swal.fire('พิมพ์ไม่สำเร็จ', 'ไม่สามารถเชื่อมต่อเครื่องพิมพ์ครัวได้', 'error');
-                }
-            }
+        try {
+            const orderNumber = await placeOrder(orderItems, custName, custCount, tableOverride, isLineMan, lineManNumber, deliveryProviderName);
             
-            return newOrder.orderNumber;
-
-        } catch (error: any) {
-            console.error("Failed to place order:", error);
-            const errorMessage = (error.message || '').toLowerCase();
-            
-            // Handle race condition failure after all retries
-            if (error.code === 'aborted') {
-                Swal.fire('ระบบกำลังยุ่ง', 'การส่งออเดอร์พร้อมกันหลายเครื่อง กรุณาลองอีกครั้งในอีกสักครู่', 'warning');
+            // Clear local state on success (only if not customer mode)
+            if (orderNumber && !isCustomerMode) {
+                 setCurrentOrderItems([]); 
+                 setCustomerName(''); 
+                 setCustomerCount(1); 
+                 setSelectedTableId(null); 
             }
-            // IMPROVED ERROR HANDLING FOR QUOTA
-            else if (errorMessage.includes('quota') || errorMessage.includes('resource_exhausted')) {
-                Swal.fire({
-                    icon: 'error',
-                    title: 'โควต้าการใช้งานเต็ม',
-                    html: `
-                        <div class="text-left text-gray-700">
-                            <p class="font-bold">โควต้าการบันทึกข้อมูลสำหรับวันนี้เต็มแล้ว</p>
-                            <p class="mt-2 text-sm">ออเดอร์นี้จึงไม่ถูกบันทึกเข้าระบบ</p>
-                            <hr class="my-3"/>
-                            <p class="text-sm"><strong>สาเหตุ:</strong> แอปพลิเคชันนี้ใช้แผนบริการฟรีของ Firebase ซึ่งมีจำกัดการใช้งานรายวัน</p>
-                            <p class="text-sm mt-2"><strong>วิธีแก้ไข:</strong></p>
-                            <ul class="list-disc list-inside text-sm pl-4 mt-1">
-                                <li><strong>ชั่วคราว:</strong> ระบบจะกลับมาใช้งานได้อีกครั้งในวันพรุ่งนี้ (โควต้าจะรีเซ็ตทุกวัน)</li>
-                                <li><strong>ถาวร:</strong> อัปเกรดแผน Firebase เป็น <strong class="text-orange-500">Blaze (Pay-as-you-go)</strong> เพื่อใช้งานได้ไม่จำกัด</li>
-                            </ul>
-                        </div>
-                    `,
-                    confirmButtonText: 'รับทราบ',
-                });
-            } else {
-                Swal.fire('เกิดข้อผิดพลาด', error.message || 'ไม่สามารถสร้างออเดอร์ได้', 'error');
-            }
-            // **FIX**: Re-throw the error so the calling component (CustomerView) knows about the failure.
+            return orderNumber;
+        } catch (error) {
+            // Re-throw to let caller handle it (e.g. stop loading spinner)
             throw error;
-        } finally { 
-            setIsPlacingOrder(false); 
-            if (!isCustomerMode) { 
-                setCurrentOrderItems([]); 
-                setCustomerName(''); 
-                setCustomerCount(1); 
-                setSelectedTableId(null); 
-            } 
-        } 
+        }
     };
 
-    const handleStartCooking = (orderId: number) => { if (!isOnline) return; activeOrdersActions.update(orderId, { status: 'cooking', cookingStartTime: Date.now() }); };
-    
-    // UPDATED: handleCompleteOrder to show provider name for delivery orders
-    const handleCompleteOrder = async (orderId: number) => { 
-        if (!isOnline) return; 
-        const order = activeOrders.find(o => o.id === orderId); 
-        if (!order) return; 
-        
-        if (order.orderType === 'lineman') { 
-            try { 
-                const paymentDetails: PaymentDetails = { method: 'transfer' }; 
-                const completed: CompletedOrder = { ...order, status: 'completed', completionTime: Date.now(), paymentDetails: paymentDetails, completedBy: currentUser?.username || 'Auto-Kitchen' }; 
-                await activeOrdersActions.update(orderId, { status: 'completed', completionTime: completed.completionTime, paymentDetails: paymentDetails }); 
-                await db.collection(`branches/${branchId}/completedOrders_v2`).doc(orderId.toString()).set(completed); 
-                
-                // Show provider name from tableName
-                Swal.fire({ 
-                    icon: 'success', 
-                    title: `${order.tableName} Completed`, 
-                    text: `ออเดอร์ #${order.orderNumber} จบงานและบันทึกยอดขายแล้ว`, 
-                    timer: 1500, 
-                    showConfirmButton: false 
-                }); 
-            } catch (error) { 
-                console.error("Auto-complete failed", error); 
-                Swal.fire('Error', 'Failed to auto-complete LineMan order', 'error'); 
-            } 
-        } else { 
-            activeOrdersActions.update(orderId, { status: 'served' }); 
-        } 
-    };
 
-    const handlePrintKitchenOrder = async (orderId: number) => { const order = activeOrders.find(o => o.id === orderId); if (!order) return; if (!printerConfig?.kitchen) { Swal.fire('ไม่พบเครื่องพิมพ์', 'กรุณาตั้งค่าเครื่องพิมพ์ครัวก่อน', 'warning'); return; } try { Swal.fire({ title: 'กำลังส่งพิมพ์...', text: 'กรุณารอสักครู่', timer: 1000, showConfirmButton: false, didOpen: () => { Swal.showLoading(); } }); await printerService.printKitchenOrder(order, printerConfig.kitchen); } catch (error: any) { console.error("Reprint failed:", error); Swal.fire('พิมพ์ไม่สำเร็จ', error.message || 'ไม่สามารถเชื่อมต่อเครื่องพิมพ์ได้', 'error'); } };
-    const handleShowBill = (orderId: number) => { const order = activeOrders.find(o => o.id === orderId); if (order) { setOrderForModal(order); setModalState(prev => ({ ...prev, isTableBill: true })); } };
-    const handleConfirmPayment = async (orderId: number, paymentDetails: PaymentDetails) => { if (!isOnline) { Swal.fire('Offline', 'ไม่สามารถชำระเงินได้ขณะ Offline', 'warning'); return; } setIsConfirmingPayment(true); const orderToComplete = activeOrders.find(o => o.id === orderId); if (!orderToComplete) { setIsConfirmingPayment(false); return; } try { const completed: CompletedOrder = { ...orderToComplete, status: 'completed', completionTime: Date.now(), paymentDetails: paymentDetails, completedBy: currentUser?.username || 'Unknown' }; await activeOrdersActions.update(orderId, { status: 'completed', completionTime: completed.completionTime, paymentDetails: paymentDetails }); await db.collection(`branches/${branchId}/completedOrders_v2`).doc(orderId.toString()).set(completed); } catch (error) { console.error("Payment failed", error); Swal.fire('Error', 'Payment processing failed', 'error'); } finally { setIsConfirmingPayment(false); setModalState(prev => ({ ...prev, isPayment: false, isPaymentSuccess: true })); setOrderForModal(orderToComplete); } };
-    const handlePaymentSuccessClose = async (shouldPrint: boolean) => { const order = orderForModal as CompletedOrder; handleModalClose(); if (shouldPrint && order && printerConfig?.cashier) { try { await printerService.printReceipt(order, printerConfig.cashier, restaurantName, logoUrl, qrCodeUrl); } catch (printError: any) { console.error("Receipt print failed:", printError); Swal.fire('พิมพ์ไม่สำเร็จ', 'ไม่สามารถเชื่อมต่อเครื่องพิมพ์ใบเสร็จได้', 'error'); } } };
-    const handleReprintReceipt = async (order: CompletedOrder) => { if (!printerConfig?.cashier) { Swal.fire({ icon: 'warning', title: 'ไม่พบการตั้งค่าเครื่องพิมพ์', text: 'กรุณาตั้งค่าเครื่องพิมพ์ใบเสร็จก่อนใช้งาน', confirmButtonText: 'ไปที่ตั้งค่า' }).then((result) => { if (result.isConfirmed) { setModalState(prev => ({ ...prev, isSettings: true })); } }); return; } try { Swal.fire({ title: 'กำลังส่งคำสั่งพิมพ์...', allowOutsideClick: false, didOpen: () => { Swal.showLoading(); } }); await printerService.printReceipt(order, printerConfig.cashier, restaurantName, logoUrl, qrCodeUrl); Swal.close(); Swal.fire({ icon: 'success', title: 'ส่งคำสั่งพิมพ์แล้ว', timer: 1500, showConfirmButton: false }); } catch (error: any) { console.error("Reprint failed:", error); Swal.close(); Swal.fire('พิมพ์ไม่สำเร็จ', error.message || 'ไม่สามารถเชื่อมต่อเครื่องพิมพ์ได้', 'error'); } };
-    const handleSaveMenuItem = (itemData: Omit<MenuItem, 'id'> & { id?: number }) => { setMenuItems(prev => { if (itemData.id) return prev.map(item => item.id === itemData.id ? { ...item, ...itemData } as MenuItem : item); const newId = Math.max(0, ...prev.map(i => i.id)) + 1; return [...prev, { ...itemData, id: newId }]; }); handleModalClose(); };
-    const handleDeleteMenuItem = (id: number) => { Swal.fire({ title: 'ยืนยันการลบ?', text: "คุณต้องการลบเมนูนี้ใช่หรือไม่?", icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: 'ใช่, ลบเลย!' }).then((result) => { if (result.isConfirmed) setMenuItems(prev => prev.filter(item => item.id !== id)); }); };
-    const handleAddCategory = (name: string) => { if (!categories.includes(name)) setCategories(prev => [...prev, name]); };
-    const handleUpdateCategory = (oldName: string, newName: string) => { setCategories(prev => Array.from(new Set(prev.map(c => c === oldName ? newName : c)))); setMenuItems(prev => prev.map(item => item.category === oldName ? { ...item, category: newName } : item)); };
-    const handleDeleteCategory = (name: string) => { setCategories(prev => prev.filter(c => c !== name)); };
-    const handleAddTable = (floor: string) => { const newId = Math.max(0, ...tables.map(t => t.id)) + 1; const tablesOnFloor = tables.filter(t => t.floor === floor); const newTableName = `T${tablesOnFloor.length + 1}`; setTables(prev => [...prev, { id: newId, name: newTableName, floor: floor, activePin: null, reservation: null }]); };
-    const handleRemoveLastTable = (floor: string) => { const tablesOnFloor = tables.filter(t => t.floor === floor).sort((a,b) => a.id - b.id); if (tablesOnFloor.length > 0) { const lastTable = tablesOnFloor[tablesOnFloor.length - 1]; if (activeOrders.some(o => o.tableId === lastTable.id)) { Swal.fire('ไม่สามารถลบได้', `โต๊ะ ${lastTable.name} กำลังมีออเดอร์อยู่`, 'error'); return; } setTables(prev => prev.filter(t => t.id !== lastTable.id)); } };
-    const handleAddFloor = () => { Swal.fire({ title: 'เพิ่มชั้นใหม่', input: 'text', showCancelButton: true, confirmButtonText: 'เพิ่ม' }).then((result) => { if (result.isConfirmed && result.value && !floors.includes(result.value)) setFloors(prev => [...prev, result.value]); }); };
-    const handleRemoveFloor = (floor: string) => { if (tables.some(t => t.floor === floor)) { Swal.fire('ไม่สามารถลบได้', `ชั้น "${floor}" ยังมีโต๊ะอยู่`, 'error'); return; } Swal.fire({ title: `ลบชั้น "${floor}"?`, icon: 'warning', showCancelButton: true, confirmButtonText: 'ลบเลย' }).then((result) => { if (result.isConfirmed) { setFloors(prev => prev.filter(f => f !== floor)); if (selectedSidebarFloor === floor) setSelectedSidebarFloor(floors[0] || ''); } }); };
-    const handleDeleteHistory = async (completedIds: number[], cancelledIds: number[], printIds: number[]) => { if (!currentUser) return; const username = currentUser.username; const isAdmin = currentUser.role === 'admin'; if (completedIds.length > 0) { const newIds = completedIds.filter(id => newCompletedOrders.some(o => o.id === id)); const legacyIds = completedIds.filter(id => !newIds.includes(id)); for (const id of newIds) { if (isAdmin) { await newCompletedOrdersActions.remove(id); } else { await newCompletedOrdersActions.update(id, { isDeleted: true, deletedBy: username }); } } if (legacyIds.length > 0) { setLegacyCompletedOrders(prev => { if (isAdmin) return prev.filter(o => !legacyIds.includes(o.id)); return prev.map(o => legacyIds.includes(o.id) ? { ...o, isDeleted: true, deletedBy: username } : o); }); } } if (cancelledIds.length > 0) { const newIds = cancelledIds.filter(id => newCancelledOrders.some(o => o.id === id)); const legacyIds = cancelledIds.filter(id => !newIds.includes(id)); for (const id of newIds) { if (isAdmin) { await newCancelledOrdersActions.remove(id); } else { await newCancelledOrdersActions.update(id, { isDeleted: true, deletedBy: username }); } } if (legacyIds.length > 0) { setLegacyCancelledOrders(prev => { if (isAdmin) return prev.filter(o => !legacyIds.includes(o.id)); return prev.map(o => legacyIds.includes(o.id) ? { ...o, isDeleted: true, deletedBy: username } : o); }); } } if (printIds.length > 0) { setPrintHistory(prev => { if (isAdmin) return prev.filter(p => !printIds.includes(p.id)); return prev.map(p => printIds.includes(p.id) ? { ...p, isDeleted: true, deletedBy: username } : p); }); } };
-    const handleGeneratePin = (tableId: number) => { const pin = String(Math.floor(100 + Math.random() * 900)); setTables(prev => prev.map(t => t.id === tableId ? { ...t, activePin: pin } : t)); };
-    const handleConfirmSplit = async (itemsToSplit: OrderItem[]) => { if (!orderForModal || !isOnline) return; const originalOrder = orderForModal as ActiveOrder; const newSplitCount = (originalOrder.splitCount || 0) + 1; const splitOrderId = Date.now(); try { const updatedOriginalItems: OrderItem[] = []; const itemsToRemoveMap = new Map<string, number>(); itemsToSplit.forEach(item => { itemsToRemoveMap.set(item.cartItemId, (itemsToRemoveMap.get(item.cartItemId) || 0) + item.quantity); }); originalOrder.items.forEach(origItem => { const qtyToRemove = itemsToRemoveMap.get(origItem.cartItemId); if (qtyToRemove && qtyToRemove > 0) { const remainingQty = origItem.quantity - qtyToRemove; if (remainingQty > 0) { updatedOriginalItems.push({ ...origItem, quantity: remainingQty }); itemsToRemoveMap.set(origItem.cartItemId, 0); } else { itemsToRemoveMap.set(origItem.cartItemId, 0); } } else { updatedOriginalItems.push(origItem); } }); const newSplitOrder: ActiveOrder = { ...originalOrder, id: splitOrderId, items: itemsToSplit, parentOrderId: originalOrder.orderNumber, isSplitChild: true, splitIndex: newSplitCount, mergedOrderNumbers: [], status: originalOrder.status }; const batch = db.batch(); const originalRef = db.collection(`branches/${branchId}/activeOrders`).doc(originalOrder.id.toString()); const newRef = db.collection(`branches/${branchId}/activeOrders`).doc(splitOrderId.toString()); batch.update(originalRef, { items: updatedOriginalItems, splitCount: newSplitCount, lastUpdated: firebase.firestore.FieldValue.serverTimestamp() }); batch.set(newRef, { ...newSplitOrder, lastUpdated: firebase.firestore.FieldValue.serverTimestamp() }); await batch.commit(); handleModalClose(); } catch (error) { console.error("Split failed", error); Swal.fire('Error', 'Failed to split bill', 'error'); } };
-    const handleConfirmMoveTable = async (orderId: number, newTableId: number) => { if (!isOnline) return; const newTable = tables.find(t => t.id === newTableId); if (!newTable) return; await activeOrdersActions.update(orderId, { tableId: newTable.id, tableName: newTable.name, floor: newTable.floor }); Swal.fire({ icon: 'success', title: 'ย้ายโต๊ะสำเร็จ', timer: 1500, showConfirmButton: false }); handleModalClose(); };
-    const handleConfirmCancelOrder = async (orderToCancel: ActiveOrder, reason: CancellationReason, notes?: string) => { if (!isOnline) return; const cancelledOrder: CancelledOrder = { ...orderToCancel, status: 'cancelled', cancellationTime: Date.now(), cancelledBy: currentUser!.username, cancellationReason: reason, cancellationNotes: notes, }; await activeOrdersActions.update(orderToCancel.id, { status: 'cancelled', cancellationReason: reason, cancellationNotes: notes }); await db.collection(`branches/${branchId}/cancelledOrders_v2`).doc(cancelledOrder.id.toString()).set(cancelledOrder); handleModalClose(); };
-    const handleConfirmMerge = async (sourceOrderIds: number[], targetOrderId: number) => { if (!isOnline) return; const sourceOrders = activeOrders.filter(o => sourceOrderIds.includes(o.id)); const targetOrder = activeOrders.find(o => o.id === targetOrderId); if (!targetOrder || sourceOrders.length === 0) return; const allItemsToMerge = sourceOrders.flatMap(o => o.items.map(item => ({ ...item, originalOrderNumber: item.originalOrderNumber ?? o.orderNumber, cartItemId: `${item.cartItemId}_m_${o.orderNumber}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}` }))); const sourceNumbers = sourceOrders.map(o => o.orderNumber); const newItems = [...targetOrder.items, ...allItemsToMerge]; const newMergedNumbers = Array.from(new Set([...(targetOrder.mergedOrderNumbers || []), ...sourceNumbers])).sort((a, b) => a - b); const batch = db.batch(); const targetRef = db.collection(`branches/${branchId}/activeOrders`).doc(targetOrderId.toString()); batch.update(targetRef, { items: newItems, mergedOrderNumbers: newMergedNumbers, lastUpdated: firebase.firestore.FieldValue.serverTimestamp() }); for (const sourceId of sourceOrderIds) { const sourceRef = db.collection(`branches/${branchId}/activeOrders`).doc(sourceId.toString()); batch.update(sourceRef, { status: 'cancelled', cancellationReason: 'อื่นๆ', cancellationNotes: `Merged into Order #${targetOrder.orderNumber}`, lastUpdated: firebase.firestore.FieldValue.serverTimestamp() }); } try { await batch.commit(); handleModalClose(); } catch (error) { console.error("Merge failed", error); Swal.fire('Error', 'Failed to merge bills. Please try again.', 'error'); } };
-    const handleMergeAndPay = async (sourceOrderIds: number[], targetOrderId: number) => { if (!isOnline) return; const sourceOrders = activeOrders.filter(o => sourceOrderIds.includes(o.id)); const targetOrder = activeOrders.find(o => o.id === targetOrderId); if (!targetOrder || sourceOrders.length === 0) return; const allItemsToMerge = sourceOrders.flatMap(o => o.items.map(item => ({ ...item, originalOrderNumber: item.originalOrderNumber ?? o.orderNumber, cartItemId: `${item.cartItemId}_m_${o.orderNumber}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}` }))); const sourceNumbers = sourceOrders.map(o => o.orderNumber); const newItems = [...targetOrder.items, ...allItemsToMerge]; const newMergedNumbers = Array.from(new Set([...(targetOrder.mergedOrderNumbers || []), ...sourceNumbers])).sort((a, b) => a - b); const batch = db.batch(); const targetRef = db.collection(`branches/${branchId}/activeOrders`).doc(targetOrderId.toString()); batch.update(targetRef, { items: newItems, mergedOrderNumbers: newMergedNumbers, lastUpdated: firebase.firestore.FieldValue.serverTimestamp() }); for (const sourceId of sourceOrderIds) { const sourceRef = db.collection(`branches/${branchId}/activeOrders`).doc(sourceId.toString()); batch.update(sourceRef, { status: 'cancelled', cancellationReason: 'อื่นๆ', cancellationNotes: `Merged into Order #${targetOrder.orderNumber}`, lastUpdated: firebase.firestore.FieldValue.serverTimestamp() }); } try { await batch.commit(); const updatedTargetOrder: ActiveOrder = { ...targetOrder, items: newItems, mergedOrderNumbers: newMergedNumbers }; setOrderForModal(updatedTargetOrder); setModalState(prev => ({ ...prev, isPayment: true, isTableBill: false })); } catch (error) { console.error("Merge and Pay failed", error); Swal.fire('Error', 'Failed to merge bills. Please try again.', 'error'); } };
-    const handleToggleAvailability = (id: number) => { setMenuItems(prev => prev.map(i => i.id === id ? { ...i, isAvailable: i.isAvailable === false ? true : false } : i)); };
-    const handleToggleVisibility = (id: number) => { setMenuItems(prev => prev.map(i => i.id === id ? { ...i, isVisible: i.isVisible === false ? true : false } : i)); };
-    const handleUpdateOrderFromModal = async (orderId: number, items: OrderItem[], customerCount: number) => { if (!isOnline) return; if (items.length === 0) { const orderToCancel = activeOrders.find(o => o.id === orderId); if (orderToCancel) { await handleConfirmCancelOrder(orderToCancel, 'อื่นๆ', 'ยกเลิกอัตโนมัติ (รายการอาหารถูกลบหมด)'); Swal.fire({ icon: 'info', title: 'ยกเลิกบิลอัตโนมัติ', text: 'บิลถูกยกเลิกเนื่องจากไม่มีรายการอาหารเหลืออยู่', timer: 2000, showConfirmButton: false }); } else { handleModalClose(); } } else { await activeOrdersActions.update(orderId, { items, customerCount }); handleModalClose(); } };
+
+
+
+
     
     // RENDER LOGIC
     

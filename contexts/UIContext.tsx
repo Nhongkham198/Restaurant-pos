@@ -32,6 +32,8 @@ interface UIContextType {
     setIsAdminSidebarCollapsed: React.Dispatch<React.SetStateAction<boolean>>;
     isOrderSidebarVisible: boolean;
     setIsOrderSidebarVisible: React.Dispatch<React.SetStateAction<boolean>>;
+    selectedSidebarFloor: string;
+    setSelectedSidebarFloor: React.Dispatch<React.SetStateAction<string>>;
 
     // Modal State
     modalState: ModalState;
@@ -69,6 +71,7 @@ export const UIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const [isEditMode, setIsEditMode] = useState(false);
     const [isAdminSidebarCollapsed, setIsAdminSidebarCollapsed] = useState(false);
     const [isOrderSidebarVisible, setIsOrderSidebarVisible] = useState(true);
+    const [selectedSidebarFloor, setSelectedSidebarFloor] = useState<string>('');
 
     // --- MODAL STATES ---
     const [modalState, setModalState] = useState<ModalState>({
@@ -109,6 +112,7 @@ export const UIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
             isEditMode, setIsEditMode,
             isAdminSidebarCollapsed, setIsAdminSidebarCollapsed,
             isOrderSidebarVisible, setIsOrderSidebarVisible,
+            selectedSidebarFloor, setSelectedSidebarFloor,
             modalState, setModalState,
             itemToEdit, setItemToEdit,
             itemToCustomize, setItemToCustomize,
