@@ -47,18 +47,6 @@ interface DataContextType {
     rawActiveOrders: ActiveOrder[];
     activeOrdersActions: CollectionActions<ActiveOrder>;
 
-    // Order Preparation State
-    currentOrderItems: OrderItem[];
-    setCurrentOrderItems: React.Dispatch<React.SetStateAction<OrderItem[]>>;
-    currentCustomerName: string;
-    setCurrentCustomerName: React.Dispatch<React.SetStateAction<string>>;
-    currentCustomerCount: number;
-    setCurrentCustomerCount: React.Dispatch<React.SetStateAction<number>>;
-    selectedTableId: number | null;
-    setSelectedTableId: React.Dispatch<React.SetStateAction<number | null>>;
-    notSentToKitchenDetails: string;
-    setNotSentToKitchenDetails: React.Dispatch<React.SetStateAction<string>>;
-
     // Heavy Data
     legacyCompletedOrders: CompletedOrder[];
     setLegacyCompletedOrders: React.Dispatch<React.SetStateAction<CompletedOrder[]>>;
@@ -252,13 +240,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return rawActiveOrders.filter(o => o.status !== 'completed' && o.status !== 'cancelled');
     }, [rawActiveOrders]);
 
-    // --- ORDER PREPARATION STATE ---
-    const [currentOrderItems, setCurrentOrderItems] = useState<OrderItem[]>([]);
-    const [currentCustomerName, setCurrentCustomerName] = useState('');
-    const [currentCustomerCount, setCurrentCustomerCount] = useState(1);
-    const [selectedTableId, setSelectedTableId] = useState<number | null>(null);
-    const [notSentToKitchenDetails, setNotSentToKitchenDetails] = useState('');
-
     // --- HEAVY DATA ---
     const [legacyCompletedOrders, setLegacyCompletedOrders] = useFirestoreSync<CompletedOrder[]>(heavyDataBranchId, 'completedOrders', []);
     const [legacyCancelledOrders, setLegacyCancelledOrders] = useFirestoreSync<CancelledOrder[]>(heavyDataBranchId, 'cancelledOrders', []);
@@ -319,10 +300,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             
             menuItems, setMenuItems, categories, setCategories, tables, setTables, floors, setFloors,
             recommendedMenuItemIds, setRecommendedMenuItemIds, activeOrders, rawActiveOrders, activeOrdersActions,
-            
-            currentOrderItems, setCurrentOrderItems, currentCustomerName, setCurrentCustomerName,
-            currentCustomerCount, setCurrentCustomerCount, selectedTableId, setSelectedTableId,
-            notSentToKitchenDetails, setNotSentToKitchenDetails,
             
             legacyCompletedOrders, setLegacyCompletedOrders, legacyCancelledOrders, setLegacyCancelledOrders,
             newCompletedOrders, newCompletedOrdersActions, newCancelledOrders, newCancelledOrdersActions,

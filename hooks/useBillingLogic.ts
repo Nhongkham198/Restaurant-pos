@@ -131,6 +131,8 @@ export const useBillingLogic = () => {
                     updatedOriginalItems.push(origItem); 
                 } 
             }); 
+            const newTotalPrice = updatedOriginalItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+            const newTotalQuantity = updatedOriginalItems.reduce((sum, item) => sum + item.quantity, 0);
             const newSplitOrder: ActiveOrder = { 
                 ...originalOrder, 
                 id: splitOrderId, 
@@ -144,7 +146,7 @@ export const useBillingLogic = () => {
             const batch = db.batch(); 
             const originalRef = db.collection(`branches/${branchId}/activeOrders`).doc(originalOrder.id.toString()); 
             const newRef = db.collection(`branches/${branchId}/activeOrders`).doc(splitOrderId.toString()); 
-            batch.update(originalRef, { items: updatedOriginalItems, splitCount: newSplitCount, lastUpdated: firebase.firestore.FieldValue.serverTimestamp() }); 
+            batch.update(originalRef, { items: updatedOriginalItems, splitCount: newSplitCount, totalPrice: newTotalPrice, totalQuantity: newTotalQuantity, lastUpdated: firebase.firestore.FieldValue.serverTimestamp() }); 
             batch.set(newRef, { ...newSplitOrder, lastUpdated: firebase.firestore.FieldValue.serverTimestamp() }); 
             await batch.commit(); 
             handleModalClose(); 
@@ -168,7 +170,15 @@ export const useBillingLogic = () => {
         batch.update(targetRef, { items: newItems, mergedOrderNumbers: newMergedNumbers, lastUpdated: firebase.firestore.FieldValue.serverTimestamp() }); 
         for (const sourceId of sourceOrderIds) { 
             const sourceRef = db.collection(`branches/${branchId}/activeOrders`).doc(sourceId.toString()); 
-            batch.update(sourceRef, { status: 'cancelled', cancellationReason: 'อื่นๆ', cancellationNotes: `Merged into Order #${targetOrder.orderNumber}`, lastUpdated: firebase.firestore.FieldValue.serverTimestamp() }); 
+            const cancellationData = {
+                status: 'cancelled' as const,
+                cancellationReason: 'อื่นๆ' as CancellationReason,
+                cancellationNotes: `Merged into Order #${targetOrder.orderNumber}`,
+                cancellationTime: firebase.firestore.FieldValue.serverTimestamp(),
+                cancelledBy: currentUser?.username || 'System',
+                lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
+            };
+            batch.update(sourceRef, cancellationData); 
         } 
         try { 
             await batch.commit(); 
@@ -193,7 +203,15 @@ export const useBillingLogic = () => {
         batch.update(targetRef, { items: newItems, mergedOrderNumbers: newMergedNumbers, lastUpdated: firebase.firestore.FieldValue.serverTimestamp() }); 
         for (const sourceId of sourceOrderIds) { 
             const sourceRef = db.collection(`branches/${branchId}/activeOrders`).doc(sourceId.toString()); 
-            batch.update(sourceRef, { status: 'cancelled', cancellationReason: 'อื่นๆ', cancellationNotes: `Merged into Order #${targetOrder.orderNumber}`, lastUpdated: firebase.firestore.FieldValue.serverTimestamp() }); 
+            const cancellationData = {
+                status: 'cancelled' as const,
+                cancellationReason: 'อื่นๆ' as CancellationReason,
+                cancellationNotes: `Merged into Order #${targetOrder.orderNumber}`,
+                cancellationTime: firebase.firestore.FieldValue.serverTimestamp(),
+                cancelledBy: currentUser?.username || 'System',
+                lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
+            };
+            batch.update(sourceRef, cancellationData); 
         } 
         try { 
             await batch.commit(); 
