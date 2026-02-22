@@ -284,6 +284,11 @@ export const App: React.FC = () => {
         handleToggleVisibility
     } = useMenuLogic();
 
+    const handleSaveMenuItemAndCloseModal = (itemData: Omit<MenuItem, 'id'> & { id?: number }) => {
+        handleSaveMenuItem(itemData);
+        handleModalClose();
+    };
+
     const { handleDeleteHistory } = useHistoryLogic();
     const [isCachingImages, setIsCachingImages] = useState(false);
     const imageCacheTriggeredRef = useRef(false);
@@ -1162,7 +1167,7 @@ export const App: React.FC = () => {
 
             {/* Modals ... (Keep existing modals) ... */}
             <LoginModal isOpen={false} onClose={() => {}} />
-            <MenuItemModal isOpen={modalState.isMenuItem} onClose={handleModalClose} onSave={handleSaveMenuItem} itemToEdit={itemToEdit} categories={categories} onAddCategory={handleAddCategory} />
+            <MenuItemModal isOpen={modalState.isMenuItem} onClose={handleModalClose} onSave={handleSaveMenuItemAndCloseModal} itemToEdit={itemToEdit} categories={categories} onAddCategory={handleAddCategory} />
             <OrderSuccessModal isOpen={modalState.isOrderSuccess} onClose={handleModalClose} orderId={lastPlacedOrderId!} />
             <SplitBillModal isOpen={modalState.isSplitBill} order={orderForModal as ActiveOrder | null} onClose={handleModalClose} onConfirmSplit={handleConfirmSplit} />
             <TableBillModal 

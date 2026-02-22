@@ -1,5 +1,4 @@
 import { useData } from '../contexts/DataContext';
-import { useUI } from '../contexts/UIContext';
 import Swal from 'sweetalert2';
 import { MenuItem } from '../types';
 
@@ -11,15 +10,12 @@ export const useMenuLogic = () => {
         setCategories 
     } = useData();
     
-    const { handleModalClose } = useUI();
-
     const handleSaveMenuItem = (itemData: Omit<MenuItem, 'id'> & { id?: number }) => { 
         setMenuItems(prev => { 
             if (itemData.id) return prev.map(item => item.id === itemData.id ? { ...item, ...itemData } as MenuItem : item); 
             const newId = Math.max(0, ...prev.map(i => i.id)) + 1; 
             return [...prev, { ...itemData, id: newId }]; 
         }); 
-        handleModalClose(); 
         Swal.fire({ 
             toast: true, 
             position: 'top-end', 

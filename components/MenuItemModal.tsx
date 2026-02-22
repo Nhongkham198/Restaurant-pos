@@ -120,7 +120,11 @@ export const MenuItemModal: React.FC<MenuItemModalProps> = ({ isOpen, onClose, o
         setFormState(prev => {
             const newGroups = JSON.parse(JSON.stringify(prev.optionGroups || []));
             const option = newGroups[groupIndex].options[optionIndex];
-            (option as any)[field] = value;
+            if (field === 'priceModifier' && value === '') {
+                (option as any)[field] = 0;
+            } else {
+                (option as any)[field] = value;
+            }
 
             // If setting an option as default in a single-select group, unset others.
             if (field === 'isDefault' && value === true && newGroups[groupIndex].selectionType === 'single') {
@@ -151,9 +155,9 @@ export const MenuItemModal: React.FC<MenuItemModalProps> = ({ isOpen, onClose, o
         const cleanedGroups = (formState.optionGroups || [])
             .map(group => ({
                 ...group,
-                options: group.options.filter(opt => opt.name.trim() !== '')
+                options: group.options.filter(opt => opt.name.trim() !== '' && opt.priceModifier !== null && opt.priceModifier !== undefined)
             }))
-            .filter(group => group.name.trim() !== '' && group.options.length > 0);
+            .filter(group => group.name.trim() !== '');
 
         onSave({ ...formState, optionGroups: cleanedGroups });
     };
@@ -231,7 +235,7 @@ export const MenuItemModal: React.FC<MenuItemModalProps> = ({ isOpen, onClose, o
                                                 <div key={option.id} className="flex items-center gap-2">
                                                     <input type="text" placeholder="ชื่อตัวเลือก (เช่น ไก่)" value={option.name} onChange={e => handleOptionChange(groupIndex, optionIndex, 'name', e.target.value)} className={`${smallInputClasses} flex-1`} />
                                                     <input type="text" placeholder="Eng (Opt)" value={option.nameEn || ''} onChange={e => handleOptionChange(groupIndex, optionIndex, 'nameEn', e.target.value)} className={`${smallInputClasses} flex-1`} />
-                                                    <input type="number" placeholder="ราคาเพิ่ม" value={option.priceModifier} onChange={e => handleOptionChange(groupIndex, optionIndex, 'priceModifier', Number(e.target.value))} className={`${smallInputClasses} w-20`} />
+                                                    <input type="number" placeholder="ราคาเพิ่ม" value={option.priceModifier} onChange={e => handleOptionChange(groupIndex, optionIndex, 'priceModifier', e.target.value === '' ? '' : Number(e.target.value))} className={`${smallInputClasses} w-20`} />
                                                     <label className="flex items-center gap-1.5 text-xs text-gray-500" title="ตั้งเป็นค่าเริ่มต้น"><input type="checkbox" checked={option.isDefault} onChange={e => handleOptionChange(groupIndex, optionIndex, 'isDefault', e.target.checked)} className="rounded" />Default</label>
                                                     <button type="button" onClick={() => handleDeleteOption(groupIndex, optionIndex)} className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-full">&times;</button>
                                                 </div>
