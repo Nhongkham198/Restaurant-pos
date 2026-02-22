@@ -22,6 +22,8 @@ export function useFirestoreSync<T>(
         valueRef.current = value;
     }, [value]);
 
+    const isInitialLoadDoneRef = useRef(false);
+
     useEffect(() => {
         if (!db) {
             console.error("Firestore is not initialized.");
@@ -45,6 +47,7 @@ export function useFirestoreSync<T>(
         const unsubscribe = docRef.onSnapshot(
             { includeMetadataChanges: true }, 
             (docSnapshot) => {
+                isInitialLoadDoneRef.current = true;
                 if (docSnapshot.exists) {
                     const data = docSnapshot.data();
                     if (data && typeof data.value !== 'undefined') {
@@ -121,6 +124,10 @@ export function useFirestoreSync<T>(
     }, [branchId, collectionKey]);
 
     const setAndSyncValue = useCallback((newValue: React.SetStateAction<T>) => {
+        if (!isInitialLoadDoneRef.current) {
+            setValue(newValue);
+            return;
+        }
         if (!db) return;
 
         const isBranchSpecific = !['users', 'branches', 'leaveRequests'].includes(collectionKey);
