@@ -20,6 +20,14 @@ export const useMenuLogic = () => {
             return [...prev, { ...itemData, id: newId }]; 
         }); 
         handleModalClose(); 
+        Swal.fire({ 
+            toast: true, 
+            position: 'top-end', 
+            icon: 'success', 
+            title: 'บันทึกเมนูสำเร็จ', 
+            showConfirmButton: false, 
+            timer: 1500 
+        }); 
     };
 
     const handleDeleteMenuItem = (id: number) => { 
