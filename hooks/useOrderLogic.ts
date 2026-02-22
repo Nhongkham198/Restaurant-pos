@@ -134,12 +134,20 @@ export const useOrderLogic = () => {
             }
         
             if (isPrintedImmediatelyByThisDevice && printerConfig?.kitchen?.ipAddress) {
-                try {
-                    await printerService.printKitchenOrder(newOrder, printerConfig.kitchen);
-                } catch (printError: any) {
-                    console.error("Kitchen print failed (Direct):", printError);
-                    Swal.fire('พิมพ์ไม่สำเร็จ', 'ไม่สามารถเชื่อมต่อเครื่องพิมพ์ครัวได้', 'error');
-                }
+                // Fire-and-forget printing to avoid blocking the UI
+                printerService.printKitchenOrder(newOrder, printerConfig.kitchen)
+                    .catch((printError: any) => {
+                        console.error("Kitchen print failed (Direct):", printError);
+                        Swal.fire({
+                            toast: true,
+                            position: 'top-end',
+                            icon: 'error',
+                            title: 'พิมพ์ใบครัวไม่สำเร็จ',
+                            text: 'กรุณาตรวจสอบเครื่องพิมพ์',
+                            timer: 5000,
+                            showConfirmButton: false
+                        });
+                    });
             }
             
             return newOrder.orderNumber;

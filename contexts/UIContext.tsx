@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { View, MenuItem, OrderItem, ActiveOrder, CompletedOrder } from '../types';
 
 interface ModalState {
@@ -62,12 +62,50 @@ const UIContext = createContext<UIContextType | undefined>(undefined);
 export const UIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     // --- VIEW & EDIT MODE STATE ---
     const [currentView, setCurrentView] = useState<View>(() => {
+        // 1. Priority: URL Path
+        const path = window.location.pathname.substring(1);
+        const validViews = ['pos', 'kitchen', 'tables', 'dashboard', 'history', 'stock', 'stock-analytics', 'leave', 'leave-analytics', 'maintenance'];
+        if (validViews.includes(path)) {
+            return path as View;
+        }
+
+        // 2. Fallback: Local Storage
         const storedView = localStorage.getItem('currentView');
-        if (storedView && ['pos', 'kitchen', 'tables', 'dashboard', 'history', 'stock', 'leave', 'stock-analytics', 'leave-analytics', 'maintenance'].includes(storedView)) {
+        if (storedView && validViews.includes(storedView)) {
             return storedView as View;
         }
         return 'pos';
     });
+
+    // Sync URL when currentView changes
+    useEffect(() => {
+        const path = window.location.pathname.substring(1);
+        // Don't overwrite special paths like 'queue'
+        if (path === 'queue') return;
+
+        if (path !== currentView) {
+            const searchParams = window.location.search;
+            window.history.pushState(null, '', `/${currentView}${searchParams}`);
+        }
+        localStorage.setItem('currentView', currentView);
+    }, [currentView]);
+
+    // Handle Back/Forward buttons
+    useEffect(() => {
+        const handlePopState = () => {
+             const path = window.location.pathname.substring(1);
+             const validViews = ['pos', 'kitchen', 'tables', 'dashboard', 'history', 'stock', 'stock-analytics', 'leave', 'leave-analytics', 'maintenance'];
+             if (validViews.includes(path)) {
+                setCurrentView(path as View);
+            } else if (path === '') {
+                setCurrentView('pos');
+            }
+        };
+
+        window.addEventListener('popstate', handlePopState);
+        return () => window.removeEventListener('popstate', handlePopState);
+    }, []);
+
     const [isEditMode, setIsEditMode] = useState(false);
     const [isAdminSidebarCollapsed, setIsAdminSidebarCollapsed] = useState(false);
     const [isOrderSidebarVisible, setIsOrderSidebarVisible] = useState(true);

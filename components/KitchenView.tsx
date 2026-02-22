@@ -33,10 +33,39 @@ export const KitchenView: React.FC<KitchenViewProps> = ({
         return { waitingOrders: waiting, cookingOrders: cooking };
     }, [activeOrders]);
 
+    // Calculate dynamic flex ratios based on order counts
+    const totalOrders = waitingOrders.length + cookingOrders.length;
+    
+    // Default to 50/50 if no orders or equal
+    let cookingFlex = 1;
+    let waitingFlex = 1;
+
+    if (totalOrders > 0) {
+        // Give slightly more weight to the side with more orders, but keep a minimum width for the smaller side
+        // If one side is empty, the other takes full width (or close to it)
+        if (cookingOrders.length === 0 && waitingOrders.length > 0) {
+            cookingFlex = 0;
+            waitingFlex = 1;
+        } else if (waitingOrders.length === 0 && cookingOrders.length > 0) {
+            cookingFlex = 1;
+            waitingFlex = 0;
+        } else {
+            // Both have orders. Calculate ratio but clamp it to avoid one side becoming too thin
+            // Base ratio on count
+            const cookingRatio = cookingOrders.length / totalOrders;
+            
+            // Map ratio to flex values (e.g., 0.3 to 0.7 range to prevent squishing)
+            // If cooking has 80%, it gets roughly 70-80% of space.
+            // We'll use a simpler approach: Proportional flex values with a min-width constraint in CSS
+            cookingFlex = Math.max(0.3, cookingRatio); 
+            waitingFlex = Math.max(0.3, 1 - cookingRatio);
+        }
+    }
+
     return (
         <div className="flex flex-col h-full w-full bg-gray-900 overflow-hidden font-sans">
             
-            {/* NEW: Kitchen Header Bar for Admin/Kitchen Staff controls */}
+            {/* Header Bar */}
             <div className="bg-gray-800 border-b border-gray-700 px-4 py-3 flex justify-between items-center shadow-md shrink-0 z-20">
                 <div className="flex items-center gap-2">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-orange-500" viewBox="0 0 20 20" fill="currentColor">
@@ -45,7 +74,7 @@ export const KitchenView: React.FC<KitchenViewProps> = ({
                     <h2 className="text-lg font-bold text-white tracking-wide">หน้าจอครัว (KDS)</h2>
                 </div>
 
-                {/* Auto Print Toggle Restored */}
+                {/* Auto Print Toggle */}
                 <div className="flex items-center gap-3 bg-gray-900/50 px-3 py-1.5 rounded-lg border border-gray-600">
                     <span className="text-sm font-medium text-gray-300">พิมพ์อัตโนมัติ</span>
                     <label className="relative inline-flex items-center cursor-pointer">
@@ -71,17 +100,20 @@ export const KitchenView: React.FC<KitchenViewProps> = ({
                     </div>
                 </div>
             ) : (
-                <div className="flex-1 overflow-y-auto p-2">
-                    {/* Cooking Section */}
-                    {cookingOrders.length > 0 && (
-                        <section className="mb-6">
-                            <div className="flex items-center gap-3 mb-3 sticky top-0 bg-gray-900/95 backdrop-blur z-10 py-2 border-b border-gray-700">
-                                <div className="w-3 h-8 bg-green-500 rounded-r-md"></div>
-                                <h3 className="text-xl font-bold text-green-400">
-                                    กำลังทำอาหาร ({cookingOrders.length})
-                                </h3>
-                            </div>
-                            <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3 items-start">
+                <div className="flex-1 flex overflow-hidden relative">
+                    {/* Cooking Section (Left) */}
+                    <div 
+                        className={`flex flex-col h-full overflow-hidden transition-all duration-500 ease-in-out border-r-4 border-red-600/50 ${cookingOrders.length === 0 ? 'hidden' : ''}`}
+                        style={{ flex: cookingFlex }}
+                    >
+                        <div className="bg-red-900/30 border-b border-red-800/50 p-3 flex items-center justify-center sticky top-0 z-10 backdrop-blur-sm">
+                            <h3 className="text-2xl font-bold text-red-400 flex items-center gap-2">
+                                <span className="w-3 h-3 rounded-full bg-red-500 animate-pulse"></span>
+                                กำลังปรุง ({cookingOrders.length})
+                            </h3>
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-3 bg-gray-900/50">
+                            <div className={`grid gap-3 ${cookingFlex > 0.6 ? 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4' : 'grid-cols-1 xl:grid-cols-2'}`}>
                                 {cookingOrders.map(order => (
                                     <KitchenOrderCard 
                                         key={order.id} 
@@ -92,19 +124,22 @@ export const KitchenView: React.FC<KitchenViewProps> = ({
                                     />
                                 ))}
                             </div>
-                        </section>
-                    )}
+                        </div>
+                    </div>
 
-                    {/* Waiting Section */}
-                    {waitingOrders.length > 0 && (
-                        <section className="mb-6">
-                             <div className="flex items-center gap-3 mb-3 sticky top-0 bg-gray-900/95 backdrop-blur z-10 py-2 border-b border-gray-700">
-                                <div className="w-3 h-8 bg-blue-500 rounded-r-md"></div>
-                                <h3 className="text-xl font-bold text-blue-400">
-                                    รอคิว ({waitingOrders.length})
-                                </h3>
-                            </div>
-                             <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3 items-start">
+                    {/* Waiting Section (Right) */}
+                    <div 
+                        className={`flex flex-col h-full overflow-hidden transition-all duration-500 ease-in-out ${waitingOrders.length === 0 ? 'hidden' : ''}`}
+                        style={{ flex: waitingFlex }}
+                    >
+                        <div className="bg-blue-900/30 border-b border-blue-800/50 p-3 flex items-center justify-center sticky top-0 z-10 backdrop-blur-sm">
+                            <h3 className="text-2xl font-bold text-blue-400 flex items-center gap-2">
+                                <span className="w-3 h-3 rounded-full bg-blue-500"></span>
+                                รอคิว ({waitingOrders.length})
+                            </h3>
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-3 bg-gray-900">
+                             <div className={`grid gap-3 ${waitingFlex > 0.6 ? 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4' : 'grid-cols-1 xl:grid-cols-2'}`}>
                                 {waitingOrders.map(order => (
                                     <KitchenOrderCard 
                                         key={order.id} 
@@ -115,8 +150,8 @@ export const KitchenView: React.FC<KitchenViewProps> = ({
                                     />
                                 ))}
                             </div>
-                        </section>
-                    )}
+                        </div>
+                    </div>
                 </div>
             )}
         </div>
