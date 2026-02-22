@@ -286,15 +286,18 @@ export const Menu: React.FC<MenuProps> = ({
                 dataToExport.push({
                     'id': item.id,
                     'name': item.name,
+                    'name_en': item.nameEn || '',
                     'price': item.price,
                     'category': item.category,
                     'image_url': item.imageUrl,
                     'cooking_time': item.cookingTime || '',
                     'is_available': item.isAvailable !== false ? 'TRUE' : 'FALSE',
                     'option_group_name': '',
+                    'option_group_name_en': '',
                     'option_group_type': '',
                     'option_group_required': '',
                     'option_name': '',
+                    'option_name_en': '',
                     'option_price_modifier': '',
                     'option_is_default': ''
                 });
@@ -304,15 +307,18 @@ export const Menu: React.FC<MenuProps> = ({
                          dataToExport.push({
                             'id': item.id,
                             'name': item.name,
+                            'name_en': item.nameEn || '',
                             'price': item.price,
                             'category': item.category,
                             'image_url': item.imageUrl,
                             'cooking_time': item.cookingTime || '',
                             'is_available': item.isAvailable !== false ? 'TRUE' : 'FALSE',
                             'option_group_name': group.name,
+                            'option_group_name_en': group.nameEn || '',
                             'option_group_type': group.selectionType,
                             'option_group_required': group.required ? 'TRUE' : 'FALSE',
                             'option_name': '',
+                            'option_name_en': '',
                             'option_price_modifier': '',
                             'option_is_default': ''
                         });
@@ -321,15 +327,18 @@ export const Menu: React.FC<MenuProps> = ({
                             dataToExport.push({
                                 'id': item.id,
                                 'name': item.name,
+                                'name_en': item.nameEn || '',
                                 'price': item.price,
                                 'category': item.category,
                                 'image_url': item.imageUrl,
                                 'cooking_time': item.cookingTime || '',
                                 'is_available': item.isAvailable !== false ? 'TRUE' : 'FALSE',
                                 'option_group_name': group.name,
+                                'option_group_name_en': group.nameEn || '',
                                 'option_group_type': group.selectionType,
                                 'option_group_required': group.required ? 'TRUE' : 'FALSE',
                                 'option_name': option.name,
+                                'option_name_en': option.nameEn || '',
                                 'option_price_modifier': option.priceModifier,
                                 'option_is_default': option.isDefault ? 'TRUE' : 'FALSE'
                             });
@@ -380,6 +389,7 @@ export const Menu: React.FC<MenuProps> = ({
                         menuItemsMap.set(id, {
                             id: id,
                             name: String(row.name),
+                            nameEn: String(row.name_en || ''),
                             price: Number(row.price),
                             category: String(row.category),
                             imageUrl: String(row.image_url || ''),
@@ -397,6 +407,7 @@ export const Menu: React.FC<MenuProps> = ({
                             group = {
                                 id: `group_${id}_${menuItem.optionGroups!.length}`,
                                 name: String(row.option_group_name),
+                                nameEn: String(row.option_group_name_en || ''),
                                 selectionType: row.option_group_type === 'multiple' ? 'multiple' : 'single',
                                 required: String(row.option_group_required).toUpperCase() === 'TRUE',
                                 options: []
@@ -410,6 +421,7 @@ export const Menu: React.FC<MenuProps> = ({
                                  group.options.push({
                                     id: `option_${id}_${group.id}_${group.options.length}`,
                                     name: String(row.option_name),
+                                    nameEn: String(row.option_name_en || ''),
                                     priceModifier: Number(row.option_price_modifier || 0),
                                     isDefault: String(row.option_is_default).toUpperCase() === 'TRUE',
                                 });
