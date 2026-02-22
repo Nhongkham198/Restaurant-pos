@@ -1,5 +1,6 @@
 
-import React, { useMemo, useState, useRef } from 'react';
+import React, { useMemo, useState } from 'react';
+import DatePicker from 'react-datepicker';
 import type { CompletedOrder, CancelledOrder, User } from '../types';
 import { SalesChart } from './SalesChart';
 import PieChart from './PieChart';
@@ -24,9 +25,9 @@ const StatCard: React.FC<{ title: string; value: string; icon: React.ReactNode; 
 
 export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelledOrders, openingTime, closingTime, currentUser }) => {
     // Initialize with today's date
-    const [selectedDate, setSelectedDate] = useState(new Date());
     const [viewMode, setViewMode] = useState<'daily' | 'monthly'>('daily');
-    const dateInputRef = useRef<HTMLInputElement>(null);
+    const [dateRange, setDateRange] = useState<[Date | null, Date | null]>([new Date(), new Date()]);
+    const [startDate, endDate] = dateRange;
     
     // NEW: State for Category Filtering
     const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string | null>(null);
@@ -41,18 +42,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
         return ['admin', 'branch-admin', 'auditor'].includes(currentUser.role);
     }, [currentUser]);
 
-    // Helper to format date based on view mode (using local time)
-    const dateInputValue = useMemo(() => {
-        const year = selectedDate.getFullYear();
-        const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
-        
-        if (viewMode === 'monthly') {
-            return `${year}-${month}`;
-        }
-        
-        const day = String(selectedDate.getDate()).padStart(2, '0');
-        return `${year}-${month}-${day}`;
-    }, [selectedDate, viewMode]);
+
 
     // Helper to extract provider name from delivery orders
     const getDeliveryProviderName = (order: { orderType: string, customerName?: string }) => {
@@ -64,25 +54,20 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
         return order.customerName || 'Delivery'; // Default fallback
     };
 
-    const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.value) {
-            if (viewMode === 'monthly') {
-                const [year, month] = e.target.value.split('-').map(Number);
-                // Set to the 1st of the selected month
-                setSelectedDate(new Date(year, month - 1, 1));
-            } else {
-                const [year, month, day] = e.target.value.split('-').map(Number);
-                setSelectedDate(new Date(year, month - 1, day));
-            }
-            // Reset filters on date change
-            setSelectedHourFilter(null);
-        }
-    };
-
     const handleViewModeChange = (mode: 'daily' | 'monthly') => {
         setViewMode(mode);
+        const today = new Date();
+        if (mode === 'daily') {
+            setDateRange([today, today]);
+        } else {
+            const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+            const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+            setDateRange([startOfMonth, endOfMonth]);
+        }
         setSelectedHourFilter(null);
     };
+
+
 
     const handleCategoryClick = (category: string) => {
         // Toggle: Click again to clear
@@ -121,13 +106,17 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
             const orderDate = new Date(order.completionTime);
             let matchesDate = false;
             
-            if (viewMode === 'monthly') {
-                matchesDate = orderDate.getMonth() === selectedDate.getMonth() &&
-                              orderDate.getFullYear() === selectedDate.getFullYear();
+            if (startDate && endDate) {
+                const startOfDay = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate(), 0, 0, 0, 0);
+                const endOfDay = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate(), 23, 59, 59, 999);
+                matchesDate = orderDate >= startOfDay && orderDate <= endOfDay;
+            } else if (startDate) {
+                matchesDate = orderDate.getDate() === startDate.getDate() &&
+                              orderDate.getMonth() === startDate.getMonth() &&
+                              orderDate.getFullYear() === startDate.getFullYear();
             } else {
-                matchesDate = orderDate.getDate() === selectedDate.getDate() &&
-                              orderDate.getMonth() === selectedDate.getMonth() &&
-                              orderDate.getFullYear() === selectedDate.getFullYear();
+                // If no date is selected, show all
+                matchesDate = true;
             }
 
             if (!matchesDate) return false;
@@ -156,7 +145,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
 
             return true;
         });
-    }, [completedOrders, selectedDate, currentUser, viewMode, selectedOrderTypeFilter]);
+    }, [completedOrders, startDate, endDate, currentUser, selectedOrderTypeFilter]);
 
     // NEW: Active Orders for Charts (Apply Hour Filter if selected)
     const ordersForCharts = useMemo(() => {
@@ -181,13 +170,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
             const orderDate = new Date(order.cancellationTime);
             let matchesDate = false;
             
-            if (viewMode === 'monthly') {
-                matchesDate = orderDate.getMonth() === selectedDate.getMonth() &&
-                              orderDate.getFullYear() === selectedDate.getFullYear();
+            if (startDate && endDate) {
+                const startOfDay = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate(), 0, 0, 0, 0);
+                const endOfDay = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate(), 23, 59, 59, 999);
+                matchesDate = orderDate >= startOfDay && orderDate <= endOfDay;
+            } else if (startDate) {
+                matchesDate = orderDate.getDate() === startDate.getDate() &&
+                              orderDate.getMonth() === startDate.getMonth() &&
+                              orderDate.getFullYear() === startDate.getFullYear();
             } else {
-                matchesDate = orderDate.getDate() === selectedDate.getDate() &&
-                              orderDate.getMonth() === selectedDate.getMonth() &&
-                              orderDate.getFullYear() === selectedDate.getFullYear();
+                matchesDate = true;
             }
 
             if (!matchesDate) return false;
@@ -210,7 +202,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
 
             return true;
         });
-    }, [cancelledOrders, selectedDate, currentUser, viewMode, selectedOrderTypeFilter]);
+    }, [cancelledOrders, startDate, endDate, currentUser, selectedOrderTypeFilter]);
 
     const dailyStats = useMemo(() => {
         // Stats use global filtered orders (not hour filtered) to show daily summary unless we want dynamic stats too.
@@ -241,15 +233,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
 
     // UPDATED: Chart Data Logic to support Category Filter AND Hourly Filter (via ordersForCharts)
     const chartData = useMemo(() => {
-        if (viewMode === 'monthly') {
+        if (viewMode === 'monthly' && startDate && endDate) {
             // --- Monthly View ---
-            const daysInMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 0).getDate();
-            const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+            const daysInMonth = (endDate.getTime() - startDate.getTime()) / (1000 * 3600 * 24) + 1;
+            const days = Array.from({ length: daysInMonth }, (_, i) => new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate() + i));
             const salesByDay = new Array(days.length).fill(0);
 
             ordersForCharts.forEach(order => {
-                const day = new Date(order.completionTime).getDate();
-                if (day >= 1 && day <= daysInMonth) {
+                const orderDate = new Date(order.completionTime);
+                const dayIndex = days.findIndex(d => d.getDate() === orderDate.getDate() && d.getMonth() === orderDate.getMonth() && d.getFullYear() === orderDate.getFullYear());
+                if (dayIndex > -1) {
                     let orderTotal = 0;
                     
                     if (selectedCategoryFilter) {
@@ -264,13 +257,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
                         orderTotal = order.items.reduce((sum, item) => sum + item.finalPrice * item.quantity, 0) + order.taxAmount;
                     }
 
-                    salesByDay[day - 1] += orderTotal;
+                    salesByDay[dayIndex] += orderTotal;
                 }
             });
 
             return {
-                title: selectedCategoryFilter ? `ยอดขายรายวัน: ${selectedCategoryFilter}` : 'ยอดขายรายวัน (ตลอดเดือน)',
-                labels: days.map(d => `${d}`),
+                title: selectedCategoryFilter ? `ยอดขายรายวัน: ${selectedCategoryFilter}` : 'ยอดขายรายวัน',
+                labels: days.map(d => d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })),
                 data: salesByDay,
                 maxValue: Math.max(...salesByDay, 1000)
             };
@@ -316,7 +309,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
                 maxValue: Math.max(...salesByHour, 1000)
             };
         }
-    }, [ordersForCharts, openingTime, closingTime, viewMode, selectedDate, selectedCategoryFilter]);
+    }, [ordersForCharts, openingTime, closingTime, viewMode, startDate, endDate, selectedCategoryFilter]);
 
     // UPDATED: Order Item Type Data - Breaks down delivery providers
     const orderItemTypeData = useMemo(() => {
@@ -457,7 +450,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
         const ordersInMonth = completedOrders.filter(o => {
             if (currentUser?.role !== 'admin' && o.isDeleted) return false;
             const d = new Date(o.completionTime);
-            return d.getMonth() === selectedDate.getMonth() && d.getFullYear() === selectedDate.getFullYear();
+            if (startDate && endDate) {
+                const startOfDay = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate(), 0, 0, 0, 0);
+                const endOfDay = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate(), 23, 59, 59, 999);
+                return d >= startOfDay && d <= endOfDay;
+            } else if (startDate) {
+                return d.getDate() === startDate.getDate() && d.getMonth() === startDate.getMonth() && d.getFullYear() === startDate.getFullYear();
+            } 
+            return true;
         });
 
         // 2. Financial Stats (Avg, Max, Min)
@@ -502,7 +502,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
             bottom5,
             hasData: ordersInMonth.length > 0
         };
-    }, [completedOrders, selectedDate, currentUser]);
+    }, [completedOrders, startDate, endDate, currentUser]);
 
 
     const handleHourlyTrafficClick = (index: number) => {
@@ -515,11 +515,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
     };
 
     const formattedDateDisplay = useMemo(() => {
-        if (viewMode === 'monthly') {
-            return selectedDate.toLocaleDateString('th-TH', { year: 'numeric', month: 'long' });
+        if (startDate && endDate) {
+            if (startDate.getTime() === endDate.getTime()) {
+                return startDate.toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
+            }
+            return `${startDate.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })} - ${endDate.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })}`;
+        } else if (startDate) {
+            return startDate.toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
         }
-        return selectedDate.toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
-    }, [selectedDate, viewMode]);
+        return 'เลือกช่วงวันที่';
+    }, [startDate, endDate]);
 
     // Calculate selected index for chart highlighting
     const selectedTrafficIndex = selectedHourFilter !== null 
@@ -561,16 +566,19 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
 
                     <div className="flex items-center gap-2">
                         <label className="text-gray-600 font-medium text-sm hidden sm:inline">
-                            {viewMode === 'monthly' ? 'เลือกเดือน:' : 'เลือกวันที่:'}
+                            เลือกช่วงวันที่:
                         </label>
                         <div className="relative">
-                            <input 
-                                ref={dateInputRef}
-                                type={viewMode === 'monthly' ? 'month' : 'date'}
-                                value={dateInputValue}
-                                onChange={handleDateChange}
-                                onClick={() => { try { dateInputRef.current?.showPicker(); } catch(e) {} }}
-                                className="border border-gray-300 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50 text-gray-800 font-medium text-sm cursor-pointer"
+                            <DatePicker
+                                selectsRange={true}
+                                startDate={startDate}
+                                endDate={endDate}
+                                onChange={(update) => {
+                                    setDateRange(update);
+                                }}
+                                isClearable={true}
+                                dateFormat="dd/MM/yyyy"
+                                className="border border-gray-300 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50 text-gray-800 font-medium text-sm cursor-pointer w-48"
                             />
                         </div>
                     </div>
@@ -666,7 +674,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
                             </svg>
-                            <h3 className="text-xl font-bold text-indigo-900">สรุปภาพรวมและวิเคราะห์เมนูประจำเดือน {selectedDate.toLocaleDateString('th-TH', { month: 'long', year: 'numeric' })}</h3>
+                            <h3 className="text-xl font-bold text-indigo-900">สรุปภาพรวมและวิเคราะห์เมนูประจำเดือน {formattedDateDisplay}</h3>
                         </div>
                         
                         <div className="p-6 grid grid-cols-1 xl:grid-cols-5 gap-8">
