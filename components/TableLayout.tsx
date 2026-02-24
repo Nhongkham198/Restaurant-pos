@@ -356,7 +356,10 @@ const TableCard: React.FC<TableCardProps> = ({
                     ))
                 ) : (
                     <button
-                        onClick={() => onTableSelect(table.id)}
+                        onClick={() => {
+                            setPreselectedTable({ tableId: table.id, floor: table.floor });
+                            onTableSelect(table.id);
+                        }}
                         className={`w-full font-bold py-2 px-4 rounded-lg transition-colors text-white ${isReserved ? 'bg-purple-600 hover:bg-purple-700' : 'bg-green-500 hover:bg-green-600'}`}
                     >
                         {isReserved ? 'เปิดโต๊ะ (จองแล้ว)' : 'รับออเดอร์'}
