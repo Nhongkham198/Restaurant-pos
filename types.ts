@@ -290,7 +290,7 @@ export interface MaintenanceLog {
     afterImage?: string; // Base64
 }
 
-export type View = 'pos' | 'kitchen' | 'tables' | 'dashboard' | 'history' | 'stock' | 'stock-analytics' | 'leave' | 'leave-analytics' | 'maintenance';
+export type View = 'pos' | 'kitchen' | 'tables' | 'dashboard' | 'history' | 'stock' | 'stock-analytics' | 'leave' | 'leave-analytics' | 'maintenance' | 'hr';
 
 export interface NavItem {
     id: string;
@@ -329,4 +329,58 @@ export type PrinterStatus = 'idle' | 'checking' | 'success' | 'error';
 export interface SystemPrinterStatus {
     kitchen: PrinterStatus;
     cashier: PrinterStatus;
+}
+
+// --- HR MANAGEMENT TYPES ---
+
+export interface JobApplication {
+    id: number;
+    fullName: string;
+    nickname?: string;
+    phoneNumber: string;
+    email?: string;
+    position: string;
+    expectedSalary: number;
+    experienceYears?: number;
+    status: 'pending' | 'interview' | 'hired' | 'rejected';
+    applicationDate: number; // timestamp
+    notes?: string;
+    resumeUrl?: string; // Optional file upload
+}
+
+export interface EmploymentContract {
+    id: number;
+    employeeName: string;
+    position: string;
+    startDate: number; // timestamp
+    endDate?: number; // timestamp (optional for permanent)
+    salary: number;
+    contractType: 'full-time' | 'part-time' | 'temporary';
+    content: string; // The generated contract text
+    createdDate: number; // timestamp
+}
+
+export interface TimeRecord {
+    id: number;
+    employeeName: string;
+    date: number; // timestamp (start of day)
+    clockIn: number; // timestamp
+    clockOut?: number; // timestamp
+    totalHours?: number;
+    status: 'on-time' | 'late' | 'absent';
+    notes?: string;
+}
+
+export interface PayrollRecord {
+    id: number;
+    employeeName: string;
+    month: string; // "YYYY-MM"
+    baseSalary: number;
+    otHours: number;
+    otRate: number;
+    deductions: number;
+    bonuses: number;
+    totalNetSalary: number;
+    paymentDate?: number; // timestamp
+    status: 'pending' | 'paid';
 }

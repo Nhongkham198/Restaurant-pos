@@ -12,6 +12,7 @@ interface UserManagerModalProps {
     branches: Branch[];
     isEditMode: boolean;
     tables?: Table[]; // Added tables prop
+    initialNewUser?: Partial<User> | null;
 }
 
 const initialFormState: Omit<User, 'id'> = { 
@@ -24,7 +25,7 @@ const initialFormState: Omit<User, 'id'> = {
     assignedTableId: undefined
 };
 
-export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onClose, users, setUsers, currentUser, branches, isEditMode, tables = [] }) => {
+export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onClose, users, setUsers, currentUser, branches, isEditMode, tables = [], initialNewUser }) => {
     const [isAdding, setIsAdding] = useState(false);
     const [editingUser, setEditingUser] = useState<User | null>(null);
     const [formData, setFormData] = useState<Omit<User, 'id'>>(initialFormState);
@@ -34,8 +35,16 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
         // Reset form when modal is closed
         if (!isOpen) {
             cancelAction();
+        } else if (initialNewUser) {
+            setIsAdding(true);
+            setFormData({
+                ...initialFormState,
+                ...initialNewUser,
+                allowedBranchIds: initialNewUser.allowedBranchIds || [],
+                role: (initialNewUser.role as any) || 'staff'
+            });
         }
-    }, [isOpen]);
+    }, [isOpen, initialNewUser]);
 
     const usersToDisplay = useMemo(() => {
         if (currentUser.role === 'admin') {
@@ -239,7 +248,16 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
             }
 
             setUsers(prev => [...prev, newUser]);
-            Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'เพิ่มผู้ใช้แล้ว!', showConfirmButton: false, timer: 1500 });
+            Swal.fire({
+                icon: 'success',
+                title: 'บันทึกสำเร็จ',
+                text: 'เพิ่มผู้ใช้งานเรียบร้อยแล้ว',
+                showConfirmButton: false,
+                timer: 1500
+            });
+            if (initialNewUser) {
+                onClose();
+            }
         }
         
         cancelAction();
@@ -422,8 +440,47 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
                                 </div>
                             </div>
                             <div className="flex-grow space-y-3">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                    <input type="text" name="username" value={formData.username} onChange={handleInputChange} placeholder="ชื่อผู้ใช้" className="px-3 py-2 border rounded-md bg-white border-gray-300 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 relative">
+                                    <div className="relative">
+                                        <input 
+                                            type="text" 
+                                            name="username" 
+                                            value={formData.username} 
+                                            onChange={handleInputChange} 
+                                            placeholder="ชื่อผู้ใช้" 
+                                            className="w-full px-3 py-2 border rounded-md bg-white border-gray-300 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                                            autoComplete="off"
+                                        />
+                                        {/* Username Suggestions */}
+                                        {isAdding && formData.username && (
+                                            (() => {
+                                                const suggestions = users.filter(u => 
+                                                    u.username.toLowerCase().includes(formData.username.toLowerCase()) &&
+                                                    u.username.toLowerCase() !== formData.username.toLowerCase()
+                                                );
+                                                
+                                                if (suggestions.length === 0) return null;
+
+                                                return (
+                                                    <div className="absolute z-10 w-full bg-white border border-gray-200 rounded-md shadow-lg mt-1 max-h-40 overflow-y-auto">
+                                                        {suggestions.map(user => (
+                                                            <div 
+                                                                key={user.id} 
+                                                                className="px-4 py-2 hover:bg-blue-50 cursor-pointer text-sm text-gray-700 flex justify-between items-center"
+                                                                onClick={() => {
+                                                                    startEdit(user);
+                                                                    setIsAdding(false);
+                                                                }}
+                                                            >
+                                                                <span>{user.username}</span>
+                                                                <span className="text-xs text-gray-400">แก้ไขผู้ใช้นี้</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                );
+                                            })()
+                                        )}
+                                    </div>
                                     <input 
                                         type="text" 
                                         name="password" 

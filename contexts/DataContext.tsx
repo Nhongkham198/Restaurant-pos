@@ -4,7 +4,7 @@ import {
     MenuItem, Table, ActiveOrder, CompletedOrder, CancelledOrder, 
     StockItem, PrintHistoryEntry, MaintenanceItem, MaintenanceLog, 
     OrderCounter, StaffCall, LeaveRequest, PrinterConfig, DeliveryProvider,
-    User, Branch
+    User, Branch, JobApplication, EmploymentContract, TimeRecord, PayrollRecord
 } from '../types';
 import { 
     DEFAULT_MENU_ITEMS, DEFAULT_CATEGORIES, DEFAULT_TABLES, DEFAULT_FLOORS,
@@ -79,6 +79,16 @@ interface DataContextType {
     setStaffCalls: React.Dispatch<React.SetStateAction<StaffCall[]>>;
     leaveRequests: LeaveRequest[];
     setLeaveRequests: React.Dispatch<React.SetStateAction<LeaveRequest[]>>;
+
+    // HR Management
+    jobApplications: JobApplication[];
+    setJobApplications: React.Dispatch<React.SetStateAction<JobApplication[]>>;
+    employmentContracts: EmploymentContract[];
+    setEmploymentContracts: React.Dispatch<React.SetStateAction<EmploymentContract[]>>;
+    timeRecords: TimeRecord[];
+    setTimeRecords: React.Dispatch<React.SetStateAction<TimeRecord[]>>;
+    payrollRecords: PayrollRecord[];
+    setPayrollRecords: React.Dispatch<React.SetStateAction<PayrollRecord[]>>;
 
     // Settings
     logoUrl: string | null;
@@ -272,6 +282,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const [staffCalls, setStaffCalls] = useFirestoreSync<StaffCall[]>(branchId, 'staffCalls', []);
     const [leaveRequests, setLeaveRequests] = useFirestoreSync<LeaveRequest[]>(shouldLoadHeavyData ? null : 'SKIP', 'leaveRequests', []);
 
+    // --- HR MANAGEMENT ---
+    const [jobApplications, setJobApplications] = useFirestoreSync<JobApplication[]>(heavyDataBranchId, 'jobApplications', []);
+    const [employmentContracts, setEmploymentContracts] = useFirestoreSync<EmploymentContract[]>(heavyDataBranchId, 'employmentContracts', []);
+    const [timeRecords, setTimeRecords] = useFirestoreSync<TimeRecord[]>(heavyDataBranchId, 'timeRecords', []);
+    const [payrollRecords, setPayrollRecords] = useFirestoreSync<PayrollRecord[]>(heavyDataBranchId, 'payrollRecords', []);
+
     // --- SETTINGS ---
     const [logoUrl, setLogoUrl] = useFirestoreSync<string | null>(branchId, 'logoUrl', null);
     const [appLogoUrl, setAppLogoUrl] = useFirestoreSync<string | null>(branchId, 'appLogoUrl', null);
@@ -309,6 +325,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             printHistory, setPrintHistory, maintenanceItems, setMaintenanceItems, maintenanceLogs, setMaintenanceLogs,
             orderCounter, setOrderCounter, staffCalls, setStaffCalls, leaveRequests, setLeaveRequests,
             
+            jobApplications, setJobApplications, employmentContracts, setEmploymentContracts,
+            timeRecords, setTimeRecords, payrollRecords, setPayrollRecords,
+
             logoUrl, setLogoUrl, appLogoUrl, setAppLogoUrl, restaurantName, setRestaurantName,
             restaurantAddress, setRestaurantAddress, restaurantPhone, setRestaurantPhone, taxId, setTaxId,
             signatureUrl, setSignatureUrl, qrCodeUrl, setQrCodeUrl, notificationSoundUrl, setNotificationSoundUrl,

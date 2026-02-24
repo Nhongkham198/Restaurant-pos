@@ -74,7 +74,7 @@ const AdminSidebar = React.lazy(() => import('./components/AdminSidebar')); // D
 const MaintenanceView = React.lazy(() => import('./components/MaintenanceView').then(module => ({ default: module.MaintenanceView })));
 const CustomerView = React.lazy(() => import('./components/CustomerView').then(module => ({ default: module.CustomerView })));
 const QueueDisplay = React.lazy(() => import('./components/QueueDisplay').then(module => ({ default: module.QueueDisplay })));
-
+const HRManagementView = React.lazy(() => import('./components/HRManagementView'));
 
 import { BottomNavBar } from './components/BottomNavBar';
 
@@ -198,6 +198,13 @@ export const App: React.FC = () => {
         leaveRequestInitialDate, setLeaveRequestInitialDate,
         selectedSidebarFloor, setSelectedSidebarFloor
     } = useUI();
+
+    const [initialNewUserForModal, setInitialNewUserForModal] = useState<Partial<User> | null>(null);
+
+    const handleOpenUserManagerWithData = (userData: Partial<User>) => {
+        setInitialNewUserForModal(userData);
+        setModalState(prev => ({ ...prev, isUserManager: true }));
+    };
 
     // --- NOTIFICATION TOGGLE STATE ---
     const [isOrderNotificationsEnabled, setIsOrderNotificationsEnabled] = useState(() => {
@@ -1121,6 +1128,7 @@ export const App: React.FC = () => {
                                                     isEditMode={isEditMode}
                                                 />
                                             )}
+                                            {currentView === 'hr' && <HRManagementView isEditMode={isEditMode} onOpenUserManager={handleOpenUserManagerWithData} />}
                                         </Suspense>
                                     </div>
                                 </div>
@@ -1159,6 +1167,7 @@ export const App: React.FC = () => {
                                     isEditMode={isEditMode}
                                 />
                             )}
+                            {currentView === 'hr' && <HRManagementView isEditMode={isEditMode} onOpenUserManager={handleOpenUserManagerWithData} />}
                         </Suspense>
                     )}
                 </main>
@@ -1230,7 +1239,7 @@ export const App: React.FC = () => {
             </Suspense>
 
             <EditCompletedOrderModal isOpen={modalState.isEditCompleted} order={orderForModal as CompletedOrder | null} onClose={handleModalClose} onSave={async ({id, items}) => { if(newCompletedOrders.some(o => o.id === id)) { await newCompletedOrdersActions.update(id, { items }); } else { setLegacyCompletedOrders(prev => prev.map(o => o.id === id ? {...o, items} : o)); } }} menuItems={menuItems} />
-            <UserManagerModal isOpen={modalState.isUserManager} onClose={handleModalClose} users={users} setUsers={setUsers} currentUser={currentUser!} branches={branches} isEditMode={isEditMode} tables={tables} />
+            <UserManagerModal isOpen={modalState.isUserManager} onClose={() => { handleModalClose(); setInitialNewUserForModal(null); }} users={users} setUsers={setUsers} currentUser={currentUser!} branches={branches} isEditMode={isEditMode} tables={tables} initialNewUser={initialNewUserForModal} />
             <BranchManagerModal isOpen={modalState.isBranchManager} onClose={handleModalClose} branches={branches} setBranches={setBranches} currentUser={currentUser} />
             <MoveTableModal isOpen={modalState.isMoveTable} onClose={handleModalClose} order={orderForModal as ActiveOrder | null} tables={tables} activeOrders={activeOrders} onConfirmMove={handleConfirmMoveTable} floors={floors} />
             <CancelOrderModal isOpen={modalState.isCancelOrder} onClose={handleModalClose} order={orderForModal as ActiveOrder | null} onConfirm={handleConfirmCancelOrder} />
