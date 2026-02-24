@@ -290,7 +290,7 @@ export interface MaintenanceLog {
     afterImage?: string; // Base64
 }
 
-export type View = 'pos' | 'kitchen' | 'tables' | 'dashboard' | 'history' | 'stock' | 'stock-analytics' | 'leave' | 'leave-analytics' | 'maintenance' | 'hr';
+export type View = 'pos' | 'kitchen' | 'tables' | 'dashboard' | 'history' | 'stock' | 'stock-analytics' | 'leave' | 'leave-analytics' | 'maintenance' | 'hr' | 'hr-payroll';
 
 export interface NavItem {
     id: string;

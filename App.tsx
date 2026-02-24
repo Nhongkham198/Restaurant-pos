@@ -360,6 +360,18 @@ export const App: React.FC = () => {
         }).length;
     }, [stockItems]);
 
+    const payrollBadgeCount = useMemo(() => {
+        if (!currentUser) return 0;
+        // Count approved unpaid leaves that haven't been processed (simplified logic: just count approved unpaid leaves)
+        // In a real app, you'd check if they are already deducted in a payroll record.
+        // For this request, we just count approved unpaid leaves to show the notification.
+        return leaveRequests.filter(req => 
+            req.type === 'leave-without-pay' && 
+            req.status === 'approved' &&
+            (currentUser.role === 'admin' || (currentUser.role === 'branch-admin' && currentUser.allowedBranchIds?.includes(req.branchId)))
+        ).length;
+    }, [leaveRequests, currentUser]);
+
     const maintenanceBadgeCount = useMemo(() => {
         const now = Date.now();
         const oneDay = 24 * 60 * 60 * 1000;
@@ -397,7 +409,20 @@ export const App: React.FC = () => {
             view: 'leave',
             badge: leaveBadgeCount
         });
+        
+        // Add Payroll Tab for Admin/Branch Admin
+        if (currentUser?.role === 'admin' || currentUser?.role === 'branch-admin') {
+            items.push({
+                id: 'payroll',
+                label: 'เงินเดือน',
+                icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
+                view: 'hr-payroll',
+                badge: payrollBadgeCount
+            });
+        }
+
         items.push({
+
             id: 'maintenance',
             label: 'บำรุงรักษา',
             icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>,
@@ -1128,7 +1153,13 @@ export const App: React.FC = () => {
                                                     isEditMode={isEditMode}
                                                 />
                                             )}
-                                            {currentView === 'hr' && <HRManagementView isEditMode={isEditMode} onOpenUserManager={handleOpenUserManagerWithData} />}
+                                            {(currentView === 'hr' || currentView === 'hr-payroll') && (
+                                                <HRManagementView 
+                                                    isEditMode={isEditMode} 
+                                                    onOpenUserManager={handleOpenUserManagerWithData} 
+                                                    initialTab={currentView === 'hr-payroll' ? 'payroll' : 'application'}
+                                                />
+                                            )}
                                         </Suspense>
                                     </div>
                                 </div>
@@ -1167,7 +1198,13 @@ export const App: React.FC = () => {
                                     isEditMode={isEditMode}
                                 />
                             )}
-                            {currentView === 'hr' && <HRManagementView isEditMode={isEditMode} onOpenUserManager={handleOpenUserManagerWithData} />}
+                            {(currentView === 'hr' || currentView === 'hr-payroll') && (
+                                <HRManagementView 
+                                    isEditMode={isEditMode} 
+                                    onOpenUserManager={handleOpenUserManagerWithData} 
+                                    initialTab={currentView === 'hr-payroll' ? 'payroll' : 'application'}
+                                />
+                            )}
                         </Suspense>
                     )}
                 </main>

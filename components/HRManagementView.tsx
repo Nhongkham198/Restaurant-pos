@@ -11,9 +11,10 @@ import { User } from '../types';
 interface HRManagementViewProps {
     isEditMode?: boolean;
     onOpenUserManager?: (userData: Partial<User>) => void;
+    initialTab?: HRTab;
 }
 
-const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false, onOpenUserManager }) => {
+const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false, onOpenUserManager, initialTab = 'application' }) => {
     const { 
         jobApplications, setJobApplications,
         employmentContracts, setEmploymentContracts,
@@ -23,7 +24,13 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
         users, branchId
     } = useData();
 
-    const [activeTab, setActiveTab] = useState<HRTab>('application');
+    const [activeTab, setActiveTab] = useState<HRTab>(initialTab);
+    
+    // Sync activeTab with initialTab if it changes
+    React.useEffect(() => {
+        setActiveTab(initialTab);
+    }, [initialTab]);
+
     const [selectedItems, setSelectedItems] = useState<number[]>([]);
 
     // Reset selection when tab changes
