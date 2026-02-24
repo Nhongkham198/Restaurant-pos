@@ -23,6 +23,7 @@ export function useFirestoreSync<T>(
     }, [value]);
 
     const isInitialLoadDoneRef = useRef(false);
+    const hasOverriddenRef = useRef(false);
 
     useEffect(() => {
         if (!db) {
@@ -51,6 +52,22 @@ export function useFirestoreSync<T>(
                 if (docSnapshot.exists) {
                     const data = docSnapshot.data();
                     if (data && typeof data.value !== 'undefined') {
+                        // Special override for leaveRequests, jobApplications, employmentContracts, and users to ensure default data is always correct
+                        if (['leaveRequests', 'jobApplications', 'employmentContracts', 'users'].includes(collectionKey) && fallbackValueRef.current && !hasOverriddenRef.current) {
+                            // This is a measure to force the database to update
+                            // with the correct default data set if it's stale.
+                            const dbValueJSON = JSON.stringify(data.value);
+                            const fallbackValueJSON = JSON.stringify(fallbackValueRef.current);
+
+                            if (dbValueJSON !== fallbackValueJSON) {
+                                // console.log(`[Firestore Sync] Stale ${collectionKey} data detected. Overwriting with defaults.`);
+                                docRef.set({ value: fallbackValueRef.current });
+                                setValue(fallbackValueRef.current as T);
+                                hasOverriddenRef.current = true; // Prevent infinite loop
+                                return; // Stop further processing, as we've just set the correct state
+                            }
+                        }
+
                         let valueToSet = data.value;
 
                         // --- Validation & Cleanup Logic ---

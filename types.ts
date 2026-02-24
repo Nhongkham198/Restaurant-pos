@@ -336,6 +336,7 @@ export interface SystemPrinterStatus {
 
 export interface JobApplication {
     id: number;
+    userId?: number; // Link to a user account
     fullName: string;
     nickname?: string;
     phoneNumber: string;
@@ -351,6 +352,7 @@ export interface JobApplication {
 
 export interface EmploymentContract {
     id: number;
+    userId: number; // Added to link to a user
     employeeName: string;
     position: string;
     startDate: number; // timestamp

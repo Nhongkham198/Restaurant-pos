@@ -10,7 +10,8 @@ import {
     DEFAULT_MENU_ITEMS, DEFAULT_CATEGORIES, DEFAULT_TABLES, DEFAULT_FLOORS,
     DEFAULT_STOCK_ITEMS, DEFAULT_STOCK_CATEGORIES, DEFAULT_STOCK_UNITS,
     DEFAULT_MAINTENANCE_ITEMS, DEFAULT_DELIVERY_PROVIDERS,
-    DEFAULT_USERS, DEFAULT_BRANCHES
+    DEFAULT_USERS, DEFAULT_BRANCHES, DEFAULT_LEAVE_REQUESTS,
+    DEFAULT_JOB_APPLICATIONS, DEFAULT_EMPLOYMENT_CONTRACTS
 } from '../constants';
 
 interface DataContextType {
@@ -282,11 +283,11 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const [orderCounter, setOrderCounter] = useFirestoreSync<OrderCounter>(heavyDataBranchId, 'orderCounter', { count: 0, lastResetDate: new Date().toISOString().split('T')[0] });
     
     const [staffCalls, setStaffCalls] = useFirestoreSync<StaffCall[]>(branchId, 'staffCalls', []);
-    const [leaveRequests, setLeaveRequests] = useFirestoreSync<LeaveRequest[]>(shouldLoadHeavyData ? null : 'SKIP', 'leaveRequests', []);
+    const [leaveRequests, setLeaveRequests] = useFirestoreSync<LeaveRequest[]>(shouldLoadHeavyData ? null : 'SKIP', 'leaveRequests', [], DEFAULT_LEAVE_REQUESTS);
 
     // --- HR MANAGEMENT ---
-    const [jobApplications, setJobApplications] = useFirestoreSync<JobApplication[]>(heavyDataBranchId, 'jobApplications', []);
-    const [employmentContracts, setEmploymentContracts] = useFirestoreSync<EmploymentContract[]>(heavyDataBranchId, 'employmentContracts', []);
+    const [jobApplications, setJobApplications] = useFirestoreSync<JobApplication[]>(heavyDataBranchId, 'jobApplications', [], DEFAULT_JOB_APPLICATIONS);
+    const [employmentContracts, setEmploymentContracts] = useFirestoreSync<EmploymentContract[]>(heavyDataBranchId, 'employmentContracts', [], DEFAULT_EMPLOYMENT_CONTRACTS);
     const [timeRecords, setTimeRecords] = useFirestoreSync<TimeRecord[]>(heavyDataBranchId, 'timeRecords', []);
     const [payrollRecords, setPayrollRecords] = useFirestoreSync<PayrollRecord[]>(heavyDataBranchId, 'payrollRecords', []);
     const [jobPositions, setJobPositions] = useFirestoreSync<string[]>(branchId, 'jobPositions', [], ['แม่ครัว', 'พนักงานเตรียมครัว', 'พนักงานทั่วไป']);

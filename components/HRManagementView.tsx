@@ -144,13 +144,101 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
     };
 
     const handleCreateUserFromApp = (app: JobApplication) => {
-        if (onOpenUserManager) {
-            onOpenUserManager({
-                username: app.fullName.split(' ')[0].toLowerCase(), // Suggest username
-                role: 'staff',
-                // You might want to map other fields if User type supports them
-            });
-        }
+        const unlinkedUsers = users.filter(u => {
+            const isLinked = jobApplications.some(j => j.userId === u.id);
+            return !isLinked || app.userId === u.id;
+        });
+        const userOptions = unlinkedUsers.map(u => `<option value="${u.id}" ${app.userId === u.id ? 'selected' : ''}>${u.username}</option>`).join('');
+
+        const isLinked = !!app.userId;
+
+        Swal.fire({
+            title: 'สร้างหรือเชื่อมต่อผู้ใช้',
+            html: `
+                <p>คุณต้องการทำอะไรสำหรับ <strong>${app.fullName}</strong>?</p>
+                <select id="swal-user-action" class="swal2-input">
+                    <option value="create">สร้างผู้ใช้ใหม่</option>
+                    <option value="link">เชื่อมต่อกับผู้ใช้ที่มีอยู่</option>
+                    ${isLinked ? '<option value="unlink">ยกเลิกการเชื่อมต่อ</option>' : ''}
+                </select>
+                <select id="swal-existing-user" class="swal2-input" style="display:none;">
+                    <option value="">-- เลือกผู้ใช้ --</option>
+                    ${userOptions}
+                </select>
+            `,
+            didOpen: () => {
+                document.getElementById('swal-user-action')?.addEventListener('change', (e) => {
+                    const select = e.target as HTMLSelectElement;
+                    const existingUserSelect = document.getElementById('swal-existing-user') as HTMLSelectElement;
+                    existingUserSelect.style.display = select.value === 'link' ? 'block' : 'none';
+                });
+            },
+            preConfirm: () => {
+                const action = (document.getElementById('swal-user-action') as HTMLSelectElement).value;
+                const userId = (document.getElementById('swal-existing-user') as HTMLSelectElement).value;
+                if (action === 'link' && !userId) {
+                    Swal.showValidationMessage('กรุณาเลือกผู้ใช้');
+                    return false;
+                }
+                return { action, userId: parseInt(userId) };
+            }
+        }).then((result) => {
+            if (result.isConfirmed) {
+                const { action, userId } = result.value;
+                if (action === 'link') {
+                    setJobApplications(prev => prev.map(j => j.id === app.id ? { ...j, userId: userId, status: 'hired' } : j));
+                    Swal.fire('สำเร็จ', 'เชื่อมต่อผู้ใช้และอัปเดตสถานะเป็น \'รับเข้าทำงาน\' เรียบร้อย', 'success');
+                } else if (action === 'unlink') {
+                    setJobApplications(prev => prev.map(j => {
+                        if (j.id === app.id) {
+                            const { userId, ...rest } = j;
+                            return { ...rest, status: 'approved' };
+                        }
+                        return j;
+                    }));
+                    Swal.fire('สำเร็จ', 'ยกเลิกการเชื่อมต่อผู้ใช้เรียบร้อย', 'success');
+                } else { // action === 'create'
+                    const newUserId = Date.now();
+                    const tempPassword = `pass${String(newUserId).slice(-4)}`;
+                    const newUsername = app.fullName.split(' ')[0].toLowerCase() + String(newUserId).slice(-2);
+
+                    const newUser: User = {
+                        id: newUserId,
+                        username: newUsername,
+                        password: tempPassword, // This should be handled more securely in a real app
+                        role: 'staff',
+                        leaveQuotas: { sick: 0, personal: 0, vacation: 0 }
+                    };
+
+                    const newContract: EmploymentContract = {
+                        id: Date.now() + 1,
+                        userId: newUserId,
+                        employeeName: app.fullName,
+                        position: app.position,
+                        startDate: Date.now(),
+                        salary: app.expectedSalary,
+                        contractType: 'full-time',
+                        content: `สัญญาจ้างงานสำหรับ ${app.fullName} (อัตโนมัติ)`,
+                        createdDate: Date.now(),
+                    };
+
+                    setUsers(prev => [...prev, newUser]);
+                    setEmploymentContracts(prev => [...prev, newContract]);
+                    setJobApplications(prev => prev.map(j => j.id === app.id ? { ...j, userId: newUserId, status: 'hired' } : j));
+
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'สร้างผู้ใช้และสัญญาสำเร็จ',
+                        html: `
+                            <p>ผู้ใช้ใหม่ถูกสร้างขึ้นสำหรับ <strong>${app.fullName}</strong></p>
+                            <p>Username: <strong>${newUsername}</strong></p>
+                            <p>Temporary Password: <strong>${tempPassword}</strong></p>
+                            <p>และได้สร้างสัญญาจ้างงานแล้ว</p>
+                        `,
+                    });
+                }
+            }
+        });
     };
 
     // --- EXPORT FUNCTION ---
@@ -302,8 +390,10 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                 const nameInput = document.getElementById('swal-emp-name') as HTMLInputElement;
                 
                 let finalName = nameInput.value;
+                let applicationId = null;
                 if (select.value && select.value !== 'manual') {
                      finalName = select.options[select.selectedIndex].text;
+                     applicationId = parseInt(select.value);
                 }
 
                 if (!finalName) {
@@ -311,7 +401,12 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                     return false;
                 }
 
+                // Find the associated user
+                const jobApp = applicationId ? jobApplications.find(app => app.id === applicationId) : null;
+                const user = jobApp ? users.find(u => u.username.toLowerCase() === jobApp.fullName.split(' ')[0].toLowerCase()) : users.find(u => u.username.toLowerCase() === finalName.split(' ')[0].toLowerCase());
+
                 return {
+                    userId: user ? user.id : 0, // Store userId, fallback to 0 if not found
                     employeeName: finalName,
                     position: (document.getElementById('swal-emp-pos') as HTMLInputElement).value,
                     salary: Number((document.getElementById('swal-emp-salary') as HTMLInputElement).value),
@@ -366,6 +461,66 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
     };
 
     // --- CONTRACT LOGIC ---
+    const handleAddLeaveRequest = () => {
+        const employeeOptions = users
+            .filter(u => u.role !== 'admin' && u.role !== 'auditor') // Filter for employees
+            .map(u => `<option value="${u.id}">${u.username}</option>`)
+            .join('');
+
+        Swal.fire({
+            title: 'เพิ่มใบลา',
+            html: `
+                <select id="swal-leave-employee" class="swal2-input">${employeeOptions}</select>
+                <div class="flex gap-2">
+                    <input id="swal-leave-start" type="date" class="swal2-input">
+                    <input id="swal-leave-end" type="date" class="swal2-input">
+                </div>
+                <select id="swal-leave-type" class="swal2-input">
+                    <option value="sick">ลาป่วย</option>
+                    <option value="personal">ลากิจ</option>
+                    <option value="vacation">ลาพักร้อน</option>
+                    <option value="leave-without-pay">ลาไม่รับเงินเดือน</option>
+                    <option value="other">อื่นๆ</option>
+                </select>
+                <textarea id="swal-leave-reason" class="swal2-textarea" placeholder="เหตุผลการลา"></textarea>
+            `,
+            focusConfirm: false,
+            preConfirm: () => {
+                const userId = parseInt((document.getElementById('swal-leave-employee') as HTMLSelectElement).value);
+                const user = users.find(u => u.id === userId);
+                const startDate = (document.getElementById('swal-leave-start') as HTMLInputElement).value;
+                const endDate = (document.getElementById('swal-leave-end') as HTMLInputElement).value;
+
+                if (!userId || !startDate || !endDate) {
+                    Swal.showValidationMessage('กรุณากรอกข้อมูลให้ครบถ้วน');
+                    return false;
+                }
+
+                return {
+                    userId: userId,
+                    employeeName: user?.username || `User #${userId}`, // Use username as the primary name for the request
+                    username: user?.username || `User #${userId}`,
+                    startDate: new Date(startDate).getTime(),
+                    endDate: new Date(endDate).getTime(),
+                    type: (document.getElementById('swal-leave-type') as HTMLSelectElement).value as any,
+                    reason: (document.getElementById('swal-leave-reason') as HTMLTextAreaElement).value,
+                }
+            }
+        }).then((result) => {
+            if (result.isConfirmed) {
+                const newLeaveRequest: LeaveRequest = {
+                    id: Date.now(),
+                    ...result.value,
+                    branchId: branchId || 0,
+                    status: 'pending',
+                    submittedAt: Date.now(),
+                };
+                setLeaveRequests(prev => [...prev, newLeaveRequest]);
+                Swal.fire('สำเร็จ', 'ส่งใบลาเรียบร้อยแล้ว', 'success');
+            }
+        });
+    };
+
     const handleViewContract = (contract: EmploymentContract) => {
         Swal.fire({
             title: 'สัญญาจ้างงาน',
@@ -386,25 +541,80 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
     };
 
 
+    const handleLeaveStatusChange = (leaveId: number, newStatus: 'pending' | 'approved' | 'rejected') => {
+        const leaveRequest = leaveRequests.find(lr => lr.id === leaveId);
+        if (!leaveRequest) return;
+
+        const updatedLeaveRequests = leaveRequests.map(lr => 
+            lr.id === leaveId ? { ...lr, status: newStatus } : lr
+        );
+        setLeaveRequests(updatedLeaveRequests);
+
+        let isLeaveWithoutPayApproved = false;
+
+        if (newStatus === 'approved' && leaveRequest.type === 'leave-without-pay') {
+            const employee = users.find(u => u.id === leaveRequest.userId);
+            const contract = employmentContracts.find(c => c.userId === leaveRequest.userId);
+
+            if (employee && contract) {
+                isLeaveWithoutPayApproved = true;
+                const lastPayroll = payrollRecords
+                    .filter(pr => pr.employeeName === leaveRequest.employeeName)
+                    .sort((a, b) => new Date(b.month).getTime() - new Date(a.month).getTime())[0];
+
+                const nextPayday = lastPayroll ? new Date(new Date(lastPayroll.month).getTime() + 7 * 24 * 60 * 60 * 1000) : new Date();
+                
+                const leaveDuration = (new Date(leaveRequest.endDate).getTime() - new Date(leaveRequest.startDate).getTime()) / (1000 * 3600 * 24) + 1;
+                const deductionAmount = (contract.salary / 24) * leaveDuration;
+
+                Swal.fire({
+                    title: 'แจ้งเตือนหักเงินเดือน',
+                    html: `
+                        <p>พนักงาน: <strong>${leaveRequest.employeeName}</strong></p>
+                        <p>มีการลาแบบไม่รับเงินเดือนจำนวน <strong>${leaveDuration}</strong> วัน</p>
+                        <p>ต้องหักเงิน: <strong>${deductionAmount.toFixed(2)}</strong> บาท</p>
+                        <p>ในรอบบิลถัดไปวันที่: <strong>${nextPayday.toLocaleDateString('th-TH')}</strong></p>
+                    `,
+                    icon: 'warning',
+                });
+            }
+        }
+
+        if (!isLeaveWithoutPayApproved) {
+            Swal.fire({
+                toast: true,
+                position: 'top-end',
+                icon: 'success',
+                title: 'อัปเดตสถานะแล้ว',
+                showConfirmButton: false,
+                timer: 1500
+            });
+        }
+    };
+
     // --- PAYROLL LOGIC ---
     const handleAddPayroll = () => {
         // Filter contracts to suggest employees
-        const options = employmentContracts.map(c => `<option value="${c.id}" data-salary="${c.salary}" data-name="${c.employeeName}">${c.employeeName}</option>`).join('');
+        const options = employmentContracts.map(c => `<option value="${c.id}" data-salary="${c.salary}" data-name="${c.employeeName}" data-userid="${c.userId}">${c.employeeName}</option>`).join('');
 
         Swal.fire({
             title: 'บันทึกเงินเดือน',
             html: `
                 <div class="text-left mb-2 text-sm text-gray-600">เลือกพนักงาน (จากสัญญาจ้าง):</div>
-                <select id="swal-pay-emp-select" class="swal2-input mb-3">
-                    <option value="">-- เลือกพนักงาน --</option>
-                    ${options}
-                </select>
-                <input id="swal-pay-date" type="date" class="swal2-input">
-                <input id="swal-pay-base" type="number" class="swal2-input" placeholder="เงินเดือนพื้นฐาน">
-                <div id="swal-pay-calc-info" class="text-left text-sm text-gray-500 mt-2 hidden"></div>
+                <div class="flex gap-2 mb-3">
+                    <select id="swal-pay-emp-select" class="swal2-input m-0 flex-grow">
+                        <option value="">-- เลือกพนักงาน --</option>
+                        ${options}
+                    </select>
+                    <input id="swal-pay-username" class="swal2-input m-0 w-1/3 bg-gray-100" placeholder="User" readonly>
+                </div>
+                <input id="swal-pay-date" type="date" class="swal2-input" placeholder="เลือกวันที่จ่าย">
+                <input id="swal-pay-base" type="number" class="swal2-input" placeholder="ยอดจ่ายสุทธิ" readonly>
+                <div id="swal-pay-calc-info" class="text-left text-sm text-gray-500 mt-2 p-3 bg-gray-700 rounded-lg hidden"></div>
             `,
             didOpen: () => {
                  const select = document.getElementById('swal-pay-emp-select') as HTMLSelectElement;
+                 const usernameInput = document.getElementById('swal-pay-username') as HTMLInputElement;
                  const baseInput = document.getElementById('swal-pay-base') as HTMLInputElement;
                  const dateInput = document.getElementById('swal-pay-date') as HTMLInputElement;
                  const infoDiv = document.getElementById('swal-pay-calc-info') as HTMLDivElement;
@@ -412,20 +622,26 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                  const calculateDeductions = () => {
                      const option = select.options[select.selectedIndex];
                      const salary = Number(option.getAttribute('data-salary'));
-                     const empName = option.getAttribute('data-name');
-                     const dateVal = dateInput.value;
+                     const userId = Number(option.getAttribute('data-userid'));
+                     const dateVal = dateInput.value; // YYYY-MM-DD
 
-                     if (salary && dateVal && empName) {
+                     // Update Username Field
+                     if (userId) {
+                         const user = users.find(u => u.id === userId);
+                         usernameInput.value = user ? user.username : 'Not Found';
+                     } else {
+                         usernameInput.value = '';
+                     }
+
+                     if (salary && dateVal && userId) {
                          const payDate = new Date(dateVal);
-                         // Find start and end of the week for the pay date
                          const startOfWeek = new Date(payDate);
-                         startOfWeek.setDate(payDate.getDate() - payDate.getDay()); // Sunday
-                         const endOfWeek = new Date(startOfWeek);
-                         endOfWeek.setDate(startOfWeek.getDate() + 6); // Saturday
+                         const endOfWeek = new Date(payDate);
+                         endOfWeek.setDate(payDate.getDate() + 9); // 10 days period (Start + 9 days)
 
-                         // Check for unpaid leave in this week
+                         // Check for unpaid leave in this week using userId
                          const unpaidLeaves = leaveRequests.filter(l => 
-                             l.employeeName === empName && 
+                             l.userId === userId && 
                              l.type === 'leave-without-pay' && 
                              l.status === 'approved'
                          );
@@ -446,53 +662,73 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                              }
                          });
 
-                         if (totalUnpaidDays > 0) {
-                             const dailyRate = salary / 24;
-                             const weeklySalary = salary / 4;
-                             const deduction = dailyRate * totalUnpaidDays;
-                             const netPay = Math.max(0, weeklySalary - deduction); // Ensure not negative
+                         const dailyRate = salary / 26; // Rule: Salary / 26
+                         const weeklySalary = salary / 4; // Rule: Salary / 4
+                         const deduction = dailyRate * totalUnpaidDays;
+                         const netPay = Math.max(0, weeklySalary - deduction);
 
+                         if (totalUnpaidDays > 0) {
                              infoDiv.innerHTML = `
-                                 <p class="text-red-500 font-bold">พบการลาไม่รับเงินเดือน ${totalUnpaidDays} วัน (ในสัปดาห์นี้)</p>
-                                 <p class="text-xs text-gray-500">สูตร: (เงินเดือน / 24) x วันลา</p>
-                                 <p>ค่าจ้างรายวัน: ${dailyRate.toFixed(2)} บาท</p>
-                                 <p>เงินเดือนรายสัปดาห์: ${weeklySalary.toFixed(2)} บาท</p>
-                                 <p>หัก: ${totalUnpaidDays} วัน x ${dailyRate.toFixed(2)} = ${deduction.toFixed(2)} บาท</p>
-                                 <p class="font-bold text-green-600 text-lg mt-1">ยอดจ่ายสุทธิ: ${netPay.toFixed(2)} บาท</p>
+                                 <p class="text-red-500 font-bold">พบการลาไม่รับเงินเดือน ${totalUnpaidDays} วัน (ในรอบ 10 วันนี้)</p>
+                                 <p class="text-xs text-gray-400">User: ${usernameInput.value}</p>
+                                 <p class="text-xs text-gray-400">ช่วงเวลา: ${startOfWeek.toLocaleDateString('th-TH')} - ${endOfWeek.toLocaleDateString('th-TH')}</p>
+                                 <p class="text-xs text-gray-400">สูตร: (เงินเดือน / 26) x วันลา</p>
+                                 <p>เงินเดือนรายสัปดาห์ (หาร 4): ${weeklySalary.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท</p>
+                                 <p>หัก: ${totalUnpaidDays} วัน x ${dailyRate.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} = ${deduction.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท</p>
+                                 <p class="font-bold text-green-500 text-lg mt-1">ยอดจ่ายสุทธิ: ${netPay.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท</p>
                              `;
                              infoDiv.classList.remove('hidden');
-                             baseInput.value = netPay.toFixed(2);
                          } else {
-                             infoDiv.classList.add('hidden');
-                             baseInput.value = (salary / 4).toFixed(2);
+                             infoDiv.innerHTML = `
+                                <p class="text-green-500">ไม่พบการลาแบบไม่รับเงินเดือนในรอบ 10 วันนี้ (User: ${usernameInput.value})</p>
+                                <p class="text-xs text-gray-400">ช่วงเวลา: ${startOfWeek.toLocaleDateString('th-TH')} - ${endOfWeek.toLocaleDateString('th-TH')}</p>
+                                <p>เงินเดือนรายสัปดาห์ (หาร 4): ${weeklySalary.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท</p>
+                             `;
+                             infoDiv.classList.remove('hidden');
                          }
+                         baseInput.value = netPay.toFixed(2);
                      } else if (salary) {
-                         baseInput.value = (salary / 4).toFixed(2); // Default if date not selected yet
+                         baseInput.value = (salary / 4).toFixed(2); // Default to weekly salary
+                         infoDiv.classList.add('hidden');
                      }
                  };
 
                  select.addEventListener('change', calculateDeductions);
                  dateInput.addEventListener('change', calculateDeductions);
+                 
+                 select.addEventListener('change', () => {
+                    const option = select.options[select.selectedIndex];
+                    const salary = Number(option.getAttribute('data-salary'));
+                    if (salary) {
+                        const baseInput = document.getElementById('swal-pay-base') as HTMLInputElement;
+                        baseInput.value = salary.toFixed(2);
+                        if ((document.getElementById('swal-pay-date') as HTMLInputElement).value) {
+                            calculateDeductions();
+                        }
+                    }
+                 });
             },
             preConfirm: () => {
                 const select = document.getElementById('swal-pay-emp-select') as HTMLSelectElement;
                 const employeeName = select.options[select.selectedIndex]?.text;
                 const date = (document.getElementById('swal-pay-date') as HTMLInputElement).value;
-                const baseSalary = Number((document.getElementById('swal-pay-base') as HTMLInputElement).value);
+                const netSalary = Number((document.getElementById('swal-pay-base') as HTMLInputElement).value);
+                const contractId = Number(select.value);
+                const contract = employmentContracts.find(c => c.id === contractId);
+                const baseSalary = contract ? contract.salary : 0;
+                const deductions = baseSalary - netSalary;
 
-                if (!select.value) {
-                    Swal.showValidationMessage('กรุณาเลือกพนักงาน');
-                    return false;
-                }
-                if (!date) {
-                    Swal.showValidationMessage('กรุณาเลือกวันที่');
+                if (!select.value || !date) {
+                    Swal.showValidationMessage('กรุณาเลือกพนักงานและเดือน');
                     return false;
                 }
 
                 return {
                     employeeName: employeeName,
-                    month: date, // Storing full date in 'month' field to avoid type changes
-                    baseSalary: baseSalary
+                    month: date,
+                    baseSalary: baseSalary,
+                    deductions: deductions > 0 ? deductions : 0,
+                    totalNetSalary: netSalary
                 };
             }
         }).then((result) => {
@@ -505,9 +741,9 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                     baseSalary: val.baseSalary,
                     otHours: 0,
                     otRate: 0,
-                    deductions: 0,
+                    deductions: val.deductions,
                     bonuses: 0,
-                    totalNetSalary: val.baseSalary, // Simplified calculation
+                    totalNetSalary: val.totalNetSalary,
                     status: 'pending'
                 };
                 setPayrollRecords(prev => [...prev, newPayroll]);
@@ -530,7 +766,6 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                     { id: 'contract', label: '📝 สัญญาจ้าง' },
                     { id: 'time', label: '⏰ บันทึกเวลา' },
                     { id: 'payroll', label: '💰 เงินเดือน' },
-                    { id: 'leave', label: '✈️ การลา' },
                 ].map(tab => (
                     <button
                         key={tab.id}
@@ -654,10 +889,21 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                                         </span>
                                                     )}
                                                 </td>
-                                                <td className="p-3 flex gap-2">
-                                                    <button onClick={() => handleCreateUserFromApp(app)} className="text-blue-400 hover:text-blue-300 text-xs border border-blue-500 px-2 py-1 rounded">
-                                                        สร้าง User
-                                                    </button>
+                                                <td className="p-3 flex gap-2 items-center">
+                                                    {app.userId ? (
+                                                        <>
+                                                            <span className="text-xs text-gray-400 bg-gray-700 px-2 py-1 rounded">
+                                                                👤 {users.find(u => u.id === app.userId)?.username || 'Unknown User'}
+                                                            </span>
+                                                            <button onClick={() => handleCreateUserFromApp(app)} className="text-yellow-400 hover:text-yellow-300 text-xs">
+                                                                เปลี่ยน
+                                                            </button>
+                                                        </>
+                                                    ) : (
+                                                        <button onClick={() => handleCreateUserFromApp(app)} className="text-blue-400 hover:text-blue-300 text-xs border border-blue-500 px-2 py-1 rounded">
+                                                            สร้าง User
+                                                        </button>
+                                                    )}
                                                 </td>
                                             </tr>
                                         ))
@@ -954,6 +1200,9 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                         ตั้งค่าวันลา
                                     </button>
                                 )}
+                                <button onClick={handleAddLeaveRequest} className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg text-sm">
+                                    + เพิ่มใบลา
+                                </button>
                                 <button onClick={() => exportToExcel(leaveRequests, 'Leave_Requests')} className="bg-green-800 hover:bg-green-900 px-4 py-2 rounded-lg text-sm flex items-center gap-2">
                                     📊 Export Excel
                                 </button>
@@ -1004,7 +1253,7 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                                 <td className="p-3">
                                                     {new Date(l.startDate).toLocaleDateString('th-TH')} - {new Date(l.endDate).toLocaleDateString('th-TH')}
                                                 </td>
-                                                <td className="p-3 font-medium text-white">{l.employeeName}</td>
+                                                <td className="p-3 font-medium text-white">{(users.find(u => u.id === l.userId)?.username) || l.employeeName}</td>
                                                 <td className="p-3">{l.type}</td>
                                                 <td className="p-3">{l.reason}</td>
                                                 <td className="p-3 font-semibold">{remainingDays > 0 ? remainingDays : 0} วัน</td>
@@ -1012,18 +1261,7 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                                     {isEditMode ? (
                                                         <select
                                                             value={l.status}
-                                                            onChange={(e) => {
-                                                                const newStatus = e.target.value as any;
-                                                                setLeaveRequests(prev => prev.map(req => req.id === l.id ? { ...req, status: newStatus } : req));
-                                                                Swal.fire({
-                                                                    toast: true,
-                                                                    position: 'top-end',
-                                                                    icon: 'success',
-                                                                    title: 'อัปเดตสถานะแล้ว',
-                                                                    showConfirmButton: false,
-                                                                    timer: 1000
-                                                                });
-                                                            }}
+                                                            onChange={(e) => handleLeaveStatusChange(l.id, e.target.value as any)}
                                                             className="bg-gray-700 text-white border border-gray-600 rounded px-2 py-1 text-xs focus:outline-none focus:border-blue-500"
                                                         >
                                                             <option value="pending">รออนุมัติ</option>
