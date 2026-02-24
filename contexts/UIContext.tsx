@@ -50,6 +50,8 @@ interface UIContextType {
     setOrderForModal: React.Dispatch<React.SetStateAction<ActiveOrder | CompletedOrder | null>>;
     leaveRequestInitialDate: Date | null;
     setLeaveRequestInitialDate: React.Dispatch<React.SetStateAction<Date | null>>;
+    preselectedTable: { tableId: number, floor: string } | null;
+    setPreselectedTable: React.Dispatch<React.SetStateAction<{ tableId: number, floor: string } | null>>;
 
     // Helper Functions
     openModal: (modalName: keyof ModalState) => void;
@@ -125,6 +127,7 @@ export const UIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const [orderItemToEdit, setOrderItemToEdit] = useState<OrderItem | null>(null); 
     const [orderForModal, setOrderForModal] = useState<ActiveOrder | CompletedOrder | null>(null);
     const [leaveRequestInitialDate, setLeaveRequestInitialDate] = useState<Date | null>(null);
+    const [preselectedTable, setPreselectedTable] = useState<{ tableId: number, floor: string } | null>(null);
 
     const openModal = (modalName: keyof ModalState) => {
         setModalState(prev => ({ ...prev, [modalName]: true }));
@@ -157,6 +160,7 @@ export const UIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
             orderItemToEdit, setOrderItemToEdit,
             orderForModal, setOrderForModal,
             leaveRequestInitialDate, setLeaveRequestInitialDate,
+            preselectedTable, setPreselectedTable,
             openModal, closeModal, closeAllModals
         }}>
             {children}

@@ -4,6 +4,8 @@ import type { Table, ActiveOrder, User, PrinterConfig, Branch } from '../types';
 import { printerService } from '../services/printerService';
 import Swal from 'sweetalert2';
 
+import { useUI } from '../contexts/UIContext';
+
 interface TableCardProps {
     table: Table;
     orders: ActiveOrder[];
@@ -31,6 +33,7 @@ const TableCard: React.FC<TableCardProps> = ({
     logoUrl,
     qrCodeUrl
 }) => {
+    const { setPreselectedTable } = useUI();
     const isOccupied = orders.length > 0;
     const hasSplitBill = orders.some(o => o.isSplitChild || o.splitCount);
     const mainOrder = orders[0];
@@ -308,6 +311,7 @@ const TableCard: React.FC<TableCardProps> = ({
                         <button
                             onClick={(e) => {
                                 e.stopPropagation();
+                                setPreselectedTable({ tableId: table.id, floor: table.floor });
                                 onTableSelect(table.id);
                             }}
                             className="w-full mt-2 bg-green-500 hover:bg-green-600 text-white font-bold py-1.5 px-3 rounded-lg flex items-center justify-center gap-2 transition-colors text-sm shadow-sm"

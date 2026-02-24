@@ -21,17 +21,81 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
         timeRecords, setTimeRecords,
         payrollRecords, setPayrollRecords,
         leaveRequests, setLeaveRequests,
-        users, branchId
+        users, setUsers, branchId,
+        jobPositions, setJobPositions
     } = useData();
 
     const [activeTab, setActiveTab] = useState<HRTab>(initialTab);
     
+    const handleManagePositions = () => {
+        const positionList = jobPositions.map(p => `<li>${p} <button class='swal-delete-pos' data-pos='${p}'>🗑️</button></li>`).join('');
+        Swal.fire({
+            title: 'จัดการตำแหน่ง',
+            html: `
+                <input id='swal-new-pos' class='swal2-input' placeholder='เพิ่มตำแหน่งใหม่'>
+                <button id='swal-add-pos' class='swal2-confirm swal2-styled'>เพิ่ม</button>
+                <ul class='text-left mt-4'>${positionList}</ul>
+            `,
+            didOpen: () => {
+                document.getElementById('swal-add-pos')?.addEventListener('click', () => {
+                    const newPos = (document.getElementById('swal-new-pos') as HTMLInputElement).value;
+                    if (newPos && !jobPositions.includes(newPos)) {
+                        setJobPositions(prev => [...prev, newPos]);
+                        Swal.close();
+                        handleManagePositions(); // Re-open to show updated list
+                    }
+                });
+                document.querySelectorAll('.swal-delete-pos').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        const posToDelete = (e.currentTarget as HTMLElement).dataset.pos;
+                        setJobPositions(prev => prev.filter(p => p !== posToDelete));
+                        Swal.close();
+                        handleManagePositions(); // Re-open to show updated list
+                    });
+                });
+            },
+            showConfirmButton: false
+        });
+    };
+
     // Sync activeTab with initialTab if it changes
     React.useEffect(() => {
         setActiveTab(initialTab);
     }, [initialTab]);
 
     const [selectedItems, setSelectedItems] = useState<number[]>([]);
+
+    const handleOpenLeaveQuotaModal = () => {
+        const employeeOptions = users
+            .filter(u => u.role === 'staff' || u.role === 'kitchen' || u.role === 'branch-admin')
+            .map(u => `<option value="${u.id}">${u.username}</option>`)
+            .join('');
+
+        Swal.fire({
+            title: 'ตั้งค่าโควต้าวันลา',
+            html: `
+                <select id="swal-employee-select" class="swal2-input">${employeeOptions}</select>
+                <input id="swal-sick-days" type="number" class="swal2-input" placeholder="วันลาป่วย">
+                <input id="swal-personal-days" type="number" class="swal2-input" placeholder="วันลากิจ">
+                <input id="swal-vacation-days" type="number" class="swal2-input" placeholder="วันลาพักร้อน">
+            `,
+            focusConfirm: false,
+            preConfirm: () => {
+                return {
+                    userId: parseInt((document.getElementById('swal-employee-select') as HTMLSelectElement).value),
+                    sick: parseInt((document.getElementById('swal-sick-days') as HTMLInputElement).value) || 0,
+                    personal: parseInt((document.getElementById('swal-personal-days') as HTMLInputElement).value) || 0,
+                    vacation: parseInt((document.getElementById('swal-vacation-days') as HTMLInputElement).value) || 0,
+                }
+            }
+        }).then((result) => {
+            if (result.isConfirmed) {
+                const { userId, ...quotas } = result.value;
+                setUsers(prevUsers => prevUsers.map(u => u.id === userId ? { ...u, leaveQuotas: quotas } : u));
+                Swal.fire('สำเร็จ', 'ตั้งค่าโควต้าวันลาเรียบร้อยแล้ว', 'success');
+            }
+        });
+    };
 
     // Reset selection when tab changes
     useMemo(() => {
@@ -538,7 +602,23 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                                         />
                                                     </td>
                                                 )}
-                                                <td className="p-3">{new Date(app.applicationDate).toLocaleDateString('th-TH')}</td>
+                                                <td className="p-3">
+                                                    {isEditMode ? (
+                                                        <input 
+                                                            type="date" 
+                                                            value={new Date(app.applicationDate).toISOString().split('T')[0]} 
+                                                            onChange={(e) => {
+                                                                const newDate = new Date(e.target.value).getTime();
+                                                                setJobApplications(prev => prev.map(a => 
+                                                                    a.id === app.id ? { ...a, applicationDate: newDate } : a
+                                                                ));
+                                                            }}
+                                                            className="bg-gray-700 text-white border border-gray-600 rounded px-2 py-1 text-xs focus:outline-none focus:border-blue-500"
+                                                        />
+                                                    ) : (
+                                                        new Date(app.applicationDate).toLocaleDateString('th-TH')
+                                                    )}
+                                                </td>
                                                 <td className="p-3 font-medium text-white">{app.fullName}</td>
                                                 <td className="p-3">{app.position}</td>
                                                 <td className="p-3">{app.expectedSalary.toLocaleString()}</td>
@@ -599,6 +679,9 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                         🗑️ ลบที่เลือก ({selectedItems.length})
                                     </button>
                                 )}
+                                <button onClick={handleManagePositions} className="bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded-lg text-sm">
+                                    จัดการตำแหน่ง
+                                </button>
                                 <button onClick={handleCreateContract} className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm">
                                     + สร้างสัญญา
                                 </button>
@@ -635,9 +718,42 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                                         />
                                                     </td>
                                                 )}
-                                                <td className="p-3">{new Date(c.startDate).toLocaleDateString('th-TH')}</td>
+                                                <td className="p-3">
+                                                    {isEditMode ? (
+                                                        <input 
+                                                            type="date" 
+                                                            value={new Date(c.startDate).toISOString().split('T')[0]} 
+                                                            onChange={(e) => {
+                                                                const newDate = new Date(e.target.value).getTime();
+                                                                setEmploymentContracts(prev => prev.map(contract => 
+                                                                    contract.id === c.id ? { ...contract, startDate: newDate } : contract
+                                                                ));
+                                                            }}
+                                                            className="bg-gray-700 text-white border border-gray-600 rounded px-2 py-1 text-xs focus:outline-none focus:border-blue-500"
+                                                        />
+                                                    ) : (
+                                                        new Date(c.startDate).toLocaleDateString('th-TH')
+                                                    )}
+                                                </td>
                                                 <td className="p-3 font-medium text-white">{c.employeeName}</td>
-                                                <td className="p-3">{c.position}</td>
+                                                <td className="p-3">
+                                                    {isEditMode ? (
+                                                        <select 
+                                                            value={c.position}
+                                                            onChange={(e) => {
+                                                                const newPosition = e.target.value;
+                                                                setEmploymentContracts(prev => prev.map(contract => 
+                                                                    contract.id === c.id ? { ...contract, position: newPosition } : contract
+                                                                ));
+                                                            }}
+                                                            className="bg-gray-700 text-white border border-gray-600 rounded px-2 py-1 text-xs focus:outline-none focus:border-blue-500"
+                                                        >
+                                                            {jobPositions.map(pos => <option key={pos} value={pos}>{pos}</option>)}
+                                                        </select>
+                                                    ) : (
+                                                        c.position
+                                                    )}
+                                                </td>
                                                 <td className="p-3">{c.contractType}</td>
                                                 <td className="p-3">{c.salary.toLocaleString()}</td>
                                                 <td className="p-3">
@@ -833,6 +949,11 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                         🗑️ ลบที่เลือก ({selectedItems.length})
                                     </button>
                                 )}
+                                {isEditMode && (
+                                    <button onClick={handleOpenLeaveQuotaModal} className="bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-lg text-sm">
+                                        ตั้งค่าวันลา
+                                    </button>
+                                )}
                                 <button onClick={() => exportToExcel(leaveRequests, 'Leave_Requests')} className="bg-green-800 hover:bg-green-900 px-4 py-2 rounded-lg text-sm flex items-center gap-2">
                                     📊 Export Excel
                                 </button>
@@ -847,14 +968,29 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                         <th className="p-3">พนักงาน</th>
                                         <th className="p-3">ประเภท</th>
                                         <th className="p-3">เหตุผล</th>
+                                        <th className="p-3">วันลาคงเหลือ</th>
                                         <th className="p-3">สถานะ</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-700">
                                     {leaveRequests.length === 0 ? (
-                                        <tr><td colSpan={isEditMode ? 6 : 5} className="p-4 text-center text-gray-500">ไม่พบข้อมูล</td></tr>
+                                        <tr><td colSpan={isEditMode ? 7 : 6} className="p-4 text-center text-gray-500">ไม่พบข้อมูล</td></tr>
                                     ) : (
-                                        leaveRequests.map(l => (
+                                        leaveRequests.map(l => {
+                                            const user = users.find(u => u.id === l.userId);
+                                            const quotas = user?.leaveQuotas ?? { sick: 0, personal: 0, vacation: 0 };
+                                            const usedDays = leaveRequests
+                                                .filter(req => req.userId === l.userId && req.type === l.type && req.status === 'approved')
+                                                .reduce((acc, req) => {
+                                                    const start = new Date(req.startDate);
+                                                    const end = new Date(req.endDate);
+                                                    const diffTime = Math.abs(end.getTime() - start.getTime());
+                                                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+                                                    return acc + diffDays;
+                                                }, 0);
+                                            const remainingDays = quotas[l.type as keyof typeof quotas] - usedDays;
+
+                                            return (
                                             <tr key={l.id} className="hover:bg-gray-700/50">
                                                 {isEditMode && (
                                                     <td className="p-3">
@@ -868,20 +1004,44 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                                 <td className="p-3">
                                                     {new Date(l.startDate).toLocaleDateString('th-TH')} - {new Date(l.endDate).toLocaleDateString('th-TH')}
                                                 </td>
-                                                <td className="p-3 font-medium text-white">{l.username}</td>
+                                                <td className="p-3 font-medium text-white">{l.employeeName}</td>
                                                 <td className="p-3">{l.type}</td>
                                                 <td className="p-3">{l.reason}</td>
+                                                <td className="p-3 font-semibold">{remainingDays > 0 ? remainingDays : 0} วัน</td>
                                                 <td className="p-3">
-                                                    <span className={`px-2 py-1 rounded text-xs ${
-                                                        l.status === 'approved' ? 'bg-green-900 text-green-300' :
-                                                        l.status === 'rejected' ? 'bg-red-900 text-red-300' :
-                                                        'bg-yellow-900 text-yellow-300'
-                                                    }`}>
-                                                        {l.status}
-                                                    </span>
+                                                    {isEditMode ? (
+                                                        <select
+                                                            value={l.status}
+                                                            onChange={(e) => {
+                                                                const newStatus = e.target.value as any;
+                                                                setLeaveRequests(prev => prev.map(req => req.id === l.id ? { ...req, status: newStatus } : req));
+                                                                Swal.fire({
+                                                                    toast: true,
+                                                                    position: 'top-end',
+                                                                    icon: 'success',
+                                                                    title: 'อัปเดตสถานะแล้ว',
+                                                                    showConfirmButton: false,
+                                                                    timer: 1000
+                                                                });
+                                                            }}
+                                                            className="bg-gray-700 text-white border border-gray-600 rounded px-2 py-1 text-xs focus:outline-none focus:border-blue-500"
+                                                        >
+                                                            <option value="pending">รออนุมัติ</option>
+                                                            <option value="approved">อนุมัติ</option>
+                                                            <option value="rejected">ไม่อนุมัติ</option>
+                                                        </select>
+                                                    ) : (
+                                                        <span className={`px-2 py-1 rounded text-xs ${
+                                                            l.status === 'approved' ? 'bg-green-900 text-green-300' :
+                                                            l.status === 'rejected' ? 'bg-red-900 text-red-300' :
+                                                            'bg-yellow-900 text-yellow-300'
+                                                        }`}>
+                                                            {l.status}
+                                                        </span>
+                                                    )}
                                                 </td>
                                             </tr>
-                                        ))
+                                        )})
                                     )}
                                 </tbody>
                             </table>

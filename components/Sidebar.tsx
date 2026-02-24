@@ -5,6 +5,7 @@ import { OrderListItem } from './OrderListItem';
 import { NumpadModal } from './NumpadModal'; // Import NumpadModal
 import Swal from 'sweetalert2';
 import { ThaiVirtualKeyboard } from './ThaiVirtualKeyboard';
+import { useUI } from '../contexts/UIContext';
 
 interface SidebarProps {
     currentOrderItems: OrderItem[];
@@ -85,6 +86,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
     onToggleEditMode,
     onOpenSettings
 }) => {
+    const { preselectedTable, setPreselectedTable } = useUI();
+
     // We treat "isLineMan" as "isDelivery" in the backend logic, so we keep the name for compatibility
     // but locally we track which provider is selected.
     const [isDelivery, setIsDelivery] = useState(false);
@@ -123,6 +126,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
             return a.name.localeCompare(b.name);
         });
     }, [tables, selectedFloor]);
+
+    React.useEffect(() => {
+        if (preselectedTable) {
+            onFloorChange(preselectedTable.floor);
+            onSelectTable(preselectedTable.tableId);
+            // Clear the preselection after using it
+            setPreselectedTable(null);
+        }
+    }, [preselectedTable, onFloorChange, onSelectTable, setPreselectedTable]);
 
     const handleProfileClick = () => {
         Swal.fire({

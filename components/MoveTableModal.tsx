@@ -7,7 +7,7 @@ interface MoveTableModalProps {
     order: ActiveOrder | null;
     tables: Table[];
     activeOrders: ActiveOrder[];
-    onConfirmMove: (orderId: number, newTableId: number) => void;
+    onConfirmMove: (orderId: number, newTableId: number, onClose: () => void) => void;
     floors: string[];
 }
 
@@ -55,7 +55,7 @@ export const MoveTableModal: React.FC<MoveTableModalProps> = ({
 
     const handleConfirm = () => {
         if (selectedTableId !== null) {
-            onConfirmMove(order.id, selectedTableId);
+            onConfirmMove(order.id, selectedTableId, onClose);
         }
     };
 

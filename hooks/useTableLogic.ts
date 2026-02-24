@@ -64,13 +64,13 @@ export const useTableLogic = () => {
         }); 
     };
 
-    const handleConfirmMoveTable = async (orderId: number, newTableId: number) => { 
+    const handleConfirmMoveTable = async (orderId: number, newTableId: number, onClose: () => void) => { 
         if (!navigator.onLine) return; 
         const newTable = tables.find(t => t.id === newTableId); 
         if (!newTable) return; 
         await activeOrdersActions.update(orderId, { tableId: newTable.id, tableName: newTable.name, floor: newTable.floor }); 
         Swal.fire({ icon: 'success', title: 'ย้ายโต๊ะสำเร็จ', timer: 1500, showConfirmButton: false }); 
-        handleModalClose(); 
+        onClose(); // Close the modal
     };
 
     const handleGeneratePin = (tableId: number) => { 

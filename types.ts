@@ -247,6 +247,7 @@ export interface LeaveRequest {
     id: number;
     userId: number;
     username: string;
+    employeeName: string; // Added to store the employee's name directly
     branchId: number; // Added to track branch
     startDate: number; // timestamp
     endDate: number; // timestamp

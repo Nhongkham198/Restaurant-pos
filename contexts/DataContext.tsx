@@ -89,6 +89,8 @@ interface DataContextType {
     setTimeRecords: React.Dispatch<React.SetStateAction<TimeRecord[]>>;
     payrollRecords: PayrollRecord[];
     setPayrollRecords: React.Dispatch<React.SetStateAction<PayrollRecord[]>>;
+    jobPositions: string[];
+    setJobPositions: React.Dispatch<React.SetStateAction<string[]>>;
 
     // Settings
     logoUrl: string | null;
@@ -287,6 +289,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const [employmentContracts, setEmploymentContracts] = useFirestoreSync<EmploymentContract[]>(heavyDataBranchId, 'employmentContracts', []);
     const [timeRecords, setTimeRecords] = useFirestoreSync<TimeRecord[]>(heavyDataBranchId, 'timeRecords', []);
     const [payrollRecords, setPayrollRecords] = useFirestoreSync<PayrollRecord[]>(heavyDataBranchId, 'payrollRecords', []);
+    const [jobPositions, setJobPositions] = useFirestoreSync<string[]>(branchId, 'jobPositions', [], ['แม่ครัว', 'พนักงานเตรียมครัว', 'พนักงานทั่วไป']);
 
     // --- SETTINGS ---
     const [logoUrl, setLogoUrl] = useFirestoreSync<string | null>(branchId, 'logoUrl', null);
@@ -326,7 +329,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             orderCounter, setOrderCounter, staffCalls, setStaffCalls, leaveRequests, setLeaveRequests,
             
             jobApplications, setJobApplications, employmentContracts, setEmploymentContracts,
-            timeRecords, setTimeRecords, payrollRecords, setPayrollRecords,
+            timeRecords, setTimeRecords, payrollRecords, setPayrollRecords, jobPositions, setJobPositions,
 
             logoUrl, setLogoUrl, appLogoUrl, setAppLogoUrl, restaurantName, setRestaurantName,
             restaurantAddress, setRestaurantAddress, restaurantPhone, setRestaurantPhone, taxId, setTaxId,
