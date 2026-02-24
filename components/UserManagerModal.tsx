@@ -126,7 +126,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
         Swal.fire({
             title: 'เปลี่ยนรูปโปรไฟล์',
             text: 'กรุณาวาง URL ของรูปภาพใหม่:',
-            input: 'url',
+            input: 'text',
             inputValue: formData.profilePictureUrl || '',
             inputPlaceholder: 'https://example.com/image.png',
             showCancelButton: true,
