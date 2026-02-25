@@ -977,7 +977,29 @@ export const App: React.FC = () => {
     if (!selectedBranch) return <div>Error: No branch selected. Please log out and try again.</div>
 
     // ... (Keep MobileHeader component) ...
-    const MobileHeader = ({ user, restaurantName, onOpenSearch, onProfileClick, isOrderNotificationsEnabled, onToggleOrderNotifications, onOpenSettings }: { user: User, restaurantName: string, onOpenSearch: () => void, onProfileClick: () => void, isOrderNotificationsEnabled: boolean, onToggleOrderNotifications: () => void, onOpenSettings: () => void }) => (
+    const MobileHeader = ({ 
+        user, 
+        restaurantName, 
+        onOpenSearch, 
+        onProfileClick, 
+        isOrderNotificationsEnabled, 
+        onToggleOrderNotifications, 
+        onOpenSettings,
+        isEditMode,
+        onToggleEditMode,
+        currentView
+    }: { 
+        user: User, 
+        restaurantName: string, 
+        onOpenSearch: () => void, 
+        onProfileClick: () => void, 
+        isOrderNotificationsEnabled: boolean, 
+        onToggleOrderNotifications: () => void, 
+        onOpenSettings: () => void,
+        isEditMode: boolean,
+        onToggleEditMode: () => void,
+        currentView: View
+    }) => (
         <header className="bg-gray-900 text-white p-3 flex justify-between items-center flex-shrink-0 md:hidden z-30 shadow-lg relative">
             <div className="flex items-center gap-3 cursor-pointer" onClick={onProfileClick}>
                 <img src={user.profilePictureUrl || "https://img.icons8.com/fluency/48/user-male-circle.png"} alt={user.username} className="h-10 w-10 rounded-full object-cover border-2 border-gray-700"/>
@@ -988,16 +1010,35 @@ export const App: React.FC = () => {
             </div>
             <h1 className="text-xl font-bold text-red-500 absolute left-1/2 -translate-x-1/2 whitespace-nowrap hidden sm:block">{restaurantName}</h1>
             <div className="flex items-center gap-3">
+                {/* Edit Mode Toggle */}
+                {['admin', 'branch-admin'].includes(user.role) && ['history', 'hr', 'hr-payroll'].includes(currentView) && (
+                    <label className="relative inline-flex items-center cursor-pointer mr-1" title="โหมดแก้ไข">
+                        <input type="checkbox" checked={isEditMode} onChange={onToggleEditMode} className="sr-only peer" />
+                        <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-yellow-500"></div>
+                    </label>
+                )}
                 <button onClick={onOpenSettings} className="p-2 text-gray-300 rounded-full hover:bg-gray-700" aria-label="Settings">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                     </svg>
                 </button>
-                <label className="relative inline-flex items-center cursor-pointer" title="เปิด/ปิด เสียงแจ้งเตือน">
-                    <input type="checkbox" checked={isOrderNotificationsEnabled} onChange={onToggleOrderNotifications} className="sr-only peer" />
-                    <div className="w-9 h-5 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-green-500"></div>
-                </label>
+                <button 
+                    onClick={onToggleOrderNotifications} 
+                    className={`p-2 rounded-full hover:bg-gray-700 transition-colors ${isOrderNotificationsEnabled ? 'text-yellow-400' : 'text-gray-400'}`} 
+                    title={isOrderNotificationsEnabled ? "ปิดเสียงแจ้งเตือน" : "เปิดเสียงแจ้งเตือน"}
+                >
+                    {isOrderNotificationsEnabled ? (
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
+                            <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z" />
+                        </svg>
+                    ) : (
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3l18 18" />
+                        </svg>
+                    )}
+                </button>
                 <button onClick={onOpenSearch} className="p-2 text-gray-300 rounded-full hover:bg-gray-700" aria-label="Search Menu">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
                 </button>
@@ -1121,6 +1162,9 @@ export const App: React.FC = () => {
                                         isOrderNotificationsEnabled={isOrderNotificationsEnabled}
                                         onToggleOrderNotifications={toggleOrderNotifications}
                                         onOpenSettings={() => setModalState(prev => ({ ...prev, isSettings: true }))}
+                                        isEditMode={isEditMode}
+                                        onToggleEditMode={() => setIsEditMode(!isEditMode)}
+                                        currentView={currentView}
                                     />
                                     <div className="flex-1 overflow-y-auto">
                                         <Suspense fallback={<PageLoading />}>
