@@ -635,57 +635,121 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
 
                      if (salary && dateVal && userId) {
                          const payDate = new Date(dateVal);
-                         const startOfWeek = new Date(payDate);
-                         const endOfWeek = new Date(payDate);
-                         endOfWeek.setDate(payDate.getDate() + 9); // 10 days period (Start + 9 days)
+                         
+                         // Define Ranges
+                         // Backward: 10 days before payDate (inclusive start, exclusive end of payDate to avoid double count)
+                         const backStart = new Date(payDate);
+                         backStart.setDate(payDate.getDate() - 10);
+                         const backEnd = new Date(payDate); // Up to payDate (exclusive in logic below)
 
-                         // Check for unpaid leave in this week using userId
+                         // Forward: 10 days from payDate (inclusive start)
+                         const forwardStart = new Date(payDate);
+                         const forwardEnd = new Date(payDate);
+                         forwardEnd.setDate(payDate.getDate() + 10);
+
+                         // Get all approved unpaid leaves for this user
                          const unpaidLeaves = leaveRequests.filter(l => 
                              l.userId === userId && 
                              l.type === 'leave-without-pay' && 
                              l.status === 'approved'
                          );
 
-                         let totalUnpaidDays = 0;
-                         
+                         let retroactiveDays = 0;
+                         let currentDays = 0;
+                         const retroactiveLeavesList: LeaveRequest[] = [];
+                         const currentLeavesList: LeaveRequest[] = [];
+
                          unpaidLeaves.forEach(l => {
                              const leaveStart = new Date(l.startDate);
                              const leaveEnd = new Date(l.endDate);
 
-                             // Check overlap with the pay week
-                             if (leaveStart <= endOfWeek && leaveEnd >= startOfWeek) {
-                                 const overlapStart = leaveStart < startOfWeek ? startOfWeek : leaveStart;
-                                 const overlapEnd = leaveEnd > endOfWeek ? endOfWeek : leaveEnd;
-                                 const diffTime = Math.abs(overlapEnd.getTime() - overlapStart.getTime());
-                                 const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1; 
-                                 totalUnpaidDays += diffDays;
+                             // 1. Check Retroactive Overlap [backStart, payDate)
+                             // We check if any part of the leave falls in the backward window
+                             // Logic: Leave overlaps if leaveStart < backEnd && leaveEnd >= backStart
+                             // But we only count days strictly within the window and BEFORE payDate
+                             if (leaveStart < backEnd && leaveEnd >= backStart) {
+                                 // Calculate intersection
+                                 const overlapStart = leaveStart < backStart ? backStart : leaveStart;
+                                 const overlapEnd = leaveEnd >= backEnd ? new Date(backEnd.getTime() - 1) : leaveEnd; // Limit to just before payDate
+                                 
+                                 // Ensure valid range
+                                 if (overlapStart <= overlapEnd) {
+                                     const diffTime = Math.abs(overlapEnd.getTime() - overlapStart.getTime());
+                                     const days = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
+                                     retroactiveDays += days;
+                                     if (!retroactiveLeavesList.includes(l)) retroactiveLeavesList.push(l);
+                                 }
+                             }
+
+                             // 2. Check Forward Overlap [payDate, forwardEnd]
+                             if (leaveStart <= forwardEnd && leaveEnd >= forwardStart) {
+                                 const overlapStart = leaveStart < forwardStart ? forwardStart : leaveStart;
+                                 const overlapEnd = leaveEnd > forwardEnd ? forwardEnd : leaveEnd;
+                                 
+                                 if (overlapStart <= overlapEnd) {
+                                     const diffTime = Math.abs(overlapEnd.getTime() - overlapStart.getTime());
+                                     const days = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
+                                     currentDays += days;
+                                     if (!currentLeavesList.includes(l)) currentLeavesList.push(l);
+                                 }
                              }
                          });
 
                          const dailyRate = salary / 26; // Rule: Salary / 26
                          const weeklySalary = salary / 4; // Rule: Salary / 4
-                         const deduction = dailyRate * totalUnpaidDays;
-                         const netPay = Math.max(0, weeklySalary - deduction);
+                         
+                         const retroactiveDeduction = dailyRate * retroactiveDays;
+                         const currentDeduction = dailyRate * currentDays;
+                         const totalDeduction = retroactiveDeduction + currentDeduction;
+                         
+                         const netPay = Math.max(0, weeklySalary - totalDeduction);
 
-                         if (totalUnpaidDays > 0) {
-                             infoDiv.innerHTML = `
-                                 <p class="text-red-500 font-bold">พบการลาไม่รับเงินเดือน ${totalUnpaidDays} วัน (ในรอบ 10 วันนี้)</p>
-                                 <p class="text-xs text-gray-400">User: ${usernameInput.value}</p>
-                                 <p class="text-xs text-gray-400">ช่วงเวลา: ${startOfWeek.toLocaleDateString('th-TH')} - ${endOfWeek.toLocaleDateString('th-TH')}</p>
-                                 <p class="text-xs text-gray-400">สูตร: (เงินเดือน / 26) x วันลา</p>
-                                 <p>เงินเดือนรายสัปดาห์ (หาร 4): ${weeklySalary.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท</p>
-                                 <p>หัก: ${totalUnpaidDays} วัน x ${dailyRate.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} = ${deduction.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท</p>
-                                 <p class="font-bold text-green-500 text-lg mt-1">ยอดจ่ายสุทธิ: ${netPay.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท</p>
+                         let htmlContent = '';
+
+                         // Retroactive Info
+                         if (retroactiveDays > 0) {
+                             htmlContent += `
+                                 <div class="mb-2 p-2 bg-red-900/30 rounded border border-red-500/50">
+                                     <p class="text-red-400 font-bold text-sm">⚠️ พบการลาย้อนหลัง ${retroactiveDays} วัน</p>
+                                     <p class="text-xs text-gray-400">ช่วงเวลา: ${backStart.toLocaleDateString('th-TH')} - ${backEnd.toLocaleDateString('th-TH')}</p>
+                                     <ul class="text-xs text-gray-300 list-disc pl-4 mt-1">
+                                         ${retroactiveLeavesList.map(l => `<li>${new Date(l.startDate).toLocaleDateString('th-TH')} (${l.reason})</li>`).join('')}
+                                     </ul>
+                                     <p class="text-sm font-bold text-red-300 mt-1">หักย้อนหลัง: ${retroactiveDeduction.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท</p>
+                                 </div>
                              `;
-                             infoDiv.classList.remove('hidden');
-                         } else {
-                             infoDiv.innerHTML = `
-                                <p class="text-green-500">ไม่พบการลาแบบไม่รับเงินเดือนในรอบ 10 วันนี้ (User: ${usernameInput.value})</p>
-                                <p class="text-xs text-gray-400">ช่วงเวลา: ${startOfWeek.toLocaleDateString('th-TH')} - ${endOfWeek.toLocaleDateString('th-TH')}</p>
-                                <p>เงินเดือนรายสัปดาห์ (หาร 4): ${weeklySalary.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท</p>
-                             `;
-                             infoDiv.classList.remove('hidden');
                          }
+
+                         // Current Period Info
+                         if (currentDays > 0) {
+                             htmlContent += `
+                                 <div class="mb-2">
+                                     <p class="text-red-500 font-bold">พบการลาในรอบปัจจุบัน ${currentDays} วัน</p>
+                                     <p class="text-xs text-gray-400">ช่วงเวลา: ${forwardStart.toLocaleDateString('th-TH')} - ${forwardEnd.toLocaleDateString('th-TH')}</p>
+                                     <p>หัก (รอบนี้): ${currentDays} วัน x ${dailyRate.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} = ${currentDeduction.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท</p>
+                                 </div>
+                             `;
+                         } else {
+                             htmlContent += `
+                                <div class="mb-2">
+                                    <p class="text-green-500">ไม่พบการลาในรอบปัจจุบัน (10 วันข้างหน้า)</p>
+                                    <p class="text-xs text-gray-400">ช่วงเวลา: ${forwardStart.toLocaleDateString('th-TH')} - ${forwardEnd.toLocaleDateString('th-TH')}</p>
+                                </div>
+                             `;
+                         }
+
+                         htmlContent += `<hr class="my-2 border-gray-600">`;
+
+                         // Summary
+                         htmlContent += `
+                             <p class="mt-2">เงินเดือนรายสัปดาห์ (หาร 4): ${weeklySalary.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท</p>
+                             ${totalDeduction > 0 ? `<p class="text-red-400">รวมหักทั้งหมด: -${totalDeduction.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท</p>` : ''}
+                             <p class="font-bold text-green-500 text-lg mt-1">ยอดจ่ายสุทธิ: ${netPay.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท</p>
+                         `;
+
+                         infoDiv.innerHTML = htmlContent;
+                         infoDiv.classList.remove('hidden');
+                         
                          baseInput.value = netPay.toFixed(2);
                      } else if (salary) {
                          baseInput.value = (salary / 4).toFixed(2); // Default to weekly salary
