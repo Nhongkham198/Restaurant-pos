@@ -52,8 +52,8 @@ export function useFirestoreSync<T>(
                 if (docSnapshot.exists) {
                     const data = docSnapshot.data();
                     if (data && typeof data.value !== 'undefined') {
-                        // Special override for jobApplications and employmentContracts to ensure default data is always correct
-                        if (['jobApplications', 'employmentContracts'].includes(collectionKey) && fallbackValueRef.current && !hasOverriddenRef.current) {
+                        // Special override disabled to allow user edits
+                        if ([].includes(collectionKey) && fallbackValueRef.current && !hasOverriddenRef.current) {
                             // This is a measure to force the database to update
                             // with the correct default data set if it's stale.
                             const dbValueJSON = JSON.stringify(data.value);

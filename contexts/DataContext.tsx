@@ -286,8 +286,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const [leaveRequests, setLeaveRequests] = useFirestoreSync<LeaveRequest[]>(shouldLoadHeavyData ? null : 'SKIP', 'leaveRequests', [], DEFAULT_LEAVE_REQUESTS);
 
     // --- HR MANAGEMENT ---
-    const [jobApplications, setJobApplications] = useFirestoreSync<JobApplication[]>(heavyDataBranchId, 'jobApplications', [], DEFAULT_JOB_APPLICATIONS);
-    const [employmentContracts, setEmploymentContracts] = useFirestoreSync<EmploymentContract[]>(heavyDataBranchId, 'employmentContracts', [], DEFAULT_EMPLOYMENT_CONTRACTS);
+    const [jobApplications, setJobApplications] = useFirestoreSync<JobApplication[]>(heavyDataBranchId, 'jobApplications', [], []);
+    const [employmentContracts, setEmploymentContracts] = useFirestoreSync<EmploymentContract[]>(heavyDataBranchId, 'employmentContracts', [], []);
     const [timeRecords, setTimeRecords] = useFirestoreSync<TimeRecord[]>(heavyDataBranchId, 'timeRecords', []);
     const [payrollRecords, setPayrollRecords] = useFirestoreSync<PayrollRecord[]>(heavyDataBranchId, 'payrollRecords', []);
     const [jobPositions, setJobPositions] = useFirestoreSync<string[]>(branchId, 'jobPositions', [], ['แม่ครัว', 'พนักงานเตรียมครัว', 'พนักงานทั่วไป']);
