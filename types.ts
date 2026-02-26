@@ -386,4 +386,5 @@ export interface PayrollRecord {
     totalNetSalary: number;
     paymentDate?: number; // timestamp
     status: 'pending' | 'paid';
+    slipUrl?: string; // Added: Payment slip URL
 }

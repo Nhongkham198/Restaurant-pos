@@ -608,8 +608,11 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                     </select>
                     <input id="swal-pay-username" class="swal2-input m-0 w-1/3 bg-gray-100" placeholder="User" readonly>
                 </div>
-                <input id="swal-pay-date" type="date" class="swal2-input" placeholder="เลือกวันที่จ่าย">
-                <input id="swal-pay-base" type="number" class="swal2-input" placeholder="ยอดจ่ายสุทธิ" readonly>
+                <div class="flex gap-2 mb-3">
+                    <input id="swal-pay-slip" class="swal2-input m-0 flex-grow" placeholder="ลิงก์รูปภาพสลิป (URL)">
+                    <input id="swal-pay-date" type="date" class="swal2-input m-0 w-1/3" placeholder="เลือกวันที่จ่าย">
+                </div>
+                <input id="swal-pay-base" type="text" class="swal2-input" placeholder="ยอดจ่ายสุทธิ" readonly>
                 <div id="swal-pay-calc-info" class="text-left text-sm text-gray-500 mt-2 p-3 bg-gray-700 rounded-lg hidden"></div>
             `,
             didOpen: () => {
@@ -619,6 +622,10 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                  const dateInput = document.getElementById('swal-pay-date') as HTMLInputElement;
                  const infoDiv = document.getElementById('swal-pay-calc-info') as HTMLDivElement;
                  
+                 const formatNumber = (num: number) => {
+                     return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                 };
+
                  const calculateDeductions = () => {
                      const option = select.options[select.selectedIndex];
                      const salary = Number(option.getAttribute('data-salary'));
@@ -750,9 +757,9 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                          infoDiv.innerHTML = htmlContent;
                          infoDiv.classList.remove('hidden');
                          
-                         baseInput.value = netPay.toFixed(2);
+                         baseInput.value = formatNumber(netPay);
                      } else if (salary) {
-                         baseInput.value = (salary / 4).toFixed(2); // Default to weekly salary
+                         baseInput.value = formatNumber(salary / 4); // Default to weekly salary
                          infoDiv.classList.add('hidden');
                      }
                  };
@@ -765,7 +772,7 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                     const salary = Number(option.getAttribute('data-salary'));
                     if (salary) {
                         const baseInput = document.getElementById('swal-pay-base') as HTMLInputElement;
-                        baseInput.value = salary.toFixed(2);
+                        baseInput.value = formatNumber(salary); // This might be overwritten by calculateDeductions if date is present
                         if ((document.getElementById('swal-pay-date') as HTMLInputElement).value) {
                             calculateDeductions();
                         }
@@ -776,7 +783,9 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                 const select = document.getElementById('swal-pay-emp-select') as HTMLSelectElement;
                 const employeeName = select.options[select.selectedIndex]?.text;
                 const date = (document.getElementById('swal-pay-date') as HTMLInputElement).value;
-                const netSalary = Number((document.getElementById('swal-pay-base') as HTMLInputElement).value);
+                const netSalaryStr = (document.getElementById('swal-pay-base') as HTMLInputElement).value;
+                const netSalary = Number(netSalaryStr.replace(/,/g, '')); // Remove commas
+                const slipUrl = (document.getElementById('swal-pay-slip') as HTMLInputElement).value;
                 const contractId = Number(select.value);
                 const contract = employmentContracts.find(c => c.id === contractId);
                 const baseSalary = contract ? contract.salary : 0;
@@ -787,12 +796,39 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                     return false;
                 }
 
+                // Check for duplicate payment date
+                const isDuplicate = payrollRecords.some(r => r.employeeName === employeeName && r.month === date);
+                if (isDuplicate) {
+                    // Find latest payment date for this employee
+                    const employeeRecords = payrollRecords.filter(r => r.employeeName === employeeName);
+                    // Sort descending by date
+                    employeeRecords.sort((a, b) => new Date(b.month).getTime() - new Date(a.month).getTime());
+                    const latestRecord = employeeRecords[0];
+                    
+                    let nextDateStr = '';
+                    if (latestRecord) {
+                        const latestDate = new Date(latestRecord.month);
+                        const nextDate = new Date(latestDate);
+                        nextDate.setDate(latestDate.getDate() + 8);
+                        
+                        // Format date as DD/MM/YYYY
+                        const day = nextDate.getDate().toString().padStart(2, '0');
+                        const month = (nextDate.getMonth() + 1).toString().padStart(2, '0');
+                        const year = nextDate.getFullYear() + 543; // Buddhist Era
+                        nextDateStr = `${day}/${month}/${year}`;
+                    }
+
+                    Swal.showValidationMessage(`วันที่นี้ได้ถูกจ่ายเงินแล้ว วันที่ควรจ่ายถัดไปคือ ${nextDateStr}`);
+                    return false;
+                }
+
                 return {
                     employeeName: employeeName,
                     month: date,
                     baseSalary: baseSalary,
                     deductions: deductions > 0 ? deductions : 0,
-                    totalNetSalary: netSalary
+                    totalNetSalary: netSalary,
+                    slipUrl: slipUrl
                 };
             }
         }).then((result) => {
@@ -808,7 +844,8 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                     deductions: val.deductions,
                     bonuses: 0,
                     totalNetSalary: val.totalNetSalary,
-                    status: 'pending'
+                    status: 'pending',
+                    slipUrl: val.slipUrl
                 };
                 setPayrollRecords(prev => [...prev, newPayroll]);
                 Swal.fire('สำเร็จ', 'บันทึกเงินเดือนเรียบร้อย', 'success');
@@ -1189,6 +1226,7 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                         <th className="p-3">เงินเดือนฐาน</th>
                                         <th className="p-3">สุทธิ</th>
                                         <th className="p-3">สถานะ</th>
+                                        <th className="p-3">สลิปโอนเงิน</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-700">
@@ -1237,6 +1275,15 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                                         }`}>
                                                             {p.status === 'paid' ? 'จ่ายแล้ว' : 'รอดำเนินการ'}
                                                         </span>
+                                                    )}
+                                                </td>
+                                                <td className="p-3">
+                                                    {p.slipUrl ? (
+                                                        <a href={p.slipUrl} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 underline">
+                                                            Link
+                                                        </a>
+                                                    ) : (
+                                                        <span className="text-gray-500">-</span>
                                                     )}
                                                 </td>
                                             </tr>
