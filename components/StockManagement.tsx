@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import type { StockItem, User } from '../types';
+import type { StockItem, User, StockTag } from '../types';
 import Swal from 'sweetalert2';
 import { StockItemModal } from './StockItemModal';
 import { AdjustStockModal } from './AdjustStockModal';
@@ -15,21 +15,31 @@ declare var html2canvas: any;
 interface StockManagementProps {
     stockItems: StockItem[];
     setStockItems: React.Dispatch<React.SetStateAction<StockItem[]>>;
+    stockTags: StockTag[];
+    setStockTags: React.Dispatch<React.SetStateAction<StockTag[]>>;
     stockCategories: string[];
     setStockCategories: React.Dispatch<React.SetStateAction<string[]>>;
     stockUnits: string[];
     setStockUnits: React.Dispatch<React.SetStateAction<string[]>>;
     currentUser: User | null;
+    isTagModalOpen: boolean;
+    onOpenTagModal: () => void;
+    onCloseTagModal: () => void;
 }
 
 export const StockManagement: React.FC<StockManagementProps> = ({
     stockItems,
     setStockItems,
+    stockTags,
+    setStockTags,
     stockCategories,
     setStockCategories,
     stockUnits,
     setStockUnits,
     currentUser,
+    isTagModalOpen,
+    onOpenTagModal,
+    onCloseTagModal
 }) => {
     const [selectedCategory, setSelectedCategory] = useState('ทั้งหมด');
     const [searchTerm, setSearchTerm] = useState('');
@@ -39,6 +49,12 @@ export const StockManagement: React.FC<StockManagementProps> = ({
     // New state to track if the PO modal is opened in "Mobile Image Mode"
     const [isMobilePOMode, setIsMobilePOMode] = useState(false);
     const [selectedItem, setSelectedItem] = useState<StockItem | null>(null);
+    
+    // Tag Registration State
+    const [selectedTagItem, setSelectedTagItem] = useState<StockItem | null>(null);
+    const [isWritingTag, setIsWritingTag] = useState(false);
+    const [tagSearchTerm, setTagSearchTerm] = useState('');
+
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Sorting State
@@ -137,6 +153,74 @@ export const StockManagement: React.FC<StockManagementProps> = ({
     const handleMobilePO = () => {
         setIsMobilePOMode(true);
         setIsPurchaseOrderModalOpen(true);
+    };
+
+    // Smart Running Function: Find the first available gap in the sequence
+    const getNextTagId = (item: StockItem) => {
+        const itemTags = stockTags.filter(t => t.stockItemId === item.id);
+        const usedNumbers = new Set<number>();
+        
+        itemTags.forEach(tag => {
+            // Extract number from ID (Format: Name-XXX)
+            const parts = tag.id.split('-');
+            const lastPart = parts[parts.length - 1];
+            const num = parseInt(lastPart, 10);
+            if (!isNaN(num)) {
+                usedNumbers.add(num);
+            }
+        });
+
+        let nextNum = 1;
+        while (usedNumbers.has(nextNum)) {
+            nextNum++;
+        }
+        
+        return String(nextNum).padStart(3, '0');
+    };
+
+    const handleRegisterTag = async () => {
+        if (!selectedTagItem) return;
+
+        setIsWritingTag(true);
+        try {
+            // 1. Generate ID using Smart Running
+            const runningId = getNextTagId(selectedTagItem);
+            const tagDisplayId = `${selectedTagItem.name}-${runningId}`;
+
+            if ('NDEFReader' in window) {
+                try {
+                    const ndef = new (window as any).NDEFReader();
+                    await ndef.write(tagDisplayId);
+                    Swal.fire('สำเร็จ', `บันทึก Tag: ${tagDisplayId} เรียบร้อย`, 'success');
+                } catch (writeError) {
+                    console.error("NDEF Write Error:", writeError);
+                    throw writeError;
+                }
+            } else {
+                // Simulation for desktop/incompatible devices
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                Swal.fire('จำลอง', `(Simulation) บันทึก Tag: ${tagDisplayId} เรียบร้อย`, 'success');
+            }
+
+            // 2. Save to DB
+            const newTag: StockTag = {
+                id: tagDisplayId,
+                stockItemId: selectedTagItem.id,
+                stockItemName: selectedTagItem.name,
+                createdAt: Date.now(),
+                status: 'active'
+            };
+            
+            setStockTags(prev => [...prev, newTag]);
+            onCloseTagModal();
+            setSelectedTagItem(null);
+
+        } catch (error) {
+            console.error(error);
+            Swal.fire('ผิดพลาด', 'ไม่สามารถบันทึก Tag ได้ (ต้องใช้บน Android/Chrome หรืออุปกรณ์ที่รองรับ NFC)', 'error');
+        } finally {
+            setIsWritingTag(false);
+        }
     };
 
     const handleViewImage = (item: StockItem) => {
@@ -502,6 +586,10 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                             <button onClick={() => handleOpenItemModal(null)} className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 whitespace-nowrap text-sm shadow transition-all hover:shadow-md">
                                 + เพิ่มรายการ
                             </button>
+                            <button onClick={onOpenTagModal} className="px-4 py-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 whitespace-nowrap text-sm shadow transition-all hover:shadow-md flex items-center gap-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>
+                                🏷️ ลงทะเบียน Tag
+                            </button>
                         </div>
                     </div>
                      <div className="mt-4 flex flex-col sm:flex-row justify-between sm:items-center gap-4">
@@ -810,6 +898,118 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                 currentUser={currentUser}
                 isMobileMode={isMobilePOMode}
             />
+
+            {/* Tag Registration Modal */}
+            {isTagModalOpen && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black bg-opacity-50 p-4 pb-24">
+                    <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden flex flex-col max-h-[80vh]">
+                        <div className="p-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
+                            <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>
+                                ลงทะเบียน NFC Tag
+                            </h3>
+                            <button onClick={() => { onCloseTagModal(); setSelectedTagItem(null); }} className="text-gray-400 hover:text-gray-600">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                            </button>
+                        </div>
+                        
+                        <div className="p-4 flex-1 overflow-y-auto">
+                            {!selectedTagItem ? (
+                                <>
+                                    <div className="mb-4">
+                                        <input 
+                                            type="text" 
+                                            placeholder="ค้นหาสินค้า..." 
+                                            value={tagSearchTerm}
+                                            onChange={(e) => setTagSearchTerm(e.target.value)}
+                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        {stockItems
+                                            .filter(item => item.name.toLowerCase().includes(tagSearchTerm.toLowerCase()))
+                                            .map(item => (
+                                                <button 
+                                                    key={item.id} 
+                                                    onClick={() => setSelectedTagItem(item)}
+                                                    className="w-full text-left p-3 hover:bg-indigo-50 rounded-lg border border-gray-100 hover:border-indigo-200 transition-all flex items-center justify-between group"
+                                                >
+                                                    <span className="font-medium text-gray-700 group-hover:text-indigo-700">{item.name}</span>
+                                                    <span className="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded-full group-hover:bg-indigo-100 group-hover:text-indigo-600">{item.category}</span>
+                                                </button>
+                                            ))
+                                        }
+                                        {stockItems.length === 0 && <p className="text-center text-gray-500 py-4">ไม่พบสินค้า</p>}
+                                    </div>
+                                </>
+                            ) : (
+                                <div className="text-center py-6 space-y-6">
+                                    <div className="bg-indigo-50 p-4 rounded-xl inline-block mb-2">
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 text-indigo-600 mx-auto animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.131A8 8 0 008 8m0 0a8 8 0 00-8 8c0 2.33.341 4.591.976 6.722" />
+                                        </svg>
+                                    </div>
+                                    
+                                    <div>
+                                        <h4 className="text-xl font-bold text-gray-800 mb-1">{selectedTagItem.name}</h4>
+                                        <p className="text-gray-500 text-sm">กำลังจะสร้าง Tag ID:</p>
+                                        <div className="text-2xl font-mono font-bold text-indigo-600 mt-2 bg-indigo-50 py-2 rounded-lg border border-indigo-100">
+                                            {selectedTagItem.name}-{getNextTagId(selectedTagItem)}
+                                        </div>
+                                    </div>
+
+                                    <div className="text-sm text-gray-600 bg-yellow-50 p-3 rounded-lg border border-yellow-100 text-left">
+                                        <p className="font-semibold text-yellow-800 mb-1">คำแนะนำ:</p>
+                                        <ul className="list-disc list-inside space-y-1">
+                                            <li>นำ NFC Tag มาแตะที่ด้านหลังโทรศัพท์</li>
+                                            <li>กดปุ่ม "บันทึกข้อมูลลง Tag" ด้านล่าง</li>
+                                            <li>ถือค้างไว้จนกว่าจะขึ้นข้อความสำเร็จ</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="p-4 border-t border-gray-200 bg-gray-50 flex gap-3">
+                            {selectedTagItem ? (
+                                <>
+                                    <button 
+                                        onClick={() => setSelectedTagItem(null)}
+                                        className="flex-1 px-4 py-2 bg-white border border-gray-300 text-gray-700 font-semibold rounded-lg hover:bg-gray-50"
+                                        disabled={isWritingTag}
+                                    >
+                                        ย้อนกลับ
+                                    </button>
+                                    <button 
+                                        onClick={handleRegisterTag}
+                                        disabled={isWritingTag}
+                                        className={`flex-1 px-4 py-2 font-semibold rounded-lg text-white shadow-sm flex items-center justify-center gap-2 ${isWritingTag ? 'bg-gray-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700'}`}
+                                    >
+                                        {isWritingTag ? (
+                                            <>
+                                                <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                                </svg>
+                                                กำลังบันทึก...
+                                            </>
+                                        ) : (
+                                            'บันทึกข้อมูลลง Tag'
+                                        )}
+                                    </button>
+                                </>
+                            ) : (
+                                <button 
+                                    onClick={onCloseTagModal}
+                                    className="w-full px-4 py-2 bg-gray-200 text-gray-700 font-semibold rounded-lg hover:bg-gray-300"
+                                >
+                                    ปิด
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
         </>
     );
 };

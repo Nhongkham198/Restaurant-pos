@@ -29,6 +29,7 @@ import type {
     PrinterConfig, 
     Branch, 
     StockItem, 
+    StockTag,
     View, 
     NavItem, 
     PrintHistoryEntry, 
@@ -149,6 +150,7 @@ export const App: React.FC = () => {
         newCancelledOrders, newCancelledOrdersActions,
         completedOrders, cancelledOrders,
         stockItems, setStockItems,
+        stockTags, setStockTags,
         stockCategories, setStockCategories,
         stockUnits, setStockUnits,
         printHistory, setPrintHistory,
@@ -987,7 +989,8 @@ export const App: React.FC = () => {
         onOpenSettings,
         isEditMode,
         onToggleEditMode,
-        currentView
+        currentView,
+        onOpenTagRegistration
     }: { 
         user: User, 
         restaurantName: string, 
@@ -998,7 +1001,8 @@ export const App: React.FC = () => {
         onOpenSettings: () => void,
         isEditMode: boolean,
         onToggleEditMode: () => void,
-        currentView: View
+        currentView: View,
+        onOpenTagRegistration: () => void
     }) => (
         <header className="bg-gray-900 text-white p-3 flex justify-between items-center flex-shrink-0 md:hidden z-30 shadow-lg relative">
             <div className="flex items-center gap-3 cursor-pointer" onClick={onProfileClick}>
@@ -1010,6 +1014,12 @@ export const App: React.FC = () => {
             </div>
             <h1 className="text-xl font-bold text-red-500 absolute left-1/2 -translate-x-1/2 whitespace-nowrap hidden sm:block">{restaurantName}</h1>
             <div className="flex items-center gap-3">
+                {/* Tag Registration Button (Stock View Only) */}
+                {currentView === 'stock' && (
+                    <button onClick={onOpenTagRegistration} className="p-2 text-gray-300 rounded-full hover:bg-gray-700">
+                        <span className="text-xl">🏷️</span>
+                    </button>
+                )}
                 {/* Edit Mode Toggle */}
                 {['admin', 'branch-admin'].includes(user.role) && ['history', 'hr', 'hr-payroll'].includes(currentView) && (
                     <label className="relative inline-flex items-center cursor-pointer mr-1" title="โหมดแก้ไข">
@@ -1165,6 +1175,7 @@ export const App: React.FC = () => {
                                         isEditMode={isEditMode}
                                         onToggleEditMode={() => setIsEditMode(!isEditMode)}
                                         currentView={currentView}
+                                        onOpenTagRegistration={() => setModalState(prev => ({ ...prev, isTagRegistration: true }))}
                                     />
                                     <div className="flex-1 overflow-y-auto">
                                         <Suspense fallback={<PageLoading />}>
@@ -1183,7 +1194,7 @@ export const App: React.FC = () => {
                                             {currentView === 'tables' && <TableLayout tables={tables} activeOrders={activeOrders} onTableSelect={(id) => { setSelectedTableId(id); setCurrentView('pos'); }} onShowBill={handleShowBill} onGeneratePin={handleGeneratePin} currentUser={currentUser} printerConfig={printerConfig} floors={floors} selectedBranch={selectedBranch} restaurantName={restaurantName} logoUrl={logoUrl} qrCodeUrl={qrCodeUrl} />}
                                             {currentView === 'dashboard' && <Dashboard completedOrders={completedOrders} cancelledOrders={cancelledOrders} openingTime={openingTime || '10:00'} closingTime={closingTime || '22:00'} currentUser={currentUser} />}
                                             {currentView === 'history' && <SalesHistory completedOrders={completedOrders} cancelledOrders={cancelledOrders} printHistory={printHistory} onReprint={() => {}} onSplitOrder={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isSplitCompleted: true}))}} isEditMode={isEditMode} onEditOrder={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isEditCompleted: true}))}} onInitiateCashBill={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isCashBill: true}))}} onDeleteHistory={handleDeleteHistory} currentUser={currentUser} onReprintReceipt={handleReprintReceipt} />}
-                                            {currentView === 'stock' && <StockManagement stockItems={stockItems} setStockItems={setStockItems} stockCategories={stockCategories} setStockCategories={setStockCategories} stockUnits={stockUnits} setStockUnits={setStockUnits} currentUser={currentUser} />}
+                                            {currentView === 'stock' && <StockManagement stockItems={stockItems} setStockItems={setStockItems} stockTags={stockTags} setStockTags={setStockTags} stockCategories={stockCategories} setStockCategories={setStockCategories} stockUnits={stockUnits} setStockUnits={setStockUnits} currentUser={currentUser} isTagModalOpen={modalState.isTagRegistration} onOpenTagModal={() => setModalState(prev => ({ ...prev, isTagRegistration: true }))} onCloseTagModal={() => setModalState(prev => ({ ...prev, isTagRegistration: false }))} />}
                                             {currentView === 'stock-analytics' && <StockAnalytics stockItems={stockItems} />}
                                             {currentView === 'leave' && <LeaveCalendarView leaveRequests={leaveRequests} currentUser={currentUser} onOpenRequestModal={(date) => { setLeaveRequestInitialDate(date); setModalState(prev => ({...prev, isLeaveRequest: true})); }} branches={branches} onUpdateStatus={(id, status) => setLeaveRequests(prev => prev.map(r => r.id === id ? {...r, status} : r))} onDeleteRequest={async (id) => {setLeaveRequests(prev => prev.filter(r => r.id !== id)); return true;}} selectedBranch={selectedBranch} />}
                                             {currentView === 'leave-analytics' && <LeaveAnalytics leaveRequests={leaveRequests} users={users} />}
@@ -1228,7 +1239,7 @@ export const App: React.FC = () => {
                             {currentView === 'tables' && <TableLayout tables={tables} activeOrders={activeOrders} onTableSelect={(id) => { setSelectedTableId(id); setCurrentView('pos'); }} onShowBill={handleShowBill} onGeneratePin={handleGeneratePin} currentUser={currentUser} printerConfig={printerConfig} floors={floors} selectedBranch={selectedBranch} restaurantName={restaurantName} logoUrl={logoUrl} qrCodeUrl={qrCodeUrl} />}
                             {currentView === 'dashboard' && <Dashboard completedOrders={completedOrders} cancelledOrders={cancelledOrders} openingTime={openingTime || '10:00'} closingTime={closingTime || '22:00'} currentUser={currentUser} />}
                             {currentView === 'history' && <SalesHistory completedOrders={completedOrders} cancelledOrders={cancelledOrders} printHistory={printHistory} onReprint={() => {}} onSplitOrder={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isSplitCompleted: true}))}} isEditMode={isEditMode} onEditOrder={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isEditCompleted: true}))}} onInitiateCashBill={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isCashBill: true}))}} onDeleteHistory={handleDeleteHistory} currentUser={currentUser} onReprintReceipt={handleReprintReceipt} />}
-                            {currentView === 'stock' && <StockManagement stockItems={stockItems} setStockItems={setStockItems} stockCategories={stockCategories} setStockCategories={setStockCategories} stockUnits={stockUnits} setStockUnits={setStockUnits} currentUser={currentUser} />}
+                            {currentView === 'stock' && <StockManagement stockItems={stockItems} setStockItems={setStockItems} stockTags={stockTags} setStockTags={setStockTags} stockCategories={stockCategories} setStockCategories={setStockCategories} stockUnits={stockUnits} setStockUnits={setStockUnits} currentUser={currentUser} isTagModalOpen={modalState.isTagRegistration} onOpenTagModal={() => setModalState(prev => ({ ...prev, isTagRegistration: true }))} onCloseTagModal={() => setModalState(prev => ({ ...prev, isTagRegistration: false }))} />}
                             {currentView === 'stock-analytics' && <StockAnalytics stockItems={stockItems} />}
                             {currentView === 'leave' && <LeaveCalendarView leaveRequests={leaveRequests} currentUser={currentUser} onOpenRequestModal={(date) => { setLeaveRequestInitialDate(date); setModalState(prev => ({...prev, isLeaveRequest: true})); }} branches={branches} onUpdateStatus={(id, status) => setLeaveRequests(prev => prev.map(r => r.id === id ? {...r, status} : r))} onDeleteRequest={async (id) => {setLeaveRequests(prev => prev.filter(r => r.id !== id)); return true;}} selectedBranch={selectedBranch} />}
                             {currentView === 'leave-analytics' && <LeaveAnalytics leaveRequests={leaveRequests} users={users} />}

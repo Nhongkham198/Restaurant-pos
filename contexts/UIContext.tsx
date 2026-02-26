@@ -20,6 +20,7 @@ interface ModalState {
     isLeaveRequest: boolean;
     isMenuSearch: boolean;
     isMergeBill: boolean;
+    isTagRegistration: boolean;
 }
 
 interface UIContextType {
@@ -119,7 +120,7 @@ export const UIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
         isPayment: false, isPaymentSuccess: false, isSettings: false, isEditCompleted: false,
         isUserManager: false, isBranchManager: false, isMoveTable: false, isCancelOrder: false,
         isCashBill: false, isSplitCompleted: false, isCustomization: false, isLeaveRequest: false,
-        isMenuSearch: false, isMergeBill: false
+        isMenuSearch: false, isMergeBill: false, isTagRegistration: false
     });
 
     const [itemToEdit, setItemToEdit] = useState<MenuItem | null>(null);
@@ -143,7 +144,7 @@ export const UIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
             isPayment: false, isPaymentSuccess: false, isSettings: false, isEditCompleted: false,
             isUserManager: false, isBranchManager: false, isMoveTable: false, isCancelOrder: false,
             isCashBill: false, isSplitCompleted: false, isCustomization: false, isLeaveRequest: false,
-            isMenuSearch: false, isMergeBill: false
+            isMenuSearch: false, isMergeBill: false, isTagRegistration: false
         });
     };
 

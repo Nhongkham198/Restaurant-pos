@@ -195,16 +195,7 @@ export const DEFAULT_STOCK_ITEMS: StockItem[] = [
     },
 ];
 
-export const DEFAULT_LEAVE_REQUESTS: LeaveRequest[] = [
-    { id: 1, userId: 7, username: 'Tal', employeeName: 'Tal', branchId: 1, startDate: new Date('2026-02-25').getTime(), endDate: new Date('2026-02-25').getTime(), type: 'leave-without-pay', reason: '222', status: 'approved', submittedAt: new Date('2026-02-24').getTime() },
-    { id: 2, userId: 8, username: 'Pea', employeeName: 'Pea', branchId: 1, startDate: new Date('2026-02-19').getTime(), endDate: new Date('2026-02-19').getTime(), type: 'personal', reason: 'ไม่สบายค่ะ', status: 'approved', submittedAt: new Date('2026-02-19').getTime() },
-    { id: 3, userId: 7, username: 'Tal', employeeName: 'Tal', branchId: 1, startDate: new Date('2026-02-22').getTime(), endDate: new Date('2026-02-22').getTime(), type: 'personal', reason: 'ไปธุระค่ะ', status: 'approved', submittedAt: new Date('2026-02-18').getTime() },
-    { id: 4, userId: 7, username: 'Tal', employeeName: 'Tal', branchId: 1, startDate: new Date('2026-02-18').getTime(), endDate: new Date('2026-02-18').getTime(), type: 'sick', reason: 'ไม่สบาย', status: 'approved', submittedAt: new Date('2026-02-18').getTime() },
-    { id: 5, userId: 9, username: 'Pam', employeeName: 'Pam', branchId: 1, startDate: new Date('2026-02-14').getTime(), endDate: new Date('2026-02-14').getTime(), type: 'personal', reason: 'ติดธุระค่ะ', status: 'approved', submittedAt: new Date('2026-02-14').getTime() },
-    { id: 6, userId: 10, username: 'Fah', employeeName: 'Fah', branchId: 1, startDate: new Date('2026-02-24').getTime(), endDate: new Date('2026-02-24').getTime(), type: 'personal', reason: 'พาไปหาหมอค่ะ', status: 'approved', submittedAt: new Date('2026-02-24').getTime() },
-    { id: 7, userId: 8, username: 'Pea', employeeName: 'Pea', branchId: 1, startDate: new Date('2026-02-10').getTime(), endDate: new Date('2026-02-10').getTime(), type: 'personal', reason: 'พาไปทำธุระ', status: 'approved', submittedAt: new Date('2026-02-10').getTime() },
-    { id: 8, userId: 7, username: 'Tal', employeeName: 'Tal', branchId: 1, startDate: new Date('2026-01-09').getTime(), endDate: new Date('2026-01-09').getTime(), type: 'personal', reason: 'พาแม่ไปหาหมอค่ะ', status: 'approved', submittedAt: new Date('2026-01-09').getTime() },
-];
+export const DEFAULT_LEAVE_REQUESTS: LeaveRequest[] = [];
 
 export const DEFAULT_MAINTENANCE_ITEMS: MaintenanceItem[] = [
     {

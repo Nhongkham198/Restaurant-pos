@@ -334,6 +334,14 @@ export interface SystemPrinterStatus {
 
 // --- HR MANAGEMENT TYPES ---
 
+export interface StockTag {
+    id: string; // The unique tag ID (e.g., generated format like "ITEM-001")
+    stockItemId: number;
+    stockItemName: string;
+    createdAt: number;
+    status: 'active' | 'used' | 'defective';
+}
+
 export interface JobApplication {
     id: number;
     userId?: number; // Link to a user account

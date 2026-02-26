@@ -10,7 +10,7 @@ import {
     DEFAULT_MENU_ITEMS, DEFAULT_CATEGORIES, DEFAULT_TABLES, DEFAULT_FLOORS,
     DEFAULT_STOCK_ITEMS, DEFAULT_STOCK_CATEGORIES, DEFAULT_STOCK_UNITS,
     DEFAULT_MAINTENANCE_ITEMS, DEFAULT_DELIVERY_PROVIDERS,
-    DEFAULT_USERS, DEFAULT_BRANCHES, DEFAULT_LEAVE_REQUESTS,
+    DEFAULT_USERS, DEFAULT_BRANCHES,
     DEFAULT_JOB_APPLICATIONS, DEFAULT_EMPLOYMENT_CONTRACTS
 } from '../constants';
 
@@ -62,6 +62,8 @@ interface DataContextType {
 
     stockItems: StockItem[];
     setStockItems: React.Dispatch<React.SetStateAction<StockItem[]>>;
+    stockTags: StockTag[];
+    setStockTags: React.Dispatch<React.SetStateAction<StockTag[]>>;
     stockCategories: string[];
     setStockCategories: React.Dispatch<React.SetStateAction<string[]>>;
     stockUnits: string[];
@@ -274,6 +276,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }, [legacyCancelledOrders, newCancelledOrders]);
 
     const [stockItems, setStockItems] = useFirestoreSync<StockItem[]>(heavyDataBranchId, 'stockItems', [], DEFAULT_STOCK_ITEMS);
+    const [stockTags, setStockTags] = useFirestoreSync<StockTag[]>(heavyDataBranchId, 'stockTags', []);
     const [stockCategories, setStockCategories] = useFirestoreSync<string[]>(heavyDataBranchId, 'stockCategories', [], DEFAULT_STOCK_CATEGORIES);
     const [stockUnits, setStockUnits] = useFirestoreSync<string[]>(heavyDataBranchId, 'stockUnits', [], DEFAULT_STOCK_UNITS);
     
@@ -325,7 +328,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             newCompletedOrders, newCompletedOrdersActions, newCancelledOrders, newCancelledOrdersActions,
             completedOrders, cancelledOrders,
             
-            stockItems, setStockItems, stockCategories, setStockCategories, stockUnits, setStockUnits,
+            stockItems, setStockItems, stockTags, setStockTags, stockCategories, setStockCategories, stockUnits, setStockUnits,
             printHistory, setPrintHistory, maintenanceItems, setMaintenanceItems, maintenanceLogs, setMaintenanceLogs,
             orderCounter, setOrderCounter, staffCalls, setStaffCalls, leaveRequests, setLeaveRequests,
             
