@@ -283,7 +283,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const [orderCounter, setOrderCounter] = useFirestoreSync<OrderCounter>(heavyDataBranchId, 'orderCounter', { count: 0, lastResetDate: new Date().toISOString().split('T')[0] });
     
     const [staffCalls, setStaffCalls] = useFirestoreSync<StaffCall[]>(branchId, 'staffCalls', []);
-    const [leaveRequests, setLeaveRequests] = useFirestoreSync<LeaveRequest[]>(shouldLoadHeavyData ? null : 'SKIP', 'leaveRequests', [], DEFAULT_LEAVE_REQUESTS);
+    const [leaveRequests, setLeaveRequests] = useFirestoreSync<LeaveRequest[]>(shouldLoadHeavyData ? null : 'SKIP', 'leaveRequests', []);
 
     // --- HR MANAGEMENT ---
     const [jobApplications, setJobApplications] = useFirestoreSync<JobApplication[]>(heavyDataBranchId, 'jobApplications', [], []);
