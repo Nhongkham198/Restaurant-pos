@@ -629,8 +629,15 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                  const calculateDeductions = () => {
                      const option = select.options[select.selectedIndex];
                      const salary = Number(option.getAttribute('data-salary'));
-                     const userId = Number(option.getAttribute('data-userid'));
+                     let userId = Number(option.getAttribute('data-userid'));
+                     const empName = option.getAttribute('data-name');
                      const dateVal = dateInput.value; // YYYY-MM-DD
+
+                     // Fallback: If userId is missing, try to find it via JobApplication
+                     if (!userId && empName) {
+                         const jobApp = jobApplications.find(j => j.fullName === empName && j.userId);
+                         if (jobApp) userId = jobApp.userId!;
+                     }
 
                      // Update Username Field
                      if (userId) {
@@ -991,20 +998,25 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                                     )}
                                                 </td>
                                                 <td className="p-3 flex gap-2 items-center">
-                                                    {app.userId ? (
-                                                        <>
-                                                            <span className="text-xs text-gray-400 bg-gray-700 px-2 py-1 rounded">
-                                                                👤 {users.find(u => u.id === app.userId)?.username || 'Unknown User'}
-                                                            </span>
-                                                            <button onClick={() => handleCreateUserFromApp(app)} className="text-yellow-400 hover:text-yellow-300 text-xs">
-                                                                เปลี่ยน
+                                                    {(() => {
+                                                        const linkedUser = users.find(u => u.id === app.userId) || 
+                                                            users.find(u => employmentContracts.some(c => c.userId === u.id && c.employeeName === app.fullName));
+                                                        
+                                                        return linkedUser ? (
+                                                            <>
+                                                                <span className="text-xs text-gray-400 bg-gray-700 px-2 py-1 rounded">
+                                                                    👤 {linkedUser.username}
+                                                                </span>
+                                                                <button onClick={() => handleCreateUserFromApp(app)} className="text-yellow-400 hover:text-yellow-300 text-xs">
+                                                                    เปลี่ยน
+                                                                </button>
+                                                            </>
+                                                        ) : (
+                                                            <button onClick={() => handleCreateUserFromApp(app)} className="text-blue-400 hover:text-blue-300 text-xs border border-blue-500 px-2 py-1 rounded">
+                                                                สร้าง User
                                                             </button>
-                                                        </>
-                                                    ) : (
-                                                        <button onClick={() => handleCreateUserFromApp(app)} className="text-blue-400 hover:text-blue-300 text-xs border border-blue-500 px-2 py-1 rounded">
-                                                            สร้าง User
-                                                        </button>
-                                                    )}
+                                                        );
+                                                    })()}
                                                 </td>
                                             </tr>
                                         ))
@@ -1337,7 +1349,10 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                         <tr><td colSpan={isEditMode ? 7 : 6} className="p-4 text-center text-gray-500">ไม่พบข้อมูล</td></tr>
                                     ) : (
                                         leaveRequests.map(l => {
-                                            const user = users.find(u => u.id === l.userId);
+                                            // Try to find user by ID, or fallback to matching name via employment contract
+                                            const user = users.find(u => u.id === l.userId) || 
+                                                         users.find(u => employmentContracts.some(c => c.userId === u.id && c.employeeName === l.employeeName));
+                                            
                                             const quotas = user?.leaveQuotas ?? { sick: 0, personal: 0, vacation: 0 };
                                             const usedDays = leaveRequests
                                                 .filter(req => req.userId === l.userId && req.type === l.type && req.status === 'approved')
@@ -1364,7 +1379,7 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                                 <td className="p-3">
                                                     {new Date(l.startDate).toLocaleDateString('th-TH')} - {new Date(l.endDate).toLocaleDateString('th-TH')}
                                                 </td>
-                                                <td className="p-3 font-medium text-white">{(users.find(u => u.id === l.userId)?.username) || l.employeeName}</td>
+                                                <td className="p-3 font-medium text-white">{user?.username || l.employeeName}</td>
                                                 <td className="p-3">{l.type}</td>
                                                 <td className="p-3">{l.reason}</td>
                                                 <td className="p-3 font-semibold">{remainingDays > 0 ? remainingDays : 0} วัน</td>
