@@ -402,11 +402,24 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                 }
 
                 // Find the associated user
-                const jobApp = applicationId ? jobApplications.find(app => app.id === applicationId) : null;
-                const user = jobApp ? users.find(u => u.username.toLowerCase() === jobApp.fullName.split(' ')[0].toLowerCase()) : users.find(u => u.username.toLowerCase() === finalName.split(' ')[0].toLowerCase());
+                let userId = 0;
+                if (applicationId) {
+                    const jobApp = jobApplications.find(app => app.id === applicationId);
+                    if (jobApp && jobApp.userId) {
+                        userId = jobApp.userId;
+                    }
+                }
+
+                // Fallback: Try to find by name matching if manual entry or no userId in jobApp
+                if (!userId && finalName) {
+                     // Try to match first name with username
+                     const firstName = finalName.split(' ')[0].trim().toLowerCase();
+                     const user = users.find(u => u.username.toLowerCase() === firstName);
+                     if (user) userId = user.id;
+                }
 
                 return {
-                    userId: user ? user.id : 0, // Store userId, fallback to 0 if not found
+                    userId: userId,
                     employeeName: finalName,
                     position: (document.getElementById('swal-emp-pos') as HTMLInputElement).value,
                     salary: Number((document.getElementById('swal-emp-salary') as HTMLInputElement).value),
@@ -595,7 +608,7 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
     // --- PAYROLL LOGIC ---
     const handleAddPayroll = () => {
         // Filter contracts to suggest employees
-        const options = employmentContracts.map(c => `<option value="${c.id}" data-salary="${c.salary}" data-name="${c.employeeName}" data-userid="${c.userId}">${c.employeeName}</option>`).join('');
+        const options = employmentContracts.map(c => `<option value="${c.id}" data-salary="${c.salary}" data-name="${c.employeeName}" data-userid="${c.userId || ''}">${c.employeeName}</option>`).join('');
 
         Swal.fire({
             title: 'บันทึกเงินเดือน',
@@ -635,14 +648,15 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
 
                      // Fallback: If userId is missing, try to find it via JobApplication
                      if (!userId && empName) {
-                         const jobApp = jobApplications.find(j => j.fullName === empName && j.userId);
+                         const normalizedEmpName = empName.trim();
+                         const jobApp = jobApplications.find(j => j.fullName.trim() === normalizedEmpName && j.userId);
                          if (jobApp) userId = jobApp.userId!;
                      }
 
                      // Update Username Field
                      if (userId) {
                          const user = users.find(u => u.id === userId);
-                         usernameInput.value = user ? user.username : 'Not Found';
+                         usernameInput.value = user ? user.username : `User ID: ${userId} (Not Found)`;
                      } else {
                          usernameInput.value = '';
                      }
