@@ -865,7 +865,7 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                     deductions: val.deductions,
                     bonuses: 0,
                     totalNetSalary: val.totalNetSalary,
-                    status: 'pending',
+                    status: val.slipUrl ? 'paid' : 'pending',
                     slipUrl: val.slipUrl
                 };
                 setPayrollRecords(prev => [...prev, newPayroll]);
