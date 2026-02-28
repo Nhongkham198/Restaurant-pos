@@ -241,6 +241,8 @@ export interface StockItem {
     lastUpdatedBy?: string; // Username of the person who last updated the item
     orderDate?: number; // timestamp
     receivedDate?: number; // timestamp
+    orderedQuantity?: string | number; // Quantity ordered in the last PO
+    orderedBy?: string; // User who placed the last PO
 }
 
 export interface LeaveRequest {

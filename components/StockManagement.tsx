@@ -80,9 +80,15 @@ export const StockManagement: React.FC<StockManagementProps> = ({
         // Filter out null/undefined items first
         const validItems = items.filter(item => item && typeof item === 'object');
 
-        let result = selectedCategory === 'ทั้งหมด'
-            ? validItems
-            : validItems.filter(item => item.category === selectedCategory);
+        let result = validItems;
+
+        if (selectedCategory === 'รายการสั่งของ') {
+             const startOfDay = new Date();
+             startOfDay.setHours(0,0,0,0);
+             result = validItems.filter(item => item.orderDate && item.orderDate >= startOfDay.getTime());
+        } else if (selectedCategory !== 'ทั้งหมด') {
+             result = validItems.filter(item => item.category === selectedCategory);
+        }
         
         if (searchTerm.trim()) {
             result = result.filter(item => 
@@ -147,6 +153,37 @@ export const StockManagement: React.FC<StockManagementProps> = ({
     const handleOpenAdjustModal = (item: StockItem) => {
         setSelectedItem(item);
         setIsAdjustModalOpen(true);
+    };
+
+    const handleBulkUpdateStock = (items: StockItem[]) => {
+        const updatedBy = currentUser?.username || 'System';
+        const timestamp = Date.now();
+        
+        const updatesMap = new Map(items.map(i => [i.id, i]));
+        
+        setStockItems(prev => prev.map(item => {
+            if (updatesMap.has(item.id)) {
+                const updatedItem = updatesMap.get(item.id)!;
+                return {
+                    ...item,
+                    orderDate: updatedItem.orderDate,
+                    orderedQuantity: updatedItem.orderedQuantity,
+                    orderedBy: updatedItem.orderedBy,
+                    lastUpdated: timestamp,
+                    lastUpdatedBy: updatedBy
+                };
+            }
+            return item;
+        }));
+        
+        Swal.fire({
+            icon: 'success',
+            title: 'อัปเดตสถานะการสั่งซื้อแล้ว',
+            toast: true,
+            position: 'top-end',
+            showConfirmButton: false,
+            timer: 2000
+        });
     };
 
     // Handler for Mobile PO Button
@@ -234,6 +271,115 @@ export const StockManagement: React.FC<StockManagementProps> = ({
             showConfirmButton: false,
             showCloseButton: true,
         });
+    };
+
+    const handleReceiveStock = async (item: StockItem) => {
+        const result = await Swal.fire({
+            title: `รับสินค้า: ${item.name}`,
+            html: `
+                <div class="flex flex-col gap-4 text-left">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">วันที่รับสินค้า</label>
+                        <input type="date" id="swal-receive-date" class="w-full px-3 py-2 border rounded-lg" value="${new Date().toISOString().split('T')[0]}">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">จำนวนที่รับ (${item.unit})</label>
+                        <input type="number" id="swal-receive-qty" class="w-full px-3 py-2 border rounded-lg" placeholder="ระบุจำนวน">
+                    </div>
+                </div>
+            `,
+            showCancelButton: true,
+            confirmButtonText: 'รับยอดครบ',
+            denyButtonText: 'รับยอดไม่ครบ',
+            showDenyButton: true,
+            confirmButtonColor: '#10B981',
+            denyButtonColor: '#F59E0B',
+            cancelButtonText: 'ยกเลิก',
+            preConfirm: () => {
+                const date = (document.getElementById('swal-receive-date') as HTMLInputElement).value;
+                const qty = (document.getElementById('swal-receive-qty') as HTMLInputElement).value;
+                if (!date || !qty) {
+                    Swal.showValidationMessage('กรุณากรอกข้อมูลให้ครบถ้วน');
+                    return false;
+                }
+                return { date, qty: Number(qty), status: 'complete' };
+            },
+            preDeny: () => {
+                const date = (document.getElementById('swal-receive-date') as HTMLInputElement).value;
+                const qty = (document.getElementById('swal-receive-qty') as HTMLInputElement).value;
+                if (!date || !qty) {
+                    Swal.showValidationMessage('กรุณากรอกข้อมูลให้ครบถ้วน');
+                    return false;
+                }
+                return { date, qty: Number(qty), status: 'incomplete' };
+            }
+        });
+
+        if (!result.isConfirmed && !result.isDenied) return;
+
+        const receivedData = result.value; 
+        if (!receivedData) return;
+
+        if (receivedData.status === 'incomplete') {
+             const { value: note } = await Swal.fire({
+                 title: 'บันทึกยอดไม่ครบ',
+                 input: 'textarea',
+                 inputLabel: 'ระบุสาเหตุ/จำนวนที่ขาด',
+                 inputPlaceholder: 'เช่น ขาดไป 2 กก. เพราะ...',
+                 showCancelButton: true,
+                 confirmButtonText: 'บันทึก',
+                 cancelButtonText: 'ยกเลิก',
+                 inputValidator: (value) => {
+                     if (!value) {
+                         return 'กรุณาระบุสาเหตุ';
+                     }
+                 }
+             });
+             
+             if (!note) return;
+             receivedData.note = note;
+        }
+
+        let newTotal = receivedData.qty;
+        let shouldMerge = false;
+
+        if (item.quantity > 0) {
+            newTotal = item.quantity + receivedData.qty;
+            const confirmMerge = await Swal.fire({
+                title: 'รวมยอดสินค้า?',
+                html: `
+                    <div class="text-left">
+                        <p>มีสินค้าเดิมอยู่: <b>${formatQty(item.quantity, item.unit)} ${item.unit}</b></p>
+                        <p>รับเพิ่ม: <b>${formatQty(receivedData.qty, item.unit)} ${item.unit}</b></p>
+                        <hr class="my-2">
+                        <p class="text-lg">ยอดรวมใหม่: <b class="text-blue-600">${formatQty(newTotal, item.unit)} ${item.unit}</b></p>
+                    </div>
+                `,
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: 'ใช่, รวมยอด',
+                cancelButtonText: 'ยกเลิก',
+                confirmButtonColor: '#3B82F6'
+            });
+
+            if (!confirmMerge.isConfirmed) return;
+            shouldMerge = true;
+        }
+
+        // Update Item
+        const updatedBy = currentUser?.username || 'System';
+        const timestamp = Date.now();
+
+        const updatedItem = {
+             ...item,
+             quantity: shouldMerge ? newTotal : receivedData.qty,
+             receivedDate: new Date(receivedData.date).getTime(),
+             lastUpdated: timestamp,
+             lastUpdatedBy: updatedBy
+        };
+        
+        setStockItems(prev => prev.map(i => i.id === item.id ? updatedItem : i));
+        Swal.fire('สำเร็จ', 'รับสินค้าเรียบร้อย', 'success');
     };
 
     const handleSaveItem = async (itemToSave: Omit<StockItem, 'id'> & { id?: number }) => {
@@ -454,6 +600,87 @@ export const StockManagement: React.FC<StockManagementProps> = ({
         return new Date(timestamp).toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: '2-digit' });
     };
 
+    const handlePrintKitchen = () => {
+        const printWindow = window.open('', '_blank');
+        if (!printWindow) {
+            Swal.fire('Error', 'กรุณาอนุญาตให้แสดง Popup เพื่อพิมพ์', 'error');
+            return;
+        }
+
+        const now = new Date();
+        const dateStr = now.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' });
+        const timeStr = now.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+
+        let html = `
+            <html>
+            <head>
+                <title>พิมพ์รายการสั่งของ</title>
+                <style>
+                    @page { margin: 0; size: 80mm auto; }
+                    body { 
+                        font-family: 'Sarabun', sans-serif; 
+                        width: 80mm; 
+                        margin: 0; 
+                        padding: 10px; 
+                        font-size: 14px;
+                        color: #000;
+                    }
+                    .text-center { text-align: center; }
+                    .font-bold { font-weight: bold; }
+                    .mb-2 { margin-bottom: 8px; }
+                    .flex { display: flex; justify-content: space-between; }
+                    .border-b { border-bottom: 1px dashed #000; padding-bottom: 4px; margin-bottom: 4px; }
+                    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+                    th, td { text-align: left; padding: 4px 0; vertical-align: top; }
+                    th { border-bottom: 1px solid #000; }
+                    .qty { text-align: right; width: 30%; }
+                </style>
+            </head>
+            <body>
+                <div class="text-center font-bold mb-2" style="font-size: 18px;">รายการสั่งของ</div>
+                <div class="flex mb-2">
+                    <span>วันที่: ${dateStr}</span>
+                    <span>เวลา: ${timeStr}</span>
+                </div>
+                <div class="border-b">ผู้พิมพ์: ${currentUser?.username || 'System'}</div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>รายการ</th>
+                            <th class="qty">จำนวน</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+
+        filteredItems.forEach(item => {
+            const qty = item.orderedQuantity || '-';
+            const unit = item.unit || '';
+            html += `
+                <tr>
+                    <td>${item.name}</td>
+                    <td class="qty">${qty} ${unit}</td>
+                </tr>
+            `;
+        });
+
+        html += `
+                    </tbody>
+                </table>
+                <div class="text-center" style="margin-top: 20px; border-top: 1px dashed #000; padding-top: 10px;">
+                    --- สิ้นสุดรายการ ---
+                </div>
+                <script>
+                    window.onload = function() { window.print(); window.close(); }
+                </script>
+            </body>
+            </html>
+        `;
+
+        printWindow.document.write(html);
+        printWindow.document.close();
+    };
+
     const handleExport = () => {
         const dataToExport = stockItems.map(item => ({
             'id': item.id,
@@ -577,6 +804,10 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>
                                 ออกรายการสั่งของ
                             </button>
+                            <button onClick={handlePrintKitchen} className="px-4 py-2 bg-gray-600 text-white font-semibold rounded-lg hover:bg-gray-700 whitespace-nowrap text-sm flex items-center gap-2 shadow transition-all hover:shadow-md">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+                                พิมพ์รายการ
+                            </button>
                             <button onClick={handleExport} className="px-4 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 whitespace-nowrap text-sm shadow transition-all hover:shadow-md">
                                 Export Excel
                             </button>
@@ -616,6 +847,7 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                     className="h-full pl-4 pr-10 py-2 border border-gray-300 rounded-lg bg-white text-gray-700 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm appearance-none shadow-sm"
                                 >
                                     <option value="ทั้งหมด">ทั้งหมด</option>
+                                    <option value="รายการสั่งของ">รายการสั่งของ</option>
                                     {stockCategories.filter(c => c !== 'ทั้งหมด').map(category => (
                                         <option key={category} value={category}>{category}</option>
                                     ))}
@@ -634,6 +866,12 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                 className={`px-4 py-1.5 rounded-full text-sm font-semibold transition-all ${selectedCategory === 'ทั้งหมด' ? 'bg-blue-600 text-white shadow-md' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300'}`}
                             >
                                 ทั้งหมด
+                            </button>
+                            <button
+                                onClick={() => setSelectedCategory('รายการสั่งของ')}
+                                className={`px-4 py-1.5 rounded-full text-sm font-semibold transition-all ${selectedCategory === 'รายการสั่งของ' ? 'bg-purple-600 text-white shadow-md' : 'bg-white border border-purple-200 text-purple-600 hover:bg-purple-50 hover:border-purple-300'}`}
+                            >
+                                รายการสั่งของ
                             </button>
                             {stockCategories.filter(c => c !== 'ทั้งหมด').map(category => (
                                 <button
@@ -654,7 +892,9 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                     <div className="hidden md:flex flex-col h-full bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                         <div className="grid grid-cols-12 gap-4 px-6 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider bg-gray-50 border-b border-gray-200 sticky top-0 z-10 items-center">
                             <div className="col-span-1">รูปภาพ</div>
-                            <div className="col-span-3">ชื่อวัตถุดิบ</div>
+                            <div className="col-span-2">ชื่อวัตถุดิบ</div>
+                            <div className="col-span-1 text-center">จำนวนสั่ง</div>
+                            <div className="col-span-1 text-center">ผู้สั่งซื้อ</div>
                             <div className="col-span-1 text-center">หมวดหมู่</div>
                             
                             <div className="col-span-2 text-center relative" ref={sortMenuRef}>
@@ -687,7 +927,7 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                 )}
                             </div>
 
-                            <div className="col-span-2 text-center">แก้ไขล่าสุด</div>
+                            <div className="col-span-1 text-center">แก้ไขล่าสุด</div>
                             <div className="col-span-1 text-right">คงเหลือ/จุดสั่ง</div>
                             <div className="col-span-1 text-center">สถานะ</div>
                             <div className="col-span-1 text-center">จัดการ</div>
@@ -715,11 +955,19 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                             </div>
                                         </div>
                                         
-                                        <div className="col-span-3 pr-2">
+                                        <div className="col-span-2 pr-2">
                                             <div className="font-semibold text-gray-900 text-base truncate" title={item.name}>{item.name}</div>
                                             <div className="text-xs text-gray-400">ID: {item.id}</div>
                                         </div>
                                         
+                                        <div className="col-span-1 text-center flex items-center justify-center">
+                                            <span className="font-medium text-gray-700">{item.orderedQuantity || '-'}</span>
+                                        </div>
+
+                                        <div className="col-span-1 text-center flex items-center justify-center">
+                                            <span className="text-xs text-gray-600">{item.orderedBy || '-'}</span>
+                                        </div>
+
                                         <div className="col-span-1 text-center">
                                             <span className="px-2 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 border border-gray-200 inline-block truncate max-w-full">
                                                 {item.category}
@@ -737,7 +985,7 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                             </div>
                                         </div>
                                         
-                                        <div className="col-span-2 text-center">
+                                        <div className="col-span-1 text-center">
                                             <div className="flex flex-col items-center">
                                                 <div className="text-xs font-semibold text-gray-700">{item.lastUpdatedBy || '-'}</div>
                                                 <div className="text-[10px] text-gray-400">
@@ -766,7 +1014,7 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                         </div>
                                         
                                         <div className="col-span-1 flex justify-center gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
-                                            <button onClick={() => handleOpenAdjustModal(item)} className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg border border-transparent hover:border-green-200 transition-all" title="ปรับสต็อก">
+                                            <button onClick={() => handleOpenAdjustModal(item)} className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg border border-transparent hover:border-green-200 transition-all" title="เบิกของ">
                                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
                                             </button>
                                             <button onClick={() => handleOpenItemModal(item)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg border border-transparent hover:border-blue-200 transition-all" title="แก้ไข">
@@ -830,6 +1078,16 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                             {formatDate(item.receivedDate)}
                                         </div>
                                     </div>
+                                    <div className="flex justify-between text-sm text-gray-600 bg-gray-50 p-2 rounded border border-gray-100 mt-2 mb-2">
+                                        <div>
+                                            <span className="font-semibold block text-xs text-gray-500">จำนวนสั่ง</span>
+                                            <span className="font-medium text-gray-800">{item.orderedQuantity || '-'}</span>
+                                        </div>
+                                        <div className="text-right">
+                                            <span className="font-semibold block text-xs text-gray-500">ผู้สั่งซื้อ</span>
+                                            <span className="font-medium text-gray-800">{item.orderedBy || '-'}</span>
+                                        </div>
+                                    </div>
                                     <div className="flex justify-between items-center text-sm text-gray-600 bg-blue-50 p-2 rounded border border-blue-100">
                                         <span className="font-semibold text-xs text-blue-600">แก้ไขล่าสุด:</span>
                                         <div className="text-right">
@@ -855,7 +1113,8 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                         </div>
                                     </div>
                                     <div className="flex justify-end gap-3 pt-3 border-t border-gray-200">
-                                        <button onClick={() => handleOpenAdjustModal(item)} className="text-base font-medium text-green-700 hover:underline">ปรับสต็อก</button>
+                                        <button onClick={() => handleReceiveStock(item)} className="text-base font-medium text-purple-700 hover:underline">รับของ</button>
+                                        <button onClick={() => handleOpenAdjustModal(item)} className="text-base font-medium text-green-700 hover:underline">เบิกของ</button>
                                         <button onClick={() => handleOpenItemModal(item)} className="text-base font-medium text-blue-700 hover:underline">แก้ไข</button>
                                         {canDelete && (
                                             <button onClick={() => handleDeleteItem(item.id)} className="text-base font-medium text-red-700 hover:underline">ลบ</button>
@@ -897,6 +1156,7 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                 stockItems={stockItems}
                 currentUser={currentUser}
                 isMobileMode={isMobilePOMode}
+                onUpdateStock={handleBulkUpdateStock}
             />
 
             {/* Tag Registration Modal */}

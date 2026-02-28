@@ -12,9 +12,10 @@ interface PurchaseOrderModalProps {
     stockItems: StockItem[];
     currentUser: User | null;
     isMobileMode?: boolean;
+    onUpdateStock?: (items: StockItem[]) => void;
 }
 
-export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, onClose, stockItems, currentUser, isMobileMode }) => {
+export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, onClose, stockItems, currentUser, isMobileMode, onUpdateStock }) => {
     // Local state to track typed quantities: Record<itemId, quantityString>
     const [quantities, setQuantities] = useState<Record<number, string>>({});
     // Local state to track notes: Record<itemId, noteString>
@@ -193,7 +194,27 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, 
         });
     };
 
+    const handleUpdateOrderDate = () => {
+        if (!onUpdateStock) return;
+        
+        // Filter items that have a quantity entered (and quantity > 0)
+        const itemsToUpdate = itemsToOrder.filter(item => {
+            const qtyStr = quantities[item.id];
+            return qtyStr && parseFloat(qtyStr) > 0;
+        }).map(item => ({
+            ...item,
+            orderDate: Date.now(),
+            orderedQuantity: quantities[item.id],
+            orderedBy: currentUser?.username || 'System'
+        }));
+
+        if (itemsToUpdate.length > 0) {
+            onUpdateStock(itemsToUpdate);
+        }
+    };
+
     const handlePrint = () => {
+        handleUpdateOrderDate();
         window.print();
     };
 
@@ -248,6 +269,7 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, 
                 const textarea = document.getElementById('line-summary-text') as HTMLTextAreaElement;
                 if (textarea) {
                     navigator.clipboard.writeText(textarea.value);
+                    handleUpdateOrderDate(); // Update status on copy
                     Swal.fire({
                         icon: 'success',
                         title: 'คัดลอกแล้ว!',
@@ -360,6 +382,7 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, 
             document.body.removeChild(link);
             
             Swal.close();
+            handleUpdateOrderDate(); // Update status on save image
             Swal.fire({
                 icon: 'success',
                 title: 'บันทึกรูปภาพสำเร็จ',

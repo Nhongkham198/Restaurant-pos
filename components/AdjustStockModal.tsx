@@ -12,13 +12,13 @@ interface AdjustStockModalProps {
 
 export const AdjustStockModal: React.FC<AdjustStockModalProps> = ({ isOpen, onClose, onSave, item }) => {
     const [adjustment, setAdjustment] = useState<number>(0);
-    const [adjustmentType, setAdjustmentType] = useState<'add' | 'subtract'>('add');
+    const [adjustmentType, setAdjustmentType] = useState<'add' | 'subtract'>('subtract');
     const [isNumpadOpen, setIsNumpadOpen] = useState(false);
 
     useEffect(() => {
         if (isOpen) {
             setAdjustment(0);
-            setAdjustmentType('add');
+            setAdjustmentType('subtract');
         }
     }, [isOpen]);
 
@@ -50,7 +50,7 @@ export const AdjustStockModal: React.FC<AdjustStockModalProps> = ({ isOpen, onCl
     return (
         <>
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-                <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full" onClick={e => e.stopPropagation()}>
+                <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full max-h-[85vh] overflow-y-auto pb-20" onClick={e => e.stopPropagation()}>
                     
                     {/* Header Section with Item Info and Stats */}
                     <div className="flex justify-between items-start mb-6">
@@ -90,11 +90,8 @@ export const AdjustStockModal: React.FC<AdjustStockModalProps> = ({ isOpen, onCl
                         
                         <div>
                             <label className="block text-sm font-medium text-gray-700">ประเภทการปรับ</label>
-                            <div className="mt-1 grid grid-cols-2 gap-2">
-                                 <button type="button" onClick={() => setAdjustmentType('add')} className={`py-2 px-4 rounded-md font-semibold transition-colors ${adjustmentType === 'add' ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-800'}`}>
-                                    รับเข้า (+)
-                                </button>
-                                 <button type="button" onClick={() => setAdjustmentType('subtract')} className={`py-2 px-4 rounded-md font-semibold transition-colors ${adjustmentType === 'subtract' ? 'bg-red-500 text-white' : 'bg-gray-200 text-gray-800'}`}>
+                            <div className="mt-1">
+                                 <button type="button" className="w-full py-2 px-4 rounded-md font-semibold bg-red-500 text-white cursor-default">
                                     นำออก (-)
                                 </button>
                             </div>
