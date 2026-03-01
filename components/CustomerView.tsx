@@ -336,8 +336,13 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         if (savedSession) {
             try {
                 const { name } = JSON.parse(savedSession);
-                setCustomerName(name || 'ลูกค้า');
-                setIsAuthenticated(true);
+                // Force re-initialization if the name is the old format (less than 6 digits) or 'ลูกค้า'
+                if (!name || name === 'ลูกค้า' || (name.startsWith('Guest-') && name.length < 12)) {
+                    initializeSession(sessionKey);
+                } else {
+                    setCustomerName(name);
+                    setIsAuthenticated(true);
+                }
             } catch (e) {
                 initializeSession(sessionKey);
             }
@@ -347,7 +352,8 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     }, [table.id, isSessionCompleted]);
 
     const initializeSession = (sessionKey: string) => {
-        const randomSuffix = Math.floor(Math.random() * 1000);
+        // Generate a 6-digit random number to ensure uniqueness across different devices
+        const randomSuffix = Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
         const name = `Guest-${randomSuffix}`;
         localStorage.setItem(sessionKey, JSON.stringify({ name }));
         setCustomerName(name);
