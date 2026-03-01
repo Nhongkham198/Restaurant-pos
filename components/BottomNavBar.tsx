@@ -44,7 +44,7 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({ items, currentView, 
     };
     
     return (
-        <nav className="fixed bottom-0 left-0 right-0 z-50 bg-gray-900 border-t border-gray-800 p-2 flex overflow-x-auto gap-2 hide-scrollbar justify-center">
+        <nav className="fixed bottom-0 left-0 right-0 z-50 bg-gray-900 border-t border-gray-800 p-2 flex overflow-x-auto gap-2 hide-scrollbar">
             {/* Inline style to hide scrollbar for a cleaner look */}
             <style>{`
                 .hide-scrollbar::-webkit-scrollbar {
@@ -55,8 +55,11 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({ items, currentView, 
                     scrollbar-width: none;
                 }
             `}</style>
-            {items.map(item => (
-                <div key={item.id} className="flex-shrink-0 w-[72px]">
+            {items.map((item, index) => (
+                <div 
+                    key={item.id} 
+                    className={`flex-shrink-0 w-[72px] ${index === 0 ? 'ml-auto' : ''} ${index === items.length - 1 ? 'mr-auto' : ''}`}
+                >
                     <BottomNavItem
                         item={item}
                         isActive={currentView === item.view}

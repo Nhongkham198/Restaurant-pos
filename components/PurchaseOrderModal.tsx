@@ -412,7 +412,7 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, 
     return (
         <div 
             id="purchase-order-modal-wrapper"
-            className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-[80] p-4 print:p-0 print:block print:bg-white print:static"
+            className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-[80] p-4 pb-24 print:p-0 print:block print:bg-white print:static"
         >
             <style>
                 {`
@@ -520,7 +520,7 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, 
             
             <div 
                 id="purchase-order-modal-content"
-                className="bg-white w-full max-w-4xl h-[90vh] flex flex-col rounded-lg shadow-xl overflow-hidden" 
+                className="bg-white w-full max-w-4xl h-[80vh] flex flex-col rounded-lg shadow-xl overflow-hidden" 
                 onClick={e => e.stopPropagation()}
             >
                 {/* Header (On Screen & Print) */}
