@@ -287,6 +287,45 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
 
     const prevMyItemsCountRef = useRef<number>(0);
     const isProcessingPaymentRef = useRef(false);
+
+    // Helper to resize image
+    const resizeImage = (file: File): Promise<string> => {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = (event) => {
+                const img = new Image();
+                img.src = event.target?.result as string;
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    const MAX_WIDTH = 800;
+                    const MAX_HEIGHT = 800;
+                    let width = img.width;
+                    let height = img.height;
+
+                    if (width > height) {
+                        if (width > MAX_WIDTH) {
+                            height *= MAX_WIDTH / width;
+                            width = MAX_WIDTH;
+                        }
+                    } else {
+                        if (height > MAX_HEIGHT) {
+                            width *= MAX_HEIGHT / height;
+                            height = MAX_HEIGHT;
+                        }
+                    }
+
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx?.drawImage(img, 0, 0, width, height);
+                    resolve(canvas.toDataURL('image/jpeg', 0.7));
+                };
+                img.onerror = (e) => reject(e);
+            };
+            reader.onerror = (e) => reject(e);
+        });
+    };
     
     useEffect(() => {
         if (isSessionCompleted) return;
@@ -635,9 +674,19 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                     timer: 3500,
                     showConfirmButton: false 
                 });
+            } else {
+                // If undefined returned but no error thrown (rare), close loading
+                Swal.close();
             }
         } catch (error) {
             console.error("Order placement failed:", error);
+            // Ensure Swal is updated to show error instead of stuck loading
+            Swal.fire({
+                icon: 'error',
+                title: t('เกิดข้อผิดพลาด'),
+                text: t('ไม่สามารถส่งรายการอาหารได้ กรุณาลองใหม่อีกครั้ง'),
+                confirmButtonText: t('ตกลง')
+            });
         }
     };
 
@@ -959,8 +1008,42 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                 </div>
             )}
 
+            {isCartOpen && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-end sm:justify-center items-end sm:items-center">
+                    <div className="bg-white w-full sm:max-w-md h-[90vh] sm:h-[80vh] rounded-t-2xl sm:rounded-2xl shadow-2xl flex flex-col animate-slide-up">
+                        <div className="p-4 border-b flex justify-between items-center">
+                            <h2 className="text-xl font-bold text-gray-800">{t('รายการในตะกร้า (ยังไม่สั่ง)')}</h2>
+                            <button onClick={() => setIsCartOpen(false)} className="p-2 bg-gray-100 rounded-full hover:bg-gray-200">
+                                <X className="w-6 h-6 text-gray-600" />
+                            </button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                            {cartItems.map(item => (
+                                <div key={item.cartItemId} className="flex justify-between items-start border-b pb-4">
+                                    <div className="flex-1">
+                                        <p className="font-bold text-gray-800">{item.name}</p>
+                                        <p className="text-sm text-gray-500">{item.selectedOptions.map(o => o.name).join(', ')}</p>
+                                        {item.notes && <p className="text-sm text-yellow-600">** {item.notes}</p>}
+                                        <p className="text-blue-600 font-semibold mt-1">{item.finalPrice.toLocaleString()} ฿ x {item.quantity}</p>
+                                    </div>
+                                    <button onClick={() => handleRemoveItem(item.cartItemId)} className="text-red-500 p-2">{t('ลบ')}</button>
+                                </div>
+                            ))}
+                            {cartItems.length === 0 && <div className="text-center text-gray-400 py-10">{t('ไม่มีสินค้าในตะกร้า')}</div>}
+                        </div>
+                        <div className="p-4 border-t bg-gray-50">
+                            <div className="flex justify-between mb-4 text-lg font-bold">
+                                <span>{t('ยอดในตะกร้า')}</span>
+                                <span>{cartTotalAmount.toLocaleString()} ฿</span>
+                            </div>
+                            <button onClick={handleSubmitOrder} className="w-full bg-green-600 text-white font-bold py-4 rounded-xl shadow-lg hover:bg-green-700 transition-colors text-lg">{t('ยืนยันสั่งอาหาร 🚀')}</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {isPaymentModalOpen && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center p-4">
+                <div className="fixed inset-0 bg-black bg-opacity-50 z-[60] flex justify-center items-center p-4">
                     <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl flex flex-col animate-slide-up overflow-hidden">
                         <div className="p-4 border-b flex justify-between items-center bg-gray-50">
                             <h2 className="text-xl font-bold text-gray-800">{t('ชำระเงิน')}</h2>
@@ -990,14 +1073,18 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                                     accept="image/*" 
                                     ref={slipInputRef}
                                     className="hidden"
-                                    onChange={(e) => {
+                                    onChange={async (e) => {
                                         const file = e.target.files?.[0];
                                         if (file) {
-                                            const reader = new FileReader();
-                                            reader.onloadend = () => {
-                                                setPaymentSlipBase64(reader.result as string);
-                                            };
-                                            reader.readAsDataURL(file);
+                                            try {
+                                                Swal.fire({ title: 'กำลังประมวลผลรูปภาพ...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+                                                const resizedBase64 = await resizeImage(file);
+                                                setPaymentSlipBase64(resizedBase64);
+                                                Swal.close();
+                                            } catch (error) {
+                                                console.error("Image resize failed:", error);
+                                                Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถอ่านไฟล์รูปภาพได้', 'error');
+                                            }
                                         }
                                     }}
                                 />
@@ -1030,40 +1117,6 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                             >
                                 {t('ยืนยันการสั่งอาหาร')} 🚀
                             </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {isCartOpen && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-end sm:justify-center items-end sm:items-center">
-                    <div className="bg-white w-full sm:max-w-md h-[90vh] sm:h-[80vh] rounded-t-2xl sm:rounded-2xl shadow-2xl flex flex-col animate-slide-up">
-                        <div className="p-4 border-b flex justify-between items-center">
-                            <h2 className="text-xl font-bold text-gray-800">{t('รายการในตะกร้า (ยังไม่สั่ง)')}</h2>
-                            <button onClick={() => setIsCartOpen(false)} className="p-2 bg-gray-100 rounded-full hover:bg-gray-200">
-                                <svg className="w-6 h-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                            </button>
-                        </div>
-                        <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                            {cartItems.map(item => (
-                                <div key={item.cartItemId} className="flex justify-between items-start border-b pb-4">
-                                    <div className="flex-1">
-                                        <p className="font-bold text-gray-800">{item.name}</p>
-                                        <p className="text-sm text-gray-500">{item.selectedOptions.map(o => o.name).join(', ')}</p>
-                                        {item.notes && <p className="text-sm text-yellow-600">** {item.notes}</p>}
-                                        <p className="text-blue-600 font-semibold mt-1">{item.finalPrice.toLocaleString()} ฿ x {item.quantity}</p>
-                                    </div>
-                                    <button onClick={() => handleRemoveItem(item.cartItemId)} className="text-red-500 p-2">{t('ลบ')}</button>
-                                </div>
-                            ))}
-                            {cartItems.length === 0 && <div className="text-center text-gray-400 py-10">{t('ไม่มีสินค้าในตะกร้า')}</div>}
-                        </div>
-                        <div className="p-4 border-t bg-gray-50">
-                            <div className="flex justify-between mb-4 text-lg font-bold">
-                                <span>{t('ยอดในตะกร้า')}</span>
-                                <span>{cartTotalAmount.toLocaleString()} ฿</span>
-                            </div>
-                            <button onClick={handleSubmitOrder} className="w-full bg-green-600 text-white font-bold py-4 rounded-xl shadow-lg hover:bg-green-700 transition-colors text-lg">{t('ยืนยันสั่งอาหาร 🚀')}</button>
                         </div>
                     </div>
                 </div>
