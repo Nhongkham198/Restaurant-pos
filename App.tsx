@@ -842,9 +842,9 @@ export const App: React.FC = () => {
     const handleQuantityChange = (cartItemId: string, newQuantity: number) => { setCurrentOrderItems(prevItems => { if (newQuantity <= 0) return prevItems.filter(i => i.cartItemId !== cartItemId); return prevItems.map(i => i.cartItemId === cartItemId ? { ...i, quantity: newQuantity } : i); }); };
     const handleRemoveItem = (cartItemId: string) => { setCurrentOrderItems(prevItems => prevItems.filter(i => i.cartItemId !== cartItemId)); };
     
-    const handlePlaceOrder = async (orderItems: OrderItem[] = currentOrderItems, custName: string = customerName, custCount: number = customerCount, tableOverride: Table | null = selectedTable, isLineMan: boolean = false, lineManNumber?: string, deliveryProviderName?: string, paymentSlipUrl?: string): Promise<number | undefined> => { 
+    const handlePlaceOrder = async (orderItems: OrderItem[] = currentOrderItems, custName: string = customerName, custCount: number = customerCount, tableOverride: Table | null = selectedTable, isLineMan: boolean = false, lineManNumber?: string, deliveryProviderName?: string): Promise<number | undefined> => { 
         try {
-            const orderNumber = await placeOrder(orderItems, custName, custCount, tableOverride, isLineMan, lineManNumber, deliveryProviderName, paymentSlipUrl);
+            const orderNumber = await placeOrder(orderItems, custName, custCount, tableOverride, isLineMan, lineManNumber, deliveryProviderName);
             
             // Clear local state on success (only if not customer mode)
             if (orderNumber && !isCustomerMode) {
@@ -907,31 +907,13 @@ export const App: React.FC = () => {
         // OPTIMISTIC LOADING: If table not found in list yet, create a dummy immediately
         // This ensures the menu opens instantly (< 3s) while data loads in background.
         if (!customerTable && targetTableId) {
-            if (targetTableId === -1) {
-                customerTable = {
-                    id: -1,
-                    name: 'สั่งกลับบ้าน (Takeaway)',
-                    floor: 'Online',
-                    activePin: null,
-                    reservation: null
-                };
-            } else if (targetTableId === -2) {
-                customerTable = {
-                    id: -2,
-                    name: 'เดลิเวอรี่ (Delivery)',
-                    floor: 'Online',
-                    activePin: null,
-                    reservation: null
-                };
-            } else {
-                customerTable = {
-                    id: targetTableId,
-                    name: 'กำลังโหลด...',
-                    floor: '-',
-                    activePin: null,
-                    reservation: null
-                };
-            }
+            customerTable = {
+                id: targetTableId,
+                name: 'กำลังโหลด...',
+                floor: '-',
+                activePin: null,
+                reservation: null
+            };
         }
 
         // If the table is found OR we made a temp one, render the main customer view.
@@ -946,11 +928,10 @@ export const App: React.FC = () => {
                         activeOrders={activeOrders.filter(o => o.tableId === targetTableId)}
                         allBranchOrders={activeOrders}
                         completedOrders={completedOrders}
-                        onPlaceOrder={(items, name, slipUrl) => handlePlaceOrder(items, name, 1, customerTable, false, undefined, undefined, slipUrl)}
+                        onPlaceOrder={(items, name) => handlePlaceOrder(items, name, 1, customerTable)}
                         onStaffCall={(table, custName) => setStaffCalls(prev => [...prev, {id: Date.now(), tableId: table.id, tableName: `${table.name} (${table.floor})`, customerName: custName, branchId: selectedBranch ? selectedBranch.id : Number(branchId || 0), timestamp: Date.now()}])}
                         recommendedMenuItemIds={recommendedMenuItemIds}
                         logoUrl={appLogoUrl || logoUrl}
-                        qrCodeUrl={qrCodeUrl}
                         restaurantName={restaurantName}
                         // NEW: Pass branchName prop to display it on customer view
                         branchName={selectedBranch ? selectedBranch.name : (branches.find(b => b.id.toString() === branchId)?.name || '')}

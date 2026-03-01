@@ -155,7 +155,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     const [isCustomerMode, setIsCustomerMode] = useState(() => {
         const params = new URLSearchParams(window.location.search);
-        if (params.get('mode') === 'customer' || params.get('orderType') === 'takeaway' || params.get('orderType') === 'delivery') return true;
+        if (params.get('mode') === 'customer') return true;
         const storedUser = localStorage.getItem('currentUser');
         if (storedUser) {
             try {
@@ -190,9 +190,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     const [customerTableId, setCustomerTableId] = useState<number | null>(() => {
         const params = new URLSearchParams(window.location.search);
-        const orderType = params.get('orderType');
-        if (orderType === 'takeaway') return -1;
-        if (orderType === 'delivery') return -2;
         const tableIdParam = params.get('tableId');
         if (tableIdParam) return Number(tableIdParam);
         const storedUser = localStorage.getItem('currentUser');
