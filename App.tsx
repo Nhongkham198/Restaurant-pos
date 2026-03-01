@@ -907,13 +907,31 @@ export const App: React.FC = () => {
         // OPTIMISTIC LOADING: If table not found in list yet, create a dummy immediately
         // This ensures the menu opens instantly (< 3s) while data loads in background.
         if (!customerTable && targetTableId) {
-            customerTable = {
-                id: targetTableId,
-                name: 'กำลังโหลด...',
-                floor: '-',
-                activePin: null,
-                reservation: null
-            };
+            if (targetTableId === -1) {
+                customerTable = {
+                    id: -1,
+                    name: 'สั่งกลับบ้าน (Takeaway)',
+                    floor: 'Online',
+                    activePin: null,
+                    reservation: null
+                };
+            } else if (targetTableId === -2) {
+                customerTable = {
+                    id: -2,
+                    name: 'เดลิเวอรี่ (Delivery)',
+                    floor: 'Online',
+                    activePin: null,
+                    reservation: null
+                };
+            } else {
+                customerTable = {
+                    id: targetTableId,
+                    name: 'กำลังโหลด...',
+                    floor: '-',
+                    activePin: null,
+                    reservation: null
+                };
+            }
         }
 
         // If the table is found OR we made a temp one, render the main customer view.
