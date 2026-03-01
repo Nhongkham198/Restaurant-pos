@@ -108,7 +108,6 @@ interface BaseOrder {
     splitCount?: number;
     isSplitChild?: boolean;
     splitIndex?: number;
-    paymentSlipUrl?: string; // NEW: Store payment slip for online orders
 }
 
 export const CANCELLATION_REASONS = [
@@ -121,7 +120,7 @@ export const CANCELLATION_REASONS = [
 export type CancellationReason = typeof CANCELLATION_REASONS[number];
 
 export interface ActiveOrder extends BaseOrder {
-    status: 'pending_payment' | 'waiting' | 'cooking' | 'served' | 'completed' | 'cancelled';
+    status: 'waiting' | 'cooking' | 'served' | 'completed' | 'cancelled';
     orderTime: number; // timestamp
     cookingStartTime?: number; // timestamp
     isOverdue?: boolean;
