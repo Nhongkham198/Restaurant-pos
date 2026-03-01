@@ -743,6 +743,73 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
                             </div>
 
                             <div className="bg-white p-6 rounded-lg shadow-sm space-y-4">
+                                <h3 className="text-lg font-bold text-gray-800 border-b pb-2">ลิงก์สำหรับลูกค้าสั่งอาหาร (ออนไลน์)</h3>
+                                <div className="space-y-4">
+                                    {(() => {
+                                        const urlBranchId = new URLSearchParams(window.location.search).get('branchId');
+                                        let currentBranchId = urlBranchId;
+                                        if (!currentBranchId) {
+                                            try {
+                                                const storedBranch = localStorage.getItem('selectedBranch');
+                                                if (storedBranch) {
+                                                    currentBranchId = JSON.parse(storedBranch).id.toString();
+                                                }
+                                            } catch (e) {}
+                                        }
+                                        const takeawayLink = `${window.location.origin}${window.location.pathname}?orderType=takeaway${currentBranchId ? `&branchId=${currentBranchId}` : ''}`;
+                                        const deliveryLink = `${window.location.origin}${window.location.pathname}?orderType=delivery${currentBranchId ? `&branchId=${currentBranchId}` : ''}`;
+
+                                        return (
+                                            <>
+                                                <div>
+                                                    <label className="block text-sm font-medium text-gray-700 mb-1">ลิงก์สั่งกลับบ้าน (Takeaway)</label>
+                                                    <div className="flex gap-2">
+                                                        <input 
+                                                            type="text" 
+                                                            readOnly 
+                                                            value={takeawayLink}
+                                                            className="flex-1 bg-gray-50 border border-gray-300 rounded-md p-2 text-sm text-gray-600"
+                                                        />
+                                                        <button 
+                                                            onClick={() => {
+                                                                navigator.clipboard.writeText(takeawayLink);
+                                                                Swal.fire({ icon: 'success', title: 'คัดลอกลิงก์แล้ว', toast: true, position: 'top-end', showConfirmButton: false, timer: 1500 });
+                                                            }}
+                                                            className="px-4 py-2 bg-blue-50 text-blue-600 rounded-md hover:bg-blue-100 font-medium text-sm whitespace-nowrap"
+                                                        >
+                                                            คัดลอก
+                                                        </button>
+                                                    </div>
+                                                    <p className="text-xs text-gray-500 mt-1">นำลิงก์นี้ไปแปะใน Facebook หรือ Line เพื่อให้ลูกค้ากดสั่งอาหารกลับบ้านได้ทันที</p>
+                                                </div>
+                                                <div>
+                                                    <label className="block text-sm font-medium text-gray-700 mb-1">ลิงก์เดลิเวอรี่ (Delivery)</label>
+                                                    <div className="flex gap-2">
+                                                        <input 
+                                                            type="text" 
+                                                            readOnly 
+                                                            value={deliveryLink}
+                                                            className="flex-1 bg-gray-50 border border-gray-300 rounded-md p-2 text-sm text-gray-600"
+                                                        />
+                                                        <button 
+                                                            onClick={() => {
+                                                                navigator.clipboard.writeText(deliveryLink);
+                                                                Swal.fire({ icon: 'success', title: 'คัดลอกลิงก์แล้ว', toast: true, position: 'top-end', showConfirmButton: false, timer: 1500 });
+                                                            }}
+                                                            className="px-4 py-2 bg-blue-50 text-blue-600 rounded-md hover:bg-blue-100 font-medium text-sm whitespace-nowrap"
+                                                        >
+                                                            คัดลอก
+                                                        </button>
+                                                    </div>
+                                                    <p className="text-xs text-gray-500 mt-1">นำลิงก์นี้ไปแปะใน Facebook หรือ Line เพื่อให้ลูกค้ากดสั่งเดลิเวอรี่ (ร้านจัดส่งเอง)</p>
+                                                </div>
+                                            </>
+                                        );
+                                    })()}
+                                </div>
+                            </div>
+
+                            <div className="bg-white p-6 rounded-lg shadow-sm space-y-4">
                                 <h3 className="text-lg font-bold text-gray-800 border-b pb-2">เวลาทำการ</h3>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
