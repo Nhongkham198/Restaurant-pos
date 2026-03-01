@@ -8,6 +8,7 @@ interface KitchenViewProps {
     onCompleteOrder: (orderId: number) => void;
     onStartCooking: (orderId: number) => void;
     onPrintOrder: (orderId: number) => void;
+    onCancelOrder: (orderId: number, reason: string) => void;
     isAutoPrintEnabled: boolean; // Received from App
     onToggleAutoPrint: () => void; // Received from App
 }
@@ -17,6 +18,7 @@ export const KitchenView: React.FC<KitchenViewProps> = ({
     onCompleteOrder, 
     onStartCooking, 
     onPrintOrder,
+    onCancelOrder,
     isAutoPrintEnabled,
     onToggleAutoPrint
 }) => {
@@ -25,7 +27,7 @@ export const KitchenView: React.FC<KitchenViewProps> = ({
 
     const { waitingOrders, cookingOrders } = useMemo(() => {
         const waiting = activeOrders
-            .filter(o => o.status === 'waiting')
+            .filter(o => o.status === 'waiting' || o.status === 'pending_payment')
             .sort((a, b) => a.orderTime - b.orderTime);
         const cooking = activeOrders
             .filter(o => o.status === 'cooking')
@@ -121,6 +123,7 @@ export const KitchenView: React.FC<KitchenViewProps> = ({
                                         onCompleteOrder={onCompleteOrder}
                                         onStartCooking={onStartCooking}
                                         onPrintOrder={onPrintOrder}
+                                        onCancelOrder={onCancelOrder}
                                     />
                                 ))}
                             </div>
@@ -147,6 +150,7 @@ export const KitchenView: React.FC<KitchenViewProps> = ({
                                         onCompleteOrder={onCompleteOrder}
                                         onStartCooking={onStartCooking}
                                         onPrintOrder={onPrintOrder}
+                                        onCancelOrder={onCancelOrder}
                                     />
                                 ))}
                             </div>

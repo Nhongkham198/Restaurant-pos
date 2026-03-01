@@ -70,7 +70,7 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({
             return;
         }
 
-        if (order.paymentDetails.slipImage) {
+        if (order.paymentDetails.slipImage || order.paymentSlipUrl) {
             setZoomLevel(1); // Reset zoom when opening
             setIsViewingSlip(true);
         } else {
@@ -174,11 +174,11 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({
                                     {order.paymentDetails.method === 'transfer' && (
                                         <button 
                                             onClick={handleViewSlip}
-                                            disabled={isSlipExpired && !order.paymentDetails.slipImage}
+                                            disabled={isSlipExpired && !order.paymentDetails.slipImage && !order.paymentSlipUrl}
                                             className={`text-xs px-3 py-1.5 rounded-full border flex items-center gap-1 transition-colors ${
                                                 isSlipExpired 
                                                     ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
-                                                    : order.paymentDetails.slipImage 
+                                                    : (order.paymentDetails.slipImage || order.paymentSlipUrl)
                                                         ? 'bg-blue-600 text-white border-blue-600 hover:bg-blue-700 shadow-sm' 
                                                         : 'bg-gray-100 text-gray-500 border-gray-300 cursor-not-allowed'
                                             }`}
@@ -186,7 +186,7 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({
                                             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
                                                 <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
                                             </svg>
-                                            {isSlipExpired ? 'ลบอัตโนมัติ' : (order.paymentDetails.slipImage ? 'ดูสลิป' : 'ไม่มีรูป')}
+                                            {isSlipExpired ? 'ลบอัตโนมัติ' : ((order.paymentDetails.slipImage || order.paymentSlipUrl) ? 'ดูสลิป' : 'ไม่มีรูป')}
                                         </button>
                                     )}
                                 </div>
@@ -248,7 +248,7 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({
             </div>
 
             {/* FULL SCREEN IMAGE VIEWER MODAL - IMPROVED SCROLLING */}
-            {isViewingSlip && order.paymentDetails.slipImage && !isSlipExpired && (
+            {isViewingSlip && (order.paymentDetails.slipImage || order.paymentSlipUrl) && !isSlipExpired && (
                 <div 
                     className="fixed inset-0 z-[100] bg-black/95 flex flex-col animate-fade-in"
                     onClick={handleCloseSlip}
@@ -284,7 +284,7 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({
                             className={`min-h-full min-w-full flex items-center justify-center p-4 ${zoomLevel > 1 ? 'items-start justify-start' : ''}`}
                         >
                             <img 
-                                src={order.paymentDetails.slipImage} 
+                                src={order.paymentSlipUrl || order.paymentDetails.slipImage} 
                                 alt="Slip" 
                                 className="transition-all duration-200 ease-out shadow-2xl"
                                 style={{ 

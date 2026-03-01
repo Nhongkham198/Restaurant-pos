@@ -259,6 +259,7 @@ export const App: React.FC = () => {
         isPlacingOrder, 
         lastPlacedOrderId,
         handleUpdateOrderFromModal,
+        handleCancelOrder,
         handleStartCooking,
         handleCompleteOrder,
         handlePrintKitchenOrder
@@ -325,7 +326,7 @@ export const App: React.FC = () => {
     const maxKnownLeaveIdRef = useRef<number>(-1);
 
     // ... Computed Values ... (Same as before)
-    const waitingBadgeCount = useMemo(() => activeOrders.filter(o => o.status === 'waiting').length, [activeOrders]);
+    const waitingBadgeCount = useMemo(() => activeOrders.filter(o => o.status === 'waiting' || o.status === 'pending_payment').length, [activeOrders]);
     const cookingBadgeCount = useMemo(() => activeOrders.filter(o => o.status === 'cooking').length, [activeOrders]);
     const totalKitchenBadgeCount = waitingBadgeCount + cookingBadgeCount;
 
@@ -1210,6 +1211,7 @@ export const App: React.FC = () => {
                                                     onCompleteOrder={handleCompleteOrder} 
                                                     onStartCooking={handleStartCooking} 
                                                     onPrintOrder={handlePrintKitchenOrder}
+                                                    onCancelOrder={handleCancelOrder}
                                                     isAutoPrintEnabled={isAutoPrintEnabled} // Pass prop
                                                     onToggleAutoPrint={toggleAutoPrint}     // Pass handler
                                                 />
@@ -1256,6 +1258,7 @@ export const App: React.FC = () => {
                                     onCompleteOrder={handleCompleteOrder} 
                                     onStartCooking={handleStartCooking} 
                                     onPrintOrder={handlePrintKitchenOrder}
+                                    onCancelOrder={handleCancelOrder}
                                     isAutoPrintEnabled={isAutoPrintEnabled} // Pass prop
                                     onToggleAutoPrint={toggleAutoPrint}     // Pass handler
                                 />

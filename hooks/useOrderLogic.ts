@@ -219,9 +219,34 @@ export const useOrderLogic = () => {
         } 
     };
 
+    const handleCancelOrder = async (orderId: number, reason: string = 'อื่นๆ', notes: string = '') => {
+        if (!navigator.onLine) return;
+        const orderToCancel = activeOrders.find(o => o.id === orderId);
+        if (orderToCancel) {
+            const cancelledOrder: CancelledOrder = {
+                ...orderToCancel,
+                status: 'cancelled',
+                cancellationTime: Date.now(),
+                cancelledBy: currentUser?.username || 'System',
+                cancellationReason: reason as any,
+                cancellationNotes: notes,
+            };
+            await activeOrdersActions.update(orderToCancel.id, { status: 'cancelled', cancellationReason: reason, cancellationNotes: notes });
+            await db.collection(`branches/${branchId}/cancelledOrders_v2`).doc(cancelledOrder.id.toString()).set(cancelledOrder);
+            Swal.fire({ icon: 'success', title: 'ยกเลิกออเดอร์สำเร็จ', timer: 1500, showConfirmButton: false });
+        }
+    };
+
     const handleStartCooking = (orderId: number) => { 
         if (!navigator.onLine) return; 
-        activeOrdersActions.update(orderId, { status: 'cooking', cookingStartTime: Date.now() }); 
+        const order = activeOrders.find(o => o.id === orderId);
+        if (order?.status === 'pending_payment') {
+            // Confirm payment and start cooking
+            activeOrdersActions.update(orderId, { status: 'cooking', cookingStartTime: Date.now() });
+            Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'ยืนยันยอดและเริ่มทำอาหาร', showConfirmButton: false, timer: 2000 });
+        } else {
+            activeOrdersActions.update(orderId, { status: 'cooking', cookingStartTime: Date.now() }); 
+        }
     };
 
     const handleCompleteOrder = async (orderId: number) => { 
@@ -279,6 +304,7 @@ export const useOrderLogic = () => {
         isPlacingOrder,
         lastPlacedOrderId,
         handleUpdateOrderFromModal,
+        handleCancelOrder,
         handleStartCooking,
         handleCompleteOrder,
         handlePrintKitchenOrder
