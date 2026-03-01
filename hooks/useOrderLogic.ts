@@ -33,7 +33,8 @@ export const useOrderLogic = () => {
         tableOverride: Table | null, 
         isLineMan: boolean = false, 
         lineManNumber?: string, 
-        deliveryProviderName?: string
+        deliveryProviderName?: string,
+        paymentSlipUrl?: string
     ): Promise<number | undefined> => {
         if (!isLineMan && !tableOverride) { 
             Swal.fire('กรุณาเลือกโต๊ะ', 'ต้องเลือกโต๊ะสำหรับออเดอร์ หรือเลือก Delivery', 'warning'); 
@@ -80,8 +81,11 @@ export const useOrderLogic = () => {
                         const orderTableName = isLineMan ? (deliveryProviderName || 'Delivery') : (finalTable ? finalTable.name : 'Unknown'); 
                         const orderFloor = isLineMan ? 'Delivery' : (finalTable ? finalTable.floor : 'Unknown'); 
                         const orderTableId = isLineMan ? -99 : (finalTable ? finalTable.id : 0); 
-                        const shouldSendToKitchen = isCustomerMode || sendToKitchen || isLineMan;
-                        const isPrintedImmediatelyByThisDevice = !isCustomerMode && shouldSendToKitchen;
+                        
+                        // If payment slip is provided, it must be verified first
+                        const isPendingVerification = !!paymentSlipUrl;
+                        const shouldSendToKitchen = !isPendingVerification && (isCustomerMode || sendToKitchen || isLineMan);
+                        const isPrintedImmediatelyByThisDevice = !isPendingVerification && !isCustomerMode && shouldSendToKitchen;
                         
                         const newOrder: ActiveOrder = { 
                             id: Date.now(), 
@@ -93,13 +97,14 @@ export const useOrderLogic = () => {
                             floor: orderFloor, 
                             customerCount: custCount, 
                             items: itemsWithOrigin, 
-                            status: shouldSendToKitchen ? 'waiting' : 'served', 
+                            status: isPendingVerification ? 'pending_payment' : (shouldSendToKitchen ? 'waiting' : 'served'), 
                             orderTime: Date.now(), 
                             orderType: isLineMan ? 'lineman' : 'dine-in', 
                             taxRate: isTaxEnabled ? taxRate : 0, 
                             taxAmount: 0, 
                             placedBy: currentUser ? currentUser.username : (custName || `โต๊ะ ${orderTableName}`),
                             isPrintedToKitchen: isPrintedImmediatelyByThisDevice,
+                            paymentSlipUrl: paymentSlipUrl
                         }; 
                         const subtotal = newOrder.items.reduce((sum, item) => sum + item.finalPrice * item.quantity, 0); 
                         newOrder.taxAmount = newOrder.taxRate > 0 ? subtotal * (newOrder.taxRate / 100) : 0; 

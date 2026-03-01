@@ -113,10 +113,11 @@ interface CustomerViewProps {
     activeOrders: ActiveOrder[];
     allBranchOrders: ActiveOrder[]; 
     completedOrders: CompletedOrder[];
-    onPlaceOrder: (items: OrderItem[], customerName: string) => Promise<number | void | undefined>;
+    onPlaceOrder: (items: OrderItem[], customerName: string, paymentSlipUrl?: string) => Promise<number | void | undefined>;
     onStaffCall: (table: Table, customerName: string) => void;
     recommendedMenuItemIds: number[];
     logoUrl: string | null;
+    qrCodeUrl: string | null; // NEW: Added qrCodeUrl for payment slip
     restaurantName: string;
     branchName?: string; 
     onLogout?: () => void;
@@ -134,6 +135,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     onStaffCall,
     recommendedMenuItemIds,
     logoUrl,
+    qrCodeUrl,
     restaurantName,
     branchName,
     onLogout,
@@ -278,6 +280,11 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     const [itemToCustomize, setItemToCustomize] = useState<MenuItem | null>(null);
     const billContentRef = useRef<HTMLDivElement>(null);
     
+    // NEW: Payment Slip Modal State
+    const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+    const [paymentSlipBase64, setPaymentSlipBase64] = useState<string | null>(null);
+    const slipInputRef = useRef<HTMLInputElement>(null);
+
     const prevMyItemsCountRef = useRef<number>(0);
     const isProcessingPaymentRef = useRef(false);
     
@@ -562,6 +569,12 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     const handleSubmitOrder = async () => {
         if (cartItems.length === 0) return;
 
+        // NEW: If it's an online order (Takeaway/Delivery), require payment slip
+        if (table.id < 0) {
+            setIsPaymentModalOpen(true);
+            return;
+        }
+
         const result = await Swal.fire({
             title: t('ยืนยันการสั่งอาหาร?'),
             text: `${t('สั่งอาหาร')} ${cartItems.reduce((sum, i) => sum + i.quantity, 0)} ${t('รายการ')}`,
@@ -573,56 +586,58 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         });
 
         if (result.isConfirmed) {
-            Swal.fire({ title: t('กำลังส่งรายการ...'), allowOutsideClick: false, didOpen: () => { Swal.showLoading(); } });
+            await executePlaceOrder();
+        }
+    };
 
-            try {
-                // **FIX**: Ensure no `undefined` values are sent to Firestore
-                const itemsToSend = cartItems.map(cartItem => {
-                    const originalItem = menuItems.find(m => m.id === cartItem.id);
-                    return {
-                        ...cartItem,
-                        name: originalItem ? originalItem.name : cartItem.name,
-                        nameEn: originalItem?.nameEn || null, // FIX: Use null instead of undefined
-                        selectedOptions: cartItem.selectedOptions.map(opt => {
-                            const originalGroup = originalItem?.optionGroups?.find(g => g.options.some(o => o.id === opt.id));
-                            const originalOpt = originalGroup?.options.find(o => o.id === opt.id);
-                            return {
-                                ...opt,
-                                name: originalOpt ? originalOpt.name : opt.name,
-                                nameEn: originalOpt?.nameEn || null // FIX: Use null for options as well
-                            };
-                        })
-                    };
+    const executePlaceOrder = async (slipBase64?: string) => {
+        Swal.fire({ title: t('กำลังส่งรายการ...'), allowOutsideClick: false, didOpen: () => { Swal.showLoading(); } });
+
+        try {
+            // **FIX**: Ensure no `undefined` values are sent to Firestore
+            const itemsToSend = cartItems.map(cartItem => {
+                const originalItem = menuItems.find(m => m.id === cartItem.id);
+                return {
+                    ...cartItem,
+                    name: originalItem ? originalItem.name : cartItem.name,
+                    nameEn: originalItem?.nameEn || null, // FIX: Use null instead of undefined
+                    selectedOptions: cartItem.selectedOptions.map(opt => {
+                        const originalGroup = originalItem?.optionGroups?.find(g => g.options.some(o => o.id === opt.id));
+                        const originalOpt = originalGroup?.options.find(o => o.id === opt.id);
+                        return {
+                            ...opt,
+                            name: originalOpt ? originalOpt.name : opt.name,
+                            nameEn: originalOpt?.nameEn || null // FIX: Use null for options as well
+                        };
+                    })
+                };
+            });
+
+            const newOrderNumber = await onPlaceOrder(itemsToSend, customerName, slipBase64);
+            
+            // Only show success and update state if an order number was successfully returned.
+            if (newOrderNumber) {
+                setMyOrderNumbers(prev => [...prev, newOrderNumber]);
+                setCartItems([]);
+                setIsCartOpen(false);
+                setIsPaymentModalOpen(false);
+                setPaymentSlipBase64(null);
+
+                const successTitle = t('สั่งอาหารสำเร็จ!');
+                const successText = slipBase64 
+                    ? `ออเดอร์ของคุณคือ #${String(newOrderNumber).padStart(3, '0')}<br/>กรุณารอพนักงานตรวจสอบยอดเงินสักครู่`
+                    : `ออเดอร์ของคุณคือ #${String(newOrderNumber).padStart(3, '0')}<br/>รายการอาหารถูกส่งเข้าครัวแล้ว`;
+
+                await Swal.fire({ 
+                    icon: 'success', 
+                    title: successTitle, 
+                    html: successText,
+                    timer: 3500,
+                    showConfirmButton: false 
                 });
-
-                const newOrderNumber = await onPlaceOrder(itemsToSend, customerName);
-                
-                // Only show success and update state if an order number was successfully returned.
-                if (newOrderNumber) {
-                    setMyOrderNumbers(prev => [...prev, newOrderNumber]);
-                    setCartItems([]);
-                    setIsCartOpen(false);
-
-                    const successTitle = t('สั่งอาหารสำเร็จ!');
-                    const successText = `ออเดอร์ของคุณคือ #${String(newOrderNumber).padStart(3, '0')}<br/>รายการอาหารถูกส่งเข้าครัวแล้ว`;
-
-                    await Swal.fire({ 
-                        icon: 'success', 
-                        title: successTitle, 
-                        html: successText,
-                        timer: 3500,
-                        showConfirmButton: false 
-                    });
-                }
-                // If newOrderNumber is undefined (because the function failed), this block is skipped,
-                // and the user sees the error message displayed by the `handlePlaceOrder` function from App.tsx.
-
-            } catch (error) {
-                // The error is already displayed by the parent component (App.tsx),
-                // so we just log it here. The user will see the error Swal from the parent,
-                // which replaces the "Sending..." Swal. We don't need to call Swal.close() here.
-                console.error("Order placement failed:", error);
             }
+        } catch (error) {
+            console.error("Order placement failed:", error);
         }
     };
 
@@ -939,6 +954,82 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                                 {t('บันทึกรายการของฉัน')}
                             </button>
                             <button onClick={() => setIsActiveOrderListOpen(false)} className="w-full py-2 text-gray-700 font-semibold rounded-lg hover:bg-gray-100">{t('ปิด')}</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {isPaymentModalOpen && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center p-4">
+                    <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl flex flex-col animate-slide-up overflow-hidden">
+                        <div className="p-4 border-b flex justify-between items-center bg-gray-50">
+                            <h2 className="text-xl font-bold text-gray-800">{t('ชำระเงิน')}</h2>
+                            <button onClick={() => { setIsPaymentModalOpen(false); setPaymentSlipBase64(null); }} className="p-2 bg-gray-200 rounded-full hover:bg-gray-300">
+                                <X className="w-5 h-5 text-gray-600" />
+                            </button>
+                        </div>
+                        <div className="p-6 overflow-y-auto flex-1 flex flex-col items-center">
+                            <p className="text-gray-600 text-center mb-4">{t('กรุณาสแกน QR Code เพื่อชำระเงินและแนบสลิป')}</p>
+                            
+                            <div className="bg-blue-50 text-blue-800 font-bold text-2xl py-3 px-6 rounded-lg mb-6 shadow-sm border border-blue-100">
+                                {t('ยอดรวม')}: {cartItems.reduce((sum, item) => sum + (item.finalPrice * item.quantity), 0)} {t('฿')}
+                            </div>
+
+                            {qrCodeUrl ? (
+                                <img src={qrCodeUrl} alt="QR Code" className="w-48 h-48 object-contain mb-6 border rounded-lg p-2 bg-white shadow-sm" />
+                            ) : (
+                                <div className="w-48 h-48 bg-gray-100 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center mb-6 text-gray-400 text-sm text-center p-4">
+                                    {t('ร้านยังไม่ได้ตั้งค่า QR Code')}
+                                </div>
+                            )}
+
+                            <div className="w-full">
+                                <label className="block text-sm font-medium text-gray-700 mb-2">{t('แนบสลิปโอนเงิน')}</label>
+                                <input 
+                                    type="file" 
+                                    accept="image/*" 
+                                    ref={slipInputRef}
+                                    className="hidden"
+                                    onChange={(e) => {
+                                        const file = e.target.files?.[0];
+                                        if (file) {
+                                            const reader = new FileReader();
+                                            reader.onloadend = () => {
+                                                setPaymentSlipBase64(reader.result as string);
+                                            };
+                                            reader.readAsDataURL(file);
+                                        }
+                                    }}
+                                />
+                                {paymentSlipBase64 ? (
+                                    <div className="relative w-full h-48 border rounded-lg overflow-hidden bg-gray-50">
+                                        <img src={paymentSlipBase64} alt="Slip Preview" className="w-full h-full object-contain" />
+                                        <button 
+                                            onClick={() => setPaymentSlipBase64(null)}
+                                            className="absolute top-2 right-2 p-1.5 bg-red-500 text-white rounded-full hover:bg-red-600 shadow-md"
+                                        >
+                                            <X className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <button 
+                                        onClick={() => slipInputRef.current?.click()}
+                                        className="w-full py-4 border-2 border-dashed border-blue-300 rounded-lg text-blue-600 font-medium hover:bg-blue-50 transition-colors flex flex-col items-center gap-2"
+                                    >
+                                        <svg className="w-8 h-8 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                                        {t('กดเพื่อเลือกรูปสลิป')}
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                        <div className="p-4 border-t bg-gray-50">
+                            <button 
+                                onClick={() => executePlaceOrder(paymentSlipBase64!)}
+                                disabled={!paymentSlipBase64}
+                                className={`w-full py-3 rounded-xl font-bold text-lg shadow-md transition-all ${paymentSlipBase64 ? 'bg-green-500 hover:bg-green-600 text-white' : 'bg-gray-300 text-gray-500 cursor-not-allowed'}`}
+                            >
+                                {t('ยืนยันการสั่งอาหาร')} 🚀
+                            </button>
                         </div>
                     </div>
                 </div>

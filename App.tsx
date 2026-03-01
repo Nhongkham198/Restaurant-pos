@@ -842,9 +842,9 @@ export const App: React.FC = () => {
     const handleQuantityChange = (cartItemId: string, newQuantity: number) => { setCurrentOrderItems(prevItems => { if (newQuantity <= 0) return prevItems.filter(i => i.cartItemId !== cartItemId); return prevItems.map(i => i.cartItemId === cartItemId ? { ...i, quantity: newQuantity } : i); }); };
     const handleRemoveItem = (cartItemId: string) => { setCurrentOrderItems(prevItems => prevItems.filter(i => i.cartItemId !== cartItemId)); };
     
-    const handlePlaceOrder = async (orderItems: OrderItem[] = currentOrderItems, custName: string = customerName, custCount: number = customerCount, tableOverride: Table | null = selectedTable, isLineMan: boolean = false, lineManNumber?: string, deliveryProviderName?: string): Promise<number | undefined> => { 
+    const handlePlaceOrder = async (orderItems: OrderItem[] = currentOrderItems, custName: string = customerName, custCount: number = customerCount, tableOverride: Table | null = selectedTable, isLineMan: boolean = false, lineManNumber?: string, deliveryProviderName?: string, paymentSlipUrl?: string): Promise<number | undefined> => { 
         try {
-            const orderNumber = await placeOrder(orderItems, custName, custCount, tableOverride, isLineMan, lineManNumber, deliveryProviderName);
+            const orderNumber = await placeOrder(orderItems, custName, custCount, tableOverride, isLineMan, lineManNumber, deliveryProviderName, paymentSlipUrl);
             
             // Clear local state on success (only if not customer mode)
             if (orderNumber && !isCustomerMode) {
@@ -946,10 +946,11 @@ export const App: React.FC = () => {
                         activeOrders={activeOrders.filter(o => o.tableId === targetTableId)}
                         allBranchOrders={activeOrders}
                         completedOrders={completedOrders}
-                        onPlaceOrder={(items, name) => handlePlaceOrder(items, name, 1, customerTable)}
+                        onPlaceOrder={(items, name, slipUrl) => handlePlaceOrder(items, name, 1, customerTable, false, undefined, undefined, slipUrl)}
                         onStaffCall={(table, custName) => setStaffCalls(prev => [...prev, {id: Date.now(), tableId: table.id, tableName: `${table.name} (${table.floor})`, customerName: custName, branchId: selectedBranch ? selectedBranch.id : Number(branchId || 0), timestamp: Date.now()}])}
                         recommendedMenuItemIds={recommendedMenuItemIds}
                         logoUrl={appLogoUrl || logoUrl}
+                        qrCodeUrl={qrCodeUrl}
                         restaurantName={restaurantName}
                         // NEW: Pass branchName prop to display it on customer view
                         branchName={selectedBranch ? selectedBranch.name : (branches.find(b => b.id.toString() === branchId)?.name || '')}
