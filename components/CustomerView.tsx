@@ -374,7 +374,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
             (myOrderNumbers.includes(o.orderNumber) || (o.mergedOrderNumbers && o.mergedOrderNumbers.some(n => myOrderNumbers.includes(n)))) &&
             o.status !== 'completed' &&
             o.status !== 'cancelled' &&
-            o.tableId !== table.id &&
+            String(o.tableId) !== String(table.id) && // FIX: Use loose comparison for ID
             o.tableId > 0
         );
 

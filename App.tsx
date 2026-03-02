@@ -903,36 +903,38 @@ export const App: React.FC = () => {
 
         // --- IMPROVEMENT: NON-BLOCKING CUSTOMER MODE ---
         
-        let customerTable = tables.find(t => t.id === targetTableId);
+        let targetTableIdNum = Number(targetTableId);
+        let customerTable = tables.find(t => t.id === targetTableIdNum);
+
+        // FORCE VIRTUAL TABLES for -1 and -2 (Takeaway/Delivery)
+        // This prevents them from falling into "Loading..." state if not found in tables list
+        if (targetTableIdNum === -1) {
+            customerTable = {
+                id: -1,
+                name: 'สั่งกลับบ้าน (Takeaway)',
+                floor: 'Online',
+                activePin: null,
+                reservation: null
+            };
+        } else if (targetTableIdNum === -2) {
+            customerTable = {
+                id: -2,
+                name: 'เดลิเวอรี่ (Delivery)',
+                floor: 'Online',
+                activePin: null,
+                reservation: null
+            };
+        }
 
         // OPTIMISTIC LOADING: If table not found in list yet, create a dummy immediately
-        // This ensures the menu opens instantly (< 3s) while data loads in background.
         if (!customerTable && targetTableId) {
-            if (targetTableId === -1) {
-                customerTable = {
-                    id: -1,
-                    name: 'สั่งกลับบ้าน (Takeaway)',
-                    floor: 'Online',
-                    activePin: null,
-                    reservation: null
-                };
-            } else if (targetTableId === -2) {
-                customerTable = {
-                    id: -2,
-                    name: 'เดลิเวอรี่ (Delivery)',
-                    floor: 'Online',
-                    activePin: null,
-                    reservation: null
-                };
-            } else {
-                customerTable = {
-                    id: targetTableId,
-                    name: 'กำลังโหลด...',
-                    floor: '-',
-                    activePin: null,
-                    reservation: null
-                };
-            }
+             customerTable = {
+                id: targetTableIdNum,
+                name: 'กำลังโหลด...',
+                floor: '-',
+                activePin: null,
+                reservation: null
+            };
         }
 
         // If the table is found OR we made a temp one, render the main customer view.
