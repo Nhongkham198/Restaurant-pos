@@ -375,49 +375,68 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     useEffect(() => {
         if (myOrderNumbers.length === 0 || isSessionCompleted) return;
 
-        const movedOrder = allBranchOrders.find(o =>
+        // Find all active orders for this user
+        const myActiveOrders = allBranchOrders.filter(o => 
             (myOrderNumbers.includes(o.orderNumber) || (o.mergedOrderNumbers && o.mergedOrderNumbers.some(n => myOrderNumbers.includes(n)))) &&
             o.status !== 'completed' &&
-            o.status !== 'cancelled' &&
-            String(o.tableId) !== String(table.id) && // FIX: Use loose comparison for ID
-            o.tableId > 0
+            o.status !== 'cancelled'
         );
 
-        if (movedOrder) {
-            const newTableId = movedOrder.tableId;
-            const currentUrl = new URL(window.location.href);
+        if (myActiveOrders.length === 0) return;
+
+        // Get all unique table IDs where the user has active orders
+        const activeTableIds = new Set(myActiveOrders.map(o => String(o.tableId)));
+        
+        // Check if the current table is one of the active tables
+        const isCurrentTableActive = activeTableIds.has(String(table.id));
+
+        // Only redirect if:
+        // 1. The current table is NOT in the list of active tables (meaning we are at the wrong table)
+        // 2. We have a target table to go to (pick the first one found)
+        // 3. The target table is a valid physical table (> 0) - we don't auto-redirect to Takeaway/Online
+        if (!isCurrentTableActive) {
+            const targetOrder = myActiveOrders.find(o => o.tableId > 0);
             
-            // FIX: Remove conflicting parameters that force 'Takeaway/Online' mode
-            // This ensures App.tsx respects the new 'tableId' parameter
-            currentUrl.searchParams.delete('orderType'); 
-            currentUrl.searchParams.set('mode', 'customer'); // Ensure we stay in customer mode
-            currentUrl.searchParams.set('tableId', String(newTableId));
+            if (targetOrder) {
+                const newTableId = targetOrder.tableId;
+                
+                // Double check to prevent loop (should be covered by isCurrentTableActive, but safety first)
+                if (String(newTableId) === String(table.id)) return;
 
-            const oldSessionKey = `customer_session_${table.id}`;
-            const newSessionKey = `customer_session_${newTableId}`;
-            const sessionData = localStorage.getItem(oldSessionKey);
-            if (sessionData && !localStorage.getItem(newSessionKey)) {
-                localStorage.setItem(newSessionKey, sessionData);
+                const currentUrl = new URL(window.location.href);
+                
+                // FIX: Remove conflicting parameters that force 'Takeaway/Online' mode
+                // This ensures App.tsx respects the new 'tableId' parameter
+                currentUrl.searchParams.delete('orderType'); 
+                currentUrl.searchParams.set('mode', 'customer'); // Ensure we stay in customer mode
+                currentUrl.searchParams.set('tableId', String(newTableId));
+
+                const oldSessionKey = `customer_session_${table.id}`;
+                const newSessionKey = `customer_session_${newTableId}`;
+                const sessionData = localStorage.getItem(oldSessionKey);
+                if (sessionData && !localStorage.getItem(newSessionKey)) {
+                    localStorage.setItem(newSessionKey, sessionData);
+                }
+
+                const oldOrdersKey = `customer_my_orders_${table.id}`;
+                const newOrdersKey = `customer_my_orders_${newTableId}`;
+                const ordersData = localStorage.getItem(oldOrdersKey);
+                if (ordersData) {
+                    const existing = JSON.parse(localStorage.getItem(newOrdersKey) || '[]');
+                    const old = JSON.parse(ordersData);
+                    const combined = [...new Set([...existing, ...old])];
+                    localStorage.setItem(newOrdersKey, JSON.stringify(combined));
+                }
+
+                const oldCartKey = `customer_cart_${table.id}`;
+                const newCartKey = `customer_cart_${newTableId}`;
+                const cartData = localStorage.getItem(oldCartKey);
+                if (cartData && !localStorage.getItem(newCartKey)) {
+                    localStorage.setItem(newCartKey, cartData);
+                }
+
+                window.location.replace(currentUrl.toString());
             }
-
-            const oldOrdersKey = `customer_my_orders_${table.id}`;
-            const newOrdersKey = `customer_my_orders_${newTableId}`;
-            const ordersData = localStorage.getItem(oldOrdersKey);
-            if (ordersData) {
-                const existing = JSON.parse(localStorage.getItem(newOrdersKey) || '[]');
-                const old = JSON.parse(ordersData);
-                const combined = [...new Set([...existing, ...old])];
-                localStorage.setItem(newOrdersKey, JSON.stringify(combined));
-            }
-
-            const oldCartKey = `customer_cart_${table.id}`;
-            const newCartKey = `customer_cart_${newTableId}`;
-            const cartData = localStorage.getItem(oldCartKey);
-            if (cartData && !localStorage.getItem(newCartKey)) {
-                localStorage.setItem(newCartKey, cartData);
-            }
-
-            window.location.replace(currentUrl.toString());
         }
     }, [allBranchOrders, myOrderNumbers, table.id, isSessionCompleted]);
 
