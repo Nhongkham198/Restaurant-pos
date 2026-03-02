@@ -28,6 +28,11 @@ const RAW_DICTIONARY: Record<string, string> = {
     'ยืนยันสั่งอาหาร 🚀': 'Confirm Order 🚀',
     'ลบ': 'Remove',
     'บันทึกรายการของฉัน': 'Save My Items',
+    'เริ่มรายการใหม่': 'Start New Order',
+    'เริ่มรายการใหม่?': 'Start New Order?',
+    'รายการอาหารเก่าจะถูกลบออกจากหน้าจอ': 'Old orders will be cleared from screen.',
+    'ใช่, เริ่มใหม่': 'Yes, Start New',
+    'เริ่มรายการใหม่แล้ว': 'New Order Started',
     'ปิด': 'Close',
     'รายการของฉัน': 'My Orders',
     'ยังไม่มีรายการที่สั่ง': 'No orders yet',
@@ -415,6 +420,58 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
             window.location.replace(currentUrl.toString());
         }
     }, [allBranchOrders, myOrderNumbers, table.id, isSessionCompleted]);
+
+    // --- CLEANUP STALE ORDERS ---
+    useEffect(() => {
+        if (myOrderNumbers.length === 0) return;
+
+        const now = Date.now();
+        const ONE_DAY = 24 * 60 * 60 * 1000;
+        
+        // Find orders that are either:
+        // 1. Not in allBranchOrders (deleted from DB)
+        // 2. Older than 24 hours
+        // 3. (Optional) "Served" and older than 4 hours for Online tables? -> Let's stick to 24h for safety
+        
+        const validOrderNumbers = myOrderNumbers.filter(id => {
+            const order = allBranchOrders.find(o => o.orderNumber === id);
+            if (!order) return false; // Order deleted from DB
+            if (now - order.orderTime > ONE_DAY) return false; // Too old
+            return true;
+        });
+
+        if (validOrderNumbers.length !== myOrderNumbers.length) {
+            setMyOrderNumbers(validOrderNumbers);
+            localStorage.setItem(myOrdersKey, JSON.stringify(validOrderNumbers));
+        }
+    }, [allBranchOrders, myOrderNumbers, myOrdersKey]);
+
+    const handleStartNewOrder = () => {
+        Swal.fire({
+            title: t('เริ่มรายการใหม่?'),
+            text: t('รายการอาหารเก่าจะถูกลบออกจากหน้าจอ'),
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: t('ใช่, เริ่มใหม่'),
+            cancelButtonText: t('ยกเลิก')
+        }).then((result) => {
+            if (result.isConfirmed) {
+                // Clear local storage for this table
+                localStorage.removeItem(myOrdersKey);
+                localStorage.removeItem(cartKey);
+                localStorage.removeItem(sessionKey);
+                
+                // Reset state
+                setMyOrderNumbers([]);
+                setCartItems([]);
+                
+                // Generate new session
+                initializeSession(sessionKey);
+                
+                Swal.fire(t('เริ่มรายการใหม่แล้ว'), '', 'success');
+            }
+        });
+    };
 
     const { myItems, otherItems } = useMemo(() => {
         const mine: any[] = [];
@@ -939,6 +996,16 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                                 {logoUrl && <img src={logoUrl} alt="Logo" className="h-16 w-auto object-contain mb-2" crossOrigin="anonymous" />}
                                 <h3 className="font-bold text-gray-800 text-lg">{t('รายการของฉัน')} ({t('คุณ')}{customerName}) 🧾</h3>
                                 <p className="text-sm text-gray-600">{t('โต๊ะ')} {table.name} ({table.floor})</p>
+                                
+                                {/* NEW: Start New Order Button for Online/Takeaway */}
+                                {(table.floor === 'Online' || table.id < 0) && (
+                                    <button 
+                                        onClick={handleStartNewOrder}
+                                        className="mt-2 text-xs bg-red-100 text-red-600 px-3 py-1 rounded-full hover:bg-red-200 transition-colors"
+                                    >
+                                        {t('เริ่มรายการใหม่')} 🔄
+                                    </button>
+                                )}
                             </div>
                             <div className="p-4 space-y-4">
                                 {myItems.length === 0 && otherItems.length === 0 ? (
