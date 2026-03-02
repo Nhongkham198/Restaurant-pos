@@ -412,10 +412,11 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     }, [allBranchOrders, myOrderNumbers, table.id, isSessionCompleted]);
 
     const { myItems, otherItems } = useMemo(() => {
-        const mine: OrderItem[] = [];
-        const others: { item: OrderItem, owner: string }[] = [];
+        const mine: any[] = [];
+        const others: { item: any, owner: string }[] = [];
         const myOrderSet = new Set(myOrderNumbers);
         const currentNormName = customerName?.trim().toLowerCase();
+        const isOnlineTable = table.floor === 'Online' || table.id < 0;
 
         const tableOrders = Array.isArray(allBranchOrders) 
             ? allBranchOrders.filter(o => String(o.tableId) === String(table.id) && o.status !== 'cancelled' && o.status !== 'completed')
@@ -443,14 +444,16 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
 
                 if (isMyItemById || isMyOrderByName) {
                     mine.push(displayItem);
-                } else {
+                } else if (!isOnlineTable) {
+                    // Only show "Friends' items" if it's a real physical table.
+                    // For Online/Takeaway, we must isolate each customer.
                     others.push({ item: displayItem, owner: orderName });
                 }
             });
         });
 
         return { myItems: mine, otherItems: others };
-    }, [allBranchOrders, myOrderNumbers, isAuthenticated, customerName, table.id, lang, menuItems, t]);
+    }, [allBranchOrders, myOrderNumbers, isAuthenticated, customerName, table.id, table.floor, lang, menuItems, t]);
 
     const myTotal = useMemo(() => {
         return myItems.reduce((sum, item) => sum + (item.finalPrice * item.quantity), 0);
