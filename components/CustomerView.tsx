@@ -381,6 +381,11 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         if (movedOrder) {
             const newTableId = movedOrder.tableId;
             const currentUrl = new URL(window.location.href);
+            
+            // FIX: Remove conflicting parameters that force 'Takeaway/Online' mode
+            // This ensures App.tsx respects the new 'tableId' parameter
+            currentUrl.searchParams.delete('orderType'); 
+            currentUrl.searchParams.set('mode', 'customer'); // Ensure we stay in customer mode
             currentUrl.searchParams.set('tableId', String(newTableId));
 
             const oldSessionKey = `customer_session_${table.id}`;
