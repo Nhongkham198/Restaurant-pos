@@ -225,6 +225,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                     }
                 }
             }
+        } else if (branches.length > 0 && !selectedBranch && isCustomerMode && !urlBranchId) {
+            // FALLBACK: If customer mode, no branch selected (cleared history), and no URL param
+            // Auto-select the first branch to ensure menu loads
+            const defaultBranch = branches[0];
+            setSelectedBranch(defaultBranch);
+            localStorage.setItem('customerSelectedBranch', JSON.stringify(defaultBranch));
         }
     }, [isCustomerMode, selectedBranch, branches, urlBranchId]);
 
