@@ -244,6 +244,7 @@ export interface StockItem {
     receivedDate?: number; // timestamp
     orderedQuantity?: string | number; // Quantity ordered in the last PO
     orderedBy?: string; // User who placed the last PO
+    quantityBeforeOrder?: number; // Quantity remaining before the last order was placed
 }
 
 export interface LeaveRequest {

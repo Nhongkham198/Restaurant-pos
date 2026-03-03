@@ -205,7 +205,8 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, 
             ...item,
             orderDate: Date.now(),
             orderedQuantity: quantities[item.id],
-            orderedBy: currentUser?.username || 'System'
+            orderedBy: currentUser?.username || 'System',
+            quantityBeforeOrder: item.quantity // Capture current quantity at the time of ordering
         }));
 
         if (itemsToUpdate.length > 0) {

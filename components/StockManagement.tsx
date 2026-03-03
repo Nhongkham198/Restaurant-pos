@@ -890,9 +890,10 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                 <div className="flex-1 overflow-hidden p-4 md:p-6">
                     {/* Desktop Table Layout */}
                     <div className="hidden md:flex flex-col h-full bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                        <div className="grid grid-cols-12 gap-4 px-6 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider bg-gray-50 border-b border-gray-200 sticky top-0 z-10 items-center">
+                        <div className="grid grid-cols-13 gap-4 px-6 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider bg-gray-50 border-b border-gray-200 sticky top-0 z-10 items-center">
                             <div className="col-span-1">รูปภาพ</div>
                             <div className="col-span-2">ชื่อวัตถุดิบ</div>
+                            <div className="col-span-1 text-center">ก่อนสั่ง</div>
                             <div className="col-span-1 text-center">จำนวนสั่ง</div>
                             <div className="col-span-1 text-center">ผู้สั่งซื้อ</div>
                             <div className="col-span-1 text-center">หมวดหมู่</div>
@@ -939,7 +940,7 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                 const status = getStatus(item);
                                 
                                 return (
-                                    <div key={item.id} className={`grid grid-cols-12 gap-4 px-6 py-3 items-center border-b transition-colors last:border-0 group ${getRowStyle(item)}`}>
+                                    <div key={item.id} className={`grid grid-cols-13 gap-4 px-6 py-3 items-center border-b transition-colors last:border-0 group ${getRowStyle(item)}`}>
                                         <div className="col-span-1">
                                             <div className="relative w-12 h-12">
                                                 <img 
@@ -960,6 +961,10 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                             <div className="text-xs text-gray-400">ID: {item.id}</div>
                                         </div>
                                         
+                                        <div className="col-span-1 text-center flex items-center justify-center">
+                                            <span className="font-medium text-gray-600">{item.quantityBeforeOrder !== undefined ? formatQty(item.quantityBeforeOrder, item.unit) : '-'}</span>
+                                        </div>
+
                                         <div className="col-span-1 text-center flex items-center justify-center">
                                             <span className="font-medium text-gray-700">{item.orderedQuantity || '-'}</span>
                                         </div>
@@ -1080,6 +1085,10 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                     </div>
                                     <div className="flex justify-between text-sm text-gray-600 bg-gray-50 p-2 rounded border border-gray-100 mt-2 mb-2">
                                         <div>
+                                            <span className="font-semibold block text-xs text-gray-500">ก่อนสั่ง</span>
+                                            <span className="font-medium text-gray-800">{item.quantityBeforeOrder !== undefined ? formatQty(item.quantityBeforeOrder, item.unit) : '-'}</span>
+                                        </div>
+                                        <div className="text-center">
                                             <span className="font-semibold block text-xs text-gray-500">จำนวนสั่ง</span>
                                             <span className="font-medium text-gray-800">{item.orderedQuantity || '-'}</span>
                                         </div>
