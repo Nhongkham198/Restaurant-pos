@@ -104,34 +104,48 @@ export const MenuItemCard: React.FC<MenuItemCardProps> = ({
             )}
 
             {isEditMode && (
-                <div className="absolute inset-0 bg-black/70 backdrop-blur-[2px] flex flex-col items-center justify-center gap-2 z-30 transition-opacity p-2">
+                <div className="absolute inset-0 bg-black/70 backdrop-blur-[2px] z-30 transition-opacity">
                     
-                    {/* Toggle Stock Switch */}
-                    <div className="flex items-center justify-between gap-2 bg-white/95 px-3 py-1.5 rounded-full shadow-lg cursor-pointer w-40 hover:bg-white transition-colors border border-gray-200" onClick={(e) => { e.stopPropagation(); onToggleAvailability(); }}>
-                        <span className={`text-[10px] font-bold ${isAvailable ? 'text-green-600' : 'text-gray-400'}`}>มีของ</span>
-                        <div className={`w-8 h-4 flex items-center rounded-full p-0.5 transition-colors duration-300 ${isAvailable ? 'bg-green-500' : 'bg-red-500'}`}>
-                            <div className={`bg-white w-3 h-3 rounded-full shadow-md transform duration-300 ease-in-out ${isAvailable ? 'translate-x-4' : 'translate-x-0'}`}></div>
+                    {/* Top Section: Toggles (Absolute Top) */}
+                    <div className="absolute top-2 left-0 right-0 flex flex-col gap-2 items-center pt-2 z-40">
+                        {/* Toggle Stock Switch */}
+                        <div className="flex items-center justify-between gap-2 bg-white/95 px-3 py-1.5 rounded-full shadow-lg cursor-pointer w-40 hover:bg-white transition-colors border border-gray-200" onClick={(e) => { e.stopPropagation(); onToggleAvailability(); }}>
+                            <span className={`text-[10px] font-bold ${isAvailable ? 'text-green-600' : 'text-gray-400'}`}>มีของ</span>
+                            <div className={`w-8 h-4 flex items-center rounded-full p-0.5 transition-colors duration-300 ${isAvailable ? 'bg-green-500' : 'bg-red-500'}`}>
+                                <div className={`bg-white w-3 h-3 rounded-full shadow-md transform duration-300 ease-in-out ${isAvailable ? 'translate-x-4' : 'translate-x-0'}`}></div>
+                            </div>
+                            <span className={`text-[10px] font-bold ${!isAvailable ? 'text-red-600' : 'text-gray-400'}`}>หมด</span>
                         </div>
-                        <span className={`text-[10px] font-bold ${!isAvailable ? 'text-red-600' : 'text-gray-400'}`}>หมด</span>
+
+                        {/* Toggle Visibility Switch */}
+                        {onToggleVisibility && (
+                            <div className="flex items-center justify-between gap-2 bg-white/95 px-3 py-1.5 rounded-full shadow-lg cursor-pointer w-40 hover:bg-white transition-colors border border-gray-200" onClick={(e) => { e.stopPropagation(); onToggleVisibility(); }}>
+                                <span className={`text-[10px] font-bold ${isVisible ? 'text-blue-600' : 'text-gray-400'}`}>ลูกค้าเห็น</span>
+                                <div className={`w-8 h-4 flex items-center rounded-full p-0.5 transition-colors duration-300 ${isVisible ? 'bg-blue-500' : 'bg-gray-400'}`}>
+                                    <div className={`bg-white w-3 h-3 rounded-full shadow-md transform duration-300 ease-in-out ${isVisible ? 'translate-x-4' : 'translate-x-0'}`}></div>
+                                </div>
+                                <span className={`text-[10px] font-bold ${!isVisible ? 'text-gray-600' : 'text-gray-400'}`}>ซ่อน</span>
+                            </div>
+                        )}
                     </div>
 
-                    {/* Toggle Visibility Switch (NEW) */}
-                    {onToggleVisibility && (
-                        <div className="flex items-center justify-between gap-2 bg-white/95 px-3 py-1.5 rounded-full shadow-lg cursor-pointer w-40 hover:bg-white transition-colors border border-gray-200" onClick={(e) => { e.stopPropagation(); onToggleVisibility(); }}>
-                            <span className={`text-[10px] font-bold ${isVisible ? 'text-blue-600' : 'text-gray-400'}`}>ลูกค้าเห็น</span>
-                            <div className={`w-8 h-4 flex items-center rounded-full p-0.5 transition-colors duration-300 ${isVisible ? 'bg-blue-500' : 'bg-gray-400'}`}>
-                                <div className={`bg-white w-3 h-3 rounded-full shadow-md transform duration-300 ease-in-out ${isVisible ? 'translate-x-4' : 'translate-x-0'}`}></div>
-                            </div>
-                            <span className={`text-[10px] font-bold ${!isVisible ? 'text-gray-600' : 'text-gray-400'}`}>ซ่อน</span>
-                        </div>
-                    )}
+                    {/* Middle Section: Menu Name & Price (Centered) */}
+                    <div className="absolute inset-0 flex flex-col items-center justify-center px-2 text-center pointer-events-none z-30 pt-16 pb-16">
+                        <span className="text-white font-bold text-sm drop-shadow-md line-clamp-2 leading-tight">
+                            {item.name}
+                        </span>
+                        <span className="block text-gray-300 text-xs mt-1 font-mono">
+                            {item.price.toLocaleString()} ฿
+                        </span>
+                    </div>
 
-                    <div className="flex gap-3 mt-1">
-                        <button onClick={(e) => { e.stopPropagation(); onEdit(item); }} className="p-2 bg-white rounded-full shadow-lg hover:bg-gray-200 transition-transform active:scale-95" title="แก้ไขรายละเอียด">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L15.232 5.232z" /></svg>
+                    {/* Bottom Section: Action Buttons (Absolute Bottom) */}
+                    <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-4 z-40">
+                        <button onClick={(e) => { e.stopPropagation(); onEdit(item); }} className="p-3 bg-white rounded-full shadow-lg hover:bg-gray-200 transition-transform active:scale-95 border-2 border-transparent hover:border-blue-200" title="แก้ไขรายละเอียด">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L15.232 5.232z" /></svg>
                         </button>
-                        <button onClick={(e) => { e.stopPropagation(); onDelete(item.id); }} className="p-2 bg-white rounded-full shadow-lg hover:bg-gray-200 transition-transform active:scale-95" title="ลบเมนู">
-                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                        <button onClick={(e) => { e.stopPropagation(); onDelete(item.id); }} className="p-3 bg-white rounded-full shadow-lg hover:bg-gray-200 transition-transform active:scale-95 border-2 border-transparent hover:border-red-200" title="ลบเมนู">
+                             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                         </button>
                     </div>
                 </div>
