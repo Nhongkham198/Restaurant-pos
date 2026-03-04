@@ -87,6 +87,37 @@ export const StockAnalytics: React.FC<StockAnalyticsProps> = ({ stockItems }) =>
         maxValue: Math.max(...topRotationItems.map(i => i.monthlyWithdrawals?.[currentMonthKey] || 0), 10)
     };
 
+    // --- 3. Usage Rate Analysis (Excluding Mondays) ---
+    const operatingDays = useMemo(() => {
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = now.getMonth();
+        const today = now.getDate();
+        let days = 0;
+        
+        // Loop from day 1 to today
+        for (let d = 1; d <= today; d++) {
+            const date = new Date(year, month, d);
+            // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+            if (date.getDay() !== 1) { 
+                days++;
+            }
+        }
+        return days > 0 ? days : 1;
+    }, []);
+
+    const usageAnalysisItems = useMemo(() => {
+        return [...stockItems]
+            .map(item => {
+                const used = item.monthlyWithdrawals?.[currentMonthKey] || 0;
+                const rate = used / operatingDays;
+                return { ...item, used, rate };
+            })
+            .filter(i => i.used > 0) // Show only items with usage
+            .sort((a, b) => b.rate - a.rate) // Sort by highest usage rate
+            .slice(0, 10); // Top 10 items
+    }, [stockItems, currentMonthKey, operatingDays]);
+
     // --- Helper to get data for modal ---
     const getModalData = () => {
         switch (selectedGroup) {
@@ -184,6 +215,73 @@ export const StockAnalytics: React.FC<StockAnalyticsProps> = ({ stockItems }) =>
                         maxValue={rotationData.maxValue}
                         formatValue={(val) => val.toLocaleString() + ' ครั้ง'} // Show number with unit
                     />
+                </div>
+            </div>
+
+            {/* Usage Rate Analysis Section (NEW) */}
+            <div className="bg-white p-6 rounded-xl shadow-sm mb-6 border border-gray-200">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-4 gap-2">
+                    <div>
+                        <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                            </svg>
+                            วิเคราะห์อัตราการใช้ (Usage Rate) - Top 10
+                        </h3>
+                        <p className="text-sm text-gray-500 mt-1">
+                            คำนวณจากยอดเบิกเดือนนี้ หารด้วยจำนวนวันทำการ (หักวันจันทร์ออก)
+                        </p>
+                    </div>
+                    <div className="bg-purple-50 text-purple-700 px-3 py-1 rounded-lg text-xs font-semibold border border-purple-100">
+                        เปิดทำการแล้ว: {operatingDays} วัน (ในเดือนนี้)
+                    </div>
+                </div>
+                
+                <div className="overflow-x-auto">
+                    <table className="w-full text-sm text-left">
+                        <thead className="text-gray-500 bg-purple-50 uppercase text-xs rounded-t-lg">
+                            <tr>
+                                <th className="px-4 py-3 rounded-tl-lg">สินค้า</th>
+                                <th className="px-4 py-3 text-right">ยอดเบิกรวม</th>
+                                <th className="px-4 py-3 text-right">อัตราการใช้ / วัน</th>
+                                <th className="px-4 py-3 text-right">คงเหลือปัจจุบัน</th>
+                                <th className="px-4 py-3 text-right rounded-tr-lg">ใช้ได้อีก (วัน)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {usageAnalysisItems.length > 0 ? (
+                                usageAnalysisItems.map((item) => {
+                                    const daysLeft = item.rate > 0 ? Number(item.quantity) / item.rate : 999;
+                                    return (
+                                        <tr key={item.id} className="border-b hover:bg-gray-50 transition-colors">
+                                            <td className="px-4 py-3 font-medium text-gray-900 flex items-center gap-2">
+                                                <div className="w-8 h-8 rounded bg-gray-100 overflow-hidden border border-gray-200 flex-shrink-0">
+                                                    <img src={item.imageUrl || "https://placehold.co/100?text=No+Image"} alt={item.name} className="w-full h-full object-cover" onError={(e) => e.currentTarget.src = "https://placehold.co/100?text=Error"} />
+                                                </div>
+                                                {item.name}
+                                            </td>
+                                            <td className="px-4 py-3 text-right">{item.used.toLocaleString()} {item.unit}</td>
+                                            <td className="px-4 py-3 text-right font-bold text-purple-600">
+                                                {item.rate.toFixed(2)} {item.unit}/วัน
+                                            </td>
+                                            <td className="px-4 py-3 text-right">{Number(item.quantity).toLocaleString()} {item.unit}</td>
+                                            <td className="px-4 py-3 text-right">
+                                                <span className={`px-2 py-1 rounded-full text-xs font-bold ${daysLeft < 3 ? 'bg-red-100 text-red-700' : daysLeft < 7 ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700'}`}>
+                                                    {daysLeft > 365 ? '> 1 ปี' : `~${daysLeft.toFixed(1)} วัน`}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    );
+                                })
+                            ) : (
+                                <tr>
+                                    <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
+                                        ยังไม่มีข้อมูลการเบิกสินค้าในเดือนนี้
+                                    </td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
                 </div>
             </div>
 
