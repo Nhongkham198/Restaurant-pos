@@ -346,6 +346,16 @@ export interface StockTag {
     status: 'active' | 'used' | 'defective';
 }
 
+export interface StockLog {
+    id: string;
+    stockItemId: number;
+    stockItemName: string;
+    action: 'create' | 'update' | 'delete' | 'adjust' | 'receive';
+    changeDetails: string; // e.g., "Quantity: 10 -> 5"
+    performedBy: string;
+    timestamp: number;
+}
+
 export interface JobApplication {
     id: number;
     userId?: number; // Link to a user account

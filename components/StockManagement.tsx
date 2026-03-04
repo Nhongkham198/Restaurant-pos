@@ -124,6 +124,34 @@ export const StockManagement: React.FC<StockManagementProps> = ({
         return result;
     }, [stockItems, selectedCategory, searchTerm, sortConfig]);
 
+    const [stockLogs, setStockLogs] = useState<import('../types').StockLog[]>([]);
+    const [isLogModalOpen, setIsLogModalOpen] = useState(false);
+    const [selectedLogItem, setSelectedLogItem] = useState<StockItem | null>(null);
+
+    // Helper to add log
+    const addLog = (item: StockItem, action: import('../types').StockLog['action'], details: string) => {
+        const newLog: import('../types').StockLog = {
+            id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+            stockItemId: item.id,
+            stockItemName: item.name,
+            action,
+            changeDetails: details,
+            performedBy: currentUser?.username || 'System',
+            timestamp: Date.now()
+        };
+        setStockLogs(prev => [newLog, ...prev]);
+    };
+
+    const handleOpenLogModal = (item: StockItem) => {
+        setSelectedLogItem(item);
+        setIsLogModalOpen(true);
+    };
+
+    const filteredLogs = useMemo(() => {
+        if (!selectedLogItem) return [];
+        return stockLogs.filter(log => log.stockItemId === selectedLogItem.id);
+    }, [stockLogs, selectedLogItem]);
+
     const handleSort = (key: string) => {
         setSortConfig(prev => ({
             key,
@@ -378,6 +406,9 @@ export const StockManagement: React.FC<StockManagementProps> = ({
              lastUpdatedBy: updatedBy
         };
         
+        // Log the receive action
+        addLog(item, 'receive', `รับสินค้าเข้า: ${receivedData.qty} ${item.unit} (รวมยอด: ${shouldMerge ? 'ใช่' : 'ไม่'}) ${receivedData.note ? `หมายเหตุ: ${receivedData.note}` : ''}`);
+
         setStockItems(prev => prev.map(i => i.id === item.id ? updatedItem : i));
         Swal.fire('สำเร็จ', 'รับสินค้าเรียบร้อย', 'success');
     };
@@ -388,6 +419,19 @@ export const StockManagement: React.FC<StockManagementProps> = ({
 
         try {
             if (itemToSave.id) {
+                // ... existing update logic ...
+                const oldItem = stockItems.find(i => i.id === itemToSave.id);
+                if (oldItem) {
+                    const changes = [];
+                    if (oldItem.name !== itemToSave.name) changes.push(`ชื่อ: ${oldItem.name} -> ${itemToSave.name}`);
+                    if (oldItem.quantity !== Number(itemToSave.quantity)) changes.push(`คงเหลือ: ${oldItem.quantity} -> ${itemToSave.quantity}`);
+                    if (oldItem.reorderPoint !== Number(itemToSave.reorderPoint)) changes.push(`จุดสั่งซื้อ: ${oldItem.reorderPoint} -> ${itemToSave.reorderPoint}`);
+                    
+                    if (changes.length > 0) {
+                        addLog(oldItem, 'update', changes.join(', '));
+                    }
+                }
+
                 await functionsService.updateStockItem({
                     itemId: itemToSave.id,
                     name: itemToSave.name,
@@ -396,7 +440,8 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                     reorderPoint: itemToSave.reorderPoint
                 });
             } else {
-                await functionsService.addStockItem({
+                // ... existing create logic ...
+                 await functionsService.addStockItem({
                     name: itemToSave.name,
                     category: itemToSave.category,
                     quantity: itemToSave.quantity,
@@ -404,6 +449,10 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                     reorderPoint: itemToSave.reorderPoint,
                     branchId: 1 // Placeholder branch ID
                 });
+                
+                // Create a temporary item object for logging since we don't have the full ID yet
+                const tempItem = { ...itemToSave, id: 0 } as StockItem; 
+                addLog(tempItem, 'create', `สร้างสินค้าใหม่: ${itemToSave.name}, จำนวน: ${itemToSave.quantity}`);
             }
             success = true;
         } catch (e: any) {
@@ -418,6 +467,15 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                 };
                 
                 if (itemToSave.id) {
+                    const oldItem = safePrev.find(i => i.id === itemToSave.id);
+                    if (oldItem) {
+                         const changes = [];
+                        if (oldItem.name !== itemToSave.name) changes.push(`ชื่อ: ${oldItem.name} -> ${itemToSave.name}`);
+                        if (oldItem.quantity !== Number(itemToSave.quantity)) changes.push(`คงเหลือ: ${oldItem.quantity} -> ${itemToSave.quantity}`);
+                         if (changes.length > 0) {
+                            addLog(oldItem, 'update', changes.join(', '));
+                        }
+                    }
                     return safePrev.map(i => i.id === itemToSave.id ? { ...i, ...itemWithTimestamp } as StockItem : i);
                 }
                 
@@ -443,6 +501,7 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                     receivedDate: itemToSave.receivedDate
                 };
                 
+                addLog(newItem, 'create', `สร้างสินค้าใหม่: ${newItem.name}, จำนวน: ${newItem.quantity}`);
                 return [...safePrev, newItem];
             });
             success = true;
@@ -475,6 +534,11 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                 itemId: itemToAdjust.id,
                 adjustment: adjustment
             });
+            
+            const action = adjustment > 0 ? 'receive' : 'adjust'; // Positive is receive/restock, negative is adjust/withdraw
+            const typeText = adjustment > 0 ? 'รับเข้า' : 'เบิกออก';
+            addLog(itemToAdjust, action, `ปรับสต็อก (${typeText}): ${adjustment} ${itemToAdjust.unit} (คงเหลือ: ${itemToAdjust.quantity} -> ${itemToAdjust.quantity + adjustment})`);
+
             success = true;
         } catch (e: any) {
              console.warn("Backend function for stock adjustment failed or not implemented. Falling back to direct client-side DB write.", e);
@@ -494,6 +558,11 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                     // RESTOCK (ADD): Reset cycle count to 0 (Keep history intact)
                     newWithdrawalCount = 0;
                 }
+                
+                // Log inside the fallback as well
+                const action = adjustment > 0 ? 'receive' : 'adjust';
+                const typeText = adjustment > 0 ? 'รับเข้า' : 'เบิกออก';
+                addLog(i, action, `ปรับสต็อก (${typeText}): ${adjustment} ${i.unit} (คงเหลือ: ${i.quantity} -> ${i.quantity + adjustment})`);
 
                 return { 
                     ...i, 
@@ -542,9 +611,17 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                 let success = false;
                 try {
                     await functionsService.deleteStockItem({ itemId });
+                    const itemToDelete = stockItems.find(i => i.id === itemId);
+                    if (itemToDelete) {
+                        addLog(itemToDelete, 'delete', `ลบสินค้า: ${itemToDelete.name}`);
+                    }
                     success = true;
                 } catch (e: any) {
                     console.warn("Backend function for stock deletion failed or not implemented. Falling back to direct client-side DB write.", e);
+                    const itemToDelete = stockItems.find(i => i.id === itemId);
+                    if (itemToDelete) {
+                        addLog(itemToDelete, 'delete', `ลบสินค้า: ${itemToDelete.name}`);
+                    }
                     setStockItems(prev => prev.filter(item => item.id !== itemId));
                     success = true;
                 }
@@ -700,6 +777,35 @@ export const StockManagement: React.FC<StockManagementProps> = ({
         XLSX.writeFile(wb, 'stock_template.xlsx');
     };
 
+    const handleExportLogs = () => {
+        if (stockLogs.length === 0) {
+            Swal.fire('ไม่มีข้อมูล', 'ยังไม่มีประวัติการแก้ไข', 'info');
+            return;
+        }
+
+        const dataToExport = stockLogs.map(log => {
+            let actionType = 'อื่นๆ';
+            if (log.action === 'create') actionType = 'สร้างใหม่ (Create)';
+            else if (log.action === 'update') actionType = 'แก้ไข (Update)';
+            else if (log.action === 'delete') actionType = 'ลบ (Delete)';
+            else if (log.action === 'receive') actionType = 'รับของ (Receive)';
+            else if (log.action === 'adjust') actionType = 'ปรับสต็อก (Adjust)';
+
+            return {
+                'วันที่/เวลา': new Date(log.timestamp).toLocaleString('th-TH'),
+                'ผู้ทำรายการ': log.performedBy,
+                'สินค้า': log.stockItemName,
+                'ประเภทการกระทำ': actionType,
+                'รายละเอียดการเปลี่ยนแปลง': log.changeDetails
+            };
+        });
+
+        const ws = XLSX.utils.json_to_sheet(dataToExport);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'AuditLogs');
+        XLSX.writeFile(wb, `stock_audit_log_${new Date().toISOString().slice(0,10)}.xlsx`);
+    };
+
     const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
@@ -811,6 +917,14 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                             <button onClick={handleExport} className="px-4 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 whitespace-nowrap text-sm shadow transition-all hover:shadow-md">
                                 Export Excel
                             </button>
+                            {currentUser?.role === 'admin' && (
+                                <button onClick={handleExportLogs} className="px-4 py-2 bg-teal-600 text-white font-semibold rounded-lg hover:bg-teal-700 whitespace-nowrap text-sm shadow transition-all hover:shadow-md flex items-center gap-2">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                    </svg>
+                                    Export ประวัติ
+                                </button>
+                            )}
                              <button onClick={() => fileInputRef.current?.click()} className="px-4 py-2 bg-purple-600 text-white font-semibold rounded-lg hover:bg-purple-700 whitespace-nowrap text-sm shadow transition-all hover:shadow-md">
                                 Import Excel
                             </button>
@@ -1025,6 +1139,13 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                             <button onClick={() => handleOpenItemModal(item)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg border border-transparent hover:border-blue-200 transition-all" title="แก้ไข">
                                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L15.232 5.232z" /></svg>
                                             </button>
+                                            {currentUser?.role === 'admin' && (
+                                                <button onClick={() => handleOpenLogModal(item)} className="p-1.5 text-gray-600 hover:bg-gray-50 rounded-lg border border-transparent hover:border-gray-200 transition-all" title="ประวัติการแก้ไข">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                    </svg>
+                                                </button>
+                                            )}
                                             {canDelete && (
                                                 <button onClick={() => handleDeleteItem(item.id)} className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg border border-transparent hover:border-red-200 transition-all" title="ลบ">
                                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
@@ -1275,6 +1396,82 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                     ปิด
                                 </button>
                             )}
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* Log Modal */}
+            {isLogModalOpen && selectedLogItem && (
+                <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black bg-opacity-50 p-4">
+                    <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[80vh]">
+                        <div className="p-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
+                            <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                ประวัติการแก้ไข: {selectedLogItem.name}
+                            </h3>
+                            <button onClick={() => setIsLogModalOpen(false)} className="text-gray-400 hover:text-gray-600">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                            </button>
+                        </div>
+                        
+                        <div className="p-0 flex-1 overflow-y-auto">
+                            <table className="w-full text-sm text-left">
+                                <thead className="text-gray-500 bg-gray-50 uppercase text-xs sticky top-0 z-10 shadow-sm">
+                                    <tr>
+                                        <th className="px-6 py-3">วันที่/เวลา</th>
+                                        <th className="px-6 py-3">ผู้ทำรายการ</th>
+                                        <th className="px-6 py-3">การกระทำ</th>
+                                        <th className="px-6 py-3">รายละเอียด</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100">
+                                    {filteredLogs.length > 0 ? (
+                                        filteredLogs.map((log) => (
+                                            <tr key={log.id} className="hover:bg-gray-50 transition-colors">
+                                                <td className="px-6 py-3 text-gray-500 whitespace-nowrap">
+                                                    {new Date(log.timestamp).toLocaleString('th-TH')}
+                                                </td>
+                                                <td className="px-6 py-3 font-medium text-gray-900">
+                                                    {log.performedBy}
+                                                </td>
+                                                <td className="px-6 py-3">
+                                                    <span className={`px-2 py-1 rounded-full text-xs font-semibold 
+                                                        ${log.action === 'create' ? 'bg-green-100 text-green-700' : 
+                                                          log.action === 'update' ? 'bg-blue-100 text-blue-700' :
+                                                          log.action === 'delete' ? 'bg-red-100 text-red-700' :
+                                                          log.action === 'receive' ? 'bg-purple-100 text-purple-700' :
+                                                          'bg-yellow-100 text-yellow-700'}`}>
+                                                        {log.action === 'create' ? 'สร้างใหม่' :
+                                                         log.action === 'update' ? 'แก้ไข' :
+                                                         log.action === 'delete' ? 'ลบ' :
+                                                         log.action === 'receive' ? 'รับของ' : 'ปรับสต็อก'}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-3 text-gray-600">
+                                                    {log.changeDetails}
+                                                </td>
+                                            </tr>
+                                        ))
+                                    ) : (
+                                        <tr>
+                                            <td colSpan={4} className="px-6 py-8 text-center text-gray-500">
+                                                ยังไม่มีประวัติการแก้ไข
+                                            </td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div className="p-4 border-t border-gray-200 bg-gray-50 text-right">
+                            <button 
+                                onClick={() => setIsLogModalOpen(false)}
+                                className="px-4 py-2 bg-gray-200 text-gray-700 font-semibold rounded-lg hover:bg-gray-300"
+                            >
+                                ปิด
+                            </button>
                         </div>
                     </div>
                 </div>
