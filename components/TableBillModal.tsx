@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import type { ActiveOrder, OrderItem, User } from '../types';
 import Swal from 'sweetalert2';
 
@@ -39,12 +39,17 @@ export const TableBillModal: React.FC<TableBillModalProps> = ({
     
     // New state for Void Mode
     const [isVoidMode, setIsVoidMode] = useState(false);
+    const prevOrderIdRef = useRef<number | null>(null);
 
     useEffect(() => {
         if (order) {
             setEditedItems(JSON.parse(JSON.stringify(order.items)));
             setEditedCustomerCount(order.customerCount);
-            setIsVoidMode(false); // Reset void mode when order changes/opens
+            // Only reset void mode if the order ID actually changes (switching tables)
+            if (prevOrderIdRef.current !== order.id) {
+                setIsVoidMode(false);
+                prevOrderIdRef.current = order.id;
+            }
         }
     }, [order]);
 
@@ -75,6 +80,7 @@ export const TableBillModal: React.FC<TableBillModalProps> = ({
     
     const handleSave = () => {
         onUpdateOrder(order.id, editedItems, editedCustomerCount);
+        onClose(); // Close modal after saving edits
     };
 
     // New Function to handle Voiding specific items
@@ -95,6 +101,16 @@ export const TableBillModal: React.FC<TableBillModalProps> = ({
                 
                 // Immediately update the order
                 onUpdateOrder(order.id, newItems, order.customerCount);
+
+                // Show success notification
+                Swal.fire({
+                    toast: true,
+                    position: 'top-end',
+                    icon: 'success',
+                    title: 'ลบสำเร็จ',
+                    showConfirmButton: false,
+                    timer: 1500
+                });
             }
         });
     };

@@ -197,6 +197,7 @@ export const App: React.FC = () => {
         itemToCustomize, setItemToCustomize,
         orderItemToEdit, setOrderItemToEdit,
         orderForModal, setOrderForModal,
+        selectedOrderIdForModal, setSelectedOrderIdForModal,
         leaveRequestInitialDate, setLeaveRequestInitialDate,
         selectedSidebarFloor, setSelectedSidebarFloor
     } = useUI();
@@ -831,9 +832,9 @@ export const App: React.FC = () => {
             isPayment: false, isPaymentSuccess: false, isSettings: false, isEditCompleted: false,
             isUserManager: false, isBranchManager: false, isMoveTable: false, isCancelOrder: false,
             isCashBill: false, isSplitCompleted: false, isCustomization: false, isLeaveRequest: false,
-            isMenuSearch: false, isMergeBill: false
+            isMenuSearch: false, isMergeBill: false, isTagRegistration: false
         });
-        setItemToEdit(null); setOrderForModal(null); setItemToCustomize(null); setOrderItemToEdit(null);
+        setItemToEdit(null); setOrderForModal(null); setSelectedOrderIdForModal(null); setItemToCustomize(null); setOrderItemToEdit(null);
     };
     
     const handleClearOrder = () => { setCurrentOrderItems([]); setCustomerName(''); setCustomerCount(1); setSelectedTableId(null); };
@@ -1304,16 +1305,16 @@ export const App: React.FC = () => {
             <TableBillModal 
                 isOpen={modalState.isTableBill} 
                 onClose={handleModalClose} 
-                order={orderForModal as ActiveOrder | null} 
-                onInitiatePayment={(order) => { setOrderForModal(order); setModalState(prev => ({...prev, isPayment: true, isTableBill: false})); }} 
-                onInitiateMove={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isMoveTable: true, isTableBill: false})); }} 
-                onSplit={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isSplitBill: true, isTableBill: false})); }} 
+                order={(selectedOrderIdForModal ? activeOrders.find(o => o.id === selectedOrderIdForModal) : orderForModal) as ActiveOrder | null} 
+                onInitiatePayment={(order) => { setSelectedOrderIdForModal(order.id); setOrderForModal(order); setModalState(prev => ({...prev, isPayment: true, isTableBill: false})); }} 
+                onInitiateMove={(order) => {setSelectedOrderIdForModal(order.id); setOrderForModal(order); setModalState(prev => ({...prev, isMoveTable: true, isTableBill: false})); }} 
+                onSplit={(order) => {setSelectedOrderIdForModal(order.id); setOrderForModal(order); setModalState(prev => ({...prev, isSplitBill: true, isTableBill: false})); }} 
                 onUpdateOrder={(id, items, count) => handleUpdateOrderFromModal(id, items, count)}
                 isEditMode={isEditMode} 
                 currentUser={currentUser} 
-                onInitiateCancel={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isCancelOrder: true, isTableBill: false}))}} 
+                onInitiateCancel={(order) => {setSelectedOrderIdForModal(order.id); setOrderForModal(order); setModalState(prev => ({...prev, isCancelOrder: true, isTableBill: false}))}} 
                 activeOrders={activeOrders} 
-                onInitiateMerge={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isMergeBill: true, isTableBill: false}))}}
+                onInitiateMerge={(order) => {setSelectedOrderIdForModal(order.id); setOrderForModal(order); setModalState(prev => ({...prev, isMergeBill: true, isTableBill: false}))}}
                 onMergeAndPay={handleMergeAndPay}
             />
             <PaymentModal isOpen={modalState.isPayment} order={orderForModal as ActiveOrder | null} onClose={handleModalClose} onConfirmPayment={handleConfirmPayment} qrCodeUrl={qrCodeUrl} isEditMode={isEditMode} onOpenSettings={() => setModalState(prev => ({...prev, isSettings: true}))} isConfirmingPayment={isConfirmingPayment} />

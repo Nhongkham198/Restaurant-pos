@@ -20,13 +20,14 @@ export const useBillingLogic = () => {
         tables
     } = useData();
     
-    const { setModalState, setOrderForModal, orderForModal, closeAllModals } = useUI();
+    const { setModalState, setOrderForModal, setSelectedOrderIdForModal, orderForModal, closeAllModals } = useUI();
 
     const [isConfirmingPayment, setIsConfirmingPayment] = useState(false);
 
     const handleShowBill = (orderId: number) => { 
         const order = activeOrders.find(o => o.id === orderId); 
         if (order) { 
+            setSelectedOrderIdForModal(order.id);
             setOrderForModal(order); 
             setModalState(prev => ({ ...prev, isTableBill: true })); 
         } 
@@ -59,6 +60,7 @@ export const useBillingLogic = () => {
         } finally { 
             setIsConfirmingPayment(false); 
             setModalState(prev => ({ ...prev, isPayment: false, isPaymentSuccess: true })); 
+            setSelectedOrderIdForModal(orderToComplete.id);
             setOrderForModal(orderToComplete); 
         } 
     };
@@ -219,6 +221,7 @@ export const useBillingLogic = () => {
         try { 
             await batch.commit(); 
             const updatedTargetOrder: ActiveOrder = { ...targetOrder, items: newItems, mergedOrderNumbers: newMergedNumbers }; 
+            setSelectedOrderIdForModal(updatedTargetOrder.id);
             setOrderForModal(updatedTargetOrder); 
             setModalState(prev => ({ ...prev, isPayment: true, isTableBill: false })); 
         } catch (error) { 

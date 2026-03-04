@@ -215,7 +215,7 @@ export const useOrderLogic = () => {
             handleModalClose(); 
         } else { 
             await activeOrdersActions.update(orderId, { items, customerCount }); 
-            handleModalClose(); 
+            // Removed handleModalClose() to allow modal to stay open (e.g. for multiple voids)
         } 
     };
 

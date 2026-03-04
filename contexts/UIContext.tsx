@@ -49,6 +49,8 @@ interface UIContextType {
     setOrderItemToEdit: React.Dispatch<React.SetStateAction<OrderItem | null>>;
     orderForModal: ActiveOrder | CompletedOrder | null;
     setOrderForModal: React.Dispatch<React.SetStateAction<ActiveOrder | CompletedOrder | null>>;
+    selectedOrderIdForModal: number | null;
+    setSelectedOrderIdForModal: React.Dispatch<React.SetStateAction<number | null>>;
     leaveRequestInitialDate: Date | null;
     setLeaveRequestInitialDate: React.Dispatch<React.SetStateAction<Date | null>>;
     preselectedTable: { tableId: number, floor: string } | null;
@@ -127,6 +129,7 @@ export const UIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const [itemToCustomize, setItemToCustomize] = useState<MenuItem | null>(null);
     const [orderItemToEdit, setOrderItemToEdit] = useState<OrderItem | null>(null); 
     const [orderForModal, setOrderForModal] = useState<ActiveOrder | CompletedOrder | null>(null);
+    const [selectedOrderIdForModal, setSelectedOrderIdForModal] = useState<number | null>(null);
     const [leaveRequestInitialDate, setLeaveRequestInitialDate] = useState<Date | null>(null);
     const [preselectedTable, setPreselectedTable] = useState<{ tableId: number, floor: string } | null>(null);
 
@@ -160,6 +163,7 @@ export const UIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
             itemToCustomize, setItemToCustomize,
             orderItemToEdit, setOrderItemToEdit,
             orderForModal, setOrderForModal,
+            selectedOrderIdForModal, setSelectedOrderIdForModal,
             leaveRequestInitialDate, setLeaveRequestInitialDate,
             preselectedTable, setPreselectedTable,
             openModal, closeModal, closeAllModals
