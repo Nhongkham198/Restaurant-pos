@@ -2,7 +2,7 @@ import React, { createContext, useContext, useMemo, ReactNode, useState, useEffe
 import { useFirestoreSync, useFirestoreCollection, CollectionActions } from '../hooks/useFirestoreSync';
 import { 
     MenuItem, Table, ActiveOrder, CompletedOrder, CancelledOrder, 
-    StockItem, PrintHistoryEntry, MaintenanceItem, MaintenanceLog, 
+    StockItem, StockTag, StockLog, PrintHistoryEntry, MaintenanceItem, MaintenanceLog, 
     OrderCounter, StaffCall, LeaveRequest, PrinterConfig, DeliveryProvider,
     User, Branch, JobApplication, EmploymentContract, TimeRecord, PayrollRecord
 } from '../types';
@@ -77,6 +77,9 @@ interface DataContextType {
     setMaintenanceLogs: React.Dispatch<React.SetStateAction<MaintenanceLog[]>>;
     orderCounter: OrderCounter;
     setOrderCounter: React.Dispatch<React.SetStateAction<OrderCounter>>;
+    
+    stockLogs: StockLog[];
+    stockLogsActions: CollectionActions<StockLog>;
     
     staffCalls: StaffCall[];
     setStaffCalls: React.Dispatch<React.SetStateAction<StaffCall[]>>;
@@ -314,6 +317,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const [maintenanceLogs, setMaintenanceLogs] = useFirestoreSync<MaintenanceLog[]>(heavyDataBranchId, 'maintenanceLogs', []);
     const [orderCounter, setOrderCounter] = useFirestoreSync<OrderCounter>(heavyDataBranchId, 'orderCounter', { count: 0, lastResetDate: new Date().toISOString().split('T')[0] });
     
+    const [stockLogs, stockLogsActions] = useFirestoreCollection<StockLog>(heavyDataBranchId, 'stockLogs');
+    
     const [staffCalls, setStaffCalls] = useFirestoreSync<StaffCall[]>(branchId, 'staffCalls', []);
     const [leaveRequests, setLeaveRequests] = useFirestoreSync<LeaveRequest[]>(shouldLoadHeavyData ? null : 'SKIP', 'leaveRequests', []);
 
@@ -358,6 +363,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             completedOrders, cancelledOrders,
             
             stockItems, setStockItems, stockTags, setStockTags, stockCategories, setStockCategories, stockUnits, setStockUnits,
+            stockLogs, stockLogsActions,
             printHistory, setPrintHistory, maintenanceItems, setMaintenanceItems, maintenanceLogs, setMaintenanceLogs,
             orderCounter, setOrderCounter, staffCalls, setStaffCalls, leaveRequests, setLeaveRequests,
             

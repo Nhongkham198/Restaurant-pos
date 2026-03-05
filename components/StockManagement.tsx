@@ -1,11 +1,12 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import type { StockItem, User, StockTag } from '../types';
+import type { StockItem, User, StockTag, StockLog } from '../types';
 import Swal from 'sweetalert2';
 import { StockItemModal } from './StockItemModal';
 import { AdjustStockModal } from './AdjustStockModal';
 import { PurchaseOrderModal } from './PurchaseOrderModal';
 import { functionsService } from '../services/firebaseFunctionsService';
+import { CollectionActions } from '../hooks/useFirestoreSync';
 
 // Declare XLSX to inform TypeScript that it's available globally from the script tag
 declare var XLSX: any;
@@ -21,6 +22,8 @@ interface StockManagementProps {
     setStockCategories: React.Dispatch<React.SetStateAction<string[]>>;
     stockUnits: string[];
     setStockUnits: React.Dispatch<React.SetStateAction<string[]>>;
+    stockLogs: StockLog[];
+    stockLogsActions: CollectionActions<StockLog>;
     currentUser: User | null;
     isTagModalOpen: boolean;
     onOpenTagModal: () => void;
@@ -36,6 +39,8 @@ export const StockManagement: React.FC<StockManagementProps> = ({
     setStockCategories,
     stockUnits,
     setStockUnits,
+    stockLogs,
+    stockLogsActions,
     currentUser,
     isTagModalOpen,
     onOpenTagModal,
@@ -124,14 +129,14 @@ export const StockManagement: React.FC<StockManagementProps> = ({
         return result;
     }, [stockItems, selectedCategory, searchTerm, sortConfig]);
 
-    const [stockLogs, setStockLogs] = useState<import('../types').StockLog[]>([]);
     const [isLogModalOpen, setIsLogModalOpen] = useState(false);
     const [selectedLogItem, setSelectedLogItem] = useState<StockItem | null>(null);
 
     // Helper to add log
-    const addLog = (item: StockItem, action: import('../types').StockLog['action'], details: string) => {
-        const newLog: import('../types').StockLog = {
-            id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+    const addLog = (item: StockItem, action: StockLog['action'], details: string) => {
+        const logId = Date.now().toString() + Math.random().toString(36).substr(2, 9);
+        const newLog: StockLog = {
+            id: logId,
             stockItemId: item.id,
             stockItemName: item.name,
             action,
@@ -139,7 +144,7 @@ export const StockManagement: React.FC<StockManagementProps> = ({
             performedBy: currentUser?.username || 'System',
             timestamp: Date.now()
         };
-        setStockLogs(prev => [newLog, ...prev]);
+        stockLogsActions.add(newLog);
     };
 
     const handleOpenLogModal = (item: StockItem) => {
@@ -149,7 +154,9 @@ export const StockManagement: React.FC<StockManagementProps> = ({
 
     const filteredLogs = useMemo(() => {
         if (!selectedLogItem) return [];
-        return stockLogs.filter(log => log.stockItemId === selectedLogItem.id);
+        return stockLogs
+            .filter(log => log.stockItemId === selectedLogItem.id)
+            .sort((a, b) => b.timestamp - a.timestamp);
     }, [stockLogs, selectedLogItem]);
 
     const handleSort = (key: string) => {
@@ -192,6 +199,8 @@ export const StockManagement: React.FC<StockManagementProps> = ({
         setStockItems(prev => prev.map(item => {
             if (updatesMap.has(item.id)) {
                 const updatedItem = updatesMap.get(item.id)!;
+                // Log the order action
+                addLog(item, 'update', `ออกใบสั่งของ: จำนวน ${updatedItem.orderedQuantity} ${item.unit}`);
                 return {
                     ...item,
                     orderDate: updatedItem.orderDate,
@@ -783,7 +792,9 @@ export const StockManagement: React.FC<StockManagementProps> = ({
             return;
         }
 
-        const dataToExport = stockLogs.map(log => {
+        const sortedLogs = [...stockLogs].sort((a, b) => b.timestamp - a.timestamp);
+
+        const dataToExport = sortedLogs.map(log => {
             let actionType = 'อื่นๆ';
             if (log.action === 'create') actionType = 'สร้างใหม่ (Create)';
             else if (log.action === 'update') actionType = 'แก้ไข (Update)';
