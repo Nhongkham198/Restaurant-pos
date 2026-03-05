@@ -136,8 +136,8 @@ const DataContext = createContext<DataContextType | undefined>(undefined);
 
 export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     // --- AUTH & BRANCH STATE ---
-    const [users, setUsers] = useFirestoreSync<User[]>(null, 'users', [], DEFAULT_USERS);
-    const [branches, setBranches] = useFirestoreSync<Branch[]>(null, 'branches', [], DEFAULT_BRANCHES);
+    const [users, setUsers] = useFirestoreSync<User[]>(null, 'users', []);
+    const [branches, setBranches] = useFirestoreSync<Branch[]>(null, 'branches', []);
     
     const [currentUser, setCurrentUser] = useState<User | null>(() => {
         const storedUser = localStorage.getItem('currentUser');
@@ -152,6 +152,26 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
         return null;
     });
+
+    // Security: Auto-logout if user is removed from database
+    useEffect(() => {
+        if (users.length > 0 && currentUser && !isCustomerMode) {
+            const userExists = users.find(u => u.username === currentUser.username);
+            if (!userExists) {
+                console.warn('Current user no longer exists in database. Logging out.');
+                setCurrentUser(null);
+                localStorage.removeItem('currentUser');
+                localStorage.removeItem('selectedBranch');
+                window.location.href = '/'; // Force reload to clear state
+            } else {
+                // Optional: Update current user details if they changed in DB (e.g. role change)
+                if (JSON.stringify(userExists) !== JSON.stringify(currentUser)) {
+                     setCurrentUser(userExists);
+                     localStorage.setItem('currentUser', JSON.stringify(userExists));
+                }
+            }
+        }
+    }, [users, currentUser, isCustomerMode]);
 
     const [isCustomerMode, setIsCustomerMode] = useState(() => {
         const params = new URLSearchParams(window.location.search);
