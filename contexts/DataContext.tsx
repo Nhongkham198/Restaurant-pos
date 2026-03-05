@@ -153,6 +153,21 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return null;
     });
 
+    const [isCustomerMode, setIsCustomerMode] = useState(() => {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('mode') === 'customer' || params.get('orderType') === 'takeaway' || params.get('orderType') === 'delivery') return true;
+        const storedUser = localStorage.getItem('currentUser');
+        if (storedUser) {
+            try {
+                const u = JSON.parse(storedUser);
+                return u.role === 'table';
+            } catch (e) {
+                return false;
+            }
+        }
+        return false;
+    });
+
     // Security: Auto-logout if user is removed from database
     useEffect(() => {
         if (users.length > 0 && currentUser && !isCustomerMode) {
@@ -172,21 +187,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             }
         }
     }, [users, currentUser, isCustomerMode]);
-
-    const [isCustomerMode, setIsCustomerMode] = useState(() => {
-        const params = new URLSearchParams(window.location.search);
-        if (params.get('mode') === 'customer' || params.get('orderType') === 'takeaway' || params.get('orderType') === 'delivery') return true;
-        const storedUser = localStorage.getItem('currentUser');
-        if (storedUser) {
-            try {
-                const u = JSON.parse(storedUser);
-                return u.role === 'table';
-            } catch (e) {
-                return false;
-            }
-        }
-        return false;
-    });
 
     const [selectedBranch, setSelectedBranch] = useState<Branch | null>(() => {
         const params = new URLSearchParams(window.location.search);
