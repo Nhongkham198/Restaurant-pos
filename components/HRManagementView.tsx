@@ -580,7 +580,7 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                 <div style="text-align: left;">
                     <p><strong>พนักงาน:</strong> ${contract.employeeName}</p>
                     <p><strong>ตำแหน่ง:</strong> ${contract.position}</p>
-                    <p><strong>เงินเดือน:</strong> {(contract.salary || 0).toLocaleString()} บาท</p>
+                    <p><strong>เงินเดือน:</strong> ${(contract.salary || 0).toLocaleString()} บาท</p>
                     <p><strong>วันที่เริ่มงาน:</strong> ${contract.startDate && !isNaN(new Date(contract.startDate).getTime()) ? new Date(contract.startDate).toLocaleDateString('th-TH') : '-'}</p>
                     <hr style="margin: 10px 0;">
                     <p><strong>เนื้อหาสัญญา:</strong></p>
@@ -707,9 +707,8 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                          // Backward: 10 days before payDate (inclusive start, exclusive end of payDate to avoid double count)
                          const backStart = new Date(payDate);
                          backStart.setDate(payDate.getDate() - 10);
-                         const backEnd = new Date(payDate); // Up to payDate (exclusive in logic below)
+                         const backEnd = new Date(payDate);
 
-                         // Forward: 10 days from payDate (inclusive start)
                          const forwardStart = new Date(payDate);
                          const forwardEnd = new Date(payDate);
                          forwardEnd.setDate(payDate.getDate() + 10);
@@ -730,16 +729,11 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                              const leaveStart = new Date(l.startDate);
                              const leaveEnd = new Date(l.endDate);
 
-                             // 1. Check Retroactive Overlap [backStart, payDate)
-                             // We check if any part of the leave falls in the backward window
-                             // Logic: Leave overlaps if leaveStart < backEnd && leaveEnd >= backStart
-                             // But we only count days strictly within the window and BEFORE payDate
-                             if (leaveStart < backEnd && leaveEnd >= backStart) {
-                                 // Calculate intersection
+                             // 1. Check Retroactive Overlap [backStart, backEnd]
+                             if (leaveStart <= backEnd && leaveEnd >= backStart) {
                                  const overlapStart = leaveStart < backStart ? backStart : leaveStart;
-                                 const overlapEnd = leaveEnd >= backEnd ? new Date(backEnd.getTime() - 1) : leaveEnd; // Limit to just before payDate
+                                 const overlapEnd = leaveEnd > backEnd ? backEnd : leaveEnd;
                                  
-                                 // Ensure valid range
                                  if (overlapStart <= overlapEnd) {
                                      const diffTime = Math.abs(overlapEnd.getTime() - overlapStart.getTime());
                                      const days = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
@@ -748,7 +742,7 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                  }
                              }
 
-                             // 2. Check Forward Overlap [payDate, forwardEnd]
+                             // 2. Check Forward Overlap [forwardStart, forwardEnd]
                              if (leaveStart <= forwardEnd && leaveEnd >= forwardStart) {
                                  const overlapStart = leaveStart < forwardStart ? forwardStart : leaveStart;
                                  const overlapEnd = leaveEnd > forwardEnd ? forwardEnd : leaveEnd;
@@ -782,8 +776,15 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                      <ul class="text-xs text-gray-300 list-disc pl-4 mt-1">
                                          ${retroactiveLeavesList.map(l => `<li>${new Date(l.startDate).toLocaleDateString('th-TH')} (${l.reason})</li>`).join('')}
                                      </ul>
-                                     <p class="text-sm font-bold text-red-300 mt-1">หักย้อนหลัง: {(retroactiveDeduction || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท</p>
+                                     <p class="text-sm font-bold text-red-300 mt-1">หักย้อนหลัง: ${(retroactiveDeduction || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท</p>
                                  </div>
+                             `;
+                         } else {
+                             htmlContent += `
+                                <div class="mb-2 p-2 bg-gray-800/50 rounded border border-gray-700">
+                                    <p class="text-green-500 text-xs">ไม่พบการลาย้อนหลัง (10 วันย้อนหลัง)</p>
+                                    <p class="text-xs text-gray-400">ช่วงเวลา: ${backStart.toLocaleDateString('th-TH')} - ${backEnd.toLocaleDateString('th-TH')}</p>
+                                </div>
                              `;
                          }
 
@@ -793,7 +794,7 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                  <div class="mb-2">
                                      <p class="text-red-500 font-bold">พบการลาในรอบปัจจุบัน ${currentDays} วัน</p>
                                      <p class="text-xs text-gray-400">ช่วงเวลา: ${forwardStart.toLocaleDateString('th-TH')} - ${forwardEnd.toLocaleDateString('th-TH')}</p>
-                                     <p>หัก (รอบนี้): ${currentDays} วัน x {(dailyRate || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} = {(currentDeduction || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท</p>
+                                     <p>หัก (รอบนี้): ${currentDays} วัน x ${(dailyRate || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} = ${(currentDeduction || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท</p>
                                  </div>
                              `;
                          } else {
@@ -809,9 +810,9 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
 
                          // Summary
                          htmlContent += `
-                             <p class="mt-2">เงินเดือนรายสัปดาห์ (หาร 4): {(weeklySalary || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท</p>
+                             <p class="mt-2">เงินเดือนรายสัปดาห์ (หาร 4): ${(weeklySalary || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท</p>
                              ${totalDeduction > 0 ? `<p class="text-red-400">รวมหักทั้งหมด: -${(totalDeduction || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท</p>` : ''}
-                             <p class="font-bold text-green-500 text-lg mt-1">ยอดจ่ายสุทธิ: {(netPay || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท</p>
+                             <p class="font-bold text-green-500 text-lg mt-1">ยอดจ่ายสุทธิ: ${(netPay || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท</p>
                          `;
 
                          infoDiv.innerHTML = htmlContent;
@@ -1309,7 +1310,21 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                                         />
                                                     </td>
                                                 )}
-                                                <td className="p-3">{p.month && !isNaN(new Date(p.month).getTime()) ? new Date(p.month).toLocaleDateString('th-TH') : '-'}</td>
+                                                <td className="p-3">
+                                                    {isEditMode ? (
+                                                        <input 
+                                                            type="date" 
+                                                            value={p.month} 
+                                                            onChange={(e) => {
+                                                                const newDate = e.target.value;
+                                                                setPayrollRecords(prev => prev.map(item => item.id === p.id ? { ...item, month: newDate } : item));
+                                                            }}
+                                                            className="bg-gray-700 text-white border border-gray-600 rounded px-2 py-1 text-xs focus:outline-none focus:border-blue-500"
+                                                        />
+                                                    ) : (
+                                                        p.month && !isNaN(new Date(p.month).getTime()) ? new Date(p.month).toLocaleDateString('th-TH') : '-'
+                                                    )}
+                                                </td>
                                                 <td className="p-3 font-medium text-white">{p.employeeName}</td>
                                                 <td className="p-3">{(p.baseSalary || 0).toLocaleString()}</td>
                                                 <td className="p-3 font-bold text-green-400">{(p.totalNetSalary || 0).toLocaleString()}</td>
