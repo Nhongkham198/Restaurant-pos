@@ -295,19 +295,30 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             setSelectedBranch(defaultBranch);
             localStorage.setItem('customerSelectedBranch', JSON.stringify(defaultBranch));
         } else if (branches.length > 0 && !selectedBranch && !isCustomerMode && currentUser) {
+            // Check if user explicitly requested to change branch
+            if (localStorage.getItem('intentToChangeBranch')) {
+                return;
+            }
+
             // FALLBACK: For Staff/Admin users who lost their branch selection
             let targetBranch: Branch | undefined;
             
             // 1. Strict Permission Check: Only select from allowedBranchIds
             if (currentUser.allowedBranchIds && currentUser.allowedBranchIds.length > 0) {
+                // NEW LOGIC: If user has access to MULTIPLE branches, do NOT auto-select.
+                // Let them choose from the selection screen.
+                if (currentUser.allowedBranchIds.length > 1) {
+                    console.log('[DataContext] User has multiple branches. Skipping auto-selection.');
+                    return; 
+                }
+
                 // Find the first branch that is BOTH allowed AND exists in the loaded list
                 targetBranch = branches.find(b => currentUser.allowedBranchIds!.includes(b.id));
             }
             
-            // 2. Admin Override: Admins can access everything, so default to first if no specific restriction
-            if (!targetBranch && currentUser.role === 'admin') {
-                targetBranch = branches[0];
-            }
+            // 2. Admin Override: REMOVED auto-selection for Admin to allow them to choose a branch on login.
+            // If an Admin refreshes, the URL persistence logic (above) will handle the recovery.
+            // If an Admin logs in fresh, they should see the selection screen.
 
             // 3. Apply ONLY if a valid target was found
             if (targetBranch) {

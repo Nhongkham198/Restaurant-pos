@@ -806,10 +806,43 @@ export const App: React.FC = () => {
                 }
             } else if (user.role === 'kitchen') {
                 setCurrentView('kitchen');
+                // NEW LOGIC: Branch Selection for Kitchen
+                if (user.allowedBranchIds && user.allowedBranchIds.length > 1) {
+                    setSelectedBranch(null); 
+                    localStorage.removeItem('selectedBranch');
+                } else if (user.allowedBranchIds && user.allowedBranchIds.length === 1) {
+                    const branch = branches.find(b => b.id === user.allowedBranchIds![0]);
+                    if (branch) {
+                        setSelectedBranch(branch);
+                        localStorage.setItem('selectedBranch', JSON.stringify(branch));
+                    }
+                }
             } else if (user.role === 'pos') {
                 setCurrentView('pos');
+                // NEW LOGIC: Branch Selection for POS
+                if (user.allowedBranchIds && user.allowedBranchIds.length > 1) {
+                    setSelectedBranch(null); 
+                    localStorage.removeItem('selectedBranch');
+                } else if (user.allowedBranchIds && user.allowedBranchIds.length === 1) {
+                    const branch = branches.find(b => b.id === user.allowedBranchIds![0]);
+                    if (branch) {
+                        setSelectedBranch(branch);
+                        localStorage.setItem('selectedBranch', JSON.stringify(branch));
+                    }
+                }
             } else if (['admin', 'branch-admin', 'auditor'].includes(user.role)) {
                 setCurrentView('dashboard');
+                // NEW LOGIC: Branch Selection for Admin/Manager/Auditor
+                if (user.role === 'admin' || (user.allowedBranchIds && user.allowedBranchIds.length > 1)) {
+                    setSelectedBranch(null); 
+                    localStorage.removeItem('selectedBranch');
+                } else if (user.allowedBranchIds && user.allowedBranchIds.length === 1) {
+                    const branch = branches.find(b => b.id === user.allowedBranchIds![0]);
+                    if (branch) {
+                        setSelectedBranch(branch);
+                        localStorage.setItem('selectedBranch', JSON.stringify(branch));
+                    }
+                }
             }
             return { success: true };
         }
@@ -829,10 +862,18 @@ export const App: React.FC = () => {
         Swal.fire({ title: 'ยืนยันการออกจากระบบ', text: "ท่านต้องการออกจากระบบใช่ไหม?", icon: 'question', showCancelButton: true, confirmButtonText: 'ใช่', cancelButtonText: 'ยกเลิก' }).then((result) => { if (result.isConfirmed) handleLogout(); });
     };
     
-    const handleSelectBranch = (branch: Branch) => { setSelectedBranch(branch); };
+    const handleSelectBranch = (branch: Branch) => { 
+        setSelectedBranch(branch); 
+        localStorage.removeItem('intentToChangeBranch'); // Clear the flag when a selection is made
+    };
     const handleUpdateCurrentUser = (updates: Partial<User>) => {
         setUsers(prevUsers => prevUsers.map(user => user.id === currentUser?.id ? { ...user, ...updates } : user));
         setCurrentUser(prev => (prev ? { ...prev, ...updates } : null));
+    };
+
+    const handleChangeBranch = () => {
+        localStorage.setItem('intentToChangeBranch', 'true');
+        setSelectedBranch(null);
     };
 
     const handleModalClose = () => {
@@ -1113,7 +1154,7 @@ export const App: React.FC = () => {
                         restaurantName={restaurantName} branchName={selectedBranch.name} currentUser={currentUser}
                         onViewChange={setCurrentView} currentView={currentView} onToggleEditMode={() => setIsEditMode(!isEditMode)} isEditMode={isEditMode}
                         onOpenSettings={() => setModalState(prev => ({...prev, isSettings: true}))} onOpenUserManager={() => setModalState(prev => ({...prev, isUserManager: true}))}
-                        onManageBranches={() => setModalState(prev => ({...prev, isBranchManager: true}))} onChangeBranch={() => setSelectedBranch(null)} onLogout={handleLogout}
+                        onManageBranches={() => setModalState(prev => ({...prev, isBranchManager: true}))} onChangeBranch={handleChangeBranch} onLogout={handleLogout}
                         kitchenBadgeCount={totalKitchenBadgeCount} tablesBadgeCount={tablesBadgeCount} leaveBadgeCount={leaveBadgeCount} stockBadgeCount={stockBadgeCount}
                         maintenanceBadgeCount={maintenanceBadgeCount}
                         onUpdateCurrentUser={handleUpdateCurrentUser} onUpdateLogoUrl={setLogoUrl} onUpdateRestaurantName={setRestaurantName}
@@ -1135,7 +1176,7 @@ export const App: React.FC = () => {
                         logoUrl={appLogoUrl || logoUrl} // Prioritize App Logo (Red)
                         onLogoChangeClick={() => {}}
                         restaurantName={restaurantName} onRestaurantNameChange={setRestaurantName} branchName={selectedBranch.name}
-                        onChangeBranch={() => setSelectedBranch(null)} onManageBranches={() => setModalState(prev => ({ ...prev, isBranchManager: true }))}
+                        onChangeBranch={handleChangeBranch} onManageBranches={() => setModalState(prev => ({ ...prev, isBranchManager: true }))}
                         printerConfig={printerConfig}
                         isAutoPrintEnabled={isAutoPrintEnabled}
                         onToggleAutoPrint={toggleAutoPrint}
