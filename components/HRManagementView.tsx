@@ -581,7 +581,7 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                     <p><strong>พนักงาน:</strong> ${contract.employeeName}</p>
                     <p><strong>ตำแหน่ง:</strong> ${contract.position}</p>
                     <p><strong>เงินเดือน:</strong> {(contract.salary || 0).toLocaleString()} บาท</p>
-                    <p><strong>วันที่เริ่มงาน:</strong> ${new Date(contract.startDate).toLocaleDateString('th-TH')}</p>
+                    <p><strong>วันที่เริ่มงาน:</strong> ${contract.startDate && !isNaN(new Date(contract.startDate).getTime()) ? new Date(contract.startDate).toLocaleDateString('th-TH') : '-'}</p>
                     <hr style="margin: 10px 0;">
                     <p><strong>เนื้อหาสัญญา:</strong></p>
                     <p>ข้าพเจ้า ${contract.employeeName} ตกลงทำงานในตำแหน่ง ${contract.position}...</p>
@@ -1005,7 +1005,7 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                                     {isEditMode ? (
                                                         <input 
                                                             type="date" 
-                                                            value={new Date(app.applicationDate).toISOString().split('T')[0]} 
+                                                            value={!isNaN(new Date(app.applicationDate).getTime()) ? new Date(app.applicationDate).toISOString().split('T')[0] : ''} 
                                                             onChange={(e) => {
                                                                 const newDate = new Date(e.target.value).getTime();
                                                                 jobApplicationsActions.update(app.id, { applicationDate: newDate });
@@ -1138,7 +1138,7 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                                     {isEditMode ? (
                                                         <input 
                                                             type="date" 
-                                                            value={new Date(c.startDate).toISOString().split('T')[0]} 
+                                                            value={!isNaN(new Date(c.startDate).getTime()) ? new Date(c.startDate).toISOString().split('T')[0] : ''} 
                                                             onChange={(e) => {
                                                                 const newDate = new Date(e.target.value).getTime();
                                                                 employmentContractsActions.update(c.id, { startDate: newDate });
@@ -1146,7 +1146,7 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                                             className="bg-gray-700 text-white border border-gray-600 rounded px-2 py-1 text-xs focus:outline-none focus:border-blue-500"
                                                         />
                                                     ) : (
-                                                        c.startDate ? new Date(c.startDate).toLocaleDateString('th-TH') : '-'
+                                                        c.startDate && !isNaN(new Date(c.startDate).getTime()) ? new Date(c.startDate).toLocaleDateString('th-TH') : '-'
                                                     )}
                                                 </td>
                                                 <td className="p-3 font-medium text-white">{c.employeeName || '-'}</td>
@@ -1232,10 +1232,10 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                                         />
                                                     </td>
                                                 )}
-                                                <td className="p-3">{new Date(t.date).toLocaleDateString('th-TH')}</td>
+                                                <td className="p-3">{t.date && !isNaN(new Date(t.date).getTime()) ? new Date(t.date).toLocaleDateString('th-TH') : '-'}</td>
                                                 <td className="p-3 font-medium text-white">{t.employeeName}</td>
-                                                <td className="p-3">{new Date(t.clockIn).toLocaleTimeString('th-TH')}</td>
-                                                <td className="p-3">{t.clockOut ? new Date(t.clockOut).toLocaleTimeString('th-TH') : '-'}</td>
+                                                <td className="p-3">{t.clockIn && !isNaN(new Date(t.clockIn).getTime()) ? new Date(t.clockIn).toLocaleTimeString('th-TH') : '-'}</td>
+                                                <td className="p-3">{t.clockOut && !isNaN(new Date(t.clockOut).getTime()) ? new Date(t.clockOut).toLocaleTimeString('th-TH') : '-'}</td>
                                                 <td className="p-3">
                                                     <span className={`px-2 py-1 rounded text-xs ${
                                                         t.status === 'late' ? 'bg-red-900 text-red-300' : 'bg-green-900 text-green-300'
@@ -1309,7 +1309,7 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                                         />
                                                     </td>
                                                 )}
-                                                <td className="p-3">{new Date(p.month).toLocaleDateString('th-TH')}</td>
+                                                <td className="p-3">{p.month && !isNaN(new Date(p.month).getTime()) ? new Date(p.month).toLocaleDateString('th-TH') : '-'}</td>
                                                 <td className="p-3 font-medium text-white">{p.employeeName}</td>
                                                 <td className="p-3">{(p.baseSalary || 0).toLocaleString()}</td>
                                                 <td className="p-3 font-bold text-green-400">{(p.totalNetSalary || 0).toLocaleString()}</td>
@@ -1430,7 +1430,7 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                                     </td>
                                                 )}
                                                 <td className="p-3">
-                                                    {new Date(l.startDate).toLocaleDateString('th-TH')} - {new Date(l.endDate).toLocaleDateString('th-TH')}
+                                                    {l.startDate && !isNaN(new Date(l.startDate).getTime()) ? new Date(l.startDate).toLocaleDateString('th-TH') : '-'} - {l.endDate && !isNaN(new Date(l.endDate).getTime()) ? new Date(l.endDate).toLocaleDateString('th-TH') : '-'}
                                                 </td>
                                                 <td className="p-3 font-medium text-white">{user?.username || l.employeeName}</td>
                                                 <td className="p-3">{l.type}</td>
