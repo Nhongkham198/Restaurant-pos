@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Terms of Service - POS System</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f9fafb;
+        }
+        .container {
+            background-color: white;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #111827;
+            border-bottom: 2px solid #e5e7eb;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #374151;
+            margin-top: 30px;
+        }
+        .footer {
+            margin-top: 40px;
+            font-size: 0.9em;
+            color: #6b7280;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Terms of Service</h1>
+        <p>Last updated: <span id="date"></span></p>
+
+        <h2>1. Introduction</h2>
+        <p>Welcome to POS System. By accessing our website and using our services, you agree to be bound by these Terms of Service.</p>
+
+        <h2>2. Use of Service</h2>
+        <p>You agree to use our service only for lawful purposes and in accordance with these Terms.</p>
+
+        <h2>3. User Accounts</h2>
+        <p>You are responsible for maintaining the confidentiality of your account and password.</p>
+
+        <h2>4. Termination</h2>
+        <p>We reserve the right to terminate or suspend your account at our sole discretion, without notice, for conduct that we believe violates these Terms or is harmful to other users of us, us, or third parties, or for any other reason.</p>
+
+        <h2>5. Changes to Terms</h2>
+        <p>We reserve the right to modify these terms at any time. We will notify you of any changes by posting the new Terms on this page.</p>
+        
+        <div class="footer">
+            &copy; <span id="year"></span> POS System. All rights reserved.
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('date').textContent = new Date().toLocaleDateString();
+        document.getElementById('year').textContent = new Date().getFullYear();
+    </script>
+</body>
+</html>
