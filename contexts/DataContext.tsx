@@ -242,6 +242,18 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const heavyDataBranchId = shouldLoadHeavyData ? branchId : null;
 
     useEffect(() => {
+        if (branches.length > 0 && selectedBranch) {
+            // Validate that the selected branch actually exists in the loaded branches
+            const isValid = branches.some(b => b.id === selectedBranch.id);
+            if (!isValid) {
+                console.warn('[DataContext] Selected branch ID ' + selectedBranch.id + ' not found in valid branches list. Resetting to trigger auto-recovery.');
+                setSelectedBranch(null);
+                localStorage.removeItem('selectedBranch');
+            }
+        }
+    }, [branches, selectedBranch]);
+
+    useEffect(() => {
         if (branches.length > 0 && urlBranchId) {
             if (!selectedBranch || selectedBranch.id.toString() !== urlBranchId) {
                 const b = branches.find(br => br.id.toString() === urlBranchId);
@@ -258,8 +270,29 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             const defaultBranch = branches[0];
             setSelectedBranch(defaultBranch);
             localStorage.setItem('customerSelectedBranch', JSON.stringify(defaultBranch));
+        } else if (branches.length > 0 && !selectedBranch && !isCustomerMode && currentUser) {
+            // FALLBACK: For Staff/Admin users who lost their branch selection
+            let targetBranch: Branch | undefined;
+            
+            // 1. Strict Permission Check: Only select from allowedBranchIds
+            if (currentUser.allowedBranchIds && currentUser.allowedBranchIds.length > 0) {
+                // Find the first branch that is BOTH allowed AND exists in the loaded list
+                targetBranch = branches.find(b => currentUser.allowedBranchIds!.includes(b.id));
+            }
+            
+            // 2. Admin Override: Admins can access everything, so default to first if no specific restriction
+            if (!targetBranch && currentUser.role === 'admin') {
+                targetBranch = branches[0];
+            }
+
+            // 3. Apply ONLY if a valid target was found
+            if (targetBranch) {
+                console.log('[DataContext] Auto-recovering selected branch:', targetBranch.name);
+                setSelectedBranch(targetBranch);
+                localStorage.setItem('selectedBranch', JSON.stringify(targetBranch));
+            }
         }
-    }, [isCustomerMode, selectedBranch, branches, urlBranchId]);
+    }, [isCustomerMode, selectedBranch, branches, urlBranchId, currentUser]);
 
     useEffect(() => {
         if (urlBranchId) {
