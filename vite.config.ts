@@ -6,7 +6,7 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Force rebuild for static files
+// Force rebuild for static files - update 2
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
     return {
