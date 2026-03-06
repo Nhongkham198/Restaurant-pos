@@ -253,6 +253,30 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
     }, [branches, selectedBranch]);
 
+    // PERSISTENCE: Sync selectedBranch to URL to prevent loss on refresh
+    useEffect(() => {
+        if (isCustomerMode || !currentUser) return;
+
+        const url = new URL(window.location.href);
+        const currentUrlBranchId = url.searchParams.get('branchId');
+
+        if (selectedBranch) {
+            // If we have a branch, ensure URL matches
+            if (currentUrlBranchId !== selectedBranch.id.toString()) {
+                url.searchParams.set('branchId', selectedBranch.id.toString());
+                window.history.replaceState(null, '', url.toString());
+                console.log('[DataContext] Persisted branch ID to URL:', selectedBranch.id);
+            }
+        } else {
+            // If no branch selected (and user is logged in), clear param to avoid confusion
+            // But only if it exists, to avoid unnecessary history writes
+            if (currentUrlBranchId) {
+                url.searchParams.delete('branchId');
+                window.history.replaceState(null, '', url.toString());
+            }
+        }
+    }, [selectedBranch, isCustomerMode, currentUser]);
+
     useEffect(() => {
         if (branches.length > 0 && urlBranchId) {
             if (!selectedBranch || selectedBranch.id.toString() !== urlBranchId) {
