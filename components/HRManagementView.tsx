@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useData } from '../contexts/DataContext';
 import { JobApplication, EmploymentContract, TimeRecord, PayrollRecord, LeaveRequest } from '../types';
+import { DEFAULT_JOB_APPLICATIONS, DEFAULT_EMPLOYMENT_CONTRACTS } from '../constants';
 import Swal from 'sweetalert2';
 import * as XLSX from 'xlsx';
 
@@ -327,6 +328,50 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
         }
     };
 
+    const handleLoadExampleApps = () => {
+        Swal.fire({
+            title: 'โหลดข้อมูลตัวอย่าง?',
+            text: 'ข้อมูลปัจจุบันจะถูกลบและแทนที่ด้วยข้อมูลตัวอย่าง',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'โหลด',
+            cancelButtonText: 'ยกเลิก'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                // Clear existing (optional, or just append?) Let's clear to be clean
+                // Note: Removing one by one might be slow if many, but fine for small lists
+                jobApplications.forEach(app => jobApplicationsActions.remove(app.id));
+                
+                // Add defaults
+                DEFAULT_JOB_APPLICATIONS.forEach(app => jobApplicationsActions.add({
+                    ...app,
+                    id: Date.now() + Math.random() // Ensure unique ID
+                }));
+                Swal.fire('สำเร็จ', 'โหลดข้อมูลตัวอย่างเรียบร้อย', 'success');
+            }
+        });
+    };
+
+    const handleLoadExampleContracts = () => {
+        Swal.fire({
+            title: 'โหลดข้อมูลตัวอย่าง?',
+            text: 'ข้อมูลปัจจุบันจะถูกลบและแทนที่ด้วยข้อมูลตัวอย่าง',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'โหลด',
+            cancelButtonText: 'ยกเลิก'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                employmentContracts.forEach(c => employmentContractsActions.remove(c.id));
+                DEFAULT_EMPLOYMENT_CONTRACTS.forEach(c => employmentContractsActions.add({
+                    ...c,
+                    id: Date.now() + Math.random()
+                }));
+                Swal.fire('สำเร็จ', 'โหลดข้อมูลตัวอย่างเรียบร้อย', 'success');
+            }
+        });
+    };
+
     // --- CONTRACT LOGIC ---
     const handleCreateContract = () => {
         // Filter approved/hired applications to suggest
@@ -535,7 +580,7 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                 <div style="text-align: left;">
                     <p><strong>พนักงาน:</strong> ${contract.employeeName}</p>
                     <p><strong>ตำแหน่ง:</strong> ${contract.position}</p>
-                    <p><strong>เงินเดือน:</strong> ${contract.salary.toLocaleString()} บาท</p>
+                    <p><strong>เงินเดือน:</strong> {(contract.salary || 0).toLocaleString()} บาท</p>
                     <p><strong>วันที่เริ่มงาน:</strong> ${new Date(contract.startDate).toLocaleDateString('th-TH')}</p>
                     <hr style="margin: 10px 0;">
                     <p><strong>เนื้อหาสัญญา:</strong></p>
@@ -737,7 +782,7 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                      <ul class="text-xs text-gray-300 list-disc pl-4 mt-1">
                                          ${retroactiveLeavesList.map(l => `<li>${new Date(l.startDate).toLocaleDateString('th-TH')} (${l.reason})</li>`).join('')}
                                      </ul>
-                                     <p class="text-sm font-bold text-red-300 mt-1">หักย้อนหลัง: ${retroactiveDeduction.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท</p>
+                                     <p class="text-sm font-bold text-red-300 mt-1">หักย้อนหลัง: {(retroactiveDeduction || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท</p>
                                  </div>
                              `;
                          }
@@ -748,7 +793,7 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                  <div class="mb-2">
                                      <p class="text-red-500 font-bold">พบการลาในรอบปัจจุบัน ${currentDays} วัน</p>
                                      <p class="text-xs text-gray-400">ช่วงเวลา: ${forwardStart.toLocaleDateString('th-TH')} - ${forwardEnd.toLocaleDateString('th-TH')}</p>
-                                     <p>หัก (รอบนี้): ${currentDays} วัน x ${dailyRate.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} = ${currentDeduction.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท</p>
+                                     <p>หัก (รอบนี้): ${currentDays} วัน x {(dailyRate || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} = {(currentDeduction || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท</p>
                                  </div>
                              `;
                          } else {
@@ -764,9 +809,9 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
 
                          // Summary
                          htmlContent += `
-                             <p class="mt-2">เงินเดือนรายสัปดาห์ (หาร 4): ${weeklySalary.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท</p>
-                             ${totalDeduction > 0 ? `<p class="text-red-400">รวมหักทั้งหมด: -${totalDeduction.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท</p>` : ''}
-                             <p class="font-bold text-green-500 text-lg mt-1">ยอดจ่ายสุทธิ: ${netPay.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท</p>
+                             <p class="mt-2">เงินเดือนรายสัปดาห์ (หาร 4): {(weeklySalary || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท</p>
+                             ${totalDeduction > 0 ? `<p class="text-red-400">รวมหักทั้งหมด: -${(totalDeduction || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท</p>` : ''}
+                             <p class="font-bold text-green-500 text-lg mt-1">ยอดจ่ายสุทธิ: {(netPay || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท</p>
                          `;
 
                          infoDiv.innerHTML = htmlContent;
@@ -917,6 +962,9 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                 <button onClick={handleImportExcel} className="bg-yellow-600 hover:bg-yellow-700 px-4 py-2 rounded-lg text-sm flex items-center gap-2">
                                     📥 Import Excel
                                 </button>
+                                <button onClick={handleLoadExampleApps} className="bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded-lg text-sm flex items-center gap-2">
+                                    📂 โหลดตัวอย่าง
+                                </button>
                                 <button onClick={() => onOpenUserManager?.({})} className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm flex items-center gap-2">
                                     👤 เพิ่มผู้ใช้ใหม่
                                 </button>
@@ -942,8 +990,8 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                     {jobApplications.length === 0 ? (
                                         <tr><td colSpan={isEditMode ? 7 : 6} className="p-4 text-center text-gray-500">ไม่พบข้อมูล</td></tr>
                                     ) : (
-                                        jobApplications.map(app => (
-                                            <tr key={app.id} className="hover:bg-gray-700/50">
+                                        jobApplications.map((app, index) => (
+                                            <tr key={app.id || index} className="hover:bg-gray-700/50">
                                                 {isEditMode && (
                                                     <td className="p-3">
                                                         <input 
@@ -965,12 +1013,12 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                                             className="bg-gray-700 text-white border border-gray-600 rounded px-2 py-1 text-xs focus:outline-none focus:border-blue-500"
                                                         />
                                                     ) : (
-                                                        new Date(app.applicationDate).toLocaleDateString('th-TH')
+                                                        app.applicationDate ? new Date(app.applicationDate).toLocaleDateString('th-TH') : '-'
                                                     )}
                                                 </td>
-                                                <td className="p-3 font-medium text-white">{app.fullName}</td>
-                                                <td className="p-3">{app.position}</td>
-                                                <td className="p-3">{app.expectedSalary.toLocaleString()}</td>
+                                                <td className="p-3 font-medium text-white">{app.fullName || '-'}</td>
+                                                <td className="p-3">{app.position || '-'}</td>
+                                                <td className="p-3">{(app.expectedSalary || 0).toLocaleString()}</td>
                                                 <td className="p-3">
                                                     {isEditMode ? (
                                                         <select
@@ -1050,6 +1098,9 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                 <button onClick={handleCreateContract} className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm">
                                     + สร้างสัญญา
                                 </button>
+                                <button onClick={handleLoadExampleContracts} className="bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded-lg text-sm flex items-center gap-2">
+                                    📂 โหลดตัวอย่าง
+                                </button>
                                 <button onClick={() => exportToExcel(employmentContracts, 'Contracts')} className="bg-green-800 hover:bg-green-900 px-4 py-2 rounded-lg text-sm flex items-center gap-2">
                                     📊 Export Excel
                                 </button>
@@ -1072,8 +1123,8 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                     {employmentContracts.length === 0 ? (
                                         <tr><td colSpan={isEditMode ? 7 : 6} className="p-4 text-center text-gray-500">ไม่พบข้อมูล</td></tr>
                                     ) : (
-                                        employmentContracts.map(c => (
-                                            <tr key={c.id} className="hover:bg-gray-700/50">
+                                        employmentContracts.map((c, index) => (
+                                            <tr key={c.id || index} className="hover:bg-gray-700/50">
                                                 {isEditMode && (
                                                     <td className="p-3">
                                                         <input 
@@ -1095,10 +1146,10 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                                             className="bg-gray-700 text-white border border-gray-600 rounded px-2 py-1 text-xs focus:outline-none focus:border-blue-500"
                                                         />
                                                     ) : (
-                                                        new Date(c.startDate).toLocaleDateString('th-TH')
+                                                        c.startDate ? new Date(c.startDate).toLocaleDateString('th-TH') : '-'
                                                     )}
                                                 </td>
-                                                <td className="p-3 font-medium text-white">{c.employeeName}</td>
+                                                <td className="p-3 font-medium text-white">{c.employeeName || '-'}</td>
                                                 <td className="p-3">
                                                     {isEditMode ? (
                                                         <select 
@@ -1116,7 +1167,7 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                                     )}
                                                 </td>
                                                 <td className="p-3">{c.contractType}</td>
-                                                <td className="p-3">{c.salary.toLocaleString()}</td>
+                                                <td className="p-3">{(c.salary || 0).toLocaleString()}</td>
                                                 <td className="p-3">
                                                     <button 
                                                         onClick={() => handleViewContract(c)}
@@ -1170,8 +1221,8 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                     {timeRecords.length === 0 ? (
                                         <tr><td colSpan={isEditMode ? 7 : 6} className="p-4 text-center text-gray-500">ไม่พบข้อมูล</td></tr>
                                     ) : (
-                                        timeRecords.map(t => (
-                                            <tr key={t.id} className="hover:bg-gray-700/50">
+                                        timeRecords.map((t, index) => (
+                                            <tr key={t.id || index} className="hover:bg-gray-700/50">
                                                 {isEditMode && (
                                                     <td className="p-3">
                                                         <input 
@@ -1247,8 +1298,8 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                     {payrollRecords.length === 0 ? (
                                         <tr><td colSpan={isEditMode ? 6 : 5} className="p-4 text-center text-gray-500">ไม่พบข้อมูล</td></tr>
                                     ) : (
-                                        payrollRecords.map(p => (
-                                            <tr key={p.id} className="hover:bg-gray-700/50">
+                                        payrollRecords.map((p, index) => (
+                                            <tr key={p.id || index} className="hover:bg-gray-700/50">
                                                 {isEditMode && (
                                                     <td className="p-3">
                                                         <input 
@@ -1260,8 +1311,8 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                                 )}
                                                 <td className="p-3">{new Date(p.month).toLocaleDateString('th-TH')}</td>
                                                 <td className="p-3 font-medium text-white">{p.employeeName}</td>
-                                                <td className="p-3">{p.baseSalary.toLocaleString()}</td>
-                                                <td className="p-3 font-bold text-green-400">{p.totalNetSalary.toLocaleString()}</td>
+                                                <td className="p-3">{(p.baseSalary || 0).toLocaleString()}</td>
+                                                <td className="p-3 font-bold text-green-400">{(p.totalNetSalary || 0).toLocaleString()}</td>
                                                 <td className="p-3">
                                                     {isEditMode ? (
                                                         <select
@@ -1350,7 +1401,7 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                     {leaveRequests.length === 0 ? (
                                         <tr><td colSpan={isEditMode ? 7 : 6} className="p-4 text-center text-gray-500">ไม่พบข้อมูล</td></tr>
                                     ) : (
-                                        leaveRequests.map(l => {
+                                        leaveRequests.map((l, index) => {
                                             // Try to find user by ID, or fallback to matching name via employment contract
                                             const user = users.find(u => u.id === l.userId) || 
                                                          users.find(u => employmentContracts.some(c => c.userId === u.id && c.employeeName === l.employeeName));
@@ -1368,7 +1419,7 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                             const remainingDays = quotas[l.type as keyof typeof quotas] - usedDays;
 
                                             return (
-                                            <tr key={l.id} className="hover:bg-gray-700/50">
+                                            <tr key={l.id || index} className="hover:bg-gray-700/50">
                                                 {isEditMode && (
                                                     <td className="p-3">
                                                         <input 
