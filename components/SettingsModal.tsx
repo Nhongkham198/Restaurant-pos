@@ -40,6 +40,9 @@ interface SettingsModalProps {
     currentRestaurantPhone: string;
     currentTaxId: string;
     currentSignatureUrl: string | null;
+    currentFacebookAppId: string;
+    currentFacebookAppSecret: string;
+    onSaveFacebookConfig: (appId: string, appSecret: string) => void;
 }
 
 const DEFAULT_RECEIPT_OPTIONS: ReceiptPrintSettings = {
@@ -79,7 +82,7 @@ const StatusIndicator: React.FC<{ status: PrinterStatus; label: string }> = ({ s
 };
 
 export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
-    const [activeTab, setActiveTab] = useState<'general' | 'printer' | 'menu' | 'delivery'>('general');
+    const [activeTab, setActiveTab] = useState<'general' | 'printer' | 'menu' | 'delivery' | 'integrations'>('general');
     
     // State initialization
     const [settingsForm, setSettingsForm] = useState({
@@ -95,6 +98,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
         restaurantPhone: props.currentRestaurantPhone,
         taxId: props.currentTaxId,
         signatureUrl: props.currentSignatureUrl,
+        facebookAppId: props.currentFacebookAppId,
+        facebookAppSecret: props.currentFacebookAppSecret,
     });
 
     const [printerStatus, setPrinterStatus] = useState<{ kitchen: PrinterStatus; cashier: PrinterStatus }>({
@@ -129,12 +134,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
                 restaurantPhone: props.currentRestaurantPhone,
                 taxId: props.currentTaxId,
                 signatureUrl: props.currentSignatureUrl,
+                facebookAppId: props.currentFacebookAppId,
+                facebookAppSecret: props.currentFacebookAppSecret,
             });
             setTempRecommendedIds(props.currentRecommendedMenuItemIds || []);
             setTempDeliveryProviders(props.deliveryProviders || []);
             setPrinterStatus({ kitchen: 'idle', cashier: 'idle' });
         }
-    }, [props.isOpen, props.currentLogoUrl, props.currentAppLogoUrl, props.currentQrCodeUrl, props.currentPrinterConfig, props.currentOpeningTime, props.currentClosingTime, props.currentRecommendedMenuItemIds, props.deliveryProviders]);
+    }, [props.isOpen, props.currentLogoUrl, props.currentAppLogoUrl, props.currentQrCodeUrl, props.currentPrinterConfig, props.currentOpeningTime, props.currentClosingTime, props.currentRecommendedMenuItemIds, props.deliveryProviders, props.currentFacebookAppId, props.currentFacebookAppSecret]);
 
     const handleInputChange = (field: string, value: any) => {
         setSettingsForm(prev => ({ ...prev, [field]: value }));
@@ -366,6 +373,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
         );
         props.onSaveRecommendedItems(tempRecommendedIds);
         props.onSaveDeliveryProviders(tempDeliveryProviders);
+        props.onSaveFacebookConfig(settingsForm.facebookAppId, settingsForm.facebookAppSecret);
     };
 
     const handleRecommendToggle = (itemId: number) => {
@@ -668,7 +676,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
                 </div>
 
                 <div className="flex border-b bg-white">
-                    {['general', 'printer', 'menu', 'delivery'].map(tab => (
+                    {['general', 'printer', 'menu', 'delivery', 'integrations'].map(tab => (
                         <button
                             key={tab}
                             onClick={() => setActiveTab(tab as any)}
@@ -680,6 +688,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
                             {tab === 'printer' && 'เครื่องพิมพ์'}
                             {tab === 'menu' && 'เมนูแนะนำ'}
                             {tab === 'delivery' && 'Delivery'}
+                            {tab === 'integrations' && 'การเชื่อมต่อ'}
                         </button>
                     ))}
                 </div>
@@ -936,6 +945,58 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
                                         </div>
                                     </div>
                                 ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {activeTab === 'integrations' && (
+                        <div className="bg-white p-6 rounded-lg shadow-sm max-w-3xl mx-auto">
+                            <div className="flex items-center gap-3 mb-6 border-b pb-4">
+                                <svg className="w-8 h-8 text-blue-600" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.469h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.469h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                                </svg>
+                                <div>
+                                    <h3 className="text-xl font-bold text-gray-800">Facebook Setting</h3>
+                                    <p className="text-sm text-gray-500">เชื่อมต่อระบบกับ Facebook Page ของร้านคุณ</p>
+                                </div>
+                            </div>
+
+                            <div className="space-y-6">
+                                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800">
+                                    <p className="font-bold mb-1">คำแนะนำการตั้งค่า:</p>
+                                    <ul className="list-disc pl-5 space-y-1">
+                                        <li>คุณต้องสร้าง App ใน <a href="https://developers.facebook.com/" target="_blank" rel="noopener noreferrer" className="underline font-bold">Facebook for Developers</a> ก่อน</li>
+                                        <li>นำ <strong>App ID</strong> และ <strong>App Secret</strong> มากรอกในช่องด้านล่าง</li>
+                                        <li>การเชื่อมต่อนี้จะช่วยให้ระบบ POS สามารถทำงานร่วมกับเพจของคุณได้ในอนาคต (เช่น การบรอดแคสต์ หรือดึงออเดอร์)</li>
+                                    </ul>
+                                </div>
+
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="block text-sm font-bold text-gray-700 mb-1">
+                                            App ID <span className="text-red-500">*</span>
+                                        </label>
+                                        <input 
+                                            type="text" 
+                                            value={settingsForm.facebookAppId} 
+                                            onChange={e => handleInputChange('facebookAppId', e.target.value)} 
+                                            placeholder="ระบุ Facebook App ID"
+                                            className="w-full border border-gray-300 rounded-md p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-bold text-gray-700 mb-1">
+                                            Secret Key <span className="text-red-500">*</span>
+                                        </label>
+                                        <input 
+                                            type="password" 
+                                            value={settingsForm.facebookAppSecret} 
+                                            onChange={e => handleInputChange('facebookAppSecret', e.target.value)} 
+                                            placeholder="ระบุ Facebook App Secret"
+                                            className="w-full border border-gray-300 rounded-md p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                                        />
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     )}

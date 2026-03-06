@@ -76,6 +76,7 @@ const MaintenanceView = React.lazy(() => import('./components/MaintenanceView').
 const CustomerView = React.lazy(() => import('./components/CustomerView').then(module => ({ default: module.CustomerView })));
 const QueueDisplay = React.lazy(() => import('./components/QueueDisplay').then(module => ({ default: module.QueueDisplay })));
 const HRManagementView = React.lazy(() => import('./components/HRManagementView'));
+const PrivacyPolicy = React.lazy(() => import('./components/PrivacyPolicy').then(module => ({ default: module.PrivacyPolicy })));
 
 import { BottomNavBar } from './components/BottomNavBar';
 
@@ -177,7 +178,9 @@ export const App: React.FC = () => {
         isTaxEnabled, setIsTaxEnabled,
         taxRate, setTaxRate,
         sendToKitchen, setSendToKitchen,
-        deliveryProviders, setDeliveryProviders
+        deliveryProviders, setDeliveryProviders,
+        facebookAppId, setFacebookAppId,
+        facebookAppSecret, setFacebookAppSecret
     } = useData();
 
     // Re-introduce urlBranchId for local logic checks
@@ -185,6 +188,11 @@ export const App: React.FC = () => {
 
     // --- SPECIAL DISPLAY MODES ---
     const [isQueueMode, setIsQueueMode] = useState(() => window.location.pathname === '/queue');
+    const [isPrivacyPolicyMode, setIsPrivacyPolicyMode] = useState(() => 
+        window.location.pathname === '/privacy-policy' || 
+        window.location.hash === '#/privacy-policy' ||
+        window.location.hash === '#privacy-policy'
+    );
     const [currentFcmToken, setCurrentFcmToken] = useState<string | null>(null);
 
     // --- VIEW & EDIT MODE STATE ---
@@ -872,6 +880,14 @@ export const App: React.FC = () => {
     // RENDER LOGIC
     
     // 0. Render Queue Display Mode
+    if (isPrivacyPolicyMode) {
+        return (
+            <Suspense fallback={<PageLoading />}>
+                <PrivacyPolicy />
+            </Suspense>
+        );
+    }
+
     if (isQueueMode) {
         if (!branchId) {
             return (
@@ -1358,6 +1374,12 @@ export const App: React.FC = () => {
                     currentRestaurantPhone={restaurantPhone}
                     currentTaxId={taxId}
                     currentSignatureUrl={signatureUrl}
+                    currentFacebookAppId={facebookAppId}
+                    currentFacebookAppSecret={facebookAppSecret}
+                    onSaveFacebookConfig={(appId, appSecret) => {
+                        setFacebookAppId(appId);
+                        setFacebookAppSecret(appSecret);
+                    }}
                 />
             </Suspense>
 

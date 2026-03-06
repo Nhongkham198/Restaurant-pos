@@ -162,6 +162,7 @@ export const LeaveRequestModal: React.FC<LeaveRequestModalProps> = ({ isOpen, on
         onSave({
             userId: currentUser.id,
             username: currentUser.username,
+            employeeName: currentUser.username,
             startDate: start.getTime(),
             endDate: end.getTime(),
             type,

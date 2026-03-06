@@ -26,7 +26,7 @@ export interface User {
     id: number;
     username: string;
     password: string;
-    role: 'admin' | 'branch-admin' | 'pos' | 'kitchen' | 'auditor' | 'table'; // Added 'table' role
+    role: 'admin' | 'branch-admin' | 'pos' | 'kitchen' | 'auditor' | 'table' | 'staff'; // Added 'table' role
     allowedBranchIds?: number[];
     assignedTableId?: number; // Added: Specific table assignment for 'table' role
     profilePictureUrl?: string;
@@ -366,7 +366,7 @@ export interface JobApplication {
     position: string;
     expectedSalary: number;
     experienceYears?: number;
-    status: 'pending' | 'interview' | 'hired' | 'rejected';
+    status: 'pending' | 'interview' | 'hired' | 'rejected' | 'approved';
     applicationDate: number; // timestamp
     notes?: string;
     resumeUrl?: string; // Optional file upload

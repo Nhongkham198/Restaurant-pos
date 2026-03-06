@@ -13,7 +13,7 @@ export const useTableLogic = () => {
         activeOrdersActions
     } = useData();
     
-    const { handleModalClose, selectedSidebarFloor, setSelectedSidebarFloor } = useUI();
+    const { selectedSidebarFloor, setSelectedSidebarFloor } = useUI();
 
     const handleAddTable = (floor: string) => { 
         const newId = Math.max(0, ...tables.map(t => t.id)) + 1; 

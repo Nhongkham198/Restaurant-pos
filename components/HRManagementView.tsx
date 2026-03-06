@@ -16,8 +16,8 @@ interface HRManagementViewProps {
 
 const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false, onOpenUserManager, initialTab = 'application' }) => {
     const { 
-        jobApplications, setJobApplications,
-        employmentContracts, setEmploymentContracts,
+        jobApplications, jobApplicationsActions,
+        employmentContracts, employmentContractsActions,
         timeRecords, setTimeRecords,
         payrollRecords, setPayrollRecords,
         leaveRequests, setLeaveRequests,
@@ -122,10 +122,10 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
             if (result.isConfirmed) {
                 switch (activeTab) {
                     case 'application':
-                        setJobApplications(prev => prev.filter(item => !selectedItems.includes(item.id)));
+                        selectedItems.forEach(id => jobApplicationsActions.remove(id));
                         break;
                     case 'contract':
-                        setEmploymentContracts(prev => prev.filter(item => !selectedItems.includes(item.id)));
+                        selectedItems.forEach(id => employmentContractsActions.remove(id));
                         break;
                     case 'time':
                         setTimeRecords(prev => prev.filter(item => !selectedItems.includes(item.id)));
@@ -186,16 +186,10 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
             if (result.isConfirmed) {
                 const { action, userId } = result.value;
                 if (action === 'link') {
-                    setJobApplications(prev => prev.map(j => j.id === app.id ? { ...j, userId: userId, status: 'hired' } : j));
+                    jobApplicationsActions.update(app.id, { userId: userId, status: 'hired' });
                     Swal.fire('สำเร็จ', 'เชื่อมต่อผู้ใช้และอัปเดตสถานะเป็น \'รับเข้าทำงาน\' เรียบร้อย', 'success');
                 } else if (action === 'unlink') {
-                    setJobApplications(prev => prev.map(j => {
-                        if (j.id === app.id) {
-                            const { userId, ...rest } = j;
-                            return { ...rest, status: 'approved' };
-                        }
-                        return j;
-                    }));
+                    jobApplicationsActions.update(app.id, { userId: 0, status: 'approved' });
                     Swal.fire('สำเร็จ', 'ยกเลิกการเชื่อมต่อผู้ใช้เรียบร้อย', 'success');
                 } else { // action === 'create'
                     const newUserId = Date.now();
@@ -223,8 +217,8 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                     };
 
                     setUsers(prev => [...prev, newUser]);
-                    setEmploymentContracts(prev => [...prev, newContract]);
-                    setJobApplications(prev => prev.map(j => j.id === app.id ? { ...j, userId: newUserId, status: 'hired' } : j));
+                    employmentContractsActions.add(newContract);
+                    jobApplicationsActions.update(app.id, { userId: newUserId, status: 'hired' });
 
                     Swal.fire({
                         icon: 'success',
@@ -276,7 +270,7 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                     status: 'pending',
                     applicationDate: Date.now()
                 };
-                setJobApplications(prev => [...prev, newApp]);
+                jobApplicationsActions.add(newApp);
                 Swal.fire('สำเร็จ', 'บันทึกใบสมัครเรียบร้อย', 'success');
             }
         });
@@ -319,7 +313,7 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                     }));
 
                     if (newApps.length > 0) {
-                        setJobApplications(prev => [...prev, ...newApps] as JobApplication[]);
+                        newApps.forEach((app: JobApplication) => jobApplicationsActions.add(app));
                         Swal.fire('สำเร็จ', `นำเข้าข้อมูล ${newApps.length} รายการเรียบร้อย`, 'success');
                     } else {
                         Swal.fire('ไม่พบข้อมูล', 'ไม่พบข้อมูลในไฟล์ Excel หรือรูปแบบไม่ถูกต้อง', 'warning');
@@ -435,7 +429,7 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                     content: `สัญญาจ้างงาน... (Generated Content)`,
                     createdDate: Date.now()
                 };
-                setEmploymentContracts(prev => [...prev, newContract]);
+                employmentContractsActions.add(newContract);
                 Swal.fire('สำเร็จ', 'สร้างสัญญาจ้างเรียบร้อย', 'success');
             }
         });
@@ -966,9 +960,7 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                                             value={new Date(app.applicationDate).toISOString().split('T')[0]} 
                                                             onChange={(e) => {
                                                                 const newDate = new Date(e.target.value).getTime();
-                                                                setJobApplications(prev => prev.map(a => 
-                                                                    a.id === app.id ? { ...a, applicationDate: newDate } : a
-                                                                ));
+                                                                jobApplicationsActions.update(app.id, { applicationDate: newDate });
                                                             }}
                                                             className="bg-gray-700 text-white border border-gray-600 rounded px-2 py-1 text-xs focus:outline-none focus:border-blue-500"
                                                         />
@@ -985,7 +977,7 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                                             value={app.status}
                                                             onChange={(e) => {
                                                                 const newStatus = e.target.value as any;
-                                                                setJobApplications(prev => prev.map(a => a.id === app.id ? { ...a, status: newStatus } : a));
+                                                                jobApplicationsActions.update(app.id, { status: newStatus });
                                                                 Swal.fire({
                                                                     toast: true,
                                                                     position: 'top-end',
@@ -1098,9 +1090,7 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                                             value={new Date(c.startDate).toISOString().split('T')[0]} 
                                                             onChange={(e) => {
                                                                 const newDate = new Date(e.target.value).getTime();
-                                                                setEmploymentContracts(prev => prev.map(contract => 
-                                                                    contract.id === c.id ? { ...contract, startDate: newDate } : contract
-                                                                ));
+                                                                employmentContractsActions.update(c.id, { startDate: newDate });
                                                             }}
                                                             className="bg-gray-700 text-white border border-gray-600 rounded px-2 py-1 text-xs focus:outline-none focus:border-blue-500"
                                                         />
@@ -1115,9 +1105,7 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                                             value={c.position}
                                                             onChange={(e) => {
                                                                 const newPosition = e.target.value;
-                                                                setEmploymentContracts(prev => prev.map(contract => 
-                                                                    contract.id === c.id ? { ...contract, position: newPosition } : contract
-                                                                ));
+                                                                employmentContractsActions.update(c.id, { position: newPosition });
                                                             }}
                                                             className="bg-gray-700 text-white border border-gray-600 rounded px-2 py-1 text-xs focus:outline-none focus:border-blue-500"
                                                         >

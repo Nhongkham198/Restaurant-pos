@@ -466,6 +466,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     }, [allBranchOrders, myOrderNumbers, myOrdersKey]);
 
     const handleStartNewOrder = () => {
+        const sessionKey = `customer_session_${table.id}`;
         Swal.fire({
             title: t('เริ่มรายการใหม่?'),
             text: t('รายการอาหารเก่าจะถูกลบออกจากหน้าจอ'),

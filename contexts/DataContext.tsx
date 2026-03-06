@@ -88,9 +88,9 @@ interface DataContextType {
 
     // HR Management
     jobApplications: JobApplication[];
-    setJobApplications: React.Dispatch<React.SetStateAction<JobApplication[]>>;
+    jobApplicationsActions: CollectionActions<JobApplication>;
     employmentContracts: EmploymentContract[];
-    setEmploymentContracts: React.Dispatch<React.SetStateAction<EmploymentContract[]>>;
+    employmentContractsActions: CollectionActions<EmploymentContract>;
     timeRecords: TimeRecord[];
     setTimeRecords: React.Dispatch<React.SetStateAction<TimeRecord[]>>;
     payrollRecords: PayrollRecord[];
@@ -133,6 +133,10 @@ interface DataContextType {
     setSendToKitchen: React.Dispatch<React.SetStateAction<boolean>>;
     deliveryProviders: DeliveryProvider[];
     setDeliveryProviders: React.Dispatch<React.SetStateAction<DeliveryProvider[]>>;
+    facebookAppId: string;
+    setFacebookAppId: React.Dispatch<React.SetStateAction<string>>;
+    facebookAppSecret: string;
+    setFacebookAppSecret: React.Dispatch<React.SetStateAction<string>>;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -323,8 +327,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const [leaveRequests, setLeaveRequests] = useFirestoreSync<LeaveRequest[]>(shouldLoadHeavyData ? null : 'SKIP', 'leaveRequests', []);
 
     // --- HR MANAGEMENT ---
-    const [jobApplications, setJobApplications] = useFirestoreSync<JobApplication[]>(branchId, 'jobApplications', [], DEFAULT_JOB_APPLICATIONS);
-    const [employmentContracts, setEmploymentContracts] = useFirestoreSync<EmploymentContract[]>(branchId, 'employmentContracts', [], DEFAULT_EMPLOYMENT_CONTRACTS);
+    const [jobApplications, jobApplicationsActions] = useFirestoreCollection<JobApplication>(branchId, 'jobApplications');
+    const [employmentContracts, employmentContractsActions] = useFirestoreCollection<EmploymentContract>(branchId, 'employmentContracts');
     const [timeRecords, setTimeRecords] = useFirestoreSync<TimeRecord[]>(branchId, 'timeRecords', []);
     const [payrollRecords, setPayrollRecords] = useFirestoreSync<PayrollRecord[]>(branchId, 'payrollRecords', []);
     const [jobPositions, setJobPositions] = useFirestoreSync<string[]>(branchId, 'jobPositions', [], ['แม่ครัว', 'พนักงานเตรียมครัว', 'พนักงานทั่วไป']);
@@ -348,6 +352,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const [taxRate, setTaxRate] = useFirestoreSync<number>(branchId, 'taxRate', 7);
     const [sendToKitchen, setSendToKitchen] = useFirestoreSync<boolean>(branchId, 'sendToKitchen', true);
     const [deliveryProviders, setDeliveryProviders] = useFirestoreSync<DeliveryProvider[]>(branchId, 'deliveryProviders', [], DEFAULT_DELIVERY_PROVIDERS);
+    const [facebookAppId, setFacebookAppId] = useFirestoreSync<string>(branchId, 'facebookAppId', '');
+    const [facebookAppSecret, setFacebookAppSecret] = useFirestoreSync<string>(branchId, 'facebookAppSecret', '');
 
     return (
         <DataContext.Provider value={{
@@ -367,7 +373,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             printHistory, setPrintHistory, maintenanceItems, setMaintenanceItems, maintenanceLogs, setMaintenanceLogs,
             orderCounter, setOrderCounter, staffCalls, setStaffCalls, leaveRequests, setLeaveRequests,
             
-            jobApplications, setJobApplications, employmentContracts, setEmploymentContracts,
+            jobApplications, jobApplicationsActions, employmentContracts, employmentContractsActions,
             timeRecords, setTimeRecords, payrollRecords, setPayrollRecords, jobPositions, setJobPositions,
 
             logoUrl, setLogoUrl, appLogoUrl, setAppLogoUrl, restaurantName, setRestaurantName,
@@ -375,7 +381,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             signatureUrl, setSignatureUrl, qrCodeUrl, setQrCodeUrl, notificationSoundUrl, setNotificationSoundUrl,
             staffCallSoundUrl, setStaffCallSoundUrl, printerConfig, setPrinterConfig, openingTime, setOpeningTime,
             closingTime, setClosingTime, isTaxEnabled, setIsTaxEnabled, taxRate, setTaxRate, sendToKitchen, setSendToKitchen,
-            deliveryProviders, setDeliveryProviders
+            deliveryProviders, setDeliveryProviders, facebookAppId, setFacebookAppId, facebookAppSecret, setFacebookAppSecret
         }}>
             {children}
         </DataContext.Provider>

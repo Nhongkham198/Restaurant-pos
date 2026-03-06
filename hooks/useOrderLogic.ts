@@ -21,7 +21,7 @@ export const useOrderLogic = () => {
         activeOrdersActions
     } = useData();
     
-    const { setModalState, handleModalClose } = useUI();
+    const { setModalState, closeAllModals } = useUI();
 
     const [isPlacingOrder, setIsPlacingOrder] = useState(false);
     const [lastPlacedOrderId, setLastPlacedOrderId] = useState<number | null>(null);
@@ -212,14 +212,14 @@ export const useOrderLogic = () => {
                 
                 Swal.fire({ icon: 'info', title: 'ยกเลิกบิลอัตโนมัติ', text: 'บิลถูกยกเลิกเนื่องจากไม่มีรายการอาหารเหลืออยู่', timer: 2000, showConfirmButton: false }); 
             } 
-            handleModalClose(); 
+            closeAllModals(); 
         } else { 
             await activeOrdersActions.update(orderId, { items, customerCount }); 
             // Removed handleModalClose() to allow modal to stay open (e.g. for multiple voids)
         } 
     };
 
-    const handleCancelOrder = async (orderId: number, reason: string = 'อื่นๆ', notes: string = '') => {
+    const handleCancelOrder = async (orderId: number, reason: 'ลูกค้าขอยกเลิก' | 'ทำรายการผิดพลาด' | 'วัตถุดิบหมด' | 'อื่นๆ' = 'อื่นๆ', notes: string = '') => {
         if (!navigator.onLine) return;
         const orderToCancel = activeOrders.find(o => o.id === orderId);
         if (orderToCancel) {
