@@ -238,6 +238,161 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({
         XLSX.writeFile(wb, `Cancel_Export_${new Date().toISOString().slice(0,10)}.xlsx`);
     };
 
+    const handleExportAndCleanup = async () => {
+        // 1. Calculate Cutoff Date
+        // Logic: Keep data from the *current* 6-month period. Delete everything BEFORE the start of this period.
+        // Periods: 
+        //   A: Feb 10 - Aug 9
+        //   B: Aug 10 - Feb 9 (next year)
+        
+        const now = new Date();
+        const currentYear = now.getFullYear();
+        
+        // Define the two cutoff points for the current year
+        const feb10 = new Date(currentYear, 1, 10); // Month is 0-indexed (1 = Feb)
+        const aug10 = new Date(currentYear, 7, 10); // Month is 0-indexed (7 = Aug)
+        
+        let cleanupCutoffDate: Date;
+        let periodName = "";
+
+        if (now >= aug10) {
+            // We are in the "Aug 10 onwards" period.
+            // Cleanup everything BEFORE Aug 10 of this year.
+            cleanupCutoffDate = aug10;
+            periodName = `Before_Aug10_${currentYear}`;
+        } else if (now >= feb10) {
+            // We are in the "Feb 10 - Aug 9" period.
+            // Cleanup everything BEFORE Feb 10 of this year.
+            cleanupCutoffDate = feb10;
+            periodName = `Before_Feb10_${currentYear}`;
+        } else {
+            // We are in early year (Jan 1 - Feb 9).
+            // This belongs to the previous year's "Aug 10" cycle.
+            // Cleanup everything BEFORE Aug 10 of the PREVIOUS year.
+            cleanupCutoffDate = new Date(currentYear - 1, 7, 10);
+            periodName = `Before_Aug10_${currentYear - 1}`;
+        }
+
+        // 2. Filter Data to Export & Delete (Older than cutoff)
+        const ordersToDelete = completedOrders.filter(o => new Date(o.completionTime) < cleanupCutoffDate);
+        const cancelledToDelete = cancelledOrders.filter(o => new Date(o.cancellationTime) < cleanupCutoffDate);
+        const printLogsToDelete = printHistory.filter(o => new Date(o.timestamp) < cleanupCutoffDate);
+
+        const totalCount = ordersToDelete.length + cancelledToDelete.length + printLogsToDelete.length;
+
+        if (totalCount === 0) {
+            Swal.fire('ไม่พบข้อมูลเก่า', `ไม่มีข้อมูลที่เก่ากว่า ${cleanupCutoffDate.toLocaleDateString('th-TH')} ให้ล้าง`, 'info');
+            return;
+        }
+
+        // 3. Confirm with User
+        const result = await Swal.fire({
+            title: 'ยืนยันการล้างข้อมูลเก่า?',
+            html: `
+                <div class="text-left">
+                    <p>ระบบจะทำการ:</p>
+                    <ol class="list-decimal pl-5 mb-2">
+                        <li><b>Export</b> ข้อมูลเก่าออกมาเป็นไฟล์ Excel</li>
+                        <li><b>ลบ</b> ข้อมูลที่เก่ากว่าวันที่ <b>${cleanupCutoffDate.toLocaleDateString('th-TH')}</b> ออกจากระบบถาวร</li>
+                    </ol>
+                    <p class="text-red-600 font-bold">จำนวนรายการที่จะลบ: ${totalCount} รายการ</p>
+                </div>
+            `,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Export & ล้างข้อมูล',
+            cancelButtonText: 'ยกเลิก',
+            confirmButtonColor: '#d33'
+        });
+
+        if (!result.isConfirmed) return;
+
+        // 4. Perform Export (All 3 types in one file)
+        const wb = XLSX.utils.book_new();
+
+        // Sheet 1: Completed Orders
+        if (ordersToDelete.length > 0) {
+            const salesData: any[] = [];
+            ordersToDelete.forEach(order => {
+                const orderTotal = order.items.reduce((s, i) => s + i.finalPrice * i.quantity, 0) + order.taxAmount;
+                if (order.items && order.items.length > 0) {
+                    order.items.forEach(item => {
+                        salesData.push({
+                            'Order #': order.orderNumber,
+                            'Date': new Date(order.completionTime).toLocaleDateString('th-TH'),
+                            'Time': new Date(order.completionTime).toLocaleTimeString('th-TH'),
+                            'Table': order.tableName,
+                            'Customer': order.customerName || '-',
+                            'Menu Item': item.name + (item.isTakeaway ? ' (กลับบ้าน)' : ''),
+                            'Quantity': item.quantity,
+                            'Unit Price': item.finalPrice,
+                            'Item Total': item.finalPrice * item.quantity,
+                            'Order Subtotal': orderTotal,
+                            'Payment': order.paymentDetails.method,
+                            'Cashier': order.completedBy || '-'
+                        });
+                    });
+                } else {
+                     salesData.push({
+                        'Order #': order.orderNumber,
+                        'Date': new Date(order.completionTime).toLocaleDateString('th-TH'),
+                        'Time': new Date(order.completionTime).toLocaleTimeString('th-TH'),
+                        'Table': order.tableName,
+                        'Customer': order.customerName || '-',
+                        'Menu Item': '(No Items)',
+                        'Order Subtotal': orderTotal,
+                        'Payment': order.paymentDetails.method,
+                        'Cashier': order.completedBy || '-'
+                    });
+                }
+            });
+            const wsSales = XLSX.utils.json_to_sheet(salesData);
+            XLSX.utils.book_append_sheet(wb, wsSales, "Old_Sales");
+        }
+
+        // Sheet 2: Cancelled Orders
+        if (cancelledToDelete.length > 0) {
+            const cancelData = cancelledToDelete.map(order => ({
+                'Order #': order.orderNumber,
+                'Date': new Date(order.cancellationTime).toLocaleDateString('th-TH'),
+                'Time': new Date(order.cancellationTime).toLocaleTimeString('th-TH'),
+                'Table': order.tableName,
+                'Reason': order.cancellationReason,
+                'Notes': order.cancellationNotes,
+                'Cancelled By': order.cancelledBy
+            }));
+            const wsCancel = XLSX.utils.json_to_sheet(cancelData);
+            XLSX.utils.book_append_sheet(wb, wsCancel, "Old_Cancelled");
+        }
+
+        // Sheet 3: Print Logs
+        if (printLogsToDelete.length > 0) {
+            const printData = printLogsToDelete.map(entry => ({
+                'Order #': entry.orderNumber,
+                'Date': new Date(entry.timestamp).toLocaleDateString('th-TH'),
+                'Time': new Date(entry.timestamp).toLocaleTimeString('th-TH'),
+                'Table': entry.tableName,
+                'Action': entry.action,
+                'Printer': entry.printerName,
+                'Status': entry.status
+            }));
+            const wsPrint = XLSX.utils.json_to_sheet(printData);
+            XLSX.utils.book_append_sheet(wb, wsPrint, "Old_PrintLogs");
+        }
+
+        // Save File
+        XLSX.writeFile(wb, `Cleanup_Backup_${periodName}_${new Date().toISOString().slice(0,10)}.xlsx`);
+
+        // 5. Perform Deletion
+        await onDeleteHistory(
+            ordersToDelete.map(o => o.id),
+            cancelledToDelete.map(o => o.id),
+            printLogsToDelete.map(o => o.id)
+        );
+
+        Swal.fire('สำเร็จ', `ล้างข้อมูลเก่าจำนวน ${totalCount} รายการเรียบร้อยแล้ว`, 'success');
+    };
+
     // ... Delete handlers ...
     const toggleSelect = (id: number, type: 'completed' | 'cancelled' | 'print') => {
         if (type === 'completed') {
@@ -426,15 +581,32 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({
 
                     {/* Export Button - Hidden on Mobile (< md) */}
                     {(activeTab === 'completed' || activeTab === 'cancelled') && (
-                        <button 
-                            onClick={activeTab === 'completed' ? handleExportHistory : handleExportCancellations} 
-                            className="hidden md:flex items-center gap-2 px-6 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-full font-bold shadow-md transition-all transform hover:-translate-y-0.5 active:scale-95"
-                        >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                            </svg>
-                            {activeTab === 'completed' ? 'Export Sales' : 'Export Log'}
-                        </button>
+                        <div className="hidden md:flex items-center gap-2">
+                            {/* Standard Export Button */}
+                            <button 
+                                onClick={activeTab === 'completed' ? handleExportHistory : handleExportCancellations} 
+                                className="flex items-center gap-2 px-6 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-full font-bold shadow-md transition-all transform hover:-translate-y-0.5 active:scale-95"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                                </svg>
+                                {activeTab === 'completed' ? 'Export Sales' : 'Export Log'}
+                            </button>
+
+                            {/* NEW: Cleanup Button (Admin Only) */}
+                            {currentUser?.role === 'admin' && (
+                                <button 
+                                    onClick={handleExportAndCleanup} 
+                                    className="flex items-center gap-2 px-4 py-2.5 bg-orange-600 hover:bg-orange-700 text-white rounded-full font-bold shadow-md transition-all transform hover:-translate-y-0.5 active:scale-95 text-sm"
+                                    title="Export และล้างข้อมูลเก่า (ตัดรอบ 10 ก.พ. และ 10 ส.ค.)"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                    ล้างข้อมูลเก่า
+                                </button>
+                            )}
+                        </div>
                     )}
                 </div>
 
