@@ -261,12 +261,25 @@ exports.sendLineOrderNotification = functions.region('asia-southeast1').firestor
 
         // 2. Construct Message
         const totalAmount = newOrder.items.reduce((sum, item) => sum + (item.finalPrice * item.quantity), 0).toFixed(2);
-        const itemCount = newOrder.items.length;
+        const itemsList = newOrder.items.map(item => {
+            let itemText = `- ${item.name} x ${item.quantity}`;
+            if (item.selectedOptions && item.selectedOptions.length > 0) {
+                const optionsText = item.selectedOptions.map(opt => opt.name).join(', ');
+                itemText += ` (${optionsText})`;
+            }
+            if (item.notes) {
+                itemText += ` [Note: ${item.notes}]`;
+            }
+            return itemText;
+        }).join('\n');
         
+        // Use manualOrderNumber (e.g. LineMan #9702) if available, otherwise use run number
+        const displayOrderNumber = newOrder.manualOrderNumber ? `#${newOrder.manualOrderNumber}` : `#${newOrder.orderNumber}`;
+
         const messageText = `🔔 มีออเดอร์ใหม่!\n` +
                             `โต๊ะ: ${newOrder.tableName}\n` +
-                            `ออเดอร์: #${newOrder.orderNumber}\n` +
-                            `จำนวน: ${itemCount} รายการ\n` +
+                            `ออเดอร์: ${displayOrderNumber}\n` +
+                            `รายการ:\n${itemsList}\n` +
                             `ยอดรวม: ${totalAmount} บาท`;
 
         // 3. Send Request to LINE Messaging API using built-in https module
