@@ -169,6 +169,49 @@ exports.sendStaffCallNotification = functions.region('asia-southeast1').firestor
         } catch (error) {
             console.error('Error sending staff call notification:', error);
         }
+
+        // --- NEW: Send LINE Notification for Staff Call ---
+        try {
+            const [tokenDoc, userIdDoc] = await Promise.all([
+                admin.firestore().doc(`branches/${context.params.branchId}/lineMessagingToken/data`).get(),
+                admin.firestore().doc(`branches/${context.params.branchId}/lineUserId/data`).get()
+            ]);
+
+            const lineToken = tokenDoc.exists ? tokenDoc.data().value : null;
+            const lineUserId = userIdDoc.exists ? userIdDoc.data().value : null;
+
+            if (lineToken && lineUserId) {
+                const https = require('https');
+                const lineMessage = JSON.stringify({
+                    to: lineUserId,
+                    messages: [{ type: 'text', text: `🔔 ลูกค้าเรียกพนักงาน!\nโต๊ะ: ${newCall.tableName}\nคุณ: ${newCall.customerName}\nต้องการความช่วยเหลือ` }]
+                });
+
+                const options = {
+                    hostname: 'api.line.me',
+                    path: '/v2/bot/message/push',
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${lineToken}`,
+                        'Content-Length': Buffer.byteLength(lineMessage)
+                    }
+                };
+
+                await new Promise((resolve) => {
+                    const req = https.request(options, (res) => {
+                        res.on('data', () => {});
+                        res.on('end', () => resolve());
+                    });
+                    req.on('error', () => resolve());
+                    req.write(lineMessage);
+                    req.end();
+                });
+            }
+        } catch (error) {
+            console.error('Failed to send LINE staff call notification:', error);
+        }
+
         return null;
     });
 
@@ -199,19 +242,18 @@ exports.sendLineOrderNotification = functions.region('asia-southeast1').firestor
 
         if (!newOrder) return null;
 
-        // 1. Get Branch Config (LINE Token & User ID)
-        const branchDoc = await admin.firestore().doc(`branches/${branchId}`).get();
-        if (!branchDoc.exists) {
-            console.log(`Branch ${branchId} not found.`);
-            return null;
-        }
+        // 1. Get Branch Config (LINE Token & User ID) from sub-documents
+        // Based on useFirestoreSync logic: branches/{branchId}/{collectionKey}/data
+        const [tokenDoc, userIdDoc] = await Promise.all([
+            admin.firestore().doc(`branches/${branchId}/lineMessagingToken/data`).get(),
+            admin.firestore().doc(`branches/${branchId}/lineUserId/data`).get()
+        ]);
 
-        const branchData = branchDoc.data();
-        const lineToken = branchData.lineMessagingToken; // Channel Access Token
-        const lineUserId = branchData.lineUserId; // User ID or Group ID
+        const lineToken = tokenDoc.exists ? tokenDoc.data().value : null;
+        const lineUserId = userIdDoc.exists ? userIdDoc.data().value : null;
 
         if (!lineToken || !lineUserId) {
-            console.log(`LINE Messaging API not configured for branch ${branchId}.`);
+            console.log(`LINE Messaging API not configured for branch ${branchId}. (Token: ${!!lineToken}, ID: ${!!lineUserId})`);
             return null;
         }
 
