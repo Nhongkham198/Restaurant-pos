@@ -56,7 +56,7 @@ if (isFirebaseConfigured) {
           }
       });
 
-    functions = firebase.functions();
+    functions = firebase.app().functions('asia-southeast1');
   } catch (e) {
     console.error("Error initializing Firebase. Please check your config.", e);
     // isFirebaseConfigured should remain true, but db will be null, and errors will be caught.
