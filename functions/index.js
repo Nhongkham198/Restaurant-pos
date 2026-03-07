@@ -272,33 +272,32 @@ exports.testLineNotification = functions.region('asia-southeast1').https.onCall(
     }
 
     try {
-        const response = await fetch('https://api.line.me/v2/bot/message/push', {
-            method: 'POST',
+        // Use axios for better error handling and compatibility
+        const axios = require('axios');
+        
+        await axios.post('https://api.line.me/v2/bot/message/push', {
+            to: targetId,
+            messages: [
+                {
+                    type: 'text',
+                    text: '✅ ทดสอบการเชื่อมต่อสำเร็จ!\nบอทพร้อมแจ้งเตือนออเดอร์แล้วครับ'
+                }
+            ]
+        }, {
             headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify({
-                to: targetId,
-                messages: [
-                    {
-                        type: 'text',
-                        text: '✅ ทดสอบการเชื่อมต่อสำเร็จ!\nบอทพร้อมแจ้งเตือนออเดอร์แล้วครับ'
-                    }
-                ]
-            })
+            }
         });
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error('LINE Test Error:', errorText);
-            return { success: false, error: errorText };
-        }
 
         return { success: true };
     } catch (error) {
         console.error('Test Notification Failed:', error);
-        throw new functions.https.HttpsError('internal', error.message);
+        // Extract detailed error message from axios response if available
+        const errorMsg = error.response ? JSON.stringify(error.response.data) : error.message;
+        
+        // Return structured error instead of throwing HttpsError to avoid generic "internal" message
+        return { success: false, error: errorMsg };
     }
 });
 
