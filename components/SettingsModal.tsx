@@ -4,6 +4,7 @@ import type { PrinterConfig, ReceiptPrintSettings, KitchenPrinterSettings, Cashi
 import { printerService } from '../services/printerService';
 import Swal from 'sweetalert2';
 import { MenuItemImage } from './MenuItemImage';
+import { functions } from '../firebaseConfig';
 
 interface SettingsModalProps {
     isOpen: boolean;
@@ -365,6 +366,38 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
             Swal.fire({ icon: 'success', title: 'ส่งคำสั่งสำเร็จ', text: 'กรุณาตรวจสอบที่เครื่องพิมพ์', timer: 1500, showConfirmButton: false });
         } catch (error: any) {
             Swal.fire({ icon: 'error', title: 'พิมพ์ไม่สำเร็จ', text: error.message });
+        }
+    };
+
+    const handleTestLineNotification = async () => {
+        if (!settingsForm.lineMessagingToken || !settingsForm.lineUserId) {
+            Swal.fire('ข้อมูลไม่ครบ', 'กรุณากรอก Channel Access Token และ User ID ให้ครบถ้วน', 'warning');
+            return;
+        }
+
+        try {
+            Swal.fire({
+                title: 'กำลังทดสอบ...',
+                text: 'กำลังส่งข้อความทดสอบไปยัง LINE',
+                allowOutsideClick: false,
+                didOpen: () => Swal.showLoading()
+            });
+
+            const testFunc = functions.httpsCallable('testLineNotification');
+            const result = await testFunc({
+                token: settingsForm.lineMessagingToken,
+                targetId: settingsForm.lineUserId
+            });
+
+            const data = result.data as any;
+            if (data.success) {
+                Swal.fire('สำเร็จ', 'ส่งข้อความทดสอบเรียบร้อยแล้ว กรุณาเช็คที่ LINE ของคุณ', 'success');
+            } else {
+                Swal.fire('ไม่สำเร็จ', `เกิดข้อผิดพลาด: ${data.error}`, 'error');
+            }
+        } catch (error: any) {
+            console.error('Test failed:', error);
+            Swal.fire('เกิดข้อผิดพลาด', `ไม่สามารถส่งข้อความได้: ${error.message}`, 'error');
         }
     };
 
@@ -781,6 +814,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
                                                     className="px-3 py-2 bg-gray-100 text-gray-600 rounded-md hover:bg-gray-200 text-sm whitespace-nowrap border border-gray-300"
                                                 >
                                                     ไปที่ LINE Developers Console
+                                                </button>
+                                                <button
+                                                    onClick={handleTestLineNotification}
+                                                    className="px-3 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm whitespace-nowrap shadow-sm"
+                                                >
+                                                    ทดสอบส่งข้อความ
                                                 </button>
                                             </div>
                                         </div>

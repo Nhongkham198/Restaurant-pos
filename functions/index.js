@@ -259,3 +259,75 @@ exports.sendLineOrderNotification = functions.region('asia-southeast1').firestor
 
         return null;
     });
+
+/**
+ * HTTPS Callable function to test LINE Notification settings.
+ * Call this from the frontend to verify Token and User/Group ID.
+ */
+exports.testLineNotification = functions.region('asia-southeast1').https.onCall(async (data, context) => {
+    const { token, targetId } = data;
+
+    if (!token || !targetId) {
+        throw new functions.https.HttpsError('invalid-argument', 'Missing token or targetId');
+    }
+
+    try {
+        const response = await fetch('https://api.line.me/v2/bot/message/push', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+                to: targetId,
+                messages: [
+                    {
+                        type: 'text',
+                        text: '✅ ทดสอบการเชื่อมต่อสำเร็จ!\nบอทพร้อมแจ้งเตือนออเดอร์แล้วครับ'
+                    }
+                ]
+            })
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('LINE Test Error:', errorText);
+            return { success: false, error: errorText };
+        }
+
+        return { success: true };
+    } catch (error) {
+        console.error('Test Notification Failed:', error);
+        throw new functions.https.HttpsError('internal', error.message);
+    }
+});
+
+/**
+ * Webhook for LINE Messaging API.
+ * Use this to get Group ID when the bot joins a group.
+ * Set Webhook URL in LINE Developers to: https://asia-southeast1-<YOUR_PROJECT_ID>.cloudfunctions.net/lineWebhook
+ */
+exports.lineWebhook = functions.region('asia-southeast1').https.onRequest(async (req, res) => {
+    if (req.method !== 'POST') {
+        res.status(405).send('Method Not Allowed');
+        return;
+    }
+
+    const events = req.body.events || [];
+    for (const event of events) {
+        console.log('Received LINE Event:', JSON.stringify(event));
+        
+        if (event.type === 'join' || event.type === 'memberJoined' || event.type === 'message') {
+            const source = event.source;
+            if (source.type === 'group') {
+                console.log(`📢 Group ID found: ${source.groupId}`);
+            } else if (source.type === 'room') {
+                console.log(`📢 Room ID found: ${source.roomId}`);
+            } else if (source.type === 'user') {
+                console.log(`📢 User ID found: ${source.userId}`);
+            }
+        }
+    }
+
+    res.status(200).send('OK');
+});
