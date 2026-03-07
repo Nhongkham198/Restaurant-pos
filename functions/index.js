@@ -227,32 +227,53 @@ exports.sendLineOrderNotification = functions.region('asia-southeast1').firestor
                             `จำนวน: ${itemCount} รายการ\n` +
                             `ยอดรวม: ${totalAmount} บาท`;
 
-        // 3. Send Request to LINE Messaging API
-        // Using global fetch (Node 18+)
+        // 3. Send Request to LINE Messaging API using built-in https module
         try {
-            const response = await fetch('https://api.line.me/v2/bot/message/push', {
+            const https = require('https');
+            const postData = JSON.stringify({
+                to: lineUserId,
+                messages: [
+                    {
+                        type: 'text',
+                        text: messageText
+                    }
+                ]
+            });
+
+            const options = {
+                hostname: 'api.line.me',
+                path: '/v2/bot/message/push',
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${lineToken}`
-                },
-                body: JSON.stringify({
-                    to: lineUserId,
-                    messages: [
-                        {
-                            type: 'text',
-                            text: messageText
-                        }
-                    ]
-                })
-            });
+                    'Authorization': `Bearer ${lineToken}`,
+                    'Content-Length': Buffer.byteLength(postData)
+                }
+            };
 
-            if (!response.ok) {
-                const errorText = await response.text();
-                console.error('LINE API Error:', response.status, errorText);
-            } else {
-                console.log('LINE notification sent successfully.');
-            }
+            await new Promise((resolve, reject) => {
+                const req = https.request(options, (res) => {
+                    let body = '';
+                    res.on('data', (chunk) => body += chunk);
+                    res.on('end', () => {
+                        if (res.statusCode >= 200 && res.statusCode < 300) {
+                            console.log('LINE notification sent successfully.');
+                            resolve();
+                        } else {
+                            console.error('LINE API Error:', body);
+                            resolve(); // Resolve anyway to not crash the function
+                        }
+                    });
+                });
+
+                req.on('error', (e) => {
+                    console.error('Failed to send LINE notification:', e.message);
+                    resolve();
+                });
+
+                req.write(postData);
+                req.end();
+            });
         } catch (error) {
             console.error('Failed to send LINE notification:', error);
         }
@@ -272,10 +293,10 @@ exports.testLineNotification = functions.region('asia-southeast1').https.onCall(
     }
 
     try {
-        // Use axios for better error handling and compatibility
-        const axios = require('axios');
+        // Use built-in https module to avoid dependency issues with axios/fetch
+        const https = require('https');
         
-        await axios.post('https://api.line.me/v2/bot/message/push', {
+        const postData = JSON.stringify({
             to: targetId,
             messages: [
                 {
@@ -283,21 +304,45 @@ exports.testLineNotification = functions.region('asia-southeast1').https.onCall(
                     text: '✅ ทดสอบการเชื่อมต่อสำเร็จ!\nบอทพร้อมแจ้งเตือนออเดอร์แล้วครับ'
                 }
             ]
-        }, {
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-            }
         });
 
-        return { success: true };
+        const options = {
+            hostname: 'api.line.me',
+            path: '/v2/bot/message/push',
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`,
+                'Content-Length': Buffer.byteLength(postData)
+            }
+        };
+
+        return new Promise((resolve) => {
+            const req = https.request(options, (res) => {
+                let body = '';
+                res.on('data', (chunk) => body += chunk);
+                res.on('end', () => {
+                    if (res.statusCode >= 200 && res.statusCode < 300) {
+                        resolve({ success: true });
+                    } else {
+                        console.error('LINE API Error:', body);
+                        resolve({ success: false, error: body });
+                    }
+                });
+            });
+
+            req.on('error', (e) => {
+                console.error('Request Error:', e.message);
+                resolve({ success: false, error: e.message });
+            });
+
+            req.write(postData);
+            req.end();
+        });
+
     } catch (error) {
         console.error('Test Notification Failed:', error);
-        // Extract detailed error message from axios response if available
-        const errorMsg = error.response ? JSON.stringify(error.response.data) : error.message;
-        
-        // Return structured error instead of throwing HttpsError to avoid generic "internal" message
-        return { success: false, error: errorMsg };
+        return { success: false, error: error.message };
     }
 });
 
