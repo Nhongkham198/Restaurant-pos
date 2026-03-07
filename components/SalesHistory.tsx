@@ -372,8 +372,8 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({
                 'Date': new Date(entry.timestamp).toLocaleDateString('th-TH'),
                 'Time': new Date(entry.timestamp).toLocaleTimeString('th-TH'),
                 'Table': entry.tableName,
-                'Action': entry.action,
-                'Printer': entry.printerName,
+                'Action': entry.isReprint ? 'Reprint' : 'Print',
+                'Printer': entry.printerType,
                 'Status': entry.status
             }));
             const wsPrint = XLSX.utils.json_to_sheet(printData);

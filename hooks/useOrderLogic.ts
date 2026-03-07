@@ -18,7 +18,8 @@ export const useOrderLogic = () => {
         printerConfig,
         isCustomerMode,
         activeOrders,
-        activeOrdersActions
+        activeOrdersActions,
+        lineNotifyToken // Added here
     } = useData();
     
     const { setModalState, closeAllModals } = useUI();
@@ -154,6 +155,10 @@ export const useOrderLogic = () => {
                         });
                     });
             }
+
+            // --- LINE NOTIFY INTEGRATION REMOVED ---
+            // LINE Notify is discontinued.
+            // Notifications are now handled by Cloud Functions via LINE Messaging API.
             
             return newOrder.orderNumber;
 

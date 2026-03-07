@@ -180,11 +180,59 @@ export const App: React.FC = () => {
         sendToKitchen, setSendToKitchen,
         deliveryProviders, setDeliveryProviders,
         facebookAppId, setFacebookAppId,
-        facebookAppSecret, setFacebookAppSecret
+        facebookAppSecret, setFacebookAppSecret,
+        lineNotifyToken, setLineNotifyToken,
+        lineMessagingToken, setLineMessagingToken,
+        lineUserId, setLineUserId
     } = useData();
 
     // Re-introduce urlBranchId for local logic checks
     const urlBranchId = useMemo(() => new URLSearchParams(window.location.search).get('branchId'), []);
+
+    // --- NEW: Handle URL parameters for Auto-Login (LINE OA / QR Code) ---
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const tableIdParam = params.get('tableId');
+        const branchIdParam = params.get('branchId');
+
+        if (tableIdParam && branchIdParam) {
+            const tId = parseInt(tableIdParam, 10);
+            const bId = parseInt(branchIdParam, 10);
+
+            if (!isNaN(tId) && !isNaN(bId)) {
+                // 1. Handle User Login
+                const isSameUser = currentUser?.role === 'table' && 
+                                   currentUser.assignedTableId === tId &&
+                                   currentUser.allowedBranchIds?.includes(bId);
+
+                if (!isSameUser) {
+                    const tempUserId = 900000000 + (bId * 10000) + tId;
+                    const tableUser: User = {
+                        id: tempUserId,
+                        username: `Table ${tId}`,
+                        password: '',
+                        role: 'table',
+                        allowedBranchIds: [bId],
+                        assignedTableId: tId
+                    };
+                    setCurrentUser(tableUser);
+                    setIsCustomerMode(true);
+                    setCustomerTableId(tId);
+                }
+
+                // 2. Handle Branch Selection
+                // Only attempt if branches are loaded
+                if (branches.length > 0) {
+                    if (selectedBranch?.id !== bId) {
+                        const branch = branches.find(b => b.id === bId);
+                        if (branch) {
+                            setSelectedBranch(branch);
+                        }
+                    }
+                }
+            }
+        }
+    }, [currentUser, branches, selectedBranch, setCurrentUser, setIsCustomerMode, setCustomerTableId, setSelectedBranch]);
 
     // --- SPECIAL DISPLAY MODES ---
     const [isQueueMode, setIsQueueMode] = useState(() => window.location.pathname === '/queue');
@@ -1421,6 +1469,12 @@ export const App: React.FC = () => {
                         setFacebookAppId(appId);
                         setFacebookAppSecret(appSecret);
                     }}
+                    currentLineNotifyToken={lineNotifyToken}
+                    onSaveLineNotifyToken={setLineNotifyToken}
+                    currentLineMessagingToken={lineMessagingToken}
+                    onSaveLineMessagingToken={setLineMessagingToken}
+                    currentLineUserId={lineUserId}
+                    onSaveLineUserId={setLineUserId}
                 />
             </Suspense>
 

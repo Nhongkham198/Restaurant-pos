@@ -67,6 +67,46 @@ export const BranchManagerModal: React.FC<BranchManagerModalProps> = ({ isOpen, 
             }
         });
     };
+
+    const handleGetLink = (branch: Branch) => {
+        Swal.fire({
+            title: 'สร้างลิงก์สั่งอาหาร (LINE OA)',
+            input: 'number',
+            inputLabel: 'ระบุหมายเลขโต๊ะ (ถ้ามี)',
+            inputPlaceholder: 'เช่น 1, 2, 3 (เว้นว่างสำหรับกลับบ้าน/Delivery)',
+            showCancelButton: true,
+            confirmButtonText: 'สร้างลิงก์',
+            cancelButtonText: 'ยกเลิก',
+            inputValidator: (value) => {
+                if (value && parseInt(value) < 0) {
+                    return 'หมายเลขโต๊ะต้องไม่ติดลบ';
+                }
+                return null;
+            }
+        }).then((result) => {
+            if (result.isConfirmed) {
+                const tableId = result.value ? parseInt(result.value) : 0; // 0 or specific table
+                const link = `${window.location.origin}/?branchId=${branch.id}&tableId=${tableId}`;
+                
+                // Copy to clipboard
+                navigator.clipboard.writeText(link).then(() => {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'คัดลอกลิงก์แล้ว!',
+                        html: `<p class="text-sm text-gray-600 mb-2">ลิงก์สำหรับสาขา <b>${branch.name}</b> โต๊ะ <b>${tableId || 'Delivery'}</b></p><code class="bg-gray-100 p-2 rounded block break-all text-xs">${link}</code>`,
+                        confirmButtonText: 'ตกลง'
+                    });
+                }).catch(() => {
+                     Swal.fire({
+                        icon: 'info',
+                        title: 'ลิงก์ของคุณ',
+                        html: `<code class="bg-gray-100 p-2 rounded block break-all text-xs select-all">${link}</code>`,
+                        confirmButtonText: 'ตกลง'
+                    });
+                });
+            }
+        });
+    };
     
     const startEdit = (branch: Branch) => {
         setEditingBranch(branch);
@@ -91,6 +131,9 @@ export const BranchManagerModal: React.FC<BranchManagerModalProps> = ({ isOpen, 
                                 {branch.location && <p className="text-sm text-gray-500">{branch.location}</p>}
                            </div>
                            <div className="flex gap-2">
+                                <button onClick={() => handleGetLink(branch)} className="p-2 text-green-600 hover:bg-green-100 rounded-full" title="สร้างลิงก์สั่งอาหาร">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
+                                </button>
                                 <button onClick={() => startEdit(branch)} className="p-2 text-blue-600 hover:bg-blue-100 rounded-full" title="แก้ไข">
                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L15.232 5.232z" /></svg>
                                 </button>

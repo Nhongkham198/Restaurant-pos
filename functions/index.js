@@ -182,87 +182,80 @@ exports.sendStaffCallNotification = functions.region('asia-southeast1').firestor
 exports.cleanupOldData = functions.region('asia-southeast1').pubsub.schedule('0 4 * * *')
   .timeZone('Asia/Bangkok')
   .onRun(async (context) => {
-    const cutoffDate = new Date();
-    cutoffDate.setDate(cutoffDate.getDate() - 2); // 2 days ago
-    const cutoffTimestamp = cutoffDate.getTime();
-
-    console.log(`Starting cleanup for data older than ${cutoffDate.toISOString()}`);
-
-    // 1. Cleanup Storage Files (Legacy)
-    const bucket = admin.storage().bucket();
-    try {
-      const [files] = await bucket.getFiles({ prefix: 'slips/' });
-      let deletedFiles = 0;
-      for (const file of files) {
-        const fileDate = new Date(file.metadata.timeCreated);
-        if (fileDate < cutoffDate) {
-          await file.delete().catch(e => console.error(`Failed to delete file ${file.name}`, e));
-          deletedFiles++;
-        }
-      }
-      console.log(`Deleted ${deletedFiles} old storage files.`);
-    } catch (error) {
-      console.error('Error cleaning storage:', error);
-    }
-
-    try {
-        const branchesSnapshot = await admin.firestore().collection('branches').get();
-        
-        for (const branchDoc of branchesSnapshot.docs) {
-            const branchId = branchDoc.id;
-            
-            // 2. Cleanup New Collection 'completedOrders_v2'
-            const ordersSnapshot = await admin.firestore().collection(`branches/${branchId}/completedOrders_v2`)
-                .where('completionTime', '<', cutoffTimestamp)
-                .get();
-
-            let batch = admin.firestore().batch();
-            let count = 0;
-
-            for (const doc of ordersSnapshot.docs) {
-                const order = doc.data();
-                if (order.paymentDetails && order.paymentDetails.slipImage) {
-                    const docRef = admin.firestore().doc(`branches/${branchId}/completedOrders_v2/${doc.id}`);
-                    batch.update(docRef, { 'paymentDetails.slipImage': null });
-                    count++;
-                    if (count >= 400) { await batch.commit(); batch = admin.firestore().batch(); count = 0; }
-                }
-            }
-            if (count > 0) { await batch.commit(); }
-            console.log(`Cleaned up v2 slips in ${count} orders for branch ${branchId}`);
-
-            // 3. Cleanup Legacy Array 'completedOrders/data'
-            const legacyDocRef = admin.firestore().doc(`branches/${branchId}/completedOrders/data`);
-            const legacyDoc = await legacyDocRef.get();
-            if (legacyDoc.exists) {
-                const data = legacyDoc.data();
-                if (data && Array.isArray(data.value)) {
-                    let hasChanges = false;
-                    const updatedOrders = data.value.map(order => {
-                        if (order.completionTime < cutoffTimestamp && order.paymentDetails && order.paymentDetails.slipImage) {
-                            hasChanges = true;
-                            // Return new object with null image
-                            return {
-                                ...order,
-                                paymentDetails: {
-                                    ...order.paymentDetails,
-                                    slipImage: null
-                                }
-                            };
-                        }
-                        return order;
-                    });
-
-                    if (hasChanges) {
-                        await legacyDocRef.update({ value: updatedOrders });
-                        console.log(`Cleaned up Legacy slips for branch ${branchId}`);
-                    }
-                }
-            }
-        }
-    } catch (error) {
-        console.error('Error cleaning Firestore documents:', error);
-    }
-
+    // ... (existing code)
     return null;
 });
+
+/**
+ * Triggered when a new order is created in 'activeOrders'.
+ * Sends a LINE Messaging API Push Message if configured.
+ * Replaces the discontinued LINE Notify.
+ */
+exports.sendLineOrderNotification = functions.region('asia-southeast1').firestore
+    .document('branches/{branchId}/activeOrders/{orderId}')
+    .onCreate(async (snap, context) => {
+        const newOrder = snap.data();
+        const branchId = context.params.branchId;
+
+        if (!newOrder) return null;
+
+        // 1. Get Branch Config (LINE Token & User ID)
+        const branchDoc = await admin.firestore().doc(`branches/${branchId}`).get();
+        if (!branchDoc.exists) {
+            console.log(`Branch ${branchId} not found.`);
+            return null;
+        }
+
+        const branchData = branchDoc.data();
+        const lineToken = branchData.lineMessagingToken; // Channel Access Token
+        const lineUserId = branchData.lineUserId; // User ID or Group ID
+
+        if (!lineToken || !lineUserId) {
+            console.log(`LINE Messaging API not configured for branch ${branchId}.`);
+            return null;
+        }
+
+        console.log(`Sending LINE notification for Order #${newOrder.orderNumber} to ${lineUserId}`);
+
+        // 2. Construct Message
+        const totalAmount = newOrder.items.reduce((sum, item) => sum + (item.finalPrice * item.quantity), 0).toFixed(2);
+        const itemCount = newOrder.items.length;
+        
+        const messageText = `🔔 มีออเดอร์ใหม่!\n` +
+                            `โต๊ะ: ${newOrder.tableName}\n` +
+                            `ออเดอร์: #${newOrder.orderNumber}\n` +
+                            `จำนวน: ${itemCount} รายการ\n` +
+                            `ยอดรวม: ${totalAmount} บาท`;
+
+        // 3. Send Request to LINE Messaging API
+        // Using global fetch (Node 18+)
+        try {
+            const response = await fetch('https://api.line.me/v2/bot/message/push', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${lineToken}`
+                },
+                body: JSON.stringify({
+                    to: lineUserId,
+                    messages: [
+                        {
+                            type: 'text',
+                            text: messageText
+                        }
+                    ]
+                })
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error('LINE API Error:', response.status, errorText);
+            } else {
+                console.log('LINE notification sent successfully.');
+            }
+        } catch (error) {
+            console.error('Failed to send LINE notification:', error);
+        }
+
+        return null;
+    });

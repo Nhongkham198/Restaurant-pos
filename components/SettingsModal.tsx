@@ -43,6 +43,12 @@ interface SettingsModalProps {
     currentFacebookAppId: string;
     currentFacebookAppSecret: string;
     onSaveFacebookConfig: (appId: string, appSecret: string) => void;
+    currentLineNotifyToken: string; // Deprecated
+    onSaveLineNotifyToken: (token: string) => void; // Deprecated
+    currentLineMessagingToken: string;
+    onSaveLineMessagingToken: (token: string) => void;
+    currentLineUserId: string;
+    onSaveLineUserId: (id: string) => void;
 }
 
 const DEFAULT_RECEIPT_OPTIONS: ReceiptPrintSettings = {
@@ -100,6 +106,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
         signatureUrl: props.currentSignatureUrl,
         facebookAppId: props.currentFacebookAppId,
         facebookAppSecret: props.currentFacebookAppSecret,
+        lineNotifyToken: props.currentLineNotifyToken, // Deprecated
+        lineMessagingToken: props.currentLineMessagingToken,
+        lineUserId: props.currentLineUserId,
     });
 
     const [printerStatus, setPrinterStatus] = useState<{ kitchen: PrinterStatus; cashier: PrinterStatus }>({
@@ -136,12 +145,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
                 signatureUrl: props.currentSignatureUrl,
                 facebookAppId: props.currentFacebookAppId,
                 facebookAppSecret: props.currentFacebookAppSecret,
+                lineNotifyToken: props.currentLineNotifyToken, // Deprecated
+                lineMessagingToken: props.currentLineMessagingToken,
+                lineUserId: props.currentLineUserId,
             });
             setTempRecommendedIds(props.currentRecommendedMenuItemIds || []);
             setTempDeliveryProviders(props.deliveryProviders || []);
             setPrinterStatus({ kitchen: 'idle', cashier: 'idle' });
         }
-    }, [props.isOpen, props.currentLogoUrl, props.currentAppLogoUrl, props.currentQrCodeUrl, props.currentPrinterConfig, props.currentOpeningTime, props.currentClosingTime, props.currentRecommendedMenuItemIds, props.deliveryProviders, props.currentFacebookAppId, props.currentFacebookAppSecret]);
+    }, [props.isOpen, props.currentLogoUrl, props.currentAppLogoUrl, props.currentQrCodeUrl, props.currentPrinterConfig, props.currentOpeningTime, props.currentClosingTime, props.currentRecommendedMenuItemIds, props.deliveryProviders, props.currentFacebookAppId, props.currentFacebookAppSecret, props.currentLineNotifyToken, props.currentLineMessagingToken, props.currentLineUserId]);
 
     const handleInputChange = (field: string, value: any) => {
         setSettingsForm(prev => ({ ...prev, [field]: value }));
@@ -374,6 +386,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
         props.onSaveRecommendedItems(tempRecommendedIds);
         props.onSaveDeliveryProviders(tempDeliveryProviders);
         props.onSaveFacebookConfig(settingsForm.facebookAppId, settingsForm.facebookAppSecret);
+        props.onSaveLineNotifyToken(settingsForm.lineNotifyToken); // Deprecated
+        props.onSaveLineMessagingToken(settingsForm.lineMessagingToken);
+        props.onSaveLineUserId(settingsForm.lineUserId);
     };
 
     const handleRecommendToggle = (itemId: number) => {
@@ -734,6 +749,46 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
                                             onChange={e => handleInputChange('taxId', e.target.value)} 
                                             className="mt-1 block w-full bg-gray-50 border border-gray-300 rounded-md shadow-sm p-2 focus:ring-blue-500 focus:border-blue-500" 
                                         />
+                                    </div>
+                                    <div className="md:col-span-2 border-t pt-4 mt-2">
+                                        <label className="block text-sm font-bold text-green-600 mb-1">LINE Messaging API (สำหรับแจ้งเตือนออเดอร์)</label>
+                                        <div className="space-y-3">
+                                            <div>
+                                                <label className="block text-xs text-gray-600">Channel Access Token (Long-lived)</label>
+                                                <input 
+                                                    type="password" 
+                                                    value={settingsForm.lineMessagingToken || ''} 
+                                                    onChange={e => handleInputChange('lineMessagingToken', e.target.value)} 
+                                                    placeholder="วาง Channel Access Token ที่นี่..."
+                                                    className="w-full bg-white border border-gray-300 rounded-md shadow-sm p-2 focus:ring-green-500 focus:border-green-500" 
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs text-gray-600">User ID / Group ID (ผู้รับแจ้งเตือน)</label>
+                                                <input 
+                                                    type="text" 
+                                                    value={settingsForm.lineUserId || ''} 
+                                                    onChange={e => handleInputChange('lineUserId', e.target.value)} 
+                                                    placeholder="Uxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                                                    className="w-full bg-white border border-gray-300 rounded-md shadow-sm p-2 focus:ring-green-500 focus:border-green-500" 
+                                                />
+                                            </div>
+                                            <div className="flex gap-2">
+                                                <button
+                                                    onClick={() => {
+                                                        window.open('https://developers.line.biz/console/', '_blank');
+                                                    }}
+                                                    className="px-3 py-2 bg-gray-100 text-gray-600 rounded-md hover:bg-gray-200 text-sm whitespace-nowrap border border-gray-300"
+                                                >
+                                                    ไปที่ LINE Developers Console
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <p className="text-xs text-gray-500 mt-2">
+                                            * LINE Notify ยุติการให้บริการแล้ว ระบบจึงเปลี่ยนมาใช้ LINE Messaging API แทน
+                                            <br/>
+                                            * ต้องทำการ Deploy Cloud Functions เพื่อให้การแจ้งเตือนทำงานได้สมบูรณ์
+                                        </p>
                                     </div>
                                 </div>
                             </div>

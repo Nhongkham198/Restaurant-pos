@@ -137,6 +137,12 @@ interface DataContextType {
     setFacebookAppId: React.Dispatch<React.SetStateAction<string>>;
     facebookAppSecret: string;
     setFacebookAppSecret: React.Dispatch<React.SetStateAction<string>>;
+    lineNotifyToken: string; // Deprecated
+    setLineNotifyToken: React.Dispatch<React.SetStateAction<string>>;
+    lineMessagingToken: string;
+    setLineMessagingToken: React.Dispatch<React.SetStateAction<string>>;
+    lineUserId: string;
+    setLineUserId: React.Dispatch<React.SetStateAction<string>>;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -481,6 +487,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const [deliveryProviders, setDeliveryProviders] = useFirestoreSync<DeliveryProvider[]>(branchId, 'deliveryProviders', [], DEFAULT_DELIVERY_PROVIDERS);
     const [facebookAppId, setFacebookAppId] = useFirestoreSync<string>(branchId, 'facebookAppId', '');
     const [facebookAppSecret, setFacebookAppSecret] = useFirestoreSync<string>(branchId, 'facebookAppSecret', '');
+    const [lineNotifyToken, setLineNotifyToken] = useFirestoreSync<string>(branchId, 'lineNotifyToken', '');
+    const [lineMessagingToken, setLineMessagingToken] = useFirestoreSync<string>(branchId, 'lineMessagingToken', '');
+    const [lineUserId, setLineUserId] = useFirestoreSync<string>(branchId, 'lineUserId', '');
 
     return (
         <DataContext.Provider value={{
@@ -508,7 +517,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             signatureUrl, setSignatureUrl, qrCodeUrl, setQrCodeUrl, notificationSoundUrl, setNotificationSoundUrl,
             staffCallSoundUrl, setStaffCallSoundUrl, printerConfig, setPrinterConfig, openingTime, setOpeningTime,
             closingTime, setClosingTime, isTaxEnabled, setIsTaxEnabled, taxRate, setTaxRate, sendToKitchen, setSendToKitchen,
-            deliveryProviders, setDeliveryProviders, facebookAppId, setFacebookAppId, facebookAppSecret, setFacebookAppSecret
+            deliveryProviders, setDeliveryProviders, facebookAppId, setFacebookAppId, facebookAppSecret, setFacebookAppSecret,
+            lineNotifyToken, setLineNotifyToken,
+            lineMessagingToken, setLineMessagingToken,
+            lineUserId, setLineUserId
         }}>
             {children}
         </DataContext.Provider>

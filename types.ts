@@ -5,6 +5,9 @@ export interface Branch {
     id: number;
     name: string;
     location?: string;
+    lineNotifyToken?: string; // Deprecated
+    lineMessagingToken?: string; // LINE Messaging API Channel Access Token
+    lineUserId?: string; // LINE User ID or Group ID to send notifications to // Added: LINE Notify Access Token
 }
 
 export interface LeaveQuotas {
