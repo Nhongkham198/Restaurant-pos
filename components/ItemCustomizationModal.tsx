@@ -274,27 +274,37 @@ export const ItemCustomizationModal: React.FC<ItemCustomizationModalProps> = ({ 
                     )}
                 </main>
 
-                <footer className="bg-gray-50 px-6 py-4 flex justify-between items-center rounded-b-lg border-t">
-                    <div className="flex items-center gap-3">
-                        <button onClick={() => setQuantity(q => Math.max(1, q - 1))} className="w-10 h-10 rounded-full bg-blue-500 hover:bg-blue-600 text-white text-2xl font-bold flex items-center justify-center">-</button>
-                        <span className="text-3xl font-bold w-12 text-center text-gray-900">{quantity}</span>
-                        <button onClick={() => setQuantity(q => q + 1)} className="w-10 h-10 rounded-full bg-blue-500 hover:bg-blue-600 text-white text-2xl font-bold flex items-center justify-center">+</button>
-                        <button type="button" onClick={handleResetSelections} className="p-2 bg-gray-200 text-gray-700 rounded-full hover:bg-gray-300 font-semibold" title="ล้างที่เลือก">
-                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                            </svg>
-                        </button>
+                <footer className="bg-gray-50 px-4 py-4 rounded-b-lg border-t flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-center">
+                    <div className="flex justify-between items-center w-full sm:w-auto">
+                        <div className="flex items-center gap-3">
+                            <button onClick={() => setQuantity(q => Math.max(1, q - 1))} className="w-10 h-10 rounded-full bg-blue-500 hover:bg-blue-600 text-white text-2xl font-bold flex items-center justify-center">-</button>
+                            <span className="text-3xl font-bold w-12 text-center text-gray-900">{quantity}</span>
+                            <button onClick={() => setQuantity(q => q + 1)} className="w-10 h-10 rounded-full bg-blue-500 hover:bg-blue-600 text-white text-2xl font-bold flex items-center justify-center">+</button>
+                            <button type="button" onClick={handleResetSelections} className="p-2 bg-gray-200 text-gray-700 rounded-full hover:bg-gray-300 font-semibold" title="ล้างที่เลือก">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                </svg>
+                            </button>
+                        </div>
+                        
+                        {/* Mobile Takeaway Toggle */}
+                        <label className="flex sm:hidden items-center gap-2 cursor-pointer text-gray-700">
+                            <input type="checkbox" checked={isTakeaway} onChange={(e) => setIsTakeaway(e.target.checked)} className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"/>
+                            <span className="font-semibold text-sm">กลับบ้าน</span>
+                        </label>
                     </div>
-                    <div className="flex items-center gap-4">
-                         <label className="flex items-center gap-2 cursor-pointer text-gray-700">
+
+                    <div className="flex items-center gap-4 w-full sm:w-auto">
+                         {/* Desktop Takeaway Toggle */}
+                         <label className="hidden sm:flex items-center gap-2 cursor-pointer text-gray-700">
                             <input type="checkbox" checked={isTakeaway} onChange={(e) => setIsTakeaway(e.target.checked)} className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"/>
                             <span className="font-semibold text-sm">สั่งกลับบ้าน</span>
                         </label>
                         <button 
                             onClick={handleConfirmClick}
-                            className="px-4 sm:px-6 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 font-bold text-base sm:text-lg flex items-center justify-center"
+                            className="w-full sm:w-auto px-6 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 font-bold text-lg flex items-center justify-center whitespace-nowrap shadow-sm"
                         >
-                            <span>{orderItemToEdit ? 'บันทึกการแก้ไข' : 'เพิ่มOrder'}</span>
+                            <span>{orderItemToEdit ? 'บันทึกการแก้ไข' : 'เพิ่ม Order'}</span>
                         </button>
                     </div>
                 </footer>
