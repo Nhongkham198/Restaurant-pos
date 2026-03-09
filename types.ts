@@ -8,6 +8,8 @@ export interface Branch {
     lineNotifyToken?: string; // Deprecated
     lineMessagingToken?: string; // LINE Messaging API Channel Access Token
     lineUserId?: string; // LINE User ID or Group ID to send notifications to // Added: LINE Notify Access Token
+    telegramBotToken?: string; // Telegram Bot API Token
+    telegramChatId?: string; // Telegram Chat ID or Group ID
 }
 
 export interface LeaveQuotas {

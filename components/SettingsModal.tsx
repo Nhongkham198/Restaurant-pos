@@ -21,7 +21,9 @@ interface SettingsModalProps {
         restaurantAddress: string,
         restaurantPhone: string,
         taxId: string,
-        signatureUrl: string | null
+        signatureUrl: string | null,
+        telegramBotToken: string | null,
+        telegramChatId: string | null
     ) => void;
     currentLogoUrl: string | null;
     currentAppLogoUrl: string | null;
@@ -50,6 +52,10 @@ interface SettingsModalProps {
     onSaveLineMessagingToken: (token: string) => void;
     currentLineUserId: string;
     onSaveLineUserId: (id: string) => void;
+    currentTelegramBotToken: string;
+    onSaveTelegramBotToken: (token: string) => void;
+    currentTelegramChatId: string;
+    onSaveTelegramChatId: (id: string) => void;
 }
 
 const DEFAULT_RECEIPT_OPTIONS: ReceiptPrintSettings = {
@@ -110,6 +116,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
         lineNotifyToken: props.currentLineNotifyToken, // Deprecated
         lineMessagingToken: props.currentLineMessagingToken,
         lineUserId: props.currentLineUserId,
+        telegramBotToken: props.currentTelegramBotToken,
+        telegramChatId: props.currentTelegramChatId,
     });
 
     const [printerStatus, setPrinterStatus] = useState<{ kitchen: PrinterStatus; cashier: PrinterStatus }>({
@@ -149,6 +157,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
                 lineNotifyToken: props.currentLineNotifyToken, // Deprecated
                 lineMessagingToken: props.currentLineMessagingToken,
                 lineUserId: props.currentLineUserId,
+                telegramBotToken: props.currentTelegramBotToken,
+                telegramChatId: props.currentTelegramChatId,
             });
             setTempRecommendedIds(props.currentRecommendedMenuItemIds || []);
             setTempDeliveryProviders(props.deliveryProviders || []);
@@ -401,6 +411,33 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
         }
     };
 
+    const handleTestTelegramNotification = async () => {
+        if (!settingsForm.telegramBotToken || !settingsForm.telegramChatId) {
+            Swal.fire('ข้อมูลไม่ครบ', 'กรุณากรอก Bot Token และ Chat ID ให้ครบถ้วน', 'warning');
+            return;
+        }
+
+        try {
+            Swal.fire({
+                title: 'กำลังทดสอบ...',
+                text: 'กำลังส่งข้อความทดสอบไปยัง Telegram',
+                allowOutsideClick: false,
+                didOpen: () => Swal.showLoading()
+            });
+
+            const { sendTelegramMessage } = await import('../src/services/telegramService');
+            await sendTelegramMessage({
+                botToken: settingsForm.telegramBotToken,
+                chatId: settingsForm.telegramChatId
+            }, '<b>🔔 ทดสอบการแจ้งเตือน Telegram</b>\nระบบ POS ของคุณเชื่อมต่อสำเร็จแล้ว!');
+
+            Swal.fire('สำเร็จ', 'ส่งข้อความทดสอบเรียบร้อยแล้ว กรุณาเช็คที่ Telegram ของคุณ', 'success');
+        } catch (error: any) {
+            console.error('Test failed:', error);
+            Swal.fire('เกิดข้อผิดพลาด', `ไม่สามารถส่งข้อความได้: ${error.message}`, 'error');
+        }
+    };
+
     const handleSave = () => {
         props.onSave(
             settingsForm.logoUrl,
@@ -414,7 +451,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
             settingsForm.restaurantAddress,
             settingsForm.restaurantPhone,
             settingsForm.taxId,
-            settingsForm.signatureUrl
+            settingsForm.signatureUrl,
+            settingsForm.telegramBotToken,
+            settingsForm.telegramChatId
         );
         props.onSaveRecommendedItems(tempRecommendedIds);
         props.onSaveDeliveryProviders(tempDeliveryProviders);
@@ -422,6 +461,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
         props.onSaveLineNotifyToken(settingsForm.lineNotifyToken); // Deprecated
         props.onSaveLineMessagingToken(settingsForm.lineMessagingToken);
         props.onSaveLineUserId(settingsForm.lineUserId);
+        props.onSaveTelegramBotToken(settingsForm.telegramBotToken || '');
+        props.onSaveTelegramChatId(settingsForm.telegramChatId || '');
     };
 
     const handleRecommendToggle = (itemId: number) => {
@@ -783,6 +824,40 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
                                             className="mt-1 block w-full bg-gray-50 border border-gray-300 rounded-md shadow-sm p-2 focus:ring-blue-500 focus:border-blue-500" 
                                         />
                                     </div>
+                                    <div className="md:col-span-2 border-t pt-4 mt-2">
+                                        <label className="block text-sm font-bold text-blue-600 mb-1">Telegram Bot (สำหรับแจ้งเตือนออเดอร์/เรียกพนักงาน)</label>
+                                        <div className="space-y-3">
+                                            <div>
+                                                <label className="block text-xs text-gray-600">Bot Token (จาก @BotFather)</label>
+                                                <input 
+                                                    type="password" 
+                                                    value={settingsForm.telegramBotToken || ''} 
+                                                    onChange={e => handleInputChange('telegramBotToken', e.target.value)} 
+                                                    placeholder="เช่น 123456789:ABCdef..."
+                                                    className="w-full bg-white border border-gray-300 rounded-md shadow-sm p-2 focus:ring-blue-500 focus:border-blue-500" 
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs text-gray-600">Chat ID / Group ID (ผู้รับแจ้งเตือน)</label>
+                                                <div className="flex gap-2">
+                                                    <input 
+                                                        type="text" 
+                                                        value={settingsForm.telegramChatId || ''} 
+                                                        onChange={e => handleInputChange('telegramChatId', e.target.value)} 
+                                                        placeholder="เช่น -100123456789"
+                                                        className="flex-1 bg-white border border-gray-300 rounded-md shadow-sm p-2 focus:ring-blue-500 focus:border-blue-500" 
+                                                    />
+                                                    <button 
+                                                        onClick={handleTestTelegramNotification}
+                                                        className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-bold text-sm shadow-sm transition-colors"
+                                                    >
+                                                        ทดสอบส่ง
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
                                     <div className="md:col-span-2 border-t pt-4 mt-2">
                                         <label className="block text-sm font-bold text-green-600 mb-1">LINE Messaging API (สำหรับแจ้งเตือนออเดอร์)</label>
                                         <div className="space-y-3">

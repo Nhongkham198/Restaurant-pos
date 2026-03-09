@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useMemo, ReactNode, useState, useEffect } from 'react';
+import * as React from 'react';
 import { useFirestoreSync, useFirestoreCollection, CollectionActions } from '../hooks/useFirestoreSync';
 import { 
     MenuItem, Table, ActiveOrder, CompletedOrder, CancelledOrder, 
@@ -143,16 +143,20 @@ interface DataContextType {
     setLineMessagingToken: React.Dispatch<React.SetStateAction<string>>;
     lineUserId: string;
     setLineUserId: React.Dispatch<React.SetStateAction<string>>;
+    telegramBotToken: string;
+    setTelegramBotToken: React.Dispatch<React.SetStateAction<string>>;
+    telegramChatId: string;
+    setTelegramChatId: React.Dispatch<React.SetStateAction<string>>;
 }
 
-const DataContext = createContext<DataContextType | undefined>(undefined);
+const DataContext = React.createContext<DataContextType | undefined>(undefined);
 
-export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     // --- AUTH & BRANCH STATE ---
     const [users, setUsers] = useFirestoreSync<User[]>(null, 'users', []);
     const [branches, setBranches] = useFirestoreSync<Branch[]>(null, 'branches', []);
     
-    const [currentUser, setCurrentUser] = useState<User | null>(() => {
+    const [currentUser, setCurrentUser] = React.useState<User | null>(() => {
         const storedUser = localStorage.getItem('currentUser');
         if (storedUser) {
             try {
@@ -166,7 +170,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return null;
     });
 
-    const [isCustomerMode, setIsCustomerMode] = useState(() => {
+    const [isCustomerMode, setIsCustomerMode] = React.useState(() => {
         const params = new URLSearchParams(window.location.search);
         if (params.get('mode') === 'customer' || params.get('orderType') === 'takeaway' || params.get('orderType') === 'delivery') return true;
         const storedUser = localStorage.getItem('currentUser');
@@ -182,7 +186,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     });
 
     // Security: Auto-logout if user is removed from database
-    useEffect(() => {
+    React.useEffect(() => {
         if (users.length > 0 && currentUser && !isCustomerMode) {
             const userExists = users.find(u => u.username === currentUser.username);
             if (!userExists) {
@@ -201,7 +205,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
     }, [users, currentUser, isCustomerMode]);
 
-    const [selectedBranch, setSelectedBranch] = useState<Branch | null>(() => {
+    const [selectedBranch, setSelectedBranch] = React.useState<Branch | null>(() => {
         const params = new URLSearchParams(window.location.search);
         const isCustomer = params.get('mode') === 'customer';
         const urlBranchId = params.get('branchId');
@@ -221,7 +225,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return null;
     });
 
-    const [customerTableId, setCustomerTableId] = useState<number | null>(() => {
+    const [customerTableId, setCustomerTableId] = React.useState<number | null>(() => {
         const params = new URLSearchParams(window.location.search);
         const orderType = params.get('orderType');
         if (orderType === 'takeaway') return -1;
@@ -238,16 +242,16 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return null;
     });
 
-    const urlBranchId = useMemo(() => new URLSearchParams(window.location.search).get('branchId'), []);
+    const urlBranchId = React.useMemo(() => new URLSearchParams(window.location.search).get('branchId'), []);
     const branchId = urlBranchId ? urlBranchId : (selectedBranch ? selectedBranch.id.toString() : null);
 
-    const shouldLoadHeavyData = useMemo(() => {
+    const shouldLoadHeavyData = React.useMemo(() => {
         return currentUser && currentUser.role !== 'table' && !isCustomerMode;
     }, [currentUser, isCustomerMode]);
 
     const heavyDataBranchId = shouldLoadHeavyData ? branchId : null;
 
-    useEffect(() => {
+    React.useEffect(() => {
         if (branches.length > 0 && selectedBranch) {
             // Validate that the selected branch actually exists in the loaded branches
             const isValid = branches.some(b => b.id === selectedBranch.id);
@@ -260,7 +264,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }, [branches, selectedBranch]);
 
     // PERSISTENCE: Sync selectedBranch to URL to prevent loss on refresh
-    useEffect(() => {
+    React.useEffect(() => {
         if (isCustomerMode || !currentUser) return;
 
         const url = new URL(window.location.href);
@@ -283,7 +287,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
     }, [selectedBranch, isCustomerMode, currentUser]);
 
-    useEffect(() => {
+    React.useEffect(() => {
         if (branches.length > 0 && urlBranchId) {
             if (!selectedBranch || selectedBranch.id.toString() !== urlBranchId) {
                 const b = branches.find(br => br.id.toString() === urlBranchId);
@@ -339,7 +343,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     // Moved to after stockLogs definition
 
 
-    useEffect(() => {
+    React.useEffect(() => {
         if (urlBranchId) {
             const stored = localStorage.getItem('customerSelectedBranch');
             if (stored) {
@@ -365,7 +369,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     // Active Orders
     const [rawActiveOrders, activeOrdersActions] = useFirestoreCollection<ActiveOrder>(branchId, 'activeOrders');
     
-    const activeOrders = useMemo(() => {
+    const activeOrders = React.useMemo(() => {
         return rawActiveOrders.filter(o => o.status !== 'completed' && o.status !== 'cancelled');
     }, [rawActiveOrders]);
 
@@ -375,14 +379,14 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const [newCompletedOrders, newCompletedOrdersActions] = useFirestoreCollection<CompletedOrder>(heavyDataBranchId, 'completedOrders_v2');
     const [newCancelledOrders, newCancelledOrdersActions] = useFirestoreCollection<CancelledOrder>(heavyDataBranchId, 'cancelledOrders_v2');
 
-    const completedOrders = useMemo(() => {
+    const completedOrders = React.useMemo(() => {
         const combined = [...newCompletedOrders, ...legacyCompletedOrders];
         const unique = new Map<number, CompletedOrder>();
         combined.forEach(o => unique.set(o.id, o));
         return Array.from(unique.values()).sort((a, b) => b.completionTime - a.completionTime);
     }, [legacyCompletedOrders, newCompletedOrders]);
 
-    const cancelledOrders = useMemo(() => {
+    const cancelledOrders = React.useMemo(() => {
         const combined = [...newCancelledOrders, ...legacyCancelledOrders];
         const unique = new Map<number, CancelledOrder>();
         combined.forEach(o => unique.set(o.id, o));
@@ -402,7 +406,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const [stockLogs, stockLogsActions] = useFirestoreCollection<StockLog>(heavyDataBranchId, 'stockLogs');
 
     // --- AUTO-CLEANUP STOCK LOGS (Aug 10 & Feb 10) ---
-    useEffect(() => {
+    React.useEffect(() => {
         if (!stockLogs || stockLogs.length === 0) return;
 
         const performCleanup = async () => {
@@ -490,6 +494,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const [lineNotifyToken, setLineNotifyToken] = useFirestoreSync<string>(branchId, 'lineNotifyToken', '');
     const [lineMessagingToken, setLineMessagingToken] = useFirestoreSync<string>(branchId, 'lineMessagingToken', '');
     const [lineUserId, setLineUserId] = useFirestoreSync<string>(branchId, 'lineUserId', '');
+    const [telegramBotToken, setTelegramBotToken] = useFirestoreSync<string>(branchId, 'telegramBotToken', '');
+    const [telegramChatId, setTelegramChatId] = useFirestoreSync<string>(branchId, 'telegramChatId', '');
 
     return (
         <DataContext.Provider value={{
@@ -520,7 +526,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             deliveryProviders, setDeliveryProviders, facebookAppId, setFacebookAppId, facebookAppSecret, setFacebookAppSecret,
             lineNotifyToken, setLineNotifyToken,
             lineMessagingToken, setLineMessagingToken,
-            lineUserId, setLineUserId
+            lineUserId, setLineUserId,
+            telegramBotToken, setTelegramBotToken,
+            telegramChatId, setTelegramChatId
         }}>
             {children}
         </DataContext.Provider>
@@ -528,7 +536,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 };
 
 export const useData = () => {
-    const context = useContext(DataContext);
+    const context = React.useContext(DataContext);
     if (context === undefined) {
         throw new Error('useData must be used within a DataProvider');
     }

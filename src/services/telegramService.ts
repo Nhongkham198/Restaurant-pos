@@ -1,0 +1,87 @@
+
+export interface TelegramConfig {
+    botToken: string;
+    chatId: string;
+}
+
+export const sendTelegramMessage = async (config: TelegramConfig, message: string) => {
+    if (!config.botToken || !config.chatId) {
+        console.warn('[TelegramService] Missing botToken or chatId. Notification skipped.');
+        return;
+    }
+
+    const url = `https://api.telegram.org/bot${config.botToken}/sendMessage`;
+    
+    try {
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                chat_id: config.chatId,
+                text: message,
+                parse_mode: 'HTML',
+            }),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            console.error('[TelegramService] Error sending message:', errorData);
+        } else {
+            console.log('[TelegramService] Message sent successfully');
+        }
+    } catch (error) {
+        console.error('[TelegramService] Network error sending Telegram message:', error);
+    }
+};
+
+export const formatOrderMessage = (order: any) => {
+    let message = `<b>🔔 ออเดอร์ใหม่! #${order.orderNumber}</b>\n`;
+    message += `📍 โต๊ะ: ${order.tableName} (${order.floor})\n`;
+    message += `👤 ลูกค้า: ${order.customerName || 'ทั่วไป'}\n`;
+    message += `🕒 เวลา: ${new Date(order.orderTime).toLocaleTimeString('th-TH')}\n`;
+    message += `--------------------------\n`;
+    
+    order.items.forEach((item: any) => {
+        message += `• ${item.name} x${item.quantity}\n`;
+        if (item.selectedOptions && item.selectedOptions.length > 0) {
+            message += `  <i>(${item.selectedOptions.map((o: any) => o.name).join(', ')})</i>\n`;
+        }
+        if (item.notes) {
+            message += `  📝 หมายเหตุ: ${item.notes}\n`;
+        }
+    });
+    
+    message += `--------------------------\n`;
+    message += `💰 ยอดรวม: <b>฿${order.items.reduce((sum: number, item: any) => sum + item.finalPrice, 0).toLocaleString()}</b>`;
+    
+    return message;
+};
+
+export const formatStaffCallMessage = (call: any) => {
+    let message = `<b>🙋 พนักงานครับ/ค่ะ!</b>\n`;
+    message += `📍 โต๊ะ: ${call.tableName}\n`;
+    message += `👤 ลูกค้า: ${call.customerName || 'ทั่วไป'}\n`;
+    message += `🕒 เวลา: ${new Date(call.timestamp).toLocaleTimeString('th-TH')}\n`;
+    return message;
+};
+
+export const formatLeaveRequestMessage = (request: any) => {
+    const typeMap: Record<string, string> = {
+        'sick': 'ลาป่วย',
+        'personal': 'ลากิจ',
+        'vacation': 'ลาพักร้อน',
+        'leave-without-pay': 'ลาไม่รับค่าจ้าง',
+        'other': 'อื่นๆ'
+    };
+
+    let message = `<b>📅 คำขอลาหยุดใหม่</b>\n`;
+    message += `👤 พนักงาน: ${request.employeeName}\n`;
+    message += `📝 ประเภท: ${typeMap[request.type] || request.type}\n`;
+    message += `🗓️ วันที่: ${new Date(request.startDate).toLocaleDateString('th-TH')} - ${new Date(request.endDate).toLocaleDateString('th-TH')}\n`;
+    if (request.isHalfDay) message += `⏳ (ครึ่งวัน)\n`;
+    message += `💬 เหตุผล: ${request.reason}\n`;
+    message += `🕒 ส่งเมื่อ: ${new Date(request.submittedAt || Date.now()).toLocaleString('th-TH')}\n`;
+    return message;
+};

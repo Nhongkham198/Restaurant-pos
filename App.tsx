@@ -1,6 +1,7 @@
 
 // ... existing imports ...
-import React, { useState, useEffect, useMemo, useCallback, useRef, Suspense } from 'react';
+import * as React from 'react';
+const { useState, useEffect, useMemo, useCallback, useRef, Suspense } = React;
 import './datepicker.css';
 
 // ... (Keep existing imports same as before) ...
@@ -183,7 +184,9 @@ export const App: React.FC = () => {
         facebookAppSecret, setFacebookAppSecret,
         lineNotifyToken, setLineNotifyToken,
         lineMessagingToken, setLineMessagingToken,
-        lineUserId, setLineUserId
+        lineUserId, setLineUserId,
+        telegramBotToken, setTelegramBotToken,
+        telegramChatId, setTelegramChatId
     } = useData();
 
     // Re-introduce urlBranchId for local logic checks
@@ -583,8 +586,20 @@ export const App: React.FC = () => {
         if (newOrders.length > 0) {
             const audio = new Audio(notificationSoundUrl!);
             audio.play().catch(() => {});
-            newOrders.forEach(order => {
+            newOrders.forEach(async (order) => {
                 Swal.fire({ toast: true, position: 'top-end', icon: 'info', title: '🔔 มีออเดอร์ใหม่!', html: `<b>โต๊ะ ${order.tableName}</b> (ออเดอร์ #${String(order.orderNumber).padStart(3, '0')})`, showConfirmButton: true, confirmButtonText: 'ไปที่หน้าครัว', timer: 10000, timerProgressBar: true, }).then((result) => { if (result.isConfirmed) setCurrentView('kitchen'); });
+                
+                // Telegram Notification
+                if (telegramBotToken && telegramChatId) {
+                    (async () => {
+                        try {
+                            const { sendTelegramMessage, formatOrderMessage } = await import('./src/services/telegramService');
+                            await sendTelegramMessage({ botToken: telegramBotToken, chatId: telegramChatId }, formatOrderMessage(order));
+                        } catch (e) {
+                            console.error('Telegram order notify failed:', e);
+                        }
+                    })();
+                }
             });
         }
         prevActiveOrdersRef.current = activeOrders;
@@ -628,9 +643,21 @@ export const App: React.FC = () => {
                     timerProgressBar: true,
                     backdrop: `rgba(0,0,0,0.4)` // Dim background slightly to grab attention
                 });
+
+                // Telegram Notification
+                if (telegramBotToken && telegramChatId) {
+                    (async () => {
+                        try {
+                            const { sendTelegramMessage, formatStaffCallMessage } = await import('./src/services/telegramService');
+                            await sendTelegramMessage({ botToken: telegramBotToken, chatId: telegramChatId }, formatStaffCallMessage(latestCall));
+                        } catch (e) {
+                            console.error('Telegram staff call notify failed:', e);
+                        }
+                    })();
+                }
             }
         }
-    }, [staffCalls, staffCallSoundUrl, isAudioUnlocked, currentUser]);
+    }, [staffCalls, staffCallSoundUrl, isAudioUnlocked, currentUser, telegramBotToken, telegramChatId]);
 
     // NEW: Leave Request Notification Watcher (Popup)
     useEffect(() => {
@@ -694,12 +721,27 @@ export const App: React.FC = () => {
                         setCurrentView('leave');
                     }
                 });
+
+                // Telegram Notification
+                if (telegramBotToken && telegramChatId) {
+                    (async () => {
+                        try {
+                            const { sendTelegramMessage, formatLeaveRequestMessage } = await import('./src/services/telegramService');
+                            // Send notification for each visible new request
+                            for (const req of visibleNewRequests) {
+                                await sendTelegramMessage({ botToken: telegramBotToken, chatId: telegramChatId }, formatLeaveRequestMessage(req));
+                            }
+                        } catch (e) {
+                            console.error('Telegram leave request notify failed:', e);
+                        }
+                    })();
+                }
             }
 
             // Always update ref to avoid loops
             maxKnownLeaveIdRef.current = currentMaxId;
         }
-    }, [leaveRequests, currentUser, notificationSoundUrl, isAudioUnlocked]);
+    }, [leaveRequests, currentUser, notificationSoundUrl, isAudioUnlocked, telegramBotToken, telegramChatId]);
 
     // NEW: Global Auto Print Effect (Replaces logic in KitchenView)
     useEffect(() => {
@@ -1435,7 +1477,7 @@ export const App: React.FC = () => {
                 <SettingsModal 
                     isOpen={modalState.isSettings} 
                     onClose={handleModalClose} 
-                    onSave={(newLogo, newAppLogo, qr, sound, staffSound, printer, open, close, address, phone, tax, signature) => { 
+                    onSave={(newLogo, newAppLogo, qr, sound, staffSound, printer, open, close, address, phone, tax, signature, telToken, telChat) => { 
                         setLogoUrl(newLogo); 
                         setAppLogoUrl(newAppLogo); 
                         setQrCodeUrl(qr); 
@@ -1448,6 +1490,8 @@ export const App: React.FC = () => {
                         setRestaurantPhone(phone);
                         setTaxId(tax);
                         setSignatureUrl(signature);
+                        setTelegramBotToken(telToken || '');
+                        setTelegramChatId(telChat || '');
                         handleModalClose(); 
                     }} 
                     currentLogoUrl={logoUrl} 
@@ -1480,6 +1524,10 @@ export const App: React.FC = () => {
                     onSaveLineMessagingToken={setLineMessagingToken}
                     currentLineUserId={lineUserId}
                     onSaveLineUserId={setLineUserId}
+                    currentTelegramBotToken={telegramBotToken}
+                    onSaveTelegramBotToken={setTelegramBotToken}
+                    currentTelegramChatId={telegramChatId}
+                    onSaveTelegramChatId={setTelegramChatId}
                 />
             </Suspense>
 

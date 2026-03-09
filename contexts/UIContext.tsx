@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import * as React from 'react';
 import { View, MenuItem, OrderItem, ActiveOrder, CompletedOrder } from '../types';
 
 interface ModalState {
@@ -62,11 +62,11 @@ interface UIContextType {
     closeAllModals: () => void;
 }
 
-const UIContext = createContext<UIContextType | undefined>(undefined);
+const UIContext = React.createContext<UIContextType | undefined>(undefined);
 
-export const UIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     // --- VIEW & EDIT MODE STATE ---
-    const [currentView, setCurrentView] = useState<View>(() => {
+    const [currentView, setCurrentView] = React.useState<View>(() => {
         // 1. Priority: URL Path
         const path = window.location.pathname.substring(1);
         const validViews = ['pos', 'kitchen', 'tables', 'dashboard', 'history', 'stock', 'stock-analytics', 'leave', 'leave-analytics', 'maintenance'];
@@ -83,7 +83,7 @@ export const UIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     });
 
     // Sync URL when currentView changes
-    useEffect(() => {
+    React.useEffect(() => {
         const path = window.location.pathname.substring(1);
         // Don't overwrite special paths like 'queue'
         if (path === 'queue') return;
@@ -96,7 +96,7 @@ export const UIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     }, [currentView]);
 
     // Handle Back/Forward buttons
-    useEffect(() => {
+    React.useEffect(() => {
         const handlePopState = () => {
              const path = window.location.pathname.substring(1);
              const validViews = ['pos', 'kitchen', 'tables', 'dashboard', 'history', 'stock', 'stock-analytics', 'leave', 'leave-analytics', 'maintenance'];
@@ -111,13 +111,13 @@ export const UIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
         return () => window.removeEventListener('popstate', handlePopState);
     }, []);
 
-    const [isEditMode, setIsEditMode] = useState(false);
-    const [isAdminSidebarCollapsed, setIsAdminSidebarCollapsed] = useState(false);
-    const [isOrderSidebarVisible, setIsOrderSidebarVisible] = useState(true);
-    const [selectedSidebarFloor, setSelectedSidebarFloor] = useState<string>('');
+    const [isEditMode, setIsEditMode] = React.useState(false);
+    const [isAdminSidebarCollapsed, setIsAdminSidebarCollapsed] = React.useState(false);
+    const [isOrderSidebarVisible, setIsOrderSidebarVisible] = React.useState(true);
+    const [selectedSidebarFloor, setSelectedSidebarFloor] = React.useState<string>('');
 
     // --- MODAL STATES ---
-    const [modalState, setModalState] = useState<ModalState>({
+    const [modalState, setModalState] = React.useState<ModalState>({
         isMenuItem: false, isOrderSuccess: false, isSplitBill: false, isTableBill: false,
         isPayment: false, isPaymentSuccess: false, isSettings: false, isEditCompleted: false,
         isUserManager: false, isBranchManager: false, isMoveTable: false, isCancelOrder: false,
@@ -125,13 +125,13 @@ export const UIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
         isMenuSearch: false, isMergeBill: false, isTagRegistration: false
     });
 
-    const [itemToEdit, setItemToEdit] = useState<MenuItem | null>(null);
-    const [itemToCustomize, setItemToCustomize] = useState<MenuItem | null>(null);
-    const [orderItemToEdit, setOrderItemToEdit] = useState<OrderItem | null>(null); 
-    const [orderForModal, setOrderForModal] = useState<ActiveOrder | CompletedOrder | null>(null);
-    const [selectedOrderIdForModal, setSelectedOrderIdForModal] = useState<number | null>(null);
-    const [leaveRequestInitialDate, setLeaveRequestInitialDate] = useState<Date | null>(null);
-    const [preselectedTable, setPreselectedTable] = useState<{ tableId: number, floor: string } | null>(null);
+    const [itemToEdit, setItemToEdit] = React.useState<MenuItem | null>(null);
+    const [itemToCustomize, setItemToCustomize] = React.useState<MenuItem | null>(null);
+    const [orderItemToEdit, setOrderItemToEdit] = React.useState<OrderItem | null>(null); 
+    const [orderForModal, setOrderForModal] = React.useState<ActiveOrder | CompletedOrder | null>(null);
+    const [selectedOrderIdForModal, setSelectedOrderIdForModal] = React.useState<number | null>(null);
+    const [leaveRequestInitialDate, setLeaveRequestInitialDate] = React.useState<Date | null>(null);
+    const [preselectedTable, setPreselectedTable] = React.useState<{ tableId: number, floor: string } | null>(null);
 
     const openModal = (modalName: keyof ModalState) => {
         setModalState(prev => ({ ...prev, [modalName]: true }));
@@ -174,7 +174,7 @@ export const UIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
 };
 
 export const useUI = () => {
-    const context = useContext(UIContext);
+    const context = React.useContext(UIContext);
     if (context === undefined) {
         throw new Error('useUI must be used within a UIProvider');
     }
