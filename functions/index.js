@@ -430,3 +430,104 @@ exports.lineWebhook = functions.region('asia-southeast1').https.onRequest(async 
 
     res.status(200).send('OK');
 });
+
+/**
+ * Triggered when the 'leaveRequests' document is updated.
+ * Sends a LINE notification when a new leave request is added.
+ */
+exports.sendLeaveRequestNotification = functions.region('asia-southeast1').firestore
+    .document('leaveRequests/data')
+    .onUpdate(async (change, context) => {
+        const before = change.before.data().value || [];
+        const after = change.after.data().value || [];
+
+        // Check if a new request was added
+        if (after.length <= before.length) return null;
+
+        const beforeIds = new Set(before.map(r => r.id));
+        const newRequest = after.find(r => !beforeIds.has(r.id));
+
+        if (!newRequest) return null;
+
+        // Only notify for NEW requests (status: pending)
+        if (newRequest.status !== 'pending') return null;
+
+        const branchId = newRequest.branchId;
+
+        try {
+            // Get LINE config for the specific branch
+            const [tokenDoc, userIdDoc] = await Promise.all([
+                admin.firestore().doc(`branches/${branchId}/lineMessagingToken/data`).get(),
+                admin.firestore().doc(`branches/${branchId}/lineUserId/data`).get()
+            ]);
+
+            const lineToken = tokenDoc.exists ? tokenDoc.data().value : null;
+            const lineUserId = userIdDoc.exists ? userIdDoc.data().value : null;
+
+            if (lineToken && lineUserId) {
+                const https = require('https');
+                
+                // Format dates for Thai locale
+                const optionsDate = { year: 'numeric', month: 'long', day: 'numeric' };
+                const startDate = new Date(newRequest.startDate).toLocaleDateString('th-TH', optionsDate);
+                const endDate = new Date(newRequest.endDate).toLocaleDateString('th-TH', optionsDate);
+                
+                const typeMap = {
+                    'sick': 'ลาป่วย',
+                    'personal': 'ลากิจ',
+                    'vacation': 'ลาพักร้อน',
+                    'leave-without-pay': 'ลาไม่รับค่าจ้าง',
+                    'other': 'อื่นๆ'
+                };
+                
+                const messageText = `📢 แจ้งเตือนคำขอลาใหม่!\n` +
+                                    `👤 พนักงาน: ${newRequest.username}\n` +
+                                    `📅 วันที่: ${startDate} ถึง ${endDate}\n` +
+                                    `📝 ประเภท: ${typeMap[newRequest.type] || newRequest.type}\n` +
+                                    `💬 เหตุผล: ${newRequest.reason}`;
+
+                const postData = JSON.stringify({
+                    to: lineUserId,
+                    messages: [{ type: 'text', text: messageText }]
+                });
+
+                const options = {
+                    hostname: 'api.line.me',
+                    path: '/v2/bot/message/push',
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${lineToken}`,
+                        'Content-Length': Buffer.byteLength(postData)
+                    }
+                };
+
+                await new Promise((resolve) => {
+                    const req = https.request(options, (res) => {
+                        let body = '';
+                        res.on('data', (chunk) => body += chunk);
+                        res.on('end', () => {
+                            if (res.statusCode >= 200 && res.statusCode < 300) {
+                                console.log('Leave request LINE notification sent.');
+                            } else {
+                                console.error('LINE API Error (Leave):', body);
+                            }
+                            resolve();
+                        });
+                    });
+                    req.on('error', (e) => {
+                        console.error('HTTPS Error (Leave):', e.message);
+                        resolve();
+                    });
+                    req.write(postData);
+                    req.end();
+                });
+            } else {
+                console.log(`LINE not configured for branch ${branchId} for leave notification.`);
+            }
+        } catch (error) {
+            console.error('Failed to send LINE leave request notification:', error);
+        }
+
+        return null;
+    });
