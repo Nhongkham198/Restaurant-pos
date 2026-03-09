@@ -589,17 +589,7 @@ export const App: React.FC = () => {
             newOrders.forEach(async (order) => {
                 Swal.fire({ toast: true, position: 'top-end', icon: 'info', title: '🔔 มีออเดอร์ใหม่!', html: `<b>โต๊ะ ${order.tableName}</b> (ออเดอร์ #${String(order.orderNumber).padStart(3, '0')})`, showConfirmButton: true, confirmButtonText: 'ไปที่หน้าครัว', timer: 10000, timerProgressBar: true, }).then((result) => { if (result.isConfirmed) setCurrentView('kitchen'); });
                 
-                // Telegram Notification
-                if (telegramBotToken && telegramChatId) {
-                    (async () => {
-                        try {
-                            const { sendTelegramMessage, formatOrderMessage } = await import('./src/services/telegramService');
-                            await sendTelegramMessage({ botToken: telegramBotToken, chatId: telegramChatId }, formatOrderMessage(order));
-                        } catch (e) {
-                            console.error('Telegram order notify failed:', e);
-                        }
-                    })();
-                }
+
             });
         }
         prevActiveOrdersRef.current = activeOrders;
@@ -644,17 +634,7 @@ export const App: React.FC = () => {
                     backdrop: `rgba(0,0,0,0.4)` // Dim background slightly to grab attention
                 });
 
-                // Telegram Notification
-                if (telegramBotToken && telegramChatId) {
-                    (async () => {
-                        try {
-                            const { sendTelegramMessage, formatStaffCallMessage } = await import('./src/services/telegramService');
-                            await sendTelegramMessage({ botToken: telegramBotToken, chatId: telegramChatId }, formatStaffCallMessage(latestCall));
-                        } catch (e) {
-                            console.error('Telegram staff call notify failed:', e);
-                        }
-                    })();
-                }
+
             }
         }
     }, [staffCalls, staffCallSoundUrl, isAudioUnlocked, currentUser, telegramBotToken, telegramChatId]);
@@ -722,20 +702,7 @@ export const App: React.FC = () => {
                     }
                 });
 
-                // Telegram Notification
-                if (telegramBotToken && telegramChatId) {
-                    (async () => {
-                        try {
-                            const { sendTelegramMessage, formatLeaveRequestMessage } = await import('./src/services/telegramService');
-                            // Send notification for each visible new request
-                            for (const req of visibleNewRequests) {
-                                await sendTelegramMessage({ botToken: telegramBotToken, chatId: telegramChatId }, formatLeaveRequestMessage(req));
-                            }
-                        } catch (e) {
-                            console.error('Telegram leave request notify failed:', e);
-                        }
-                    })();
-                }
+
             }
 
             // Always update ref to avoid loops

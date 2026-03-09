@@ -10,6 +10,51 @@ if (admin.apps.length === 0) {
 }
 
 /**
+ * Helper to send Telegram messages
+ */
+async function sendTelegramMessage(botToken, chatId, text) {
+    if (!botToken || !chatId || !text) return;
+    
+    const https = require('https');
+    const postData = JSON.stringify({
+        chat_id: chatId,
+        text: text,
+        parse_mode: 'HTML'
+    });
+
+    const options = {
+        hostname: 'api.telegram.org',
+        path: `/bot${botToken}/sendMessage`,
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Content-Length': Buffer.byteLength(postData)
+        }
+    };
+
+    return new Promise((resolve) => {
+        const req = https.request(options, (res) => {
+            let body = '';
+            res.on('data', (chunk) => body += chunk);
+            res.on('end', () => {
+                if (res.statusCode >= 200 && res.statusCode < 300) {
+                    console.log('Telegram notification sent successfully.');
+                } else {
+                    console.error('Telegram API Error:', body);
+                }
+                resolve();
+            });
+        });
+        req.on('error', (e) => {
+            console.error('Failed to send Telegram notification:', e.message);
+            resolve();
+        });
+        req.write(postData);
+        req.end();
+    });
+}
+
+/**
  * This Cloud Function triggers when a NEW document is created in the 'activeOrders' collection.
  * UPDATED: Listens to the specific document path for the new collection-based architecture.
  */
@@ -99,6 +144,43 @@ exports.sendHighPriorityOrderNotification = functions.region('asia-southeast1').
             }
         } catch (error) {
             console.error('Error sending message:', error);
+        }
+
+        // --- NEW: Send Telegram Notification for Order ---
+        try {
+            const [telTokenDoc, telChatIdDoc] = await Promise.all([
+                admin.firestore().doc(`branches/${context.params.branchId}/telegramBotToken/data`).get(),
+                admin.firestore().doc(`branches/${context.params.branchId}/telegramChatId/data`).get()
+            ]);
+
+            const telToken = telTokenDoc.exists ? telTokenDoc.data().value : null;
+            const telChatId = telChatIdDoc.exists ? telChatIdDoc.data().value : null;
+
+            if (telToken && telChatId) {
+                const totalAmount = newOrder.items.reduce((sum, item) => sum + (item.finalPrice * item.quantity), 0).toFixed(2);
+                const itemsList = newOrder.items.map(item => {
+                    let itemText = `- ${item.name} x ${item.quantity}`;
+                    if (item.selectedOptions && item.selectedOptions.length > 0) {
+                        const optionsText = item.selectedOptions.map(opt => opt.name).join(', ');
+                        itemText += ` (${optionsText})`;
+                    }
+                    if (item.notes) {
+                        itemText += ` [Note: ${item.notes}]`;
+                    }
+                    return itemText;
+                }).join('\n');
+                
+                const displayOrderNumber = newOrder.manualOrderNumber ? `#${newOrder.manualOrderNumber}` : `#${newOrder.orderNumber}`;
+                const messageText = `<b>🔔 มีออเดอร์ใหม่!</b>\n` +
+                                    `📍 โต๊ะ: ${newOrder.tableName}\n` +
+                                    `🔢 ออเดอร์: ${displayOrderNumber}\n` +
+                                    `📋 รายการ:\n${itemsList}\n` +
+                                    `💰 ยอดรวม: ${totalAmount} บาท`;
+
+                await sendTelegramMessage(telToken, telChatId, messageText);
+            }
+        } catch (error) {
+            console.error('Failed to send Telegram order notification:', error);
         }
         
         return null;
@@ -210,6 +292,29 @@ exports.sendStaffCallNotification = functions.region('asia-southeast1').firestor
             }
         } catch (error) {
             console.error('Failed to send LINE staff call notification:', error);
+        }
+
+        // --- NEW: Send Telegram Notification for Staff Call ---
+        try {
+            const [telTokenDoc, telChatIdDoc] = await Promise.all([
+                admin.firestore().doc(`branches/${context.params.branchId}/telegramBotToken/data`).get(),
+                admin.firestore().doc(`branches/${context.params.branchId}/telegramChatId/data`).get()
+            ]);
+
+            const telToken = telTokenDoc.exists ? telTokenDoc.data().value : null;
+            const telChatId = telChatIdDoc.exists ? telChatIdDoc.data().value : null;
+
+            if (telToken && telChatId) {
+                const timeStr = new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                const messageText = `<b>🙋 พนักงานครับ/ค่ะ!</b>\n` +
+                                    `📍 โต๊ะ: ${newCall.tableName}\n` +
+                                    `👤 ลูกค้า: ${newCall.customerName}\n` +
+                                    `🕒 เวลา: ${timeStr}`;
+
+                await sendTelegramMessage(telToken, telChatId, messageText);
+            }
+        } catch (error) {
+            console.error('Failed to send Telegram staff call notification:', error);
         }
 
         return null;
@@ -527,6 +632,41 @@ exports.sendLeaveRequestNotification = functions.region('asia-southeast1').fires
             }
         } catch (error) {
             console.error('Failed to send LINE leave request notification:', error);
+        }
+
+        // --- NEW: Send Telegram Notification for Leave Request ---
+        try {
+            const [telTokenDoc, telChatIdDoc] = await Promise.all([
+                admin.firestore().doc(`branches/${branchId}/telegramBotToken/data`).get(),
+                admin.firestore().doc(`branches/${branchId}/telegramChatId/data`).get()
+            ]);
+
+            const telToken = telTokenDoc.exists ? telTokenDoc.data().value : null;
+            const telChatId = telChatIdDoc.exists ? telChatIdDoc.data().value : null;
+
+            if (telToken && telChatId) {
+                const optionsDate = { year: 'numeric', month: 'long', day: 'numeric' };
+                const startDate = new Date(newRequest.startDate).toLocaleDateString('th-TH', optionsDate);
+                const endDate = new Date(newRequest.endDate).toLocaleDateString('th-TH', optionsDate);
+                
+                const typeMap = {
+                    'sick': 'ลาป่วย',
+                    'personal': 'ลากิจ',
+                    'vacation': 'ลาพักร้อน',
+                    'leave-without-pay': 'ลาไม่รับค่าจ้าง',
+                    'other': 'อื่นๆ'
+                };
+                
+                const messageText = `<b>📢 แจ้งเตือนคำขอลาใหม่!</b>\n` +
+                                    `👤 พนักงาน: ${newRequest.username}\n` +
+                                    `📅 วันที่: ${startDate} ถึง ${endDate}\n` +
+                                    `📝 ประเภท: ${typeMap[newRequest.type] || newRequest.type}\n` +
+                                    `💬 เหตุผล: ${newRequest.reason}`;
+
+                await sendTelegramMessage(telToken, telChatId, messageText);
+            }
+        } catch (error) {
+            console.error('Failed to send Telegram leave request notification:', error);
         }
 
         return null;
