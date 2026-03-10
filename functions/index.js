@@ -71,6 +71,43 @@ exports.sendHighPriorityOrderNotification = functions.region('asia-southeast1').
 
         console.log(`New order detected: #${newOrder.orderNumber} for Table ${newOrder.tableName} in branch ${context.params.branchId}`);
 
+        // --- NEW: Send Telegram Notification for Order ---
+        try {
+            const [telTokenDoc, telChatIdDoc] = await Promise.all([
+                admin.firestore().doc(`branches/${context.params.branchId}/telegramBotToken/data`).get(),
+                admin.firestore().doc(`branches/${context.params.branchId}/telegramChatId/data`).get()
+            ]);
+
+            const telToken = telTokenDoc.exists ? telTokenDoc.data().value : null;
+            const telChatId = telChatIdDoc.exists ? telChatIdDoc.data().value : null;
+
+            if (telToken && telChatId) {
+                const totalAmount = newOrder.items.reduce((sum, item) => sum + (item.finalPrice * item.quantity), 0).toFixed(2);
+                const itemsList = newOrder.items.map(item => {
+                    let itemText = `- ${item.name} x ${item.quantity}`;
+                    if (item.selectedOptions && item.selectedOptions.length > 0) {
+                        const optionsText = item.selectedOptions.map(opt => opt.name).join(', ');
+                        itemText += ` (${optionsText})`;
+                    }
+                    if (item.notes) {
+                        itemText += ` [Note: ${item.notes}]`;
+                    }
+                    return itemText;
+                }).join('\n');
+                
+                const displayOrderNumber = newOrder.manualOrderNumber ? `#${newOrder.manualOrderNumber}` : `#${newOrder.orderNumber}`;
+                const messageText = `<b>🔔 มีออเดอร์ใหม่!</b>\n` +
+                                    `📍 โต๊ะ: ${newOrder.tableName}\n` +
+                                    `🔢 ออเดอร์: ${displayOrderNumber}\n` +
+                                    `📋 รายการ:\n${itemsList}\n` +
+                                    `💰 ยอดรวม: ${totalAmount} บาท`;
+
+                await sendTelegramMessage(telToken, telChatId, messageText);
+            }
+        } catch (error) {
+            console.error('Failed to send Telegram order notification:', error);
+        }
+
         // Get all users from the 'users/data' document to find tokens.
         const usersDoc = await admin.firestore().collection('users').doc('data').get();
         if (!usersDoc.exists) {
@@ -145,43 +182,6 @@ exports.sendHighPriorityOrderNotification = functions.region('asia-southeast1').
         } catch (error) {
             console.error('Error sending message:', error);
         }
-
-        // --- NEW: Send Telegram Notification for Order ---
-        try {
-            const [telTokenDoc, telChatIdDoc] = await Promise.all([
-                admin.firestore().doc(`branches/${context.params.branchId}/telegramBotToken/data`).get(),
-                admin.firestore().doc(`branches/${context.params.branchId}/telegramChatId/data`).get()
-            ]);
-
-            const telToken = telTokenDoc.exists ? telTokenDoc.data().value : null;
-            const telChatId = telChatIdDoc.exists ? telChatIdDoc.data().value : null;
-
-            if (telToken && telChatId) {
-                const totalAmount = newOrder.items.reduce((sum, item) => sum + (item.finalPrice * item.quantity), 0).toFixed(2);
-                const itemsList = newOrder.items.map(item => {
-                    let itemText = `- ${item.name} x ${item.quantity}`;
-                    if (item.selectedOptions && item.selectedOptions.length > 0) {
-                        const optionsText = item.selectedOptions.map(opt => opt.name).join(', ');
-                        itemText += ` (${optionsText})`;
-                    }
-                    if (item.notes) {
-                        itemText += ` [Note: ${item.notes}]`;
-                    }
-                    return itemText;
-                }).join('\n');
-                
-                const displayOrderNumber = newOrder.manualOrderNumber ? `#${newOrder.manualOrderNumber}` : `#${newOrder.orderNumber}`;
-                const messageText = `<b>🔔 มีออเดอร์ใหม่!</b>\n` +
-                                    `📍 โต๊ะ: ${newOrder.tableName}\n` +
-                                    `🔢 ออเดอร์: ${displayOrderNumber}\n` +
-                                    `📋 รายการ:\n${itemsList}\n` +
-                                    `💰 ยอดรวม: ${totalAmount} บาท`;
-
-                await sendTelegramMessage(telToken, telChatId, messageText);
-            }
-        } catch (error) {
-            console.error('Failed to send Telegram order notification:', error);
-        }
         
         return null;
     });
@@ -223,34 +223,6 @@ exports.sendStaffCallNotification = functions.region('asia-southeast1').firestor
             .flatMap(user => user.fcmTokens);
 
         const uniqueTokens = [...new Set(staffTokens)];
-
-        if (uniqueTokens.length === 0) return null;
-
-        const title = '🔔 ลูกค้าเรียกพนักงาน!';
-        const body = `โต๊ะ ${newCall.tableName} (คุณ ${newCall.customerName}) ต้องการความช่วยเหลือ`;
-
-        const message = {
-            notification: {
-                title: title,
-                body: body,
-            },
-            data: {
-                title: title,
-                body: body,
-                icon: '/icon.svg',
-                sound: 'default',
-                vibrate: '[200, 100, 200]'
-            },
-            android: { priority: 'high' },
-            tokens: uniqueTokens
-        };
-
-        try {
-            await admin.messaging().sendMulticast(message);
-            console.log(`Sent staff call notification to ${uniqueTokens.length} devices.`);
-        } catch (error) {
-            console.error('Error sending staff call notification:', error);
-        }
 
         // --- NEW: Send LINE Notification for Staff Call ---
         try {
@@ -315,6 +287,34 @@ exports.sendStaffCallNotification = functions.region('asia-southeast1').firestor
             }
         } catch (error) {
             console.error('Failed to send Telegram staff call notification:', error);
+        }
+
+        if (uniqueTokens.length === 0) return null;
+
+        const title = '🔔 ลูกค้าเรียกพนักงาน!';
+        const body = `โต๊ะ ${newCall.tableName} (คุณ ${newCall.customerName}) ต้องการความช่วยเหลือ`;
+
+        const message = {
+            notification: {
+                title: title,
+                body: body,
+            },
+            data: {
+                title: title,
+                body: body,
+                icon: '/icon.svg',
+                sound: 'default',
+                vibrate: '[200, 100, 200]'
+            },
+            android: { priority: 'high' },
+            tokens: uniqueTokens
+        };
+
+        try {
+            await admin.messaging().sendMulticast(message);
+            console.log(`Sent staff call notification to ${uniqueTokens.length} devices.`);
+        } catch (error) {
+            console.error('Error sending staff call notification:', error);
         }
 
         return null;
