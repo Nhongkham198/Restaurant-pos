@@ -559,6 +559,39 @@ exports.sendLeaveRequestNotification = functions.region('asia-southeast1').fires
 
         const branchId = newRequest.branchId;
 
+        // Calculate duration and remaining quotas
+        let duration = 0;
+        if (newRequest.isHalfDay) {
+            duration = 0.5;
+        } else {
+            const start = new Date(newRequest.startDate);
+            const end = new Date(newRequest.endDate);
+            start.setHours(0, 0, 0, 0);
+            end.setHours(0, 0, 0, 0);
+            duration = Math.round((end - start) / (1000 * 60 * 60 * 24)) + 1;
+        }
+
+        let remainingSick = 0;
+        let remainingPersonal = 0;
+        try {
+            const usersDoc = await admin.firestore().collection('users').doc('data').get();
+            const allUsers = usersDoc.data().value || [];
+            const user = allUsers.find(u => u.id === newRequest.userId);
+            if (user && user.leaveQuotas) {
+                remainingSick = user.leaveQuotas.sick || 0;
+                remainingPersonal = user.leaveQuotas.personal || 0;
+                
+                // Deduct current request from remaining quotas for display
+                if (newRequest.type === 'sick') {
+                    remainingSick -= duration;
+                } else if (newRequest.type === 'personal') {
+                    remainingPersonal -= duration;
+                }
+            }
+        } catch (err) {
+            console.error('Error fetching user quotas:', err);
+        }
+
         try {
             // Get LINE config for the specific branch
             const [tokenDoc, userIdDoc] = await Promise.all([
@@ -587,9 +620,12 @@ exports.sendLeaveRequestNotification = functions.region('asia-southeast1').fires
                 
                 const messageText = `📢 แจ้งเตือนคำขอลาใหม่!\n` +
                                     `👤 พนักงาน: ${newRequest.username}\n` +
-                                    `📅 วันที่: ${startDate} ถึง ${endDate}\n` +
+                                    `📅 วันที่: ${startDate} ถึง ${endDate} (${duration} วัน)\n` +
                                     `📝 ประเภท: ${typeMap[newRequest.type] || newRequest.type}\n` +
-                                    `💬 เหตุผล: ${newRequest.reason}`;
+                                    `💬 เหตุผล: ${newRequest.reason}\n\n` +
+                                    `📊 สรุปวันลาคงเหลือหลังหักครั้งนี้:\n` +
+                                    `🤒 ลาป่วยคงเหลือ: ${remainingSick} วัน\n` +
+                                    `💼 ลากิจคงเหลือ: ${remainingPersonal} วัน`;
 
                 const postData = JSON.stringify({
                     to: lineUserId,
@@ -659,9 +695,12 @@ exports.sendLeaveRequestNotification = functions.region('asia-southeast1').fires
                 
                 const messageText = `<b>📢 แจ้งเตือนคำขอลาใหม่!</b>\n` +
                                     `👤 พนักงาน: ${newRequest.username}\n` +
-                                    `📅 วันที่: ${startDate} ถึง ${endDate}\n` +
+                                    `📅 วันที่: ${startDate} ถึง ${endDate} (${duration} วัน)\n` +
                                     `📝 ประเภท: ${typeMap[newRequest.type] || newRequest.type}\n` +
-                                    `💬 เหตุผล: ${newRequest.reason}`;
+                                    `💬 เหตุผล: ${newRequest.reason}\n\n` +
+                                    `<b>📊 สรุปวันลาคงเหลือหลังหักครั้งนี้:</b>\n` +
+                                    `🤒 ลาป่วยคงเหลือ: <b>${remainingSick} วัน</b>\n` +
+                                    `💼 ลากิจคงเหลือ: <b>${remainingPersonal} วัน</b>`;
 
                 await sendTelegramMessage(telToken, telChatId, messageText);
             }
