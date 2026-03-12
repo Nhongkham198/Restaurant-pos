@@ -1,7 +1,6 @@
 
 // ... existing imports ...
-import * as React from 'react';
-const { useState, useEffect, useMemo, useCallback, useRef, Suspense } = React;
+import React, { useState, useEffect, useMemo, useCallback, useRef, Suspense, lazy } from 'react';
 import './datepicker.css';
 
 // ... (Keep existing imports same as before) ...
@@ -64,20 +63,20 @@ import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
 import { Menu } from './components/Menu';
 // Lazy load heavy components
-const KitchenView = React.lazy(() => import('./components/KitchenView').then(module => ({ default: module.KitchenView })));
-const TableLayout = React.lazy(() => import('./components/TableLayout').then(module => ({ default: module.TableLayout })));
-const Dashboard = React.lazy(() => import('./components/Dashboard').then(module => ({ default: module.Dashboard })));
-const SalesHistory = React.lazy(() => import('./components/SalesHistory').then(module => ({ default: module.SalesHistory })));
-const StockManagement = React.lazy(() => import('./components/StockManagement').then(module => ({ default: module.StockManagement })));
-const StockAnalytics = React.lazy(() => import('./components/StockAnalytics').then(module => ({ default: module.StockAnalytics })));
-const LeaveCalendarView = React.lazy(() => import('./components/LeaveCalendarView').then(module => ({ default: module.LeaveCalendarView })));
-const LeaveAnalytics = React.lazy(() => import('./components/LeaveAnalytics').then(module => ({ default: module.LeaveAnalytics })));
-const AdminSidebar = React.lazy(() => import('./components/AdminSidebar')); // Default export
-const MaintenanceView = React.lazy(() => import('./components/MaintenanceView').then(module => ({ default: module.MaintenanceView })));
-const CustomerView = React.lazy(() => import('./components/CustomerView').then(module => ({ default: module.CustomerView })));
-const QueueDisplay = React.lazy(() => import('./components/QueueDisplay').then(module => ({ default: module.QueueDisplay })));
-const HRManagementView = React.lazy(() => import('./components/HRManagementView'));
-const PrivacyPolicy = React.lazy(() => import('./components/PrivacyPolicy').then(module => ({ default: module.PrivacyPolicy })));
+const KitchenView = lazy(() => import('./components/KitchenView').then(module => ({ default: module.KitchenView })));
+const TableLayout = lazy(() => import('./components/TableLayout').then(module => ({ default: module.TableLayout })));
+const Dashboard = lazy(() => import('./components/Dashboard').then(module => ({ default: module.Dashboard })));
+const SalesHistory = lazy(() => import('./components/SalesHistory').then(module => ({ default: module.SalesHistory })));
+const StockManagement = lazy(() => import('./components/StockManagement').then(module => ({ default: module.StockManagement })));
+const StockAnalytics = lazy(() => import('./components/StockAnalytics').then(module => ({ default: module.StockAnalytics })));
+const LeaveCalendarView = lazy(() => import('./components/LeaveCalendarView').then(module => ({ default: module.LeaveCalendarView })));
+const LeaveAnalytics = lazy(() => import('./components/LeaveAnalytics').then(module => ({ default: module.LeaveAnalytics })));
+const AdminSidebar = lazy(() => import('./components/AdminSidebar')); // Default export
+const MaintenanceView = lazy(() => import('./components/MaintenanceView').then(module => ({ default: module.MaintenanceView })));
+const CustomerView = lazy(() => import('./components/CustomerView').then(module => ({ default: module.CustomerView })));
+const QueueDisplay = lazy(() => import('./components/QueueDisplay').then(module => ({ default: module.QueueDisplay })));
+const HRManagementView = lazy(() => import('./components/HRManagementView'));
+const PrivacyPolicy = lazy(() => import('./components/PrivacyPolicy').then(module => ({ default: module.PrivacyPolicy })));
 
 import { BottomNavBar } from './components/BottomNavBar';
 
@@ -93,7 +92,7 @@ import { TableBillModal } from './components/TableBillModal';
 import { PaymentModal } from './components/PaymentModal';
 import { PaymentSuccessModal } from './components/PaymentSuccessModal';
 // Lazy load heavy settings modal
-const SettingsModal = React.lazy(() => import('./components/SettingsModal').then(module => ({ default: module.SettingsModal })));
+const SettingsModal = lazy(() => import('./components/SettingsModal').then(module => ({ default: module.SettingsModal })));
 import { EditCompletedOrderModal } from './components/EditCompletedOrderModal';
 import { UserManagerModal } from './components/UserManagerModal';
 import { BranchManagerModal } from './components/BranchManagerModal';
