@@ -1,5 +1,5 @@
 
-import React, { useMemo, useState, useRef } from 'react';
+import React, { useMemo, useState, useRef, useEffect } from 'react';
 import type { OrderItem, Table, TakeawayCutleryOption, Reservation, User, View, DeliveryProvider } from '../types';
 import { OrderListItem } from './OrderListItem';
 import { NumpadModal } from './NumpadModal'; // Import NumpadModal
@@ -127,7 +127,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         });
     }, [tables, selectedFloor]);
 
-    React.useEffect(() => {
+    useEffect(() => {
         if (preselectedTable) {
             onFloorChange(preselectedTable.floor);
             onSelectTable(preselectedTable.tableId);

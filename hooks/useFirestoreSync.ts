@@ -1,6 +1,5 @@
 
-import * as React from 'react';
-const { useState, useEffect, useRef, useCallback } = React;
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { db } from '@/firebaseConfig';
 import type { Table } from '@/types';
 import firebase from 'firebase/compat/app';

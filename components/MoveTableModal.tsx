@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import type { ActiveOrder, Table } from '../types';
 
 interface MoveTableModalProps {
@@ -44,7 +44,7 @@ export const MoveTableModal: React.FC<MoveTableModalProps> = ({
 
 
     // Reset state when modal opens or order changes
-    React.useEffect(() => {
+    useEffect(() => {
         if (order) {
             setSelectedFloor(order.floor);
             setSelectedTableId(null);

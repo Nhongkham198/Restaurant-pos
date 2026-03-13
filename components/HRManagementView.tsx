@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useData } from '../contexts/DataContext';
 import { JobApplication, EmploymentContract, TimeRecord, PayrollRecord, LeaveRequest } from '../types';
 import { DEFAULT_JOB_APPLICATIONS, DEFAULT_EMPLOYMENT_CONTRACTS } from '../constants';
@@ -60,7 +60,7 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
     };
 
     // Sync activeTab with initialTab if it changes
-    React.useEffect(() => {
+    useEffect(() => {
         setActiveTab(initialTab);
     }, [initialTab]);
 
