@@ -940,6 +940,90 @@ export const App: React.FC = () => {
         setSelectedBranch(null);
     };
 
+    const handleUpdateLeaveStatus = async (requestId: number, status: 'approved' | 'rejected') => {
+        const request = leaveRequests.find(r => r.id === requestId);
+        if (!request) return;
+
+        // 1. Update the request status
+        const updatedRequests = leaveRequests.map(r => r.id === requestId ? { ...r, status } : r);
+        setLeaveRequests(updatedRequests);
+
+        // 2. If approved, deduct quota from user
+        if (status === 'approved') {
+            const user = users.find(u => u.id === request.userId);
+            if (user && user.leaveQuotas) {
+                let duration = 0;
+                if (request.isHalfDay) {
+                    duration = 0.5;
+                } else {
+                    const diffTime = Math.abs(request.endDate - request.startDate);
+                    duration = Math.round(diffTime / (1000 * 60 * 60 * 24)) + 1;
+                }
+
+                const newQuotas = { ...user.leaveQuotas };
+                if (request.type === 'sick') {
+                    newQuotas.sick = Math.max(0, newQuotas.sick - duration);
+                } else if (request.type === 'personal') {
+                    newQuotas.personal = Math.max(0, newQuotas.personal - duration);
+                } else if (request.type === 'vacation') {
+                    newQuotas.vacation = Math.max(0, newQuotas.vacation - duration);
+                }
+
+                // Update users collection
+                const updatedUsers = users.map(u => u.id === user.id ? { ...u, leaveQuotas: newQuotas } : u);
+                setUsers(updatedUsers);
+                
+                // If the updated user is the current user, update current user state too
+                if (currentUser && currentUser.id === user.id) {
+                    setCurrentUser({ ...currentUser, leaveQuotas: newQuotas });
+                    localStorage.setItem('currentUser', JSON.stringify({ ...currentUser, leaveQuotas: newQuotas }));
+                }
+
+                Swal.fire({
+                    icon: 'success',
+                    title: 'อนุมัติเรียบร้อย',
+                    text: `หักลบวันลา ${duration} วัน เรียบร้อยแล้ว`,
+                    timer: 2000,
+                    showConfirmButton: false
+                });
+            }
+        } else if (status === 'rejected') {
+            Swal.fire({
+                icon: 'info',
+                title: 'ปฏิเสธคำขอ',
+                text: 'คำขอลาถูกปฏิเสธแล้ว',
+                timer: 2000,
+                showConfirmButton: false
+            });
+        }
+    };
+
+    const handleSaveLeaveRequest = (req: Omit<LeaveRequest, 'id' | 'status' | 'branchId'>) => {
+        const newId = Math.max(0, ...leaveRequests.map(r => r.id)) + 1;
+        const newRequest: LeaveRequest = {
+            ...req,
+            id: newId,
+            status: 'pending',
+            branchId: selectedBranch?.id || 1,
+            submittedAt: Date.now()
+        };
+        setLeaveRequests(prev => [...prev, newRequest]);
+        handleModalClose();
+        
+        Swal.fire({
+            icon: 'success',
+            title: 'ส่งคำขอเรียบร้อย',
+            text: 'กรุณารอการอนุมัติจากผู้ดูแล',
+            timer: 2000,
+            showConfirmButton: false
+        });
+    };
+
+    const handleDeleteLeaveRequest = async (id: number) => {
+        setLeaveRequests(prev => prev.filter(r => r.id !== id));
+        return true;
+    };
+
     const handleModalClose = () => {
         setModalState({
             isMenuItem: false, isOrderSuccess: false, isSplitBill: false, isTableBill: false,
@@ -1343,12 +1427,25 @@ export const App: React.FC = () => {
                                             )}
                                             {/* ... Other mobile views ... */}
                                             {currentView === 'tables' && <TableLayout tables={tables} activeOrders={activeOrders} onTableSelect={(id) => { setSelectedTableId(id); setCurrentView('pos'); }} onShowBill={handleShowBill} onGeneratePin={handleGeneratePin} currentUser={currentUser} printerConfig={printerConfig} floors={floors} selectedBranch={selectedBranch} restaurantName={restaurantName} logoUrl={logoUrl} qrCodeUrl={qrCodeUrl} />}
-                                            {currentView === 'dashboard' && <Dashboard completedOrders={completedOrders} cancelledOrders={cancelledOrders} openingTime={openingTime || '10:00'} closingTime={closingTime || '22:00'} currentUser={currentUser} />}
+                                            {currentView === 'dashboard' && <Dashboard completedOrders={completedOrders} cancelledOrders={cancelledOrders} openingTime={openingTime || '10:00'} closingTime={closingTime || '22:00'} currentUser={currentUser} recipes={recipes} />}
                                             {currentView === 'history' && <SalesHistory completedOrders={completedOrders} cancelledOrders={cancelledOrders} printHistory={printHistory} onReprint={() => {}} onSplitOrder={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isSplitCompleted: true}))}} isEditMode={isEditMode} onEditOrder={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isEditCompleted: true}))}} onInitiateCashBill={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isCashBill: true}))}} onDeleteHistory={handleDeleteHistory} currentUser={currentUser} onReprintReceipt={handleReprintReceipt} />}
                                             {currentView === 'stock' && <StockManagement stockItems={stockItems} setStockItems={setStockItems} stockTags={stockTags} setStockTags={setStockTags} stockCategories={stockCategories} setStockCategories={setStockCategories} stockUnits={stockUnits} setStockUnits={setStockUnits} stockLogs={stockLogs} stockLogsActions={stockLogsActions} currentUser={currentUser} isTagModalOpen={modalState.isTagRegistration} onOpenTagModal={() => setModalState(prev => ({ ...prev, isTagRegistration: true }))} onCloseTagModal={() => setModalState(prev => ({ ...prev, isTagRegistration: false }))} />}
                                             {currentView === 'recipes' && <RecipeManagement menuItems={menuItems} recipes={recipes} setRecipes={setRecipes} stockItems={stockItems} currentUser={currentUser} />}
                                             {currentView === 'stock-analytics' && <StockAnalytics stockItems={stockItems} />}
-                                            {currentView === 'leave' && <LeaveCalendarView leaveRequests={leaveRequests} currentUser={currentUser} onOpenRequestModal={(date) => { setLeaveRequestInitialDate(date); setModalState(prev => ({...prev, isLeaveRequest: true})); }} branches={branches} onUpdateStatus={(id, status) => setLeaveRequests(prev => prev.map(r => r.id === id ? {...r, status} : r))} onDeleteRequest={async (id) => {setLeaveRequests(prev => prev.filter(r => r.id !== id)); return true;}} selectedBranch={selectedBranch} />}
+                                            {currentView === 'leave' && (
+                                                <LeaveCalendarView 
+                                                    leaveRequests={leaveRequests} 
+                                                    currentUser={currentUser} 
+                                                    onOpenRequestModal={(date) => { 
+                                                        setLeaveRequestInitialDate(date); 
+                                                        setModalState(prev => ({...prev, isLeaveRequest: true})); 
+                                                    }} 
+                                                    branches={branches} 
+                                                    onUpdateStatus={handleUpdateLeaveStatus} 
+                                                    onDeleteRequest={handleDeleteLeaveRequest} 
+                                                    selectedBranch={selectedBranch} 
+                                                />
+                                            )}
                                             {currentView === 'leave-analytics' && <LeaveAnalytics leaveRequests={leaveRequests} users={users} />}
                                             {currentView === 'maintenance' && (
                                                 <MaintenanceView 
@@ -1390,12 +1487,25 @@ export const App: React.FC = () => {
                                 />
                             )}
                             {currentView === 'tables' && <TableLayout tables={tables} activeOrders={activeOrders} onTableSelect={(id) => { setSelectedTableId(id); setCurrentView('pos'); }} onShowBill={handleShowBill} onGeneratePin={handleGeneratePin} currentUser={currentUser} printerConfig={printerConfig} floors={floors} selectedBranch={selectedBranch} restaurantName={restaurantName} logoUrl={logoUrl} qrCodeUrl={qrCodeUrl} />}
-                            {currentView === 'dashboard' && <Dashboard completedOrders={completedOrders} cancelledOrders={cancelledOrders} openingTime={openingTime || '10:00'} closingTime={closingTime || '22:00'} currentUser={currentUser} />}
+                            {currentView === 'dashboard' && <Dashboard completedOrders={completedOrders} cancelledOrders={cancelledOrders} openingTime={openingTime || '10:00'} closingTime={closingTime || '22:00'} currentUser={currentUser} recipes={recipes} />}
                             {currentView === 'history' && <SalesHistory completedOrders={completedOrders} cancelledOrders={cancelledOrders} printHistory={printHistory} onReprint={() => {}} onSplitOrder={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isSplitCompleted: true}))}} isEditMode={isEditMode} onEditOrder={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isEditCompleted: true}))}} onInitiateCashBill={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isCashBill: true}))}} onDeleteHistory={handleDeleteHistory} currentUser={currentUser} onReprintReceipt={handleReprintReceipt} />}
                             {currentView === 'stock' && <StockManagement stockItems={stockItems} setStockItems={setStockItems} stockTags={stockTags} setStockTags={setStockTags} stockCategories={stockCategories} setStockCategories={setStockCategories} stockUnits={stockUnits} setStockUnits={setStockUnits} stockLogs={stockLogs} stockLogsActions={stockLogsActions} currentUser={currentUser} isTagModalOpen={modalState.isTagRegistration} onOpenTagModal={() => setModalState(prev => ({ ...prev, isTagRegistration: true }))} onCloseTagModal={() => setModalState(prev => ({ ...prev, isTagRegistration: false }))} />}
                             {currentView === 'recipes' && <RecipeManagement menuItems={menuItems} recipes={recipes} setRecipes={setRecipes} stockItems={stockItems} currentUser={currentUser} />}
                             {currentView === 'stock-analytics' && <StockAnalytics stockItems={stockItems} />}
-                            {currentView === 'leave' && <LeaveCalendarView leaveRequests={leaveRequests} currentUser={currentUser} onOpenRequestModal={(date) => { setLeaveRequestInitialDate(date); setModalState(prev => ({...prev, isLeaveRequest: true})); }} branches={branches} onUpdateStatus={(id, status) => setLeaveRequests(prev => prev.map(r => r.id === id ? {...r, status} : r))} onDeleteRequest={async (id) => {setLeaveRequests(prev => prev.filter(r => r.id !== id)); return true;}} selectedBranch={selectedBranch} />}
+                            {currentView === 'leave' && (
+                                <LeaveCalendarView 
+                                    leaveRequests={leaveRequests} 
+                                    currentUser={currentUser} 
+                                    onOpenRequestModal={(date) => { 
+                                        setLeaveRequestInitialDate(date); 
+                                        setModalState(prev => ({...prev, isLeaveRequest: true})); 
+                                    }} 
+                                    branches={branches} 
+                                    onUpdateStatus={handleUpdateLeaveStatus} 
+                                    onDeleteRequest={handleDeleteLeaveRequest} 
+                                    selectedBranch={selectedBranch} 
+                                />
+                            )}
                             {currentView === 'leave-analytics' && <LeaveAnalytics leaveRequests={leaveRequests} users={users} />}
                             {currentView === 'maintenance' && (
                                 <MaintenanceView 
@@ -1522,7 +1632,14 @@ export const App: React.FC = () => {
             />
             <SplitCompletedBillModal isOpen={modalState.isSplitCompleted} order={orderForModal as CompletedOrder | null} onClose={handleModalClose} onConfirmSplit={() => {}} />
             <ItemCustomizationModal isOpen={modalState.isCustomization} onClose={handleModalClose} item={itemToCustomize} onConfirm={handleConfirmCustomization} orderItemToEdit={orderItemToEdit} />
-            <LeaveRequestModal isOpen={modalState.isLeaveRequest} onClose={handleModalClose} currentUser={currentUser} onSave={(req) => {const newId = Math.max(0, ...leaveRequests.map(r => r.id)) + 1; setLeaveRequests(prev => [...prev, {...req, id: newId, status: 'pending', branchId: selectedBranch!.id, submittedAt: Date.now()}]); handleModalClose(); }} leaveRequests={leaveRequests} initialDate={leaveRequestInitialDate} />
+            <LeaveRequestModal 
+                isOpen={modalState.isLeaveRequest} 
+                onClose={handleModalClose} 
+                currentUser={currentUser} 
+                onSave={handleSaveLeaveRequest} 
+                leaveRequests={leaveRequests} 
+                initialDate={leaveRequestInitialDate} 
+            />
             <MenuSearchModal isOpen={modalState.isMenuSearch} onClose={handleModalClose} menuItems={menuItems} onSelectItem={handleAddItemToOrder} onToggleAvailability={handleToggleAvailability} />
             <MergeBillModal isOpen={modalState.isMergeBill} onClose={handleModalClose} order={orderForModal as ActiveOrder} allActiveOrders={activeOrders} tables={tables} onConfirmMerge={handleConfirmMerge} />
         </div>

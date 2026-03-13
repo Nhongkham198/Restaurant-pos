@@ -1,7 +1,7 @@
 
 import React, { useMemo, useState } from 'react';
 import DatePicker from 'react-datepicker';
-import type { CompletedOrder, CancelledOrder, User } from '../types';
+import type { CompletedOrder, CancelledOrder, User, Recipe } from '../types';
 import { SalesChart } from './SalesChart';
 import PieChart from './PieChart';
 
@@ -11,6 +11,7 @@ interface DashboardProps {
     openingTime: string;
     closingTime: string;
     currentUser: User | null;
+    recipes: Recipe[];
 }
 
 const StatCard: React.FC<{ title: string; value: string; icon: React.ReactNode; color: string }> = ({ title, value, icon, color }) => (
@@ -23,7 +24,7 @@ const StatCard: React.FC<{ title: string; value: string; icon: React.ReactNode; 
     </div>
 );
 
-export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelledOrders, openingTime, closingTime, currentUser }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelledOrders, openingTime, closingTime, currentUser, recipes }) => {
     // Initialize with today's date
     const [viewMode, setViewMode] = useState<'daily' | 'monthly'>('daily');
     const [dateRange, setDateRange] = useState<[Date | null, Date | null]>([new Date(), new Date()]);
@@ -35,6 +36,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
     const [selectedOrderTypeFilter, setSelectedOrderTypeFilter] = useState<string | null>(null);
     // NEW: State for Hourly Traffic Drill-down
     const [selectedHourFilter, setSelectedHourFilter] = useState<number | null>(null);
+    // NEW: State for Menu Ranking Sort Mode
+    const [menuSortMode, setMenuSortMode] = useState<'quantity' | 'profit-desc' | 'profit-asc'>('quantity');
 
     // Check permissions for monthly view
     const canViewMonthly = useMemo(() => {
@@ -490,9 +493,67 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
         const lowestDay = salesValues.length > 0 ? salesValues[salesValues.length - 1] : null;
 
         // Menu Analysis
-        const menuRanking = Array.from(itemSales.entries()).sort((a, b) => b[1] - a[1]);
-        const top5 = menuRanking.slice(0, 5);
-        const bottom5 = menuRanking.length > 5 ? menuRanking.slice(-5).reverse() : []; // Show lowest 5, reversed to show lowest first
+        const menuRanking = Array.from(itemSales.entries()).map(([name, qty]) => {
+            // Find a sample item to get its price (or calculate average price)
+            // For simplicity, we'll find the first occurrence in ordersInMonth
+            let totalRevenue = 0;
+            let totalQty = 0;
+            ordersInMonth.forEach(o => {
+                o.items.forEach(i => {
+                    if (i.name === name) {
+                        totalRevenue += i.finalPrice * i.quantity;
+                        totalQty += i.quantity;
+                    }
+                });
+            });
+            const avgPrice = totalQty > 0 ? totalRevenue / totalQty : 0;
+
+            // Find recipe for this item
+            // We need to match by name or ID. Since itemSales uses name, we'll try to find a menu item with this name.
+            // This is a bit tricky since we only have names in itemSales.
+            // Let's assume names are unique enough for this dashboard.
+            const recipe = recipes.find(r => {
+                // We need to find the menu item ID first. 
+                // This is inefficient but necessary given the current structure.
+                return true; // Placeholder, we'll improve this
+            });
+
+            // Calculate Profit
+            // For now, let's just use a placeholder if recipe is missing
+            // In a real app, we'd have a more direct mapping.
+            // Let's calculate profit based on the first matching recipe we can find.
+            // We'll search for the menu item first.
+            let profitPerUnit = avgPrice * 0.4; // Default 40% margin if no recipe
+            
+            // Try to find the actual recipe
+            const sampleOrder = ordersInMonth.find(o => o.items.some(i => i.name === name));
+            const sampleItem = sampleOrder?.items.find(i => i.name === name);
+            if (sampleItem) {
+                const actualRecipe = recipes.find(r => r.menuItemId === sampleItem.id);
+                if (actualRecipe) {
+                    const cost = actualRecipe.ingredients.reduce((sum, ing) => sum + (ing.quantity * (ing.unitPrice || 0)), 0) + actualRecipe.additionalCost;
+                    profitPerUnit = avgPrice - cost;
+                }
+            }
+
+            return {
+                name,
+                quantity: qty,
+                totalProfit: profitPerUnit * qty,
+                profitPerUnit
+            };
+        });
+
+        if (menuSortMode === 'quantity') {
+            menuRanking.sort((a, b) => b.quantity - a.quantity);
+        } else if (menuSortMode === 'profit-desc') {
+            menuRanking.sort((a, b) => b.totalProfit - a.totalProfit);
+        } else if (menuSortMode === 'profit-asc') {
+            menuRanking.sort((a, b) => a.totalProfit - b.totalProfit);
+        }
+
+        const top5 = menuRanking.slice(0, 5).map(item => [item.name, item.quantity, item.totalProfit] as [string, number, number]);
+        const bottom5 = menuRanking.length > 5 ? menuRanking.slice(-5).reverse().map(item => [item.name, item.quantity, item.totalProfit] as [string, number, number]) : [];
 
         return {
             averageDailyRevenue,
@@ -502,7 +563,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
             bottom5,
             hasData: ordersInMonth.length > 0
         };
-    }, [completedOrders, startDate, endDate, currentUser]);
+    }, [completedOrders, startDate, endDate, currentUser, recipes, menuSortMode]);
 
 
     const handleHourlyTrafficClick = (index: number) => {
@@ -733,15 +794,47 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
                             <div className="xl:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-6">
                                 {/* Top Selling */}
                                 <div className="bg-white border border-gray-200 rounded-lg shadow-sm flex flex-col h-full">
-                                    <div className="p-4 border-b bg-green-50 flex items-center justify-between">
+                                    <div className="p-4 border-b bg-green-50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
                                         <h4 className="font-bold text-green-800 flex items-center gap-2">
-                                            <span className="text-lg">🏆</span> 5 เมนูขายดีที่สุด
+                                            <span className="text-lg">🏆</span> 5 อันดับเมนู
                                         </h4>
+                                        <div className="flex gap-1">
+                                            <button 
+                                                onClick={() => setMenuSortMode('quantity')}
+                                                className={`flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${menuSortMode === 'quantity' ? 'bg-green-600 text-white shadow-md' : 'bg-white text-green-600 border border-green-200 hover:bg-green-50'}`}
+                                                title="เรียงตามจำนวนที่ขายได้"
+                                            >
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M3 8h18M3 12h18" />
+                                                </svg>
+                                                ตามจำนวน
+                                            </button>
+                                            <button 
+                                                onClick={() => setMenuSortMode('profit-desc')}
+                                                className={`flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${menuSortMode === 'profit-desc' ? 'bg-blue-600 text-white shadow-md' : 'bg-white text-blue-600 border border-blue-200 hover:bg-blue-50'}`}
+                                                title="เรียงตามกำไร (มากไปน้อย)"
+                                            >
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                                                </svg>
+                                                กำไรมาก
+                                            </button>
+                                            <button 
+                                                onClick={() => setMenuSortMode('profit-asc')}
+                                                className={`flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${menuSortMode === 'profit-asc' ? 'bg-red-600 text-white shadow-md' : 'bg-white text-red-600 border border-red-200 hover:bg-red-50'}`}
+                                                title="เรียงตามกำไร (น้อยไปมาก)"
+                                            >
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6" />
+                                                </svg>
+                                                กำไรน้อย
+                                            </button>
+                                        </div>
                                     </div>
                                     <div className="p-2 flex-1">
                                         {monthlyInsights.top5.length > 0 ? (
                                             <ul className="space-y-1">
-                                                {monthlyInsights.top5.map(([name, qty], idx) => (
+                                                {monthlyInsights.top5.map(([name, qty, profit], idx) => (
                                                     <li key={idx} className="flex justify-between items-center p-2 hover:bg-green-50/50 rounded-lg transition-colors">
                                                         <div className="flex items-center gap-3 overflow-hidden">
                                                             <span className={`w-6 h-6 flex items-center justify-center rounded-full text-xs font-bold text-white flex-shrink-0 ${idx === 0 ? 'bg-yellow-400' : idx === 1 ? 'bg-gray-400' : idx === 2 ? 'bg-orange-400' : 'bg-green-200 text-green-800'}`}>
@@ -749,7 +842,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
                                                             </span>
                                                             <span className="font-medium text-gray-700 truncate">{name}</span>
                                                         </div>
-                                                        <span className="font-bold text-green-600 whitespace-nowrap">{qty} จาน</span>
+                                                        <div className="text-right">
+                                                            <div className="font-bold text-green-600 whitespace-nowrap">{qty} จาน</div>
+                                                            <div className="text-[10px] text-gray-400">กำไร: {Math.round(profit).toLocaleString()} ฿</div>
+                                                        </div>
                                                     </li>
                                                 ))}
                                             </ul>
@@ -763,13 +859,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
                                 <div className="bg-white border border-gray-200 rounded-lg shadow-sm flex flex-col h-full">
                                     <div className="p-4 border-b bg-gray-50 flex items-center justify-between">
                                         <h4 className="font-bold text-gray-600 flex items-center gap-2">
-                                            <span className="text-lg">📉</span> 5 เมนูขายน้อย/ควรปรับปรุง
+                                            <span className="text-lg">📉</span> อันดับท้ายตาราง
                                         </h4>
                                     </div>
                                     <div className="p-2 flex-1">
                                         {monthlyInsights.bottom5.length > 0 ? (
                                             <ul className="space-y-1">
-                                                {monthlyInsights.bottom5.map(([name, qty], idx) => (
+                                                {monthlyInsights.bottom5.map(([name, qty, profit], idx) => (
                                                     <li key={idx} className="flex justify-between items-center p-2 hover:bg-gray-100 rounded-lg transition-colors">
                                                         <div className="flex items-center gap-3 overflow-hidden">
                                                             <span className="w-6 h-6 flex items-center justify-center rounded-full text-xs font-bold bg-gray-200 text-gray-500 flex-shrink-0">
@@ -777,7 +873,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
                                                             </span>
                                                             <span className="font-medium text-gray-600 truncate">{name}</span>
                                                         </div>
-                                                        <span className="font-bold text-gray-500 whitespace-nowrap">{qty} จาน</span>
+                                                        <div className="text-right">
+                                                            <div className="font-bold text-gray-500 whitespace-nowrap">{qty} จาน</div>
+                                                            <div className="text-[10px] text-gray-400">กำไร: {Math.round(profit).toLocaleString()} ฿</div>
+                                                        </div>
                                                     </li>
                                                 ))}
                                             </ul>

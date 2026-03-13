@@ -78,36 +78,16 @@ export const LeaveRequestModal: React.FC<LeaveRequestModalProps> = ({ isOpen, on
 
     const quotas = useMemo(() => {
         const defaultQuotas = { sick: 30, personal: 6, vacation: 6 }; 
-        if (!currentUser) return { total: defaultQuotas, used: { sick: 0, personal: 0, vacation: 0 } };
+        if (!currentUser) return { total: defaultQuotas, remaining: defaultQuotas };
 
         const userQuotas = currentUser.leaveQuotas || defaultQuotas;
 
-        // Calculate used days
-        const used = { sick: 0, personal: 0, vacation: 0 };
-        
-        leaveRequests.forEach(req => {
-            if (req.userId === currentUser.id && req.status === 'approved') { 
-                let diffDays = 0;
-                if (req.isHalfDay) {
-                    diffDays = 0.5;
-                } else {
-                    // Consistent logic with duration calculation above
-                    const diffTime = Math.abs(req.endDate - req.startDate);
-                    diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
-                    if (diffDays <= 0) diffDays = 1;
-                }
-                
-                if (req.type === 'sick') used.sick += diffDays;
-                else if (req.type === 'personal') used.personal += diffDays;
-                else if (req.type === 'leave-without-pay') used.vacation += diffDays; 
-            }
-        });
+        return { total: userQuotas, remaining: userQuotas };
+    }, [currentUser]);
 
-        return { total: userQuotas, used };
-    }, [currentUser, leaveRequests]);
-
-    const remainingPersonal = Math.max(0, quotas.total.personal - quotas.used.personal);
-    const remainingSick = Math.max(0, quotas.total.sick - quotas.used.sick);
+    const remainingPersonal = quotas.remaining.personal;
+    const remainingSick = quotas.remaining.sick;
+    const remainingVacation = quotas.remaining.vacation;
 
     // Auto-switch type if current selection is invalid due to quota
     useEffect(() => {
@@ -116,9 +96,11 @@ export const LeaveRequestModal: React.FC<LeaveRequestModalProps> = ({ isOpen, on
                 setType('leave-without-pay');
             } else if (type === 'sick' && remainingSick <= 0) {
                 setType('leave-without-pay');
+            } else if (type === 'vacation' && remainingVacation <= 0) {
+                setType('leave-without-pay');
             }
         }
-    }, [isOpen, type, remainingPersonal, remainingSick]);
+    }, [isOpen, type, remainingPersonal, remainingSick, remainingVacation]);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -216,6 +198,7 @@ export const LeaveRequestModal: React.FC<LeaveRequestModalProps> = ({ isOpen, on
                         <select value={type} onChange={(e) => setType(e.target.value as LeaveRequest['type'])} className={inputClasses} required>
                             <option value="sick" disabled={remainingSick <= 0}>ลาป่วย (เหลือ {remainingSick} วัน)</option>
                             <option value="personal" disabled={remainingPersonal <= 0}>ลากิจ (เหลือ {remainingPersonal} วัน)</option>
+                            <option value="vacation" disabled={remainingVacation <= 0}>ลาพักร้อน (เหลือ {remainingVacation} วัน)</option>
                             <option value="leave-without-pay">ลาไม่รับเงินเดือน</option>
                         </select>
                     </div>
@@ -223,10 +206,10 @@ export const LeaveRequestModal: React.FC<LeaveRequestModalProps> = ({ isOpen, on
                         <label className="block text-sm font-medium text-gray-700">เหตุผล</label>
                         <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3} className={inputClasses} required />
                     </div>
-                    <div className="text-sm text-gray-500">
-                        <p>ลากิจ: {quotas.used.personal}/{quotas.total.personal}</p>
-                        <p>ลาป่วย: {quotas.used.sick}/{quotas.total.sick}</p>
-                        <p>ลาไม่รับเงินเดือน: {quotas.used.vacation}/{quotas.total.vacation}</p>
+                    <div className="text-sm text-gray-500 grid grid-cols-3 gap-2">
+                        <p className="text-blue-600 font-bold">ลาป่วย: {remainingSick} วัน</p>
+                        <p className="text-green-600 font-bold">ลากิจ: {remainingPersonal} วัน</p>
+                        <p className="text-purple-600 font-bold">พักร้อน: {remainingVacation} วัน</p>
                     </div>
                     <div className="flex justify-end gap-2 pt-4">
                         <button type="button" onClick={onClose} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300">ยกเลิก</button>

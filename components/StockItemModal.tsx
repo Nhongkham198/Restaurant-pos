@@ -127,29 +127,69 @@ export const StockItemModal: React.FC<StockItemModalProps> = ({
                                 {safeNumber(formState.quantity).toLocaleString(undefined, { maximumFractionDigits: 2 })}
                             </div>
                         </div>
-                        <div className="flex gap-2 items-end">
-                            <div className="flex-grow">
-                                <label className="block text-sm font-medium text-gray-700">หมวดหมู่</label>
-                                <select name="category" value={formState.category || ''} onChange={(e) => setFormState(prev => ({ ...prev, category: e.target.value }))} className={inputClasses} required>
-                                    <option value="" disabled>เลือกหมวดหมู่</option>
-                                    {categories.map(c => <option key={c} value={c}>{c}</option>)}
-                                </select>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">หมวดหมู่</label>
+                            <div className="flex items-center gap-2">
+                                <div className="flex-grow overflow-x-auto scrollbar-hide">
+                                    <div className="flex gap-2 pb-1">
+                                        {categories.map(c => (
+                                            <button
+                                                key={c}
+                                                type="button"
+                                                onClick={() => setFormState(prev => ({ ...prev, category: c }))}
+                                                className={`px-4 py-2 rounded-full border whitespace-nowrap transition-colors ${
+                                                    formState.category === c 
+                                                    ? 'bg-blue-600 text-white border-blue-600' 
+                                                    : 'bg-white text-gray-700 border-gray-300 hover:border-blue-500'
+                                                }`}
+                                            >
+                                                {c}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                                <button 
+                                    type="button" 
+                                    onClick={() => setIsCategoryManagerOpen(true)} 
+                                    className="flex-shrink-0 w-10 h-10 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center hover:bg-blue-200 transition-colors"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                    </svg>
+                                </button>
                             </div>
-                            <button type="button" onClick={() => setIsCategoryManagerOpen(true)} className={manageButtonClasses}>
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.972.094 2.22-.948 2.286-1.56.38-1.56 2.6 0 2.98.972.54 2.22.094 2.286.948.836 1.372-.734 2.942-2.106 2.106a1.532 1.532 0 01-.948-2.286c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286-.948c-1.372.836-2.942-.734-2.106-2.106a1.532 1.532 0 01.948-2.286c.38-1.56 2.6-1.56 2.98 0a1.532 1.532 0 012.286-.948c1.372.836 2.942-.734 2.106-2.106a1.532 1.532 0 01.948 2.286zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" /></svg>
-                            </button>
                         </div>
-                        <div className="flex gap-2 items-end">
-                             <div className="flex-grow">
-                                <label className="block text-sm font-medium text-gray-700">หน่วยนับ</label>
-                                <select name="unit" value={formState.unit || ''} onChange={(e) => setFormState(prev => ({ ...prev, unit: e.target.value }))} className={inputClasses} required>
-                                    <option value="" disabled>เลือกหน่วยนับ</option>
-                                    {units.map(u => <option key={u} value={u}>{u}</option>)}
-                                </select>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">หน่วยนับ</label>
+                            <div className="flex items-center gap-2">
+                                <div className="flex-grow overflow-x-auto scrollbar-hide">
+                                    <div className="flex gap-2 pb-1">
+                                        {units.map(u => (
+                                            <button
+                                                key={u}
+                                                type="button"
+                                                onClick={() => setFormState(prev => ({ ...prev, unit: u }))}
+                                                className={`px-4 py-2 rounded-full border whitespace-nowrap transition-colors ${
+                                                    formState.unit === u 
+                                                    ? 'bg-blue-600 text-white border-blue-600' 
+                                                    : 'bg-white text-gray-700 border-gray-300 hover:border-blue-500'
+                                                }`}
+                                            >
+                                                {u}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                                <button 
+                                    type="button" 
+                                    onClick={() => setIsUnitManagerOpen(true)} 
+                                    className="flex-shrink-0 w-10 h-10 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center hover:bg-blue-200 transition-colors"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                    </svg>
+                                </button>
                             </div>
-                            <button type="button" onClick={() => setIsUnitManagerOpen(true)} className={manageButtonClasses}>
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.972.094 2.22-.948 2.286-1.56.38-1.56 2.6 0 2.98.972.54 2.22.094 2.286.948.836 1.372-.734 2.942-2.106 2.106a1.532 1.532 0 01-.948-2.286c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286-.948c-1.372.836-2.942-.734-2.106-2.106a1.532 1.532 0 01.948-2.286c.38-1.56 2.6-1.56 2.98 0a1.532 1.532 0 012.286-.948c1.372.836 2.942-.734 2.106-2.106a1.532 1.532 0 01.948 2.286zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" /></svg>
-                            </button>
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-700">จุดสั่งซื้อขั้นต่ำ</label>

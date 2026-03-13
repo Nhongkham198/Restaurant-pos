@@ -609,6 +609,7 @@ exports.sendLeaveRequestNotification = functions.region('asia-southeast1').fires
                 const optionsDate = { year: 'numeric', month: 'long', day: 'numeric' };
                 const startDate = new Date(newRequest.startDate).toLocaleDateString('th-TH', optionsDate);
                 const endDate = new Date(newRequest.endDate).toLocaleDateString('th-TH', optionsDate);
+                const submittedDate = newRequest.submittedAt ? new Date(newRequest.submittedAt).toLocaleDateString('th-TH', optionsDate) : '-';
                 
                 const typeMap = {
                     'sick': 'ลาป่วย',
@@ -620,7 +621,7 @@ exports.sendLeaveRequestNotification = functions.region('asia-southeast1').fires
                 
                 const messageText = `📢 แจ้งเตือนคำขอลาใหม่!\n` +
                                     `👤 พนักงาน: ${newRequest.username}\n` +
-                                    `📅 วันที่: ${startDate} ถึง ${endDate} (${duration} วัน)\n` +
+                                    `📅 วันที่ลาจริง: ${startDate} ถึง ${endDate} (${duration} วัน)\n` +
                                     `📝 ประเภท: ${typeMap[newRequest.type] || newRequest.type}\n` +
                                     `💬 เหตุผล: ${newRequest.reason}\n\n` +
                                     `📊 สรุปวันลาคงเหลือหลังหักครั้งนี้:\n` +
@@ -684,6 +685,7 @@ exports.sendLeaveRequestNotification = functions.region('asia-southeast1').fires
                 const optionsDate = { year: 'numeric', month: 'long', day: 'numeric' };
                 const startDate = new Date(newRequest.startDate).toLocaleDateString('th-TH', optionsDate);
                 const endDate = new Date(newRequest.endDate).toLocaleDateString('th-TH', optionsDate);
+                const submittedDate = newRequest.submittedAt ? new Date(newRequest.submittedAt).toLocaleDateString('th-TH', optionsDate) : '-';
                 
                 const typeMap = {
                     'sick': 'ลาป่วย',
@@ -695,7 +697,7 @@ exports.sendLeaveRequestNotification = functions.region('asia-southeast1').fires
                 
                 const messageText = `<b>📢 แจ้งเตือนคำขอลาใหม่!</b>\n` +
                                     `👤 พนักงาน: ${newRequest.username}\n` +
-                                    `📅 วันที่: ${startDate} ถึง ${endDate} (${duration} วัน)\n` +
+                                    `📅 วันที่ลาจริง: ${startDate} ถึง ${endDate} (${duration} วัน)\n` +
                                     `📝 ประเภท: ${typeMap[newRequest.type] || newRequest.type}\n` +
                                     `💬 เหตุผล: ${newRequest.reason}\n\n` +
                                     `<b>📊 สรุปวันลาคงเหลือหลังหักครั้งนี้:</b>\n` +

@@ -179,6 +179,19 @@ export const LeaveCalendarView: React.FC<LeaveCalendarViewProps> = ({ leaveReque
         }
     };
 
+    // --- Quota Calculation ---
+    const remainingQuotas = useMemo(() => {
+        if (!currentUser?.leaveQuotas) return null;
+        
+        // Now that the system deducts quotas upon approval, 
+        // we just display the values directly from the user document.
+        return {
+            sick: currentUser.leaveQuotas.sick,
+            personal: currentUser.leaveQuotas.personal,
+            vacation: currentUser.leaveQuotas.vacation
+        };
+    }, [currentUser]);
+
     return (
         <>
             <div className="flex flex-col h-full w-full bg-gray-50 p-4 overflow-y-auto pb-24">
@@ -280,7 +293,7 @@ export const LeaveCalendarView: React.FC<LeaveCalendarViewProps> = ({ leaveReque
                 </div>
 
                 {/* Leave Quota Summary for Staff */}
-                {currentUser?.leaveQuotas && (
+                {remainingQuotas && (
                     <div className="grid grid-cols-2 gap-4 mb-6">
                         <div className="bg-white p-4 rounded-xl shadow-md border border-gray-100 flex items-center gap-4">
                             <div className="w-10 h-10 rounded-lg bg-red-50 flex items-center justify-center text-red-500">
@@ -290,7 +303,7 @@ export const LeaveCalendarView: React.FC<LeaveCalendarViewProps> = ({ leaveReque
                             </div>
                             <div>
                                 <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">ลาป่วยคงเหลือ</p>
-                                <p className="text-lg font-black text-gray-900">{currentUser.leaveQuotas.sick} วัน</p>
+                                <p className="text-lg font-black text-gray-900">{remainingQuotas.sick} วัน</p>
                             </div>
                         </div>
                         <div className="bg-white p-4 rounded-xl shadow-md border border-gray-100 flex items-center gap-4">
@@ -301,11 +314,12 @@ export const LeaveCalendarView: React.FC<LeaveCalendarViewProps> = ({ leaveReque
                             </div>
                             <div>
                                 <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">ลากิจคงเหลือ</p>
-                                <p className="text-lg font-black text-gray-900">{currentUser.leaveQuotas.personal} วัน</p>
+                                <p className="text-lg font-black text-gray-900">{remainingQuotas.personal} วัน</p>
                             </div>
                         </div>
                     </div>
                 )}
+
 
                 {/* Leave History List & Approval Section */}
                 <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 w-full">
