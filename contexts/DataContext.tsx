@@ -4,7 +4,8 @@ import {
     MenuItem, Table, ActiveOrder, CompletedOrder, CancelledOrder, 
     StockItem, StockTag, StockLog, PrintHistoryEntry, MaintenanceItem, MaintenanceLog, 
     OrderCounter, StaffCall, LeaveRequest, PrinterConfig, DeliveryProvider,
-    User, Branch, JobApplication, EmploymentContract, TimeRecord, PayrollRecord
+    User, Branch, JobApplication, EmploymentContract, TimeRecord, PayrollRecord,
+    Recipe
 } from '../types';
 import { 
     DEFAULT_MENU_ITEMS, DEFAULT_CATEGORIES, DEFAULT_TABLES, DEFAULT_FLOORS,
@@ -35,6 +36,8 @@ interface DataContextType {
     // Core Data
     menuItems: MenuItem[];
     setMenuItems: React.Dispatch<React.SetStateAction<MenuItem[]>>;
+    recipes: Recipe[];
+    setRecipes: React.Dispatch<React.SetStateAction<Recipe[]>>;
     categories: string[];
     setCategories: React.Dispatch<React.SetStateAction<string[]>>;
     tables: Table[];
@@ -361,6 +364,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // --- ESSENTIAL DATA ---
     const [menuItems, setMenuItems] = useFirestoreSync<MenuItem[]>(branchId, 'menuItems', [], DEFAULT_MENU_ITEMS);
+    const [recipes, setRecipes] = useFirestoreSync<Recipe[]>(branchId, 'recipes', []);
     const [categories, setCategories] = useFirestoreSync<string[]>(branchId, 'categories', [], DEFAULT_CATEGORIES);
     const [tables, setTables] = useFirestoreSync<Table[]>(branchId, 'tables', [], DEFAULT_TABLES);
     const [floors, setFloors] = useFirestoreSync<string[]>(branchId, 'floors', [], DEFAULT_FLOORS);
@@ -503,7 +507,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
             selectedBranch, setSelectedBranch, isCustomerMode, setIsCustomerMode,
             customerTableId, setCustomerTableId, branchId, heavyDataBranchId, shouldLoadHeavyData,
             
-            menuItems, setMenuItems, categories, setCategories, tables, setTables, floors, setFloors,
+            menuItems, setMenuItems, recipes, setRecipes, categories, setCategories, tables, setTables, floors, setFloors,
             recommendedMenuItemIds, setRecommendedMenuItemIds, activeOrders, rawActiveOrders, activeOrdersActions,
             
             legacyCompletedOrders, setLegacyCompletedOrders, legacyCancelledOrders, setLegacyCancelledOrders,

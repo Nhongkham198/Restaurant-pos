@@ -1012,9 +1012,9 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                 </header>
 
                 {/* ... (Existing table and card code remains unchanged) ... */}
-                <div className="flex-1 overflow-hidden p-4 md:p-6">
+                <div className="flex-1 flex flex-col min-h-0 p-4 md:p-6">
                     {/* Desktop Table Layout */}
-                    <div className="hidden md:flex flex-col h-full bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                    <div className="hidden md:flex flex-col flex-1 min-h-0 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                         <div className="grid grid-cols-13 gap-4 px-6 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider bg-gray-50 border-b border-gray-200 sticky top-0 z-10 items-center">
                             <div className="col-span-1">รูปภาพ</div>
                             <div className="col-span-2">ชื่อวัตถุดิบ</div>
@@ -1178,7 +1178,7 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                     </div>
 
                     {/* Mobile/Tablet Card Layout */}
-                    <div className="md:hidden space-y-3 pb-24 overflow-y-auto h-full">
+                    <div className="md:hidden space-y-3 pb-24 overflow-y-auto flex-1">
                         {filteredItems.length > 0 ? filteredItems.map((item, index) => {
                             if (!item) return null;
                             const status = getStatus(item);

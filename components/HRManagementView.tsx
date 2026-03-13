@@ -915,7 +915,7 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
     };
 
     return (
-        <div className="bg-gray-900 min-h-screen text-white w-full">
+        <div className="bg-gray-900 h-full overflow-y-auto text-white w-full pb-24">
             <div className="p-6">
                 <h1 className="text-3xl font-bold mb-6 flex items-center gap-3">
                     <span className="text-blue-500">👥</span> จัดการบุคคล (HR Management)

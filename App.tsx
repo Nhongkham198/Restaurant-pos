@@ -26,6 +26,7 @@ import type {
     User, 
     CompletedOrder, 
     CancelledOrder, 
+    Recipe,
     PrinterConfig, 
     Branch, 
     StockItem, 
@@ -69,6 +70,7 @@ const Dashboard = lazy(() => import('./components/Dashboard').then(module => ({ 
 const SalesHistory = lazy(() => import('./components/SalesHistory').then(module => ({ default: module.SalesHistory })));
 const StockManagement = lazy(() => import('./components/StockManagement').then(module => ({ default: module.StockManagement })));
 const StockAnalytics = lazy(() => import('./components/StockAnalytics').then(module => ({ default: module.StockAnalytics })));
+const RecipeManagement = lazy(() => import('./components/RecipeManagement').then(module => ({ default: module.RecipeManagement })));
 const LeaveCalendarView = lazy(() => import('./components/LeaveCalendarView').then(module => ({ default: module.LeaveCalendarView })));
 const LeaveAnalytics = lazy(() => import('./components/LeaveAnalytics').then(module => ({ default: module.LeaveAnalytics })));
 const AdminSidebar = lazy(() => import('./components/AdminSidebar')); // Default export
@@ -139,6 +141,7 @@ export const App: React.FC = () => {
         branchId, heavyDataBranchId, shouldLoadHeavyData,
         // Essential Data
         menuItems, setMenuItems,
+        recipes, setRecipes,
         categories, setCategories,
         tables, setTables,
         floors, setFloors,
@@ -1343,6 +1346,7 @@ export const App: React.FC = () => {
                                             {currentView === 'dashboard' && <Dashboard completedOrders={completedOrders} cancelledOrders={cancelledOrders} openingTime={openingTime || '10:00'} closingTime={closingTime || '22:00'} currentUser={currentUser} />}
                                             {currentView === 'history' && <SalesHistory completedOrders={completedOrders} cancelledOrders={cancelledOrders} printHistory={printHistory} onReprint={() => {}} onSplitOrder={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isSplitCompleted: true}))}} isEditMode={isEditMode} onEditOrder={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isEditCompleted: true}))}} onInitiateCashBill={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isCashBill: true}))}} onDeleteHistory={handleDeleteHistory} currentUser={currentUser} onReprintReceipt={handleReprintReceipt} />}
                                             {currentView === 'stock' && <StockManagement stockItems={stockItems} setStockItems={setStockItems} stockTags={stockTags} setStockTags={setStockTags} stockCategories={stockCategories} setStockCategories={setStockCategories} stockUnits={stockUnits} setStockUnits={setStockUnits} stockLogs={stockLogs} stockLogsActions={stockLogsActions} currentUser={currentUser} isTagModalOpen={modalState.isTagRegistration} onOpenTagModal={() => setModalState(prev => ({ ...prev, isTagRegistration: true }))} onCloseTagModal={() => setModalState(prev => ({ ...prev, isTagRegistration: false }))} />}
+                                            {currentView === 'recipes' && <RecipeManagement menuItems={menuItems} recipes={recipes} setRecipes={setRecipes} stockItems={stockItems} currentUser={currentUser} />}
                                             {currentView === 'stock-analytics' && <StockAnalytics stockItems={stockItems} />}
                                             {currentView === 'leave' && <LeaveCalendarView leaveRequests={leaveRequests} currentUser={currentUser} onOpenRequestModal={(date) => { setLeaveRequestInitialDate(date); setModalState(prev => ({...prev, isLeaveRequest: true})); }} branches={branches} onUpdateStatus={(id, status) => setLeaveRequests(prev => prev.map(r => r.id === id ? {...r, status} : r))} onDeleteRequest={async (id) => {setLeaveRequests(prev => prev.filter(r => r.id !== id)); return true;}} selectedBranch={selectedBranch} />}
                                             {currentView === 'leave-analytics' && <LeaveAnalytics leaveRequests={leaveRequests} users={users} />}
@@ -1389,6 +1393,7 @@ export const App: React.FC = () => {
                             {currentView === 'dashboard' && <Dashboard completedOrders={completedOrders} cancelledOrders={cancelledOrders} openingTime={openingTime || '10:00'} closingTime={closingTime || '22:00'} currentUser={currentUser} />}
                             {currentView === 'history' && <SalesHistory completedOrders={completedOrders} cancelledOrders={cancelledOrders} printHistory={printHistory} onReprint={() => {}} onSplitOrder={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isSplitCompleted: true}))}} isEditMode={isEditMode} onEditOrder={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isEditCompleted: true}))}} onInitiateCashBill={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isCashBill: true}))}} onDeleteHistory={handleDeleteHistory} currentUser={currentUser} onReprintReceipt={handleReprintReceipt} />}
                             {currentView === 'stock' && <StockManagement stockItems={stockItems} setStockItems={setStockItems} stockTags={stockTags} setStockTags={setStockTags} stockCategories={stockCategories} setStockCategories={setStockCategories} stockUnits={stockUnits} setStockUnits={setStockUnits} stockLogs={stockLogs} stockLogsActions={stockLogsActions} currentUser={currentUser} isTagModalOpen={modalState.isTagRegistration} onOpenTagModal={() => setModalState(prev => ({ ...prev, isTagRegistration: true }))} onCloseTagModal={() => setModalState(prev => ({ ...prev, isTagRegistration: false }))} />}
+                            {currentView === 'recipes' && <RecipeManagement menuItems={menuItems} recipes={recipes} setRecipes={setRecipes} stockItems={stockItems} currentUser={currentUser} />}
                             {currentView === 'stock-analytics' && <StockAnalytics stockItems={stockItems} />}
                             {currentView === 'leave' && <LeaveCalendarView leaveRequests={leaveRequests} currentUser={currentUser} onOpenRequestModal={(date) => { setLeaveRequestInitialDate(date); setModalState(prev => ({...prev, isLeaveRequest: true})); }} branches={branches} onUpdateStatus={(id, status) => setLeaveRequests(prev => prev.map(r => r.id === id ? {...r, status} : r))} onDeleteRequest={async (id) => {setLeaveRequests(prev => prev.filter(r => r.id !== id)); return true;}} selectedBranch={selectedBranch} />}
                             {currentView === 'leave-analytics' && <LeaveAnalytics leaveRequests={leaveRequests} users={users} />}

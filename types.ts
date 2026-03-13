@@ -240,6 +240,7 @@ export interface StockItem {
     imageUrl?: string; // Added image URL support
     quantity: number;
     unit: string;
+    unitPrice?: number; // Added: Cost per unit for recipe calculation
     reorderPoint: number;
     withdrawalCount?: number; // Count since last restock
     monthlyWithdrawals?: Record<string, number>; // History of withdrawals per month (Key: "YYYY-MM", Value: Count)
@@ -300,7 +301,7 @@ export interface MaintenanceLog {
     afterImage?: string; // Base64
 }
 
-export type View = 'pos' | 'kitchen' | 'tables' | 'dashboard' | 'history' | 'stock' | 'stock-analytics' | 'leave' | 'leave-analytics' | 'maintenance' | 'hr' | 'hr-payroll';
+export type View = 'pos' | 'kitchen' | 'tables' | 'dashboard' | 'history' | 'stock' | 'stock-analytics' | 'recipes' | 'leave' | 'leave-analytics' | 'maintenance' | 'hr' | 'hr-payroll';
 
 export interface NavItem {
     id: string;
@@ -399,6 +400,23 @@ export interface TimeRecord {
     totalHours?: number;
     status: 'on-time' | 'late' | 'absent';
     notes?: string;
+}
+
+export interface RecipeIngredient {
+    stockItemId: number;
+    quantity: number; // Quantity used per 1 unit of menu item
+    unit: string;
+    unitPrice?: number; // Added: Custom unit price for this recipe
+}
+
+export interface Recipe {
+    id: string; // Usually menu item ID as string
+    menuItemId: number;
+    ingredients: RecipeIngredient[];
+    additionalCost: number; // e.g. packaging
+    hiddenCostPercentage?: number; // Added: Hidden cost percentage (e.g. 10)
+    lastUpdated: number;
+    lastUpdatedBy: string;
 }
 
 export interface PayrollRecord {
