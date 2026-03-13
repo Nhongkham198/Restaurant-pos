@@ -21,6 +21,7 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
 }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedCategory, setSelectedCategory] = useState('ทั้งหมด');
+    const [sortOrder, setSortOrder] = useState<'none' | 'profit-asc' | 'profit-desc'>('none');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedMenuItem, setSelectedMenuItem] = useState<MenuItem | null>(null);
 
@@ -51,12 +52,31 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
     };
 
     const filteredItems = useMemo(() => {
-        return menuItems.filter(item => {
+        let items = menuItems.filter(item => {
             const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase());
             const matchesCategory = selectedCategory === 'ทั้งหมด' || item.category === selectedCategory;
             return matchesSearch && matchesCategory;
         });
-    }, [menuItems, searchTerm, selectedCategory]);
+
+        if (sortOrder !== 'none') {
+            items.sort((a, b) => {
+                const recipeA = recipeMap.get(a.id);
+                const recipeB = recipeMap.get(b.id);
+                const costA = recipeA ? calculateCost(recipeA) : 0;
+                const costB = recipeB ? calculateCost(recipeB) : 0;
+                const profitA = a.price - costA;
+                const profitB = b.price - costB;
+
+                if (sortOrder === 'profit-asc') {
+                    return profitA - profitB;
+                } else {
+                    return profitB - profitA;
+                }
+            });
+        }
+
+        return items;
+    }, [menuItems, searchTerm, selectedCategory, sortOrder, recipeMap, stockItems]);
 
     const handleOpenModal = (menuItem: MenuItem) => {
         setSelectedMenuItem(menuItem);
@@ -69,7 +89,35 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
                     <div>
                         <h1 className="text-2xl font-bold text-gray-900">จัดการสูตรอาหารและต้นทุน</h1>
-                        <p className="text-gray-500">คำนวณต้นทุนและกำไรของแต่ละเมนู (เฉพาะผู้ดูแลระบบ)</p>
+                        <p className="text-gray-500 text-sm">คำนวณต้นทุนและกำไรของแต่ละเมนู (เฉพาะผู้ดูแลระบบ)</p>
+                    </div>
+                    <div className="flex gap-2">
+                        <button 
+                            onClick={() => setSortOrder(prev => prev === 'profit-desc' ? 'none' : 'profit-desc')}
+                            className={`px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-all ${
+                                sortOrder === 'profit-desc' 
+                                ? 'bg-green-600 text-white shadow-lg shadow-green-100' 
+                                : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
+                            }`}
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
+                            </svg>
+                            กำไรมาก → น้อย
+                        </button>
+                        <button 
+                            onClick={() => setSortOrder(prev => prev === 'profit-asc' ? 'none' : 'profit-asc')}
+                            className={`px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-all ${
+                                sortOrder === 'profit-asc' 
+                                ? 'bg-blue-600 text-white shadow-lg shadow-blue-100' 
+                                : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
+                            }`}
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h9m5-4v12m0 0l-4-4m4 4l4-4" />
+                            </svg>
+                            กำไรน้อย → มาก
+                        </button>
                     </div>
                 </div>
 
