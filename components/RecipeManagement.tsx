@@ -204,7 +204,7 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
 
     return (
         <div className="h-full overflow-y-auto p-4 lg:p-6 bg-gray-50">
-            <div className="max-w-7xl mx-auto">
+            <div className="w-full">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
                     <div className="flex flex-col md:flex-row md:items-center gap-4">
                         <div>
@@ -309,7 +309,7 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
                 </div>
 
                 {/* Menu Items Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
                     {filteredItems.map((item, index) => {
                         const recipe = recipeMap.get(item.id);
                         const cost = recipe ? calculateCost(recipe) : 0;
