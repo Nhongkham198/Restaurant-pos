@@ -1,8 +1,9 @@
 
-import React, { useState, useMemo } from 'react';
-import type { MenuItem, StockItem, Recipe, User } from '../types';
+import React, { useState, useMemo, useRef } from 'react';
+import type { MenuItem, StockItem, Recipe, User, RecipeIngredient } from '../types';
 import Swal from 'sweetalert2';
 import { RecipeModal } from './RecipeModal';
+import * as XLSX from 'xlsx';
 
 interface RecipeManagementProps {
     menuItems: MenuItem[];
@@ -24,6 +25,124 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
     const [sortOrder, setSortOrder] = useState<'none' | 'profit-asc' | 'profit-desc'>('none');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedMenuItem, setSelectedMenuItem] = useState<MenuItem | null>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const lastUpdateInfo = useMemo(() => {
+        if (recipes.length === 0) return null;
+        const latestRecipe = [...recipes].sort((a, b) => (b.lastUpdated || 0) - (a.lastUpdated || 0))[0];
+        if (!latestRecipe || !latestRecipe.lastUpdated) return null;
+        
+        const timeStr = new Date(latestRecipe.lastUpdated).toLocaleString('th-TH', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+        
+        return {
+            time: timeStr,
+            user: latestRecipe.lastUpdatedBy
+        };
+    }, [recipes]);
+
+    const handleExport = () => {
+        const exportData = recipes.map(recipe => {
+            const menuItem = menuItems.find(m => m.id === recipe.menuItemId);
+            return {
+                'Menu Item ID': recipe.menuItemId,
+                'Menu Name': menuItem?.name || 'Unknown',
+                'Additional Cost': recipe.additionalCost,
+                'Hidden Cost %': recipe.hiddenCostPercentage || 0,
+                'Ingredients': JSON.stringify(recipe.ingredients.map(ing => {
+                    const stockItem = stockItems.find(s => s.id === ing.stockItemId);
+                    return {
+                        stockItemId: ing.stockItemId,
+                        name: stockItem?.name || 'Unknown',
+                        quantity: ing.quantity,
+                        unit: ing.unit,
+                        unitPrice: ing.unitPrice
+                    };
+                })),
+                'Last Updated': new Date(recipe.lastUpdated).toLocaleString('th-TH'),
+                'Updated By': recipe.lastUpdatedBy
+            };
+        });
+
+        const ws = XLSX.utils.json_to_sheet(exportData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Recipes");
+        XLSX.writeFile(wb, `recipes_export_${new Date().toISOString().split('T')[0]}.xlsx`);
+    };
+
+    const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+            try {
+                const bstr = evt.target?.result;
+                const wb = XLSX.read(bstr, { type: 'binary' });
+                const wsname = wb.SheetNames[0];
+                const ws = wb.Sheets[wsname];
+                const data = XLSX.utils.sheet_to_json(ws) as any[];
+
+                const newRecipes: Recipe[] = data.map(row => {
+                    let ingredients: RecipeIngredient[] = [];
+                    try {
+                        ingredients = JSON.parse(row['Ingredients']);
+                    } catch (err) {
+                        console.error("Error parsing ingredients for row", row);
+                    }
+
+                    return {
+                        id: row['Menu Item ID'].toString(),
+                        menuItemId: Number(row['Menu Item ID']),
+                        additionalCost: Number(row['Additional Cost'] || 0),
+                        hiddenCostPercentage: Number(row['Hidden Cost %'] || 0),
+                        ingredients: ingredients.map(ing => ({
+                            stockItemId: Number(ing.stockItemId),
+                            quantity: Number(ing.quantity),
+                            unit: ing.unit,
+                            unitPrice: ing.unitPrice ? Number(ing.unitPrice) : undefined
+                        })),
+                        lastUpdated: Date.now(),
+                        lastUpdatedBy: currentUser?.username || 'System'
+                    };
+                });
+
+                setRecipes(prev => {
+                    const updated = [...prev];
+                    newRecipes.forEach(nr => {
+                        const index = updated.findIndex(r => r.menuItemId === nr.menuItemId);
+                        if (index >= 0) {
+                            updated[index] = nr;
+                        } else {
+                            updated.push(nr);
+                        }
+                    });
+                    return updated;
+                });
+
+                Swal.fire({
+                    icon: 'success',
+                    title: 'นำเข้าข้อมูลเรียบร้อย',
+                    text: `นำเข้าสูตรอาหารจำนวน ${newRecipes.length} รายการ`,
+                    timer: 2000,
+                    showConfirmButton: false
+                });
+            } catch (err) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'เกิดข้อผิดพลาดในการนำเข้า',
+                    text: 'กรุณาตรวจสอบรูปแบบไฟล์ Excel'
+                });
+            }
+        };
+        reader.readAsBinaryString(file);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+    };
 
     const categories = useMemo(() => {
         const cats = new Set(menuItems.map(item => item.category));
@@ -87,11 +206,48 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
         <div className="h-full overflow-y-auto p-4 lg:p-6 bg-gray-50">
             <div className="max-w-7xl mx-auto">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-                    <div>
-                        <h1 className="text-2xl font-bold text-gray-900">จัดการสูตรอาหารและต้นทุน</h1>
-                        <p className="text-gray-500 text-sm">คำนวณต้นทุนและกำไรของแต่ละเมนู (เฉพาะผู้ดูแลระบบ)</p>
+                    <div className="flex flex-col md:flex-row md:items-center gap-4">
+                        <div>
+                            <h1 className="text-2xl font-bold text-gray-900">จัดการสูตรอาหารและต้นทุน</h1>
+                            <p className="text-gray-500 text-sm">คำนวณต้นทุนและกำไรของแต่ละเมนู (เฉพาะผู้ดูแลระบบ)</p>
+                        </div>
+                        {lastUpdateInfo && (
+                            <div className="bg-blue-50 border border-blue-100 px-4 py-2 rounded-xl flex items-center gap-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                <span className="text-sm font-medium text-blue-700">
+                                    แก้ไขล่าสุด: {lastUpdateInfo.time} โดย {lastUpdateInfo.user}
+                                </span>
+                            </div>
+                        )}
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
+                        <input
+                            type="file"
+                            ref={fileInputRef}
+                            onChange={handleImport}
+                            accept=".xlsx, .xls"
+                            className="hidden"
+                        />
+                        <button 
+                            onClick={() => fileInputRef.current?.click()}
+                            className="px-4 py-2 bg-white text-gray-700 border border-gray-200 rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-gray-50 transition-all shadow-sm"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                            </svg>
+                            Import Excel
+                        </button>
+                        <button 
+                            onClick={handleExport}
+                            className="px-4 py-2 bg-white text-gray-700 border border-gray-200 rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-gray-50 transition-all shadow-sm"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                            </svg>
+                            Export Excel
+                        </button>
                         <button 
                             onClick={() => setSortOrder(prev => prev === 'profit-desc' ? 'none' : 'profit-desc')}
                             className={`px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-all ${
@@ -122,7 +278,7 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
                 </div>
 
                 {/* Filters */}
-                <div className="bg-white p-4 rounded-xl shadow-sm mb-6 flex flex-col md:flex-row gap-4">
+                <div className="sticky top-0 z-20 bg-white/95 backdrop-blur-sm p-4 rounded-xl shadow-md mb-6 flex flex-col md:flex-row gap-4 border border-gray-100">
                     <div className="flex-1 relative">
                         <input
                             type="text"
@@ -154,7 +310,7 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
 
                 {/* Menu Items Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {filteredItems.map(item => {
+                    {filteredItems.map((item, index) => {
                         const recipe = recipeMap.get(item.id);
                         const cost = recipe ? calculateCost(recipe) : 0;
                         const profit = item.price - cost;
@@ -171,7 +327,14 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
                                     <div className="flex-1 min-w-0">
                                         <h3 className="font-bold text-gray-900 truncate">{item.name}</h3>
                                         <p className="text-sm text-gray-500">{item.category}</p>
-                                        <p className="text-lg font-bold text-blue-600 mt-1">฿{item.price.toLocaleString()}</p>
+                                        <div className="flex items-center justify-between mt-1">
+                                            <p className="text-lg font-bold text-blue-600">฿{item.price.toLocaleString()}</p>
+                                            {sortOrder !== 'none' && (
+                                                <span className="bg-red-600 text-white px-2 py-0.5 rounded-lg text-xs font-bold shadow-sm">
+                                                    อันดับ {index + 1}
+                                                </span>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
                                 
