@@ -96,11 +96,19 @@ exports.sendHighPriorityOrderNotification = functions.region('asia-southeast1').
                 }).join('\n');
                 
                 const displayOrderNumber = newOrder.manualOrderNumber ? `#${newOrder.manualOrderNumber}` : `#${newOrder.orderNumber}`;
-                const messageText = `<b>🔔 มีออเดอร์ใหม่!</b>\n` +
+                let messageText = `<b>🔔 มีออเดอร์ใหม่!</b>\n` +
                                     `📍 โต๊ะ: ${newOrder.tableName}\n` +
                                     `🔢 ออเดอร์: ${displayOrderNumber}\n` +
                                     `📋 รายการ:\n${itemsList}\n` +
                                     `💰 ยอดรวม: ${totalAmount} บาท`;
+
+                if (newOrder.customerPhone) {
+                    messageText += `\n📞 เบอร์โทร: ${newOrder.customerPhone}`;
+                }
+
+                if (newOrder.latitude && newOrder.longitude) {
+                    messageText += `\n📍 พิกัด: <a href="https://www.google.com/maps?q=${newOrder.latitude},${newOrder.longitude}">เปิดใน Google Maps</a>`;
+                }
 
                 await sendTelegramMessage(telToken, telChatId, messageText);
             }
@@ -381,11 +389,19 @@ exports.sendLineOrderNotification = functions.region('asia-southeast1').firestor
         // Use manualOrderNumber (e.g. LineMan #9702) if available, otherwise use run number
         const displayOrderNumber = newOrder.manualOrderNumber ? `#${newOrder.manualOrderNumber}` : `#${newOrder.orderNumber}`;
 
-        const messageText = `🔔 มีออเดอร์ใหม่!\n` +
+        let messageText = `🔔 มีออเดอร์ใหม่!\n` +
                             `โต๊ะ: ${newOrder.tableName}\n` +
                             `ออเดอร์: ${displayOrderNumber}\n` +
                             `รายการ:\n${itemsList}\n` +
                             `ยอดรวม: ${totalAmount} บาท`;
+
+        if (newOrder.customerPhone) {
+            messageText += `\n📞 เบอร์โทร: ${newOrder.customerPhone}`;
+        }
+
+        if (newOrder.latitude && newOrder.longitude) {
+            messageText += `\n📍 พิกัด: https://www.google.com/maps?q=${newOrder.latitude},${newOrder.longitude}`;
+        }
 
         // 3. Send Request to LINE Messaging API using built-in https module
         try {

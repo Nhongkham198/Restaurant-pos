@@ -54,7 +54,15 @@ export const formatOrderMessage = (order: any) => {
     });
     
     message += `--------------------------\n`;
-    message += `💰 ยอดรวม: <b>฿${order.items.reduce((sum: number, item: any) => sum + item.finalPrice, 0).toLocaleString()}</b>`;
+    message += `💰 ยอดรวม: <b>฿${order.items.reduce((sum: number, item: any) => sum + (item.finalPrice * item.quantity), 0).toLocaleString()}</b>`;
+    
+    if (order.customerPhone) {
+        message += `\n📞 เบอร์โทร: ${order.customerPhone}`;
+    }
+    
+    if (order.latitude && order.longitude) {
+        message += `\n📍 พิกัด: <a href="https://www.google.com/maps?q=${order.latitude},${order.longitude}">เปิดใน Google Maps</a>`;
+    }
     
     return message;
 };
