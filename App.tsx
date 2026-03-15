@@ -98,6 +98,7 @@ const SettingsModal = lazy(() => import('./components/SettingsModal').then(modul
 import { EditCompletedOrderModal } from './components/EditCompletedOrderModal';
 import { UserManagerModal } from './components/UserManagerModal';
 import { BranchManagerModal } from './components/BranchManagerModal';
+import { StaffChat } from './components/StaffChat';
 import { MoveTableModal } from './components/MoveTableModal';
 import { CancelOrderModal } from './components/CancelOrderModal';
 import { CashBillModal } from './components/CashBillModal';
@@ -1660,6 +1661,7 @@ export const App: React.FC = () => {
             />
             <MenuSearchModal isOpen={modalState.isMenuSearch} onClose={handleModalClose} menuItems={menuItems} onSelectItem={handleAddItemToOrder} onToggleAvailability={handleToggleAvailability} />
             <MergeBillModal isOpen={modalState.isMergeBill} onClose={handleModalClose} order={orderForModal as ActiveOrder} allActiveOrders={activeOrders} tables={tables} onConfirmMerge={handleConfirmMerge} />
+            <StaffChat />
         </div>
     );
 };

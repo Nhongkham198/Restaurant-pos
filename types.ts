@@ -39,6 +39,15 @@ export interface User {
     fcmTokens?: string[]; // For Push Notifications on multiple devices
 }
 
+export interface StaffMessage {
+    id: string;
+    senderId: number;
+    senderName: string;
+    text: string;
+    timestamp: number;
+    branchId: number;
+}
+
 export interface MenuOption {
     id: string;
     name: string;
