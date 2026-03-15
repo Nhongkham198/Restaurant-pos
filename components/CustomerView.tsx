@@ -1248,15 +1248,29 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                                     </button>
                                 </div>
                                 {location ? (
-                                    <div className="bg-green-50 border border-green-200 p-3 rounded-lg flex items-center gap-3">
-                                        <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                            </svg>
+                                    <div className="space-y-3">
+                                        <div className="bg-green-50 border border-green-200 p-3 rounded-lg flex items-center gap-3">
+                                            <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                                </svg>
+                                            </div>
+                                            <div>
+                                                <p className="text-xs font-bold text-green-800">ระบุตำแหน่งสำเร็จ</p>
+                                                <p className="text-[10px] text-green-600 font-mono">{location.lat.toFixed(6)}, {location.lng.toFixed(6)}</p>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <p className="text-xs font-bold text-green-800">ระบุตำแหน่งสำเร็จ</p>
-                                            <p className="text-[10px] text-green-600 font-mono">{location.lat.toFixed(6)}, {location.lng.toFixed(6)}</p>
+                                        {/* NEW: Mini Map Display */}
+                                        <div className="w-full h-48 rounded-xl overflow-hidden border border-gray-300 shadow-inner bg-gray-200">
+                                            <iframe 
+                                                width="100%" 
+                                                height="100%" 
+                                                style={{ border: 0 }}
+                                                loading="lazy"
+                                                allowFullScreen
+                                                referrerPolicy="no-referrer-when-downgrade"
+                                                src={`https://maps.google.com/maps?q=${location.lat},${location.lng}&z=16&output=embed`}
+                                            ></iframe>
                                         </div>
                                     </div>
                                 ) : (
