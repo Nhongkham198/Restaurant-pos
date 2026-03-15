@@ -11,7 +11,24 @@ export const StaffChat: React.FC = () => {
     const [messages, setMessages] = useState<StaffMessage[]>([]);
     const [inputText, setInputText] = useState('');
     const [unreadCount, setUnreadCount] = useState(0);
+    const [windowDirection, setWindowDirection] = useState<'up' | 'down'>('up');
     const scrollRef = useRef<HTMLDivElement>(null);
+    const buttonRef = useRef<HTMLButtonElement>(null);
+    const constraintsRef = useRef<HTMLDivElement>(null);
+
+    const handleDrag = () => {
+        if (buttonRef.current) {
+            const rect = buttonRef.current.getBoundingClientRect();
+            const centerY = rect.top + rect.height / 2;
+            // If the button center is in the top half of the screen, show window below
+            if (centerY < window.innerHeight / 2) {
+                setWindowDirection('down');
+            } else {
+                setWindowDirection('up');
+            }
+        }
+    };
+
     const [lastReadTimestamp, setLastReadTimestamp] = useState<number>(() => {
         const saved = localStorage.getItem('staff_chat_last_read');
         return saved ? parseInt(saved, 10) : 0;
@@ -118,19 +135,25 @@ export const StaffChat: React.FC = () => {
     if (!isStaff) return null;
 
     return (
-        <motion.div 
-            drag
-            dragMomentum={false}
-            className="fixed bottom-6 right-6 z-50 flex flex-col items-end pointer-events-none"
-        >
-            <div className="pointer-events-auto flex flex-col items-end">
+        <div ref={constraintsRef} className="fixed inset-0 pointer-events-none z-50 overflow-hidden">
+            <motion.div 
+                drag
+                dragConstraints={constraintsRef}
+                dragElastic={0}
+                dragMomentum={false}
+                onDrag={handleDrag}
+                className="fixed bottom-6 right-6 flex flex-col items-end pointer-events-none"
+            >
+                <div className={`pointer-events-auto flex ${windowDirection === 'up' ? 'flex-col' : 'flex-col-reverse'} items-end`}>
                 <AnimatePresence>
                     {isOpen && (
                         <motion.div
-                            initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                            initial={{ opacity: 0, y: windowDirection === 'up' ? 10 : -10, scale: 0.95 }}
                             animate={{ opacity: 1, y: 0, scale: 1 }}
-                            exit={{ opacity: 0, y: 20, scale: 0.95 }}
-                            className="bg-white rounded-2xl shadow-2xl border border-gray-100 w-80 sm:w-96 h-[500px] flex flex-col mb-4 overflow-hidden"
+                            exit={{ opacity: 0, y: windowDirection === 'up' ? 10 : -10, scale: 0.95 }}
+                            className={`bg-white rounded-2xl shadow-2xl border border-gray-100 w-80 sm:w-96 h-[550px] flex flex-col overflow-hidden ${
+                                windowDirection === 'up' ? 'mb-3' : 'mt-3'
+                            }`}
                         >
                             {/* Header */}
                             <div className="bg-emerald-600 p-4 flex items-center justify-between text-white cursor-move">
@@ -216,6 +239,7 @@ export const StaffChat: React.FC = () => {
 
                 {/* Floating Toggle Button */}
                 <motion.button
+                    ref={buttonRef}
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                     onClick={() => setIsOpen(!isOpen)}
@@ -237,5 +261,6 @@ export const StaffChat: React.FC = () => {
                 </motion.button>
             </div>
         </motion.div>
+    </div>
     );
 };
