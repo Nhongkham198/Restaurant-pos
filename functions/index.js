@@ -102,12 +102,14 @@ exports.sendHighPriorityOrderNotification = functions.region('asia-southeast1').
                                     `📋 รายการ:\n${itemsList}\n` +
                                     `💰 ยอดรวม: ${totalAmount} บาท`;
 
-                if (newOrder.customerPhone) {
-                    messageText += `\n📞 เบอร์โทร: ${newOrder.customerPhone}`;
+                if (newOrder.customerPhone || newOrder.phone) {
+                    messageText += `\n📞 เบอร์โทร: ${newOrder.customerPhone || newOrder.phone}`;
                 }
 
-                if (newOrder.latitude && newOrder.longitude) {
-                    messageText += `\n📍 พิกัด: <a href="https://www.google.com/maps?q=${newOrder.latitude},${newOrder.longitude}">เปิดใน Google Maps</a>`;
+                if ((newOrder.latitude && newOrder.longitude) || (newOrder.lat && newOrder.lng)) {
+                    const lat = newOrder.latitude || newOrder.lat;
+                    const lng = newOrder.longitude || newOrder.lng;
+                    messageText += `\n📍 พิกัด: <a href="https://www.google.com/maps?q=${lat},${lng}">เปิดใน Google Maps</a>`;
                 }
 
                 await sendTelegramMessage(telToken, telChatId, messageText);
@@ -356,21 +358,20 @@ exports.sendLineOrderNotification = functions.region('asia-southeast1').firestor
         if (!newOrder) return null;
 
         // 1. Get Branch Config (LINE Token & User ID) from sub-documents
-        // Based on useFirestoreSync logic: branches/{branchId}/{collectionKey}/data
-        const [tokenDoc, userIdDoc] = await Promise.all([
+        const [tokenDoc, userIdDoc, notifyTokenDoc] = await Promise.all([
             admin.firestore().doc(`branches/${branchId}/lineMessagingToken/data`).get(),
-            admin.firestore().doc(`branches/${branchId}/lineUserId/data`).get()
+            admin.firestore().doc(`branches/${branchId}/lineUserId/data`).get(),
+            admin.firestore().doc(`branches/${branchId}/lineNotifyToken/data`).get()
         ]);
 
         const lineToken = tokenDoc.exists ? tokenDoc.data().value : null;
         const lineUserId = userIdDoc.exists ? userIdDoc.data().value : null;
+        const lineNotifyToken = notifyTokenDoc.exists ? notifyTokenDoc.data().value : null;
 
-        if (!lineToken || !lineUserId) {
-            console.log(`LINE Messaging API not configured for branch ${branchId}. (Token: ${!!lineToken}, ID: ${!!lineUserId})`);
+        if (!lineToken && !lineUserId && !lineNotifyToken) {
+            console.log(`LINE not configured for branch ${branchId}.`);
             return null;
         }
-
-        console.log(`Sending LINE notification for Order #${newOrder.orderNumber} to ${lineUserId}`);
 
         // 2. Construct Message
         const totalAmount = newOrder.items.reduce((sum, item) => sum + (item.finalPrice * item.quantity), 0).toFixed(2);
@@ -395,63 +396,102 @@ exports.sendLineOrderNotification = functions.region('asia-southeast1').firestor
                             `รายการ:\n${itemsList}\n` +
                             `ยอดรวม: ${totalAmount} บาท`;
 
-        if (newOrder.customerPhone) {
-            messageText += `\n📞 เบอร์โทร: ${newOrder.customerPhone}`;
+        if (newOrder.customerPhone || newOrder.phone) {
+            messageText += `\n📞 เบอร์โทร: ${newOrder.customerPhone || newOrder.phone}`;
         }
 
-        if (newOrder.latitude && newOrder.longitude) {
-            messageText += `\n📍 พิกัด: https://www.google.com/maps?q=${newOrder.latitude},${newOrder.longitude}`;
+        if ((newOrder.latitude && newOrder.longitude) || (newOrder.lat && newOrder.lng)) {
+            const lat = newOrder.latitude || newOrder.lat;
+            const lng = newOrder.longitude || newOrder.lng;
+            messageText += `\n📍 พิกัด: https://www.google.com/maps?q=${lat},${lng}`;
         }
 
-        // 3. Send Request to LINE Messaging API using built-in https module
-        try {
-            const https = require('https');
-            const postData = JSON.stringify({
-                to: lineUserId,
-                messages: [
-                    {
-                        type: 'text',
-                        text: messageText
+        // 3. Send via LINE Messaging API (Bot)
+        if (lineToken && lineUserId) {
+            try {
+                const https = require('https');
+                const postData = JSON.stringify({
+                    to: lineUserId,
+                    messages: [{ type: 'text', text: messageText }]
+                });
+
+                const options = {
+                    hostname: 'api.line.me',
+                    path: '/v2/bot/message/push',
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${lineToken}`,
+                        'Content-Length': Buffer.byteLength(postData)
                     }
-                ]
-            });
+                };
 
-            const options = {
-                hostname: 'api.line.me',
-                path: '/v2/bot/message/push',
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${lineToken}`,
-                    'Content-Length': Buffer.byteLength(postData)
-                }
-            };
-
-            await new Promise((resolve, reject) => {
-                const req = https.request(options, (res) => {
-                    let body = '';
-                    res.on('data', (chunk) => body += chunk);
-                    res.on('end', () => {
-                        if (res.statusCode >= 200 && res.statusCode < 300) {
-                            console.log('LINE notification sent successfully.');
+                await new Promise((resolve) => {
+                    const req = https.request(options, (res) => {
+                        let body = '';
+                        res.on('data', (chunk) => body += chunk);
+                        res.on('end', () => {
+                            if (res.statusCode >= 200 && res.statusCode < 300) {
+                                console.log('LINE Bot notification sent successfully.');
+                            } else {
+                                console.error('LINE Bot API Error:', body);
+                            }
                             resolve();
-                        } else {
-                            console.error('LINE API Error:', body);
-                            resolve(); // Resolve anyway to not crash the function
-                        }
+                        });
                     });
+                    req.on('error', (e) => {
+                        console.error('Failed to send LINE Bot notification:', e.message);
+                        resolve();
+                    });
+                    req.write(postData);
+                    req.end();
                 });
+            } catch (error) {
+                console.error('LINE Bot notification error:', error);
+            }
+        }
 
-                req.on('error', (e) => {
-                    console.error('Failed to send LINE notification:', e.message);
-                    resolve();
+        // 4. Send via LINE Notify
+        if (lineNotifyToken) {
+            try {
+                const https = require('https');
+                const querystring = require('querystring');
+                const postData = querystring.stringify({ message: messageText });
+
+                const options = {
+                    hostname: 'notify-api.line.me',
+                    path: '/api/notify',
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'Authorization': `Bearer ${lineNotifyToken}`,
+                        'Content-Length': Buffer.byteLength(postData)
+                    }
+                };
+
+                await new Promise((resolve) => {
+                    const req = https.request(options, (res) => {
+                        let body = '';
+                        res.on('data', (chunk) => body += chunk);
+                        res.on('end', () => {
+                            if (res.statusCode >= 200 && res.statusCode < 300) {
+                                console.log('LINE Notify sent successfully.');
+                            } else {
+                                console.error('LINE Notify API Error:', body);
+                            }
+                            resolve();
+                        });
+                    });
+                    req.on('error', (e) => {
+                        console.error('Failed to send LINE Notify:', e.message);
+                        resolve();
+                    });
+                    req.write(postData);
+                    req.end();
                 });
-
-                req.write(postData);
-                req.end();
-            });
-        } catch (error) {
-            console.error('Failed to send LINE notification:', error);
+            } catch (error) {
+                console.error('LINE Notify error:', error);
+            }
         }
 
         return null;
