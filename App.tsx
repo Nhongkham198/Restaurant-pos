@@ -188,7 +188,9 @@ export const App: React.FC = () => {
         lineMessagingToken, setLineMessagingToken,
         lineUserId, setLineUserId,
         telegramBotToken, setTelegramBotToken,
-        telegramChatId, setTelegramChatId
+        telegramChatId, setTelegramChatId,
+        lineOaUrl, setLineOaUrl,
+        facebookPageUrl, setFacebookPageUrl
     } = useData();
 
     // Re-introduce urlBranchId for local logic checks
@@ -1177,6 +1179,8 @@ export const App: React.FC = () => {
                         onLogout={handleLogout}
                         // FIX: Pass branchId to enable peeking feature for instant updates
                         branchId={branchId}
+                        lineOaUrl={lineOaUrl}
+                        facebookPageUrl={facebookPageUrl}
                     />
                 </Suspense>
              );
@@ -1568,7 +1572,7 @@ export const App: React.FC = () => {
                 <SettingsModal 
                     isOpen={modalState.isSettings} 
                     onClose={handleModalClose} 
-                    onSave={(newLogo, newAppLogo, qr, sound, staffSound, printer, open, close, address, phone, tax, signature, telToken, telChat) => { 
+                    onSave={(newLogo, newAppLogo, qr, sound, staffSound, printer, open, close, address, phone, tax, signature, telToken, telChat, lineOa, fbPage) => { 
                         setLogoUrl(newLogo); 
                         setAppLogoUrl(newAppLogo); 
                         setQrCodeUrl(qr); 
@@ -1583,6 +1587,8 @@ export const App: React.FC = () => {
                         setSignatureUrl(signature);
                         setTelegramBotToken(telToken || '');
                         setTelegramChatId(telChat || '');
+                        setLineOaUrl(lineOa);
+                        setFacebookPageUrl(fbPage);
                         handleModalClose(); 
                     }} 
                     currentLogoUrl={logoUrl} 
@@ -1603,6 +1609,8 @@ export const App: React.FC = () => {
                     currentRestaurantPhone={restaurantPhone}
                     currentTaxId={taxId}
                     currentSignatureUrl={signatureUrl}
+                    currentLineOaUrl={lineOaUrl}
+                    currentFacebookPageUrl={facebookPageUrl}
                     currentFacebookAppId={facebookAppId}
                     currentFacebookAppSecret={facebookAppSecret}
                     onSaveFacebookConfig={(appId, appSecret) => {

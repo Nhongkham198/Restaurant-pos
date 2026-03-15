@@ -23,7 +23,9 @@ interface SettingsModalProps {
         taxId: string,
         signatureUrl: string | null,
         telegramBotToken: string | null,
-        telegramChatId: string | null
+        telegramChatId: string | null,
+        lineOaUrl: string,
+        facebookPageUrl: string
     ) => void;
     currentLogoUrl: string | null;
     currentAppLogoUrl: string | null;
@@ -43,6 +45,8 @@ interface SettingsModalProps {
     currentRestaurantPhone: string;
     currentTaxId: string;
     currentSignatureUrl: string | null;
+    currentLineOaUrl: string;
+    currentFacebookPageUrl: string;
     currentFacebookAppId: string;
     currentFacebookAppSecret: string;
     onSaveFacebookConfig: (appId: string, appSecret: string) => void;
@@ -118,6 +122,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
         lineUserId: props.currentLineUserId,
         telegramBotToken: props.currentTelegramBotToken,
         telegramChatId: props.currentTelegramChatId,
+        lineOaUrl: props.currentLineOaUrl,
+        facebookPageUrl: props.currentFacebookPageUrl,
     });
 
     const [printerStatus, setPrinterStatus] = useState<{ kitchen: PrinterStatus; cashier: PrinterStatus }>({
@@ -159,6 +165,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
                 lineUserId: props.currentLineUserId,
                 telegramBotToken: props.currentTelegramBotToken,
                 telegramChatId: props.currentTelegramChatId,
+                lineOaUrl: props.currentLineOaUrl,
+                facebookPageUrl: props.currentFacebookPageUrl,
             });
             setTempRecommendedIds(props.currentRecommendedMenuItemIds || []);
             setTempDeliveryProviders(props.deliveryProviders || []);
@@ -453,7 +461,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
             settingsForm.taxId,
             settingsForm.signatureUrl,
             settingsForm.telegramBotToken,
-            settingsForm.telegramChatId
+            settingsForm.telegramChatId,
+            settingsForm.lineOaUrl,
+            settingsForm.facebookPageUrl
         );
         props.onSaveRecommendedItems(tempRecommendedIds);
         props.onSaveDeliveryProviders(tempDeliveryProviders);
@@ -463,6 +473,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
         props.onSaveLineUserId(settingsForm.lineUserId);
         props.onSaveTelegramBotToken(settingsForm.telegramBotToken || '');
         props.onSaveTelegramChatId(settingsForm.telegramChatId || '');
+
+        Swal.fire({
+            icon: 'success',
+            title: 'บันทึกสำเร็จ',
+            text: 'ข้อมูลการตั้งค่าถูกบันทึกเรียบร้อยแล้ว',
+            timer: 1500,
+            showConfirmButton: false
+        });
     };
 
     const handleRecommendToggle = (itemId: number) => {
@@ -823,6 +841,31 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
                                             onChange={e => handleInputChange('taxId', e.target.value)} 
                                             className="mt-1 block w-full bg-gray-50 border border-gray-300 rounded-md shadow-sm p-2 focus:ring-blue-500 focus:border-blue-500" 
                                         />
+                                    </div>
+                                    <div className="md:col-span-2 border-t pt-4 mt-2">
+                                        <h4 className="text-sm font-bold text-gray-800 mb-3">ช่องทางการติดต่อ (Floating Contact Buttons)</h4>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="block text-xs text-gray-600 mb-1">Line OA URL</label>
+                                                <input 
+                                                    type="text" 
+                                                    value={settingsForm.lineOaUrl} 
+                                                    onChange={e => handleInputChange('lineOaUrl', e.target.value)} 
+                                                    placeholder="https://line.me/ti/p/..."
+                                                    className="w-full bg-gray-50 border border-gray-300 rounded-md shadow-sm p-2 focus:ring-blue-500 focus:border-blue-500 text-sm" 
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs text-gray-600 mb-1">Facebook Page URL</label>
+                                                <input 
+                                                    type="text" 
+                                                    value={settingsForm.facebookPageUrl} 
+                                                    onChange={e => handleInputChange('facebookPageUrl', e.target.value)} 
+                                                    placeholder="https://www.facebook.com/..."
+                                                    className="w-full bg-gray-50 border border-gray-300 rounded-md shadow-sm p-2 focus:ring-blue-500 focus:border-blue-500 text-sm" 
+                                                />
+                                            </div>
+                                        </div>
                                     </div>
                                     <div className="md:col-span-2 border-t pt-4 mt-2">
                                         <label className="block text-sm font-bold text-blue-600 mb-1">Telegram Bot (สำหรับแจ้งเตือนออเดอร์/เรียกพนักงาน)</label>

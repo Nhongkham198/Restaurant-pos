@@ -140,6 +140,10 @@ interface DataContextType {
     setFacebookAppId: React.Dispatch<React.SetStateAction<string>>;
     facebookAppSecret: string;
     setFacebookAppSecret: React.Dispatch<React.SetStateAction<string>>;
+    lineOaUrl: string;
+    setLineOaUrl: React.Dispatch<React.SetStateAction<string>>;
+    facebookPageUrl: string;
+    setFacebookPageUrl: React.Dispatch<React.SetStateAction<string>>;
     lineNotifyToken: string; // Deprecated
     setLineNotifyToken: React.Dispatch<React.SetStateAction<string>>;
     lineMessagingToken: string;
@@ -495,6 +499,8 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     const [deliveryProviders, setDeliveryProviders] = useFirestoreSync<DeliveryProvider[]>(branchId, 'deliveryProviders', [], DEFAULT_DELIVERY_PROVIDERS);
     const [facebookAppId, setFacebookAppId] = useFirestoreSync<string>(branchId, 'facebookAppId', '');
     const [facebookAppSecret, setFacebookAppSecret] = useFirestoreSync<string>(branchId, 'facebookAppSecret', '');
+    const [lineOaUrl, setLineOaUrl] = useFirestoreSync<string>(branchId, 'lineOaUrl', '');
+    const [facebookPageUrl, setFacebookPageUrl] = useFirestoreSync<string>(branchId, 'facebookPageUrl', '');
     const [lineNotifyToken, setLineNotifyToken] = useFirestoreSync<string>(branchId, 'lineNotifyToken', '');
     const [lineMessagingToken, setLineMessagingToken] = useFirestoreSync<string>(branchId, 'lineMessagingToken', '');
     const [lineUserId, setLineUserId] = useFirestoreSync<string>(branchId, 'lineUserId', '');
@@ -528,6 +534,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             staffCallSoundUrl, setStaffCallSoundUrl, printerConfig, setPrinterConfig, openingTime, setOpeningTime,
             closingTime, setClosingTime, isTaxEnabled, setIsTaxEnabled, taxRate, setTaxRate, sendToKitchen, setSendToKitchen,
             deliveryProviders, setDeliveryProviders, facebookAppId, setFacebookAppId, facebookAppSecret, setFacebookAppSecret,
+            lineOaUrl, setLineOaUrl, facebookPageUrl, setFacebookPageUrl,
             lineNotifyToken, setLineNotifyToken,
             lineMessagingToken, setLineMessagingToken,
             lineUserId, setLineUserId,
