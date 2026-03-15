@@ -48,7 +48,7 @@ export const useBillingLogic = () => {
             const completed: CompletedOrder = { 
                 ...orderToComplete, 
                 status: 'completed', 
-                completionTime: Date.now(), 
+                completionTime: orderToComplete.isHistoryLogged ? (orderToComplete.completionTime || Date.now()) : Date.now(), 
                 paymentDetails: paymentDetails, 
                 completedBy: currentUser?.username || 'Unknown' 
             }; 

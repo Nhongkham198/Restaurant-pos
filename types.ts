@@ -123,6 +123,9 @@ interface BaseOrder {
     isSplitChild?: boolean;
     splitIndex?: number;
     paymentSlipUrl?: string; // NEW: Store payment slip for online orders
+    customerPhone?: string; // NEW: Customer phone number for delivery
+    latitude?: number; // NEW: GPS Latitude
+    longitude?: number; // NEW: GPS Longitude
 }
 
 export const CANCELLATION_REASONS = [
@@ -140,6 +143,7 @@ export interface ActiveOrder extends BaseOrder {
     cookingStartTime?: number; // timestamp
     isOverdue?: boolean;
     isPrintedToKitchen?: boolean; // To prevent duplicate auto-prints
+    isHistoryLogged?: boolean; // To prevent duplicate history logging for online orders
     // Fields allowed during transition to completed/cancelled within active collection
     completionTime?: number;
     paymentDetails?: PaymentDetails;

@@ -74,6 +74,11 @@ const RAW_DICTIONARY: Record<string, string> = {
     'อื่นๆ (ระบุ)': 'Other (Specify)',
     'ไม่รับ': 'No Cutlery',
     'สั่งกลับบ้าน': 'Take Away',
+    'เบอร์โทรศัพท์ติดต่อ': 'Contact Phone',
+    'ระบุตำแหน่ง GPS': 'GPS Location',
+    'เช็คตำแหน่งปัจจุบัน': 'Refresh Location',
+    'กำลังระบุตำแหน่ง...': 'Locating...',
+    'กรุณาใส่เบอร์โทรศัพท์': 'Please enter phone number',
     'เพิ่มOrder': 'Add to Cart',
     'บันทึกการแก้ไข': 'Save Changes',
     'ล้างที่เลือก': 'Clear',
@@ -118,7 +123,7 @@ interface CustomerViewProps {
     activeOrders: ActiveOrder[];
     allBranchOrders: ActiveOrder[]; 
     completedOrders: CompletedOrder[];
-    onPlaceOrder: (items: OrderItem[], customerName: string, paymentSlipUrl?: string) => Promise<number | void | undefined>;
+    onPlaceOrder: (items: OrderItem[], customerName: string, paymentSlipUrl?: string, customerPhone?: string, latitude?: number, longitude?: number) => Promise<number | void | undefined>;
     onStaffCall: (table: Table, customerName: string) => void;
     recommendedMenuItemIds: number[];
     logoUrl: string | null;
@@ -292,7 +297,34 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     // NEW: Payment Slip Modal State
     const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
     const [paymentSlipBase64, setPaymentSlipBase64] = useState<string | null>(null);
+    const [customerPhone, setCustomerPhone] = useState('');
+    const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
+    const [isLocating, setIsLocating] = useState(false);
     const slipInputRef = useRef<HTMLInputElement>(null);
+
+    const getCurrentLocation = () => {
+        if (!navigator.geolocation) {
+            Swal.fire(t('เกิดข้อผิดพลาด'), 'เบราว์เซอร์ของคุณไม่รองรับการระบุตำแหน่ง', 'error');
+            return;
+        }
+
+        setIsLocating(true);
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                setLocation({
+                    lat: position.coords.latitude,
+                    lng: position.coords.longitude
+                });
+                setIsLocating(false);
+            },
+            (error) => {
+                console.error("Error getting location:", error);
+                setIsLocating(false);
+                Swal.fire(t('เกิดข้อผิดพลาด'), 'ไม่สามารถระบุตำแหน่งได้ กรุณาตรวจสอบสิทธิ์การเข้าถึงตำแหน่ง', 'error');
+            },
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        );
+    };
 
     const prevMyItemsCountRef = useRef<number>(0);
     const isProcessingPaymentRef = useRef(false);
@@ -707,35 +739,51 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         // For Dine-in (Scan at table), place order directly without slip
         if (table.floor === 'Online' || table.id < 0) {
             setIsPaymentModalOpen(true);
+            // Auto-locate when opening payment modal
+            if (!location) {
+                getCurrentLocation();
+            }
         } else {
             executePlaceOrder();
         }
     };
 
     const executePlaceOrder = async (slipBase64?: string) => {
+        if ((table.floor === 'Online' || table.id < 0) && !customerPhone) {
+            Swal.fire(t('เกิดข้อผิดพลาด'), t('กรุณาใส่เบอร์โทรศัพท์'), 'error');
+            return;
+        }
+        
         Swal.fire({ title: t('กำลังส่งรายการ...'), allowOutsideClick: false, didOpen: () => { Swal.showLoading(); } });
 
         try {
-            // **FIX**: Ensure no `undefined` values are sent to Firestore
+            // ... (rest of the logic)
             const itemsToSend = cartItems.map(cartItem => {
                 const originalItem = menuItems.find(m => m.id === cartItem.id);
                 return {
                     ...cartItem,
                     name: originalItem ? originalItem.name : cartItem.name,
-                    nameEn: originalItem?.nameEn || null, // FIX: Use null instead of undefined
+                    nameEn: originalItem?.nameEn || null,
                     selectedOptions: (cartItem.selectedOptions || []).map(opt => {
                         const originalGroup = originalItem?.optionGroups?.find(g => g.options.some(o => o.id === opt.id));
                         const originalOpt = originalGroup?.options.find(o => o.id === opt.id);
                         return {
                             ...opt,
                             name: originalOpt ? originalOpt.name : opt.name,
-                            nameEn: originalOpt?.nameEn || null // FIX: Use null for options as well
+                            nameEn: originalOpt?.nameEn || null
                         };
                     })
                 };
             });
 
-            const newOrderNumber = await onPlaceOrder(itemsToSend, customerName, slipBase64);
+            const newOrderNumber = await onPlaceOrder(
+                itemsToSend, 
+                customerName, 
+                slipBase64, 
+                customerPhone, 
+                location?.lat, 
+                location?.lng
+            );
             
             // Only show success and update state if an order number was successfully returned.
             if (newOrderNumber) {
@@ -1150,23 +1198,89 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                                 </svg>
                             </button>
                         </div>
-                        <div className="p-6 overflow-y-auto flex-1 flex flex-col items-center">
-                            <p className="text-gray-600 text-center mb-4">{t('กรุณาสแกน QR Code เพื่อชำระเงินและแนบสลิป')}</p>
+                        <div className="p-6 overflow-y-auto flex-1 flex flex-col items-center space-y-6">
+                            <p className="text-gray-600 text-center">{t('กรุณาสแกน QR Code เพื่อชำระเงินและแนบสลิป')}</p>
                             
-                            <div className="bg-blue-50 text-blue-800 font-bold text-2xl py-3 px-6 rounded-lg mb-6 shadow-sm border border-blue-100">
+                            <div className="bg-blue-50 text-blue-800 font-bold text-2xl py-3 px-6 rounded-lg shadow-sm border border-blue-100 w-full text-center">
                                 {t('ยอดรวม')}: {cartItems.reduce((sum, item) => sum + (item.finalPrice * item.quantity), 0)} {t('฿')}
                             </div>
 
+                            {/* NEW: Phone Number Input */}
+                            <div className="w-full">
+                                <label className="block text-sm font-bold text-gray-700 mb-2 flex items-center gap-2">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                                    </svg>
+                                    {t('เบอร์โทรศัพท์ติดต่อ')}
+                                </label>
+                                <input 
+                                    type="tel" 
+                                    value={customerPhone}
+                                    onChange={(e) => setCustomerPhone(e.target.value)}
+                                    placeholder="08x-xxx-xxxx"
+                                    className="w-full p-3 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none font-mono text-lg"
+                                />
+                            </div>
+
+                            {/* NEW: GPS Location Section */}
+                            <div className="w-full bg-gray-50 p-4 rounded-xl border border-gray-200">
+                                <div className="flex justify-between items-center mb-3">
+                                    <label className="text-sm font-bold text-gray-700 flex items-center gap-2">
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                                        </svg>
+                                        {t('ระบุตำแหน่ง GPS')}
+                                    </label>
+                                    <button 
+                                        onClick={getCurrentLocation}
+                                        disabled={isLocating}
+                                        className="text-xs bg-white border border-gray-300 px-3 py-1.5 rounded-lg text-blue-600 font-bold hover:bg-blue-50 transition-colors flex items-center gap-1 shadow-sm"
+                                    >
+                                        {isLocating ? (
+                                            <div className="w-3 h-3 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                                        ) : (
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                            </svg>
+                                        )}
+                                        {isLocating ? t('กำลังระบุตำแหน่ง...') : t('เช็คตำแหน่งปัจจุบัน')}
+                                    </button>
+                                </div>
+                                {location ? (
+                                    <div className="bg-green-50 border border-green-200 p-3 rounded-lg flex items-center gap-3">
+                                        <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                            </svg>
+                                        </div>
+                                        <div>
+                                            <p className="text-xs font-bold text-green-800">ระบุตำแหน่งสำเร็จ</p>
+                                            <p className="text-[10px] text-green-600 font-mono">{location.lat.toFixed(6)}, {location.lng.toFixed(6)}</p>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="bg-orange-50 border border-orange-200 p-3 rounded-lg flex items-center gap-3">
+                                        <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center flex-shrink-0">
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                            </svg>
+                                        </div>
+                                        <p className="text-xs text-orange-800 font-medium">ยังไม่ได้ระบุตำแหน่ง กรุณากดปุ่มเช็คตำแหน่ง</p>
+                                    </div>
+                                )}
+                            </div>
+
                             {qrCodeUrl ? (
-                                <img src={qrCodeUrl} alt="QR Code" className="w-48 h-48 object-contain mb-6 border rounded-lg p-2 bg-white shadow-sm" />
+                                <img src={qrCodeUrl} alt="QR Code" className="w-48 h-48 object-contain border rounded-lg p-2 bg-white shadow-sm" />
                             ) : (
-                                <div className="w-48 h-48 bg-gray-100 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center mb-6 text-gray-400 text-sm text-center p-4">
+                                <div className="w-48 h-48 bg-gray-100 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center text-gray-400 text-sm text-center p-4">
                                     {t('ร้านยังไม่ได้ตั้งค่า QR Code')}
                                 </div>
                             )}
 
                             <div className="w-full">
-                                <label className="block text-sm font-medium text-gray-700 mb-2">{t('แนบสลิปโอนเงิน')}</label>
+                                <label className="block text-sm font-bold text-gray-700 mb-2">{t('แนบสลิปโอนเงิน')}</label>
                                 <input 
                                     type="file" 
                                     accept="image/*" 

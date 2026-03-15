@@ -35,7 +35,10 @@ export const useOrderLogic = () => {
         isLineMan: boolean = false, 
         lineManNumber?: string, 
         deliveryProviderName?: string,
-        paymentSlipUrl?: string
+        paymentSlipUrl?: string,
+        customerPhone?: string,
+        latitude?: number,
+        longitude?: number
     ): Promise<number | undefined> => {
         if (!isLineMan && !tableOverride) { 
             Swal.fire('กรุณาเลือกโต๊ะ', 'ต้องเลือกโต๊ะสำหรับออเดอร์ หรือเลือก Delivery', 'warning'); 
@@ -105,7 +108,10 @@ export const useOrderLogic = () => {
                             taxAmount: 0, 
                             placedBy: currentUser ? currentUser.username : (custName || `โต๊ะ ${orderTableName}`),
                             isPrintedToKitchen: isPrintedImmediatelyByThisDevice,
-                            paymentSlipUrl: paymentSlipUrl || null
+                            paymentSlipUrl: paymentSlipUrl || null,
+                            customerPhone: customerPhone || null,
+                            latitude: latitude || null,
+                            longitude: longitude || null
                         }; 
                         const subtotal = newOrder.items.reduce((sum, item) => sum + item.finalPrice * item.quantity, 0); 
                         newOrder.taxAmount = newOrder.taxRate > 0 ? subtotal * (newOrder.taxRate / 100) : 0; 
@@ -242,15 +248,35 @@ export const useOrderLogic = () => {
         }
     };
 
-    const handleStartCooking = (orderId: number) => { 
+    const handleStartCooking = async (orderId: number) => { 
         if (!navigator.onLine) return; 
         const order = activeOrders.find(o => o.id === orderId);
-        if (order?.status === 'pending_payment') {
+        if (!order) return;
+
+        if (order.status === 'pending_payment') {
             // Confirm payment and start cooking
-            activeOrdersActions.update(orderId, { status: 'cooking', cookingStartTime: Date.now() });
+            await activeOrdersActions.update(orderId, { status: 'cooking', cookingStartTime: Date.now(), isHistoryLogged: !!order.paymentSlipUrl });
+            
+            // If it's an online order with a slip, log it to history immediately as requested
+            if (order.paymentSlipUrl) {
+                try {
+                    const paymentDetails: PaymentDetails = { method: 'transfer' };
+                    const completed: CompletedOrder = {
+                        ...order,
+                        status: 'completed',
+                        completionTime: Date.now(),
+                        paymentDetails: paymentDetails,
+                        completedBy: currentUser?.username || 'System'
+                    };
+                    await db.collection(`branches/${branchId}/completedOrders_v2`).doc(order.id.toString()).set(completed);
+                } catch (error) {
+                    console.error("Failed to log online order to history during acceptance:", error);
+                }
+            }
+            
             Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'ยืนยันยอดและเริ่มทำอาหาร', showConfirmButton: false, timer: 2000 });
         } else {
-            activeOrdersActions.update(orderId, { status: 'cooking', cookingStartTime: Date.now() }); 
+            await activeOrdersActions.update(orderId, { status: 'cooking', cookingStartTime: Date.now() }); 
         }
     };
 
@@ -278,7 +304,14 @@ export const useOrderLogic = () => {
                 Swal.fire('Error', 'Failed to auto-complete LineMan order', 'error'); 
             } 
         } else { 
-            activeOrdersActions.update(orderId, { status: 'served' }); 
+            // If it's an online order that was already paid (and likely logged to history), 
+            // and it's for a virtual table (Takeaway/Delivery), we can complete it fully.
+            if (order.paymentSlipUrl && (order.tableId === -1 || order.tableId === -2)) {
+                await activeOrdersActions.remove(orderId);
+                Swal.fire({ icon: 'success', title: 'จบงานสำเร็จ', timer: 1500, showConfirmButton: false });
+            } else {
+                await activeOrdersActions.update(orderId, { status: 'served' }); 
+            }
         } 
     };
 
