@@ -63,4 +63,4 @@ if (isFirebaseConfigured) {
   }
 }
 
-export { db, functions, storage };
+export { firebase, db, functions, storage };

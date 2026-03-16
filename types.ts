@@ -44,8 +44,10 @@ export interface StaffMessage {
     senderId: number;
     senderName: string;
     text: string;
+    imageUrl?: string; // Added for image attachments
     timestamp: number;
     branchId: number;
+    readBy?: number[]; // Added for read receipts (array of user IDs)
 }
 
 export interface MenuOption {

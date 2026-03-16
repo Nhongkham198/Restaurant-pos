@@ -1,16 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MessageCircle, X, Send, Minus, User as UserIcon } from 'lucide-react';
-import { db } from '../firebaseConfig';
+import { MessageCircle, X, Send, Minus, User as UserIcon, Camera, Image as ImageIcon, Loader2 } from 'lucide-react';
+import { firebase, db, storage } from '../firebaseConfig';
 import { useData } from '../contexts/DataContext';
 import { StaffMessage } from '../types';
 
 export const StaffChat: React.FC = () => {
-    const { currentUser, selectedBranch } = useData();
+    const { currentUser, selectedBranch, users } = useData();
     const [isOpen, setIsOpen] = useState(false);
     const [messages, setMessages] = useState<StaffMessage[]>([]);
     const [inputText, setInputText] = useState('');
+    const [isUploading, setIsUploading] = useState(false);
     const [unreadCount, setUnreadCount] = useState(0);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const cameraInputRef = useRef<HTMLInputElement>(null);
     const [windowDirection, setWindowDirection] = useState<'up' | 'down'>('up');
     const scrollRef = useRef<HTMLDivElement>(null);
     const buttonRef = useRef<HTMLButtonElement>(null);
@@ -98,7 +101,21 @@ export const StaffChat: React.FC = () => {
     }, [messages, isOpen, lastReadTimestamp]);
 
     useEffect(() => {
-        if (isOpen) {
+        if (isOpen && messages.length > 0 && currentUser && selectedBranch) {
+            const branchIdStr = selectedBranch.id.toString();
+            const unreadMessages = messages.filter(m => !m.readBy?.includes(currentUser.id));
+            
+            if (unreadMessages.length > 0) {
+                const batch = db.batch();
+                unreadMessages.forEach(msg => {
+                    const msgRef = db.collection('branches').doc(branchIdStr).collection('staffMessages').doc(msg.id);
+                    batch.update(msgRef, {
+                        readBy: firebase.firestore.FieldValue.arrayUnion(currentUser.id)
+                    });
+                });
+                batch.commit().catch((err: any) => console.error("Error updating read receipts:", err));
+            }
+
             setUnreadCount(0);
             const now = Date.now();
             setLastReadTimestamp(now);
@@ -109,7 +126,40 @@ export const StaffChat: React.FC = () => {
                 scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
             }
         }
-    }, [isOpen, messages.length]);
+    }, [isOpen, messages.length, currentUser?.id]);
+
+    const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, isCamera: boolean = false) => {
+        const file = e.target.files?.[0];
+        if (!file || !currentUser || !selectedBranch) return;
+
+        setIsUploading(true);
+        const branchIdStr = selectedBranch.id.toString();
+        const fileName = `${Date.now()}_${file.name}`;
+        const storageRef = storage.ref(`branches/${branchIdStr}/chat/${fileName}`);
+
+        try {
+            await storageRef.put(file);
+            const imageUrl = await storageRef.getDownloadURL();
+
+            const newMessage: Omit<StaffMessage, 'id'> = {
+                senderId: currentUser.id,
+                senderName: currentUser.username,
+                text: '',
+                imageUrl,
+                timestamp: Date.now(),
+                branchId: selectedBranch.id,
+                readBy: [currentUser.id]
+            };
+
+            await db.collection('branches').doc(branchIdStr).collection('staffMessages').add(newMessage);
+        } catch (error) {
+            console.error("Error uploading image:", error);
+        } finally {
+            setIsUploading(false);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+            if (cameraInputRef.current) cameraInputRef.current.value = '';
+        }
+    };
 
     const handleSendMessage = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -121,7 +171,8 @@ export const StaffChat: React.FC = () => {
             senderName: currentUser.username,
             text: inputText.trim(),
             timestamp: Date.now(),
-            branchId: selectedBranch.id
+            branchId: selectedBranch.id,
+            readBy: [currentUser.id]
         };
 
         try {
@@ -198,13 +249,45 @@ export const StaffChat: React.FC = () => {
                                                     </span>
                                                 </div>
                                                 <div 
-                                                    className={`max-w-[85%] px-4 py-2 rounded-2xl text-sm shadow-sm ${
+                                                    className={`max-w-[85%] rounded-2xl text-sm shadow-sm overflow-hidden ${
                                                         isMe 
                                                             ? 'bg-emerald-600 text-white rounded-tr-none' 
-                                                            : 'bg-white text-gray-800 border border-gray-100 rounded-tl-none'
+                                                            : 'bg-yellow-50 text-gray-800 border border-yellow-100 rounded-tl-none'
                                                     }`}
                                                 >
-                                                    {msg.text}
+                                                    {msg.imageUrl && (
+                                                        <img 
+                                                            src={msg.imageUrl} 
+                                                            alt="Chat attachment" 
+                                                            className="w-full h-auto max-h-64 object-cover cursor-pointer"
+                                                            onClick={() => window.open(msg.imageUrl, '_blank')}
+                                                        />
+                                                    )}
+                                                    {msg.text && <div className="px-4 py-2">{msg.text}</div>}
+                                                </div>
+                                                
+                                                {/* Read Receipts */}
+                                                <div className="flex -space-x-1 mt-1 overflow-hidden px-1">
+                                                    {msg.readBy?.filter(uid => uid !== msg.senderId).map(uid => {
+                                                        const reader = users.find(u => u.id === uid);
+                                                        if (!reader) return null;
+
+                                                        return (
+                                                            <div 
+                                                                key={uid}
+                                                                className="w-4 h-4 rounded-full border border-white flex items-center justify-center overflow-hidden bg-gray-200"
+                                                                title={`${reader.username} อ่านแล้ว`}
+                                                            >
+                                                                {reader.profilePictureUrl ? (
+                                                                    <img src={reader.profilePictureUrl} alt={reader.username} className="w-full h-full object-cover" />
+                                                                ) : (
+                                                                    <span className="text-[8px] font-bold text-gray-500">
+                                                                        {reader.username.charAt(0).toUpperCase()}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    })}
                                                 </div>
                                             </div>
                                         );
@@ -213,26 +296,73 @@ export const StaffChat: React.FC = () => {
                             </div>
 
                             {/* Input Area */}
-                            <form 
-                                onSubmit={handleSendMessage}
-                                className="p-4 bg-white border-t border-gray-100 flex gap-2"
-                                onPointerDown={(e) => e.stopPropagation()}
-                            >
-                                <input
-                                    type="text"
-                                    value={inputText}
-                                    onChange={(e) => setInputText(e.target.value)}
-                                    placeholder="พิมพ์ข้อความ..."
-                                    className="flex-1 bg-gray-100 border-none rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-emerald-500 transition-all"
-                                />
-                                <button 
-                                    type="submit"
-                                    disabled={!inputText.trim()}
-                                    className="bg-emerald-600 text-white p-2 rounded-xl hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-md active:scale-95"
+                            <div className="bg-white border-t border-gray-100">
+                                <form 
+                                    onSubmit={handleSendMessage}
+                                    className="p-4 flex flex-col gap-2"
+                                    onPointerDown={(e) => e.stopPropagation()}
                                 >
-                                    <Send size={18} />
-                                </button>
-                            </form>
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="text"
+                                            value={inputText}
+                                            onChange={(e) => setInputText(e.target.value)}
+                                            placeholder="พิมพ์ข้อความ..."
+                                            className="flex-1 bg-gray-100 border-none rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-emerald-500 transition-all"
+                                        />
+                                        <button 
+                                            type="submit"
+                                            disabled={!inputText.trim() || isUploading}
+                                            className="bg-emerald-600 text-white p-2 rounded-xl hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-md active:scale-95"
+                                        >
+                                            <Send size={18} />
+                                        </button>
+                                    </div>
+                                    
+                                    <div className="flex items-center gap-4 px-1">
+                                        <button
+                                            type="button"
+                                            onClick={() => fileInputRef.current?.click()}
+                                            disabled={isUploading}
+                                            className="text-gray-500 hover:text-emerald-600 transition-colors flex items-center gap-1 text-xs font-medium"
+                                        >
+                                            <ImageIcon size={16} />
+                                            รูปภาพ
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => cameraInputRef.current?.click()}
+                                            disabled={isUploading}
+                                            className="text-gray-500 hover:text-emerald-600 transition-colors flex items-center gap-1 text-xs font-medium"
+                                        >
+                                            <Camera size={16} />
+                                            กล้อง
+                                        </button>
+                                        {isUploading && (
+                                            <div className="flex items-center gap-1 text-emerald-600 text-[10px] animate-pulse">
+                                                <Loader2 size={12} className="animate-spin" />
+                                                กำลังอัปโหลด...
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <input 
+                                        type="file" 
+                                        ref={fileInputRef} 
+                                        className="hidden" 
+                                        accept="image/*"
+                                        onChange={(e) => handleImageUpload(e)}
+                                    />
+                                    <input 
+                                        type="file" 
+                                        ref={cameraInputRef} 
+                                        className="hidden" 
+                                        accept="image/*" 
+                                        capture="environment"
+                                        onChange={(e) => handleImageUpload(e, true)}
+                                    />
+                                </form>
+                            </div>
                         </motion.div>
                     )}
                 </AnimatePresence>
