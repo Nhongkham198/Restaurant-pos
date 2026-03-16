@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import type { ActiveOrder, CancellationReason } from '../types';
 import { CANCELLATION_REASONS } from '../types';
+import Swal from 'sweetalert2';
 
 interface CancelOrderModalProps {
     isOpen: boolean;
@@ -17,7 +18,12 @@ export const CancelOrderModal: React.FC<CancelOrderModalProps> = ({ isOpen, orde
 
     const handleConfirm = () => {
         if (!reason) {
-            alert('กรุณาระบุเหตุผลในการยกเลิก');
+            Swal.fire({
+                icon: 'warning',
+                title: 'กรุณาระบุเหตุผล',
+                text: 'กรุณาระบุเหตุผลในการยกเลิก',
+                confirmButtonText: 'ตกลง'
+            });
             return;
         }
         onConfirm(order, reason, notes);

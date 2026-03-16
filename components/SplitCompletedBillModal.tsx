@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import type { OrderItem, CompletedOrder } from '../types';
+import Swal from 'sweetalert2';
 
 interface SplitCompletedBillModalProps {
     isOpen: boolean;
@@ -50,7 +51,12 @@ export const SplitCompletedBillModal: React.FC<SplitCompletedBillModalProps> = (
         if (splitItemsArray.length > 0) {
             onConfirmSplit(splitItemsArray);
         } else {
-            alert("กรุณาเลือกรายการอาหารอย่างน้อย 1 อย่าง");
+            Swal.fire({
+                icon: 'warning',
+                title: 'กรุณาเลือกรายการ',
+                text: 'กรุณาเลือกรายการอาหารอย่างน้อย 1 อย่าง',
+                confirmButtonText: 'ตกลง'
+            });
         }
     };
 

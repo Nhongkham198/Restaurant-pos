@@ -165,27 +165,29 @@ export const StaffChat: React.FC = () => {
         try {
             // --- IMAGE COMPRESSION & CONVERSION ---
             const options = {
-                maxSizeMB: 0.2, // Further reduced for speed
+                maxSizeMB: 0.15, // Very small for Base64 efficiency
                 maxWidthOrHeight: 800,
                 useWebWorker: true,
                 fileType: 'image/webp' as any,
-                initialQuality: 0.5 // Start with lower quality for faster processing
+                initialQuality: 0.4
             };
             
             const compressedFile = await imageCompression(file, options);
             
-            const baseFileName = file.name.substring(0, file.name.lastIndexOf('.')) || 'image';
-            const fileName = `${Date.now()}_${baseFileName}.webp`;
-            const storageRef = storage.ref(`branches/${branchIdStr}/chat/${fileName}`);
-
-            await storageRef.put(compressedFile, { contentType: 'image/webp' });
-            const imageUrl = await storageRef.getDownloadURL();
+            // Convert Blob to Base64 string
+            const reader = new FileReader();
+            const base64Promise = new Promise<string>((resolve) => {
+                reader.onloadend = () => resolve(reader.result as string);
+                reader.readAsDataURL(compressedFile);
+            });
+            
+            const base64Data = await base64Promise;
 
             const newMessage: Omit<StaffMessage, 'id'> = {
                 senderId: currentUser.id,
                 senderName: currentUser.username,
                 text: '',
-                imageUrl,
+                imageUrl: base64Data, // Store Base64 directly
                 timestamp: Date.now(),
                 branchId: selectedBranch.id,
                 readBy: [currentUser.id]
