@@ -100,5 +100,9 @@ export const formatLineOrderMessage = (order: any) => {
         message += `\n📍 พิกัด: https://www.google.com/maps?q=${lat},${lng}`;
     }
 
+    if (order.nearbyLocations) {
+        message += `\n🏠 สถานที่ใกล้เคียง: ${order.nearbyLocations}`;
+    }
+
     return message;
-};
+}

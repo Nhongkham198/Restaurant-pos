@@ -63,9 +63,13 @@ export const formatOrderMessage = (order: any) => {
     if (order.latitude && order.longitude) {
         message += `\n📍 พิกัด: <a href="https://www.google.com/maps?q=${order.latitude},${order.longitude}">เปิดใน Google Maps</a>`;
     }
+
+    if (order.nearbyLocations) {
+        message += `\n🏠 สถานที่ใกล้เคียง: ${order.nearbyLocations}`;
+    }
     
     return message;
-};
+}
 
 export const formatStaffCallMessage = (call: any) => {
     let message = `<b>🙋 พนักงานครับ/ค่ะ!</b>\n`;

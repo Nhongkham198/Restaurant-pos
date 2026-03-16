@@ -123,7 +123,7 @@ interface CustomerViewProps {
     activeOrders: ActiveOrder[];
     allBranchOrders: ActiveOrder[]; 
     completedOrders: CompletedOrder[];
-    onPlaceOrder: (items: OrderItem[], customerName: string, paymentSlipUrl?: string, customerPhone?: string, latitude?: number, longitude?: number) => Promise<number | void | undefined>;
+    onPlaceOrder: (items: OrderItem[], customerName: string, paymentSlipUrl?: string, customerPhone?: string, latitude?: number, longitude?: number, nearbyLocations?: string) => Promise<number | void | undefined>;
     onStaffCall: (table: Table, customerName: string) => void;
     recommendedMenuItemIds: number[];
     logoUrl: string | null;
@@ -298,6 +298,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
     const [paymentSlipBase64, setPaymentSlipBase64] = useState<string | null>(null);
     const [customerPhone, setCustomerPhone] = useState('');
+    const [nearbyLocations, setNearbyLocations] = useState('');
     const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
     const [isLocating, setIsLocating] = useState(false);
     const slipInputRef = useRef<HTMLInputElement>(null);
@@ -782,7 +783,8 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                 slipBase64, 
                 customerPhone, 
                 location?.lat, 
-                location?.lng
+                location?.lng,
+                nearbyLocations
             );
             
             // Only show success and update state if an order number was successfully returned.
@@ -1283,6 +1285,22 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                                         <p className="text-xs text-orange-800 font-medium">ยังไม่ได้ระบุตำแหน่ง กรุณากดปุ่มเช็คตำแหน่ง</p>
                                     </div>
                                 )}
+
+                                {/* NEW: Nearby Locations Scrollable Section */}
+                                <div className="mt-4">
+                                    <label className="block text-sm font-bold text-gray-700 mb-2 flex items-center gap-2">
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                                        </svg>
+                                        {t('ระบุตำแหน่งพื้นที่ใกล้เคียง')} (Nearby Locations)
+                                    </label>
+                                    <textarea 
+                                        value={nearbyLocations}
+                                        onChange={(e) => setNearbyLocations(e.target.value)}
+                                        placeholder={t('เช่น ใกล้เซเว่น, ตรงข้ามธนาคาร, บ้านสีเขียว...')}
+                                        className="w-full p-3 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm min-h-[80px] max-h-[150px] overflow-y-auto"
+                                    />
+                                </div>
                             </div>
 
                             {qrCodeUrl ? (

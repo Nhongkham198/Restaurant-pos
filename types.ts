@@ -128,6 +128,7 @@ interface BaseOrder {
     customerPhone?: string; // NEW: Customer phone number for delivery
     latitude?: number; // NEW: GPS Latitude
     longitude?: number; // NEW: GPS Longitude
+    nearbyLocations?: string; // NEW: Nearby locations text
 }
 
 export const CANCELLATION_REASONS = [
