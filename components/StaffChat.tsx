@@ -4,11 +4,13 @@ import { MessageCircle, X, Send, Minus, User as UserIcon, Camera, Image as Image
 import { firebase, db, storage } from '../firebaseConfig';
 import { useData } from '../contexts/DataContext';
 import { StaffMessage } from '../types';
+import imageCompression from 'browser-image-compression';
 
 export const StaffChat: React.FC = () => {
     const { currentUser, selectedBranch, users } = useData();
     const [isOpen, setIsOpen] = useState(false);
     const [messages, setMessages] = useState<StaffMessage[]>([]);
+    const [pendingMessages, setPendingMessages] = useState<(Omit<StaffMessage, 'id'> & { id: string; isPending: boolean })[]>([]);
     const [inputText, setInputText] = useState('');
     const [isUploading, setIsUploading] = useState(false);
     const [unreadCount, setUnreadCount] = useState(0);
@@ -132,13 +134,51 @@ export const StaffChat: React.FC = () => {
         const file = e.target.files?.[0];
         if (!file || !currentUser || !selectedBranch) return;
 
-        setIsUploading(true);
         const branchIdStr = selectedBranch.id.toString();
-        const fileName = `${Date.now()}_${file.name}`;
-        const storageRef = storage.ref(`branches/${branchIdStr}/chat/${fileName}`);
+        const tempId = `temp-${Date.now()}`;
+        const localPreviewUrl = URL.createObjectURL(file);
 
+        // --- OPTIMISTIC UPDATE ---
+        // Add to pending messages immediately so user sees it instantly
+        const pendingMsg = {
+            id: tempId,
+            senderId: currentUser.id,
+            senderName: currentUser.username,
+            text: '',
+            imageUrl: localPreviewUrl,
+            timestamp: Date.now(),
+            branchId: selectedBranch.id,
+            readBy: [currentUser.id],
+            isPending: true
+        };
+        setPendingMessages(prev => [...prev, pendingMsg]);
+        
+        // Scroll to bottom immediately
+        setTimeout(() => {
+            if (scrollRef.current) {
+                scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+            }
+        }, 100);
+
+        setIsUploading(true);
+        
         try {
-            await storageRef.put(file);
+            // --- IMAGE COMPRESSION & CONVERSION ---
+            const options = {
+                maxSizeMB: 0.2, // Further reduced for speed
+                maxWidthOrHeight: 800,
+                useWebWorker: true,
+                fileType: 'image/webp' as any,
+                initialQuality: 0.5 // Start with lower quality for faster processing
+            };
+            
+            const compressedFile = await imageCompression(file, options);
+            
+            const baseFileName = file.name.substring(0, file.name.lastIndexOf('.')) || 'image';
+            const fileName = `${Date.now()}_${baseFileName}.webp`;
+            const storageRef = storage.ref(`branches/${branchIdStr}/chat/${fileName}`);
+
+            await storageRef.put(compressedFile, { contentType: 'image/webp' });
             const imageUrl = await storageRef.getDownloadURL();
 
             const newMessage: Omit<StaffMessage, 'id'> = {
@@ -152,9 +192,15 @@ export const StaffChat: React.FC = () => {
             };
 
             await db.collection('branches').doc(branchIdStr).collection('staffMessages').add(newMessage);
+            
+            // Cleanup local preview
+            URL.revokeObjectURL(localPreviewUrl);
         } catch (error) {
             console.error("Error uploading image:", error);
+            // Optionally notify user of failure
         } finally {
+            // Remove from pending
+            setPendingMessages(prev => prev.filter(m => m.id !== tempId));
             setIsUploading(false);
             if (fileInputRef.current) fileInputRef.current.value = '';
             if (cameraInputRef.current) cameraInputRef.current.value = '';
@@ -229,13 +275,14 @@ export const StaffChat: React.FC = () => {
                                 className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50"
                                 onPointerDown={(e) => e.stopPropagation()}
                             >
-                                {messages.length === 0 ? (
+                                {messages.length === 0 && pendingMessages.length === 0 ? (
                                     <div className="h-full flex flex-col items-center justify-center text-gray-400 space-y-2">
                                         <MessageCircle size={48} strokeWidth={1} />
                                         <p className="text-sm">ยังไม่มีข้อความในวันนี้</p>
                                     </div>
                                 ) : (
-                                    messages.map((msg) => {
+                                    <>
+                                    {messages.map((msg) => {
                                         const isMe = msg.senderId === currentUser?.id;
                                         return (
                                             <div 
@@ -291,7 +338,32 @@ export const StaffChat: React.FC = () => {
                                                 </div>
                                             </div>
                                         );
-                                    })
+                                    })}
+                                    
+                                    {/* Pending Messages (Optimistic UI) */}
+                                    {pendingMessages.map((msg) => (
+                                        <div 
+                                            key={msg.id} 
+                                            className="flex flex-col items-end opacity-70"
+                                        >
+                                            <div className="flex items-center gap-1 mb-1 px-1">
+                                                <span className="text-[10px] text-gray-400 italic">กำลังส่ง...</span>
+                                            </div>
+                                            <div className="max-w-[85%] rounded-2xl text-sm shadow-sm overflow-hidden bg-emerald-600/50 text-white rounded-tr-none relative">
+                                                {msg.imageUrl && (
+                                                    <img 
+                                                        src={msg.imageUrl} 
+                                                        alt="Uploading..." 
+                                                        className="w-full h-auto max-h-64 object-cover blur-[1px]"
+                                                    />
+                                                )}
+                                                <div className="absolute inset-0 flex items-center justify-center">
+                                                    <Loader2 size={24} className="text-white animate-spin" />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                    </>
                                 )}
                             </div>
 
