@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MessageCircle, X, Send, Minus, User as UserIcon, Camera, Image as ImageIcon, Loader2 } from 'lucide-react';
+import { MessageCircle, X, Send, Minus, User as UserIcon, Camera, Image as ImageIcon, Loader2, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
 import { firebase, db, storage } from '../firebaseConfig';
 import { useData } from '../contexts/DataContext';
 import { StaffMessage } from '../types';
@@ -15,6 +15,7 @@ export const StaffChat: React.FC = () => {
     const [isUploading, setIsUploading] = useState(false);
     const [unreadCount, setUnreadCount] = useState(0);
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
+    const [scale, setScale] = useState(1);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const cameraInputRef = useRef<HTMLInputElement>(null);
     const [windowDirection, setWindowDirection] = useState<'up' | 'down'>('up');
@@ -231,6 +232,27 @@ export const StaffChat: React.FC = () => {
             console.error("Error sending message:", error);
         }
     };
+
+    const handleZoomIn = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        setScale(prev => Math.min(prev + 0.5, 5));
+    };
+
+    const handleZoomOut = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        setScale(prev => Math.max(prev - 0.5, 1));
+    };
+
+    const handleResetZoom = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        setScale(1);
+    };
+
+    useEffect(() => {
+        if (!selectedImage) {
+            setScale(1);
+        }
+    }, [selectedImage]);
 
     if (!isStaff) return null;
 
@@ -479,31 +501,73 @@ export const StaffChat: React.FC = () => {
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        className="fixed inset-0 bg-black/95 z-[9999] flex items-center justify-center p-4 pointer-events-auto"
+                        className="fixed inset-0 bg-black/95 z-[9999] flex flex-col items-center justify-center p-4 pointer-events-auto"
                         onClick={() => setSelectedImage(null)}
                     >
-                        <motion.button
-                            initial={{ scale: 0 }}
-                            animate={{ scale: 1 }}
-                            className="absolute top-6 right-6 text-white bg-white/10 hover:bg-white/20 p-2 rounded-full transition-colors z-[10000]"
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedImage(null);
-                            }}
-                        >
-                            <X size={24} />
-                        </motion.button>
-                        <motion.img
-                            key={selectedImage}
-                            initial={{ scale: 0.9, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            src={selectedImage}
-                            alt="Full size"
-                            className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
-                            onClick={(e) => e.stopPropagation()}
-                        />
-                        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 text-white/50 text-xs font-medium tracking-wider uppercase">
-                            แตะเพื่อปิด
+                        {/* Controls */}
+                        <div className="absolute top-6 right-6 flex items-center gap-2 z-[10000]">
+                            <button
+                                onClick={handleZoomOut}
+                                disabled={scale <= 1}
+                                className="text-white bg-white/10 hover:bg-white/20 p-2 rounded-full transition-colors disabled:opacity-30"
+                                title="Zoom Out"
+                            >
+                                <ZoomOut size={24} />
+                            </button>
+                            <button
+                                onClick={handleResetZoom}
+                                className="text-white bg-white/10 hover:bg-white/20 p-2 rounded-full transition-colors"
+                                title="Reset Zoom"
+                            >
+                                <RotateCcw size={24} />
+                            </button>
+                            <button
+                                onClick={handleZoomIn}
+                                disabled={scale >= 5}
+                                className="text-white bg-white/10 hover:bg-white/20 p-2 rounded-full transition-colors disabled:opacity-30"
+                                title="Zoom In"
+                            >
+                                <ZoomIn size={24} />
+                            </button>
+                            <button
+                                className="text-white bg-white/10 hover:bg-white/20 p-2 rounded-full transition-colors ml-2"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedImage(null);
+                                }}
+                            >
+                                <X size={24} />
+                            </button>
+                        </div>
+
+                        <div className="relative w-full h-full flex items-center justify-center overflow-hidden">
+                            <motion.div
+                                drag={scale > 1}
+                                dragConstraints={{ left: -500, right: 500, top: -500, bottom: 500 }}
+                                dragElastic={0.1}
+                                animate={{ scale }}
+                                transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+                                className="flex items-center justify-center"
+                                onClick={(e) => e.stopPropagation()}
+                            >
+                                <motion.img
+                                    key={selectedImage}
+                                    initial={{ scale: 0.9, opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    src={selectedImage}
+                                    alt="Full size"
+                                    className="max-w-full max-h-full object-contain rounded-lg shadow-2xl pointer-events-none"
+                                />
+                            </motion.div>
+                        </div>
+
+                        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2">
+                            <div className="bg-white/10 backdrop-blur-md px-3 py-1 rounded-full text-white/70 text-[10px] font-medium tracking-wider uppercase">
+                                {Math.round(scale * 100)}%
+                            </div>
+                            <div className="text-white/50 text-xs font-medium tracking-wider uppercase">
+                                {scale > 1 ? 'ลากเพื่อเลื่อนดูรูปภาพ' : 'แตะเพื่อปิด'}
+                            </div>
                         </div>
                     </motion.div>
                 )}
