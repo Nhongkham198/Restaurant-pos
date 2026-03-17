@@ -71,52 +71,9 @@ exports.sendHighPriorityOrderNotification = functions.region('asia-southeast1').
 
         console.log(`New order detected: #${newOrder.orderNumber} for Table ${newOrder.tableName} in branch ${context.params.branchId}`);
 
-        // --- NEW: Send Telegram Notification for Order ---
-        try {
-            const [telTokenDoc, telChatIdDoc] = await Promise.all([
-                admin.firestore().doc(`branches/${context.params.branchId}/telegramBotToken/data`).get(),
-                admin.firestore().doc(`branches/${context.params.branchId}/telegramChatId/data`).get()
-            ]);
-
-            const telToken = telTokenDoc.exists ? telTokenDoc.data().value : null;
-            const telChatId = telChatIdDoc.exists ? telChatIdDoc.data().value : null;
-
-            if (telToken && telChatId) {
-                const totalAmount = newOrder.items.reduce((sum, item) => sum + (item.finalPrice * item.quantity), 0).toFixed(2);
-                const itemsList = newOrder.items.map(item => {
-                    let itemText = `- ${item.name} x ${item.quantity}`;
-                    if (item.selectedOptions && item.selectedOptions.length > 0) {
-                        const optionsText = item.selectedOptions.map(opt => opt.name).join(', ');
-                        itemText += ` (${optionsText})`;
-                    }
-                    if (item.notes) {
-                        itemText += ` [Note: ${item.notes}]`;
-                    }
-                    return itemText;
-                }).join('\n');
-                
-                const displayOrderNumber = newOrder.manualOrderNumber ? `#${newOrder.manualOrderNumber}` : `#${newOrder.orderNumber}`;
-                let messageText = `<b>🔔 มีออเดอร์ใหม่!</b>\n` +
-                                    `📍 โต๊ะ: ${newOrder.tableName}\n` +
-                                    `🔢 ออเดอร์: ${displayOrderNumber}\n` +
-                                    `📋 รายการ:\n${itemsList}\n` +
-                                    `💰 ยอดรวม: ${totalAmount} บาท`;
-
-                if (newOrder.customerPhone || newOrder.phone) {
-                    messageText += `\n📞 เบอร์โทร: ${newOrder.customerPhone || newOrder.phone}`;
-                }
-
-                if ((newOrder.latitude && newOrder.longitude) || (newOrder.lat && newOrder.lng)) {
-                    const lat = newOrder.latitude || newOrder.lat;
-                    const lng = newOrder.longitude || newOrder.lng;
-                    messageText += `\n📍 พิกัด: <a href="https://www.google.com/maps?q=${lat},${lng}">เปิดใน Google Maps</a>`;
-                }
-
-                await sendTelegramMessage(telToken, telChatId, messageText);
-            }
-        } catch (error) {
-            console.error('Failed to send Telegram order notification:', error);
-        }
+        // --- Redundant Telegram Notification Removed ---
+        // Telegram notifications for orders are now handled by the frontend 
+        // to provide the specific format preferred by the user.
 
         // Get all users from the 'users/data' document to find tokens.
         const usersDoc = await admin.firestore().collection('users').doc('data').get();
