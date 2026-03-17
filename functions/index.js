@@ -521,7 +521,7 @@ exports.testLineNotification = functions.region('asia-southeast1').https.onCall(
 
 /**
  * Webhook for LINE Messaging API.
- * Use this to get Group ID when the bot joins a group.
+ * Handles incoming messages and writes them to Staff Chat.
  * Set Webhook URL in LINE Developers to: https://asia-southeast1-<YOUR_PROJECT_ID>.cloudfunctions.net/lineWebhook
  */
 exports.lineWebhook = functions.region('asia-southeast1').https.onRequest(async (req, res) => {
@@ -534,6 +534,33 @@ exports.lineWebhook = functions.region('asia-southeast1').https.onRequest(async 
     for (const event of events) {
         console.log('Received LINE Event:', JSON.stringify(event));
         
+        // Handle incoming text messages
+        if (event.type === 'message' && event.message.type === 'text') {
+            const source = event.source;
+            const incomingId = source.groupId || source.roomId || source.userId;
+            const text = event.message.text;
+
+            // Find which branch this message belongs to
+            const branchesSnap = await admin.firestore().collection('branches').get();
+            for (const branchDoc of branchesSnap.docs) {
+                const branchId = branchDoc.id;
+                const lineUserIdDoc = await admin.firestore().doc(`branches/${branchId}/lineUserId/data`).get();
+                
+                if (lineUserIdDoc.exists && lineUserIdDoc.data().value === incomingId) {
+                    // Match found! Write to staffMessages
+                    await admin.firestore().collection('branches').doc(branchId).collection('staffMessages').add({
+                        senderId: -1, // ID for external LINE messages
+                        senderName: 'Admin (LINE)',
+                        text: text,
+                        timestamp: Date.now(),
+                        branchId: parseInt(branchId, 10)
+                    });
+                    console.log(`Message from LINE added to branch ${branchId}`);
+                }
+            }
+        }
+
+        // Log IDs for setup purposes
         if (event.type === 'join' || event.type === 'memberJoined' || event.type === 'message') {
             const source = event.source;
             if (source.type === 'group') {
@@ -542,6 +569,46 @@ exports.lineWebhook = functions.region('asia-southeast1').https.onRequest(async 
                 console.log(`📢 Room ID found: ${source.roomId}`);
             } else if (source.type === 'user') {
                 console.log(`📢 User ID found: ${source.userId}`);
+            }
+        }
+    }
+
+    res.status(200).send('OK');
+});
+
+/**
+ * Webhook for Telegram Bot API.
+ * Handles incoming messages and writes them to Staff Chat.
+ * Set Webhook URL via: https://api.telegram.org/bot<YOUR_BOT_TOKEN>/setWebhook?url=https://asia-southeast1-<YOUR_PROJECT_ID>.cloudfunctions.net/telegramWebhook
+ */
+exports.telegramWebhook = functions.region('asia-southeast1').https.onRequest(async (req, res) => {
+    if (req.method !== 'POST') {
+        res.status(405).send('Method Not Allowed');
+        return;
+    }
+
+    const update = req.body;
+    if (update.message && update.message.text) {
+        const chatId = update.message.chat.id.toString();
+        const text = update.message.text;
+        const senderName = update.message.from.first_name || 'Admin';
+
+        // Find which branch this message belongs to
+        const branchesSnap = await admin.firestore().collection('branches').get();
+        for (const branchDoc of branchesSnap.docs) {
+            const branchId = branchDoc.id;
+            const telChatIdDoc = await admin.firestore().doc(`branches/${branchId}/telegramChatId/data`).get();
+            
+            if (telChatIdDoc.exists && telChatIdDoc.data().value === chatId) {
+                // Match found! Write to staffMessages
+                await admin.firestore().collection('branches').doc(branchId).collection('staffMessages').add({
+                    senderId: -2, // ID for external Telegram messages
+                    senderName: `${senderName} (Telegram)`,
+                    text: text,
+                    timestamp: Date.now(),
+                    branchId: parseInt(branchId, 10)
+                });
+                console.log(`Message from Telegram added to branch ${branchId}`);
             }
         }
     }

@@ -6,9 +6,15 @@ import { useData } from '../contexts/DataContext';
 import { StaffMessage } from '../types';
 import imageCompression from 'browser-image-compression';
 import { ThaiVirtualKeyboard } from './ThaiVirtualKeyboard';
+import { sendLineMessage } from '../src/services/lineService';
+import { sendTelegramMessage } from '../src/services/telegramService';
 
 export const StaffChat: React.FC = () => {
-    const { currentUser, selectedBranch, users } = useData();
+    const { 
+        currentUser, selectedBranch, users,
+        lineMessagingToken, lineUserId, lineNotifyToken,
+        telegramBotToken, telegramChatId
+    } = useData();
     const [isOpen, setIsOpen] = useState(false);
     const [messages, setMessages] = useState<StaffMessage[]>([]);
     const [pendingMessages, setPendingMessages] = useState<(Omit<StaffMessage, 'id'> & { id: string; isPending: boolean })[]>([]);
@@ -199,6 +205,21 @@ export const StaffChat: React.FC = () => {
 
             await db.collection('branches').doc(branchIdStr).collection('staffMessages').add(newMessage);
             
+            // --- SEND NOTIFICATIONS ---
+            const notificationText = `💬 [แชทพนักงาน - ${selectedBranch.name}]\n👤 ${currentUser.username}: [ส่งรูปภาพ]`;
+            
+            if (telegramBotToken && telegramChatId) {
+                sendTelegramMessage({ botToken: telegramBotToken, chatId: telegramChatId }, notificationText);
+            }
+
+            if (lineMessagingToken || lineNotifyToken) {
+                sendLineMessage({ 
+                    messagingToken: lineMessagingToken, 
+                    userId: lineUserId, 
+                    notifyToken: lineNotifyToken 
+                }, notificationText);
+            }
+
             // Cleanup local preview
             URL.revokeObjectURL(localPreviewUrl);
         } catch (error) {
@@ -230,6 +251,23 @@ export const StaffChat: React.FC = () => {
         try {
             await db.collection('branches').doc(branchIdStr).collection('staffMessages').add(newMessage);
             setInputText('');
+
+            // --- SEND NOTIFICATIONS ---
+            const notificationText = `💬 [แชทพนักงาน - ${selectedBranch.name}]\n👤 ${currentUser.username}: ${inputText.trim()}`;
+            
+            // 1. Send to Telegram
+            if (telegramBotToken && telegramChatId) {
+                sendTelegramMessage({ botToken: telegramBotToken, chatId: telegramChatId }, notificationText);
+            }
+
+            // 2. Send to LINE
+            if (lineMessagingToken || lineNotifyToken) {
+                sendLineMessage({ 
+                    messagingToken: lineMessagingToken, 
+                    userId: lineUserId, 
+                    notifyToken: lineNotifyToken 
+                }, notificationText);
+            }
         } catch (error) {
             console.error("Error sending message:", error);
         }
