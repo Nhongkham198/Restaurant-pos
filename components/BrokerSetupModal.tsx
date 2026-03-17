@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import Swal from 'sweetalert2';
 
 export interface ConnectionDetails {
     url: string;
@@ -59,12 +58,7 @@ export const BrokerSetupModal: React.FC<BrokerSetupModalProps> = ({ onSave, curr
                 }, 2000);
             }).catch(err => {
                 console.error('Failed to copy text: ', err);
-                Swal.fire({
-                    icon: 'error',
-                    title: 'เกิดข้อผิดพลาด',
-                    text: 'ไม่สามารถคัดลอกได้',
-                    confirmButtonColor: '#3b82f6'
-                });
+                alert('ไม่สามารถคัดลอกได้');
             });
         }
     };
