@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MessageCircle, X, Send, Minus, User as UserIcon, Camera, Image as ImageIcon, Loader2, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
+import { MessageCircle, X, Send, Minus, User as UserIcon, Camera, Image as ImageIcon, Loader2, ZoomIn, ZoomOut, RotateCcw, Keyboard } from 'lucide-react';
 import { firebase, db, storage } from '../firebaseConfig';
 import { useData } from '../contexts/DataContext';
 import { StaffMessage } from '../types';
 import imageCompression from 'browser-image-compression';
+import { ThaiVirtualKeyboard } from './ThaiVirtualKeyboard';
 
 export const StaffChat: React.FC = () => {
     const { currentUser, selectedBranch, users } = useData();
@@ -13,6 +14,7 @@ export const StaffChat: React.FC = () => {
     const [pendingMessages, setPendingMessages] = useState<(Omit<StaffMessage, 'id'> & { id: string; isPending: boolean })[]>([]);
     const [inputText, setInputText] = useState('');
     const [isUploading, setIsUploading] = useState(false);
+    const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
     const [unreadCount, setUnreadCount] = useState(0);
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
     const [scale, setScale] = useState(1);
@@ -248,6 +250,18 @@ export const StaffChat: React.FC = () => {
         setScale(1);
     };
 
+    const handleKeyboardKeyPress = (key: string) => {
+        setInputText(prev => prev + key);
+    };
+
+    const handleKeyboardBackspace = () => {
+        setInputText(prev => prev.slice(0, -1));
+    };
+
+    const handleKeyboardClear = () => {
+        setInputText('');
+    };
+
     useEffect(() => {
         if (!selectedImage) {
             setScale(1);
@@ -411,6 +425,16 @@ export const StaffChat: React.FC = () => {
                                                 placeholder="พิมพ์ข้อความ..."
                                                 className="flex-1 bg-gray-100 border-none rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-emerald-500 transition-all"
                                             />
+                                            <button
+                                                type="button"
+                                                onClick={() => setIsKeyboardOpen(!isKeyboardOpen)}
+                                                className={`p-2 rounded-xl transition-all active:scale-95 flex items-center justify-center ${
+                                                    isKeyboardOpen ? 'bg-emerald-600 text-white' : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+                                                }`}
+                                                title="เปิดคีย์บอร์ดเสมือน"
+                                            >
+                                                <Keyboard size={18} />
+                                            </button>
                                             <button 
                                                 type="submit"
                                                 disabled={!inputText.trim() || isUploading}
@@ -572,6 +596,15 @@ export const StaffChat: React.FC = () => {
                     </motion.div>
                 )}
             </AnimatePresence>
+
+            {isKeyboardOpen && (
+                <ThaiVirtualKeyboard
+                    onKeyPress={handleKeyboardKeyPress}
+                    onBackspace={handleKeyboardBackspace}
+                    onClear={handleKeyboardClear}
+                    onClose={() => setIsKeyboardOpen(false)}
+                />
+            )}
         </>
     );
 
