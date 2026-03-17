@@ -1,18 +1,21 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MessageCircle, X, Send, Minus, User as UserIcon, Camera, Image as ImageIcon, Loader2, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
+import { MessageCircle, X, Send, Minus, User as UserIcon, Camera, Image as ImageIcon, Loader2, ZoomIn, ZoomOut, RotateCcw, Keyboard } from 'lucide-react';
 import { firebase, db, storage } from '../firebaseConfig';
 import { useData } from '../contexts/DataContext';
 import { StaffMessage } from '../types';
 import imageCompression from 'browser-image-compression';
+import { GoogleGenAI } from "@google/genai";
+import Swal from 'sweetalert2';
 
 export const StaffChat: React.FC = () => {
-    const { currentUser, selectedBranch, users } = useData();
+    const { currentUser, selectedBranch, users, menuItems, setAiExtractedItems } = useData();
     const [isOpen, setIsOpen] = useState(false);
     const [messages, setMessages] = useState<StaffMessage[]>([]);
     const [pendingMessages, setPendingMessages] = useState<(Omit<StaffMessage, 'id'> & { id: string; isPending: boolean })[]>([]);
     const [inputText, setInputText] = useState('');
     const [isUploading, setIsUploading] = useState(false);
+    const [isProcessingAI, setIsProcessingAI] = useState(false);
     const [unreadCount, setUnreadCount] = useState(0);
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
     const [scale, setScale] = useState(1);
@@ -208,6 +211,75 @@ export const StaffChat: React.FC = () => {
             setIsUploading(false);
             if (fileInputRef.current) fileInputRef.current.value = '';
             if (cameraInputRef.current) cameraInputRef.current.value = '';
+        }
+    };
+
+    const handleAIProcessImage = async () => {
+        // 1. Find latest image message
+        const latestImageMessage = [...messages].reverse().find(m => m.imageUrl);
+        if (!latestImageMessage || !latestImageMessage.imageUrl) {
+            Swal.fire({
+                title: 'ไม่พบรูปภาพ',
+                text: 'กรุณาส่งรูปภาพออเดอร์ก่อนกดปุ่มนี้',
+                icon: 'warning',
+                confirmButtonColor: '#10b981'
+            });
+            return;
+        }
+
+        setIsProcessingAI(true);
+        try {
+            const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
+
+            // Fetch image and convert to base64
+            const response = await fetch(latestImageMessage.imageUrl);
+            const blob = await response.blob();
+            const base64Data = await new Promise<string>((resolve) => {
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    const base64String = (reader.result as string).split(',')[1];
+                    resolve(base64String);
+                };
+                reader.readAsDataURL(blob);
+            });
+
+            const prompt = `Analyze this restaurant order image. Extract the menu items and their quantities. 
+            Return ONLY a JSON array of objects with "name" and "quantity" properties.
+            Example: [{"name": "ซุปดุ๊กบลู", "quantity": 2}, {"name": "คิมมารี", "quantity": 1}]
+            The names should match the Thai names in the image as closely as possible.
+            Available menu items in our system: ${menuItems.map(m => m.name).join(', ')}`;
+
+            const result = await ai.models.generateContent({
+                model: "gemini-3-flash-preview",
+                contents: {
+                    parts: [
+                        { text: prompt },
+                        { inlineData: { mimeType: "image/jpeg", data: base64Data } }
+                    ]
+                }
+            });
+
+            const text = result.text;
+            const jsonMatch = text.match(/\[.*\]/s);
+            if (jsonMatch) {
+                const extractedItems = JSON.parse(jsonMatch[0]);
+                setAiExtractedItems(extractedItems);
+                
+                // Close chat to see the POS
+                setIsOpen(false);
+            } else {
+                throw new Error('Could not parse AI response');
+            }
+        } catch (error) {
+            console.error('AI Processing Error:', error);
+            Swal.fire({
+                title: 'เกิดข้อผิดพลาด',
+                text: 'ไม่สามารถประมวลผลรูปภาพได้ กรุณาลองใหม่อีกครั้ง',
+                icon: 'error',
+                confirmButtonColor: '#10b981'
+            });
+        } finally {
+            setIsProcessingAI(false);
         }
     };
 
@@ -411,6 +483,19 @@ export const StaffChat: React.FC = () => {
                                                 placeholder="พิมพ์ข้อความ..."
                                                 className="flex-1 bg-gray-100 border-none rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-emerald-500 transition-all"
                                             />
+                                            <button
+                                                type="button"
+                                                onClick={handleAIProcessImage}
+                                                disabled={isProcessingAI || isUploading}
+                                                className="bg-emerald-100 text-emerald-700 p-2 rounded-xl hover:bg-emerald-200 disabled:opacity-50 transition-all active:scale-95 flex items-center justify-center"
+                                                title="ดึงข้อมูลจากรูปภาพล่าสุด"
+                                            >
+                                                {isProcessingAI ? (
+                                                    <Loader2 size={18} className="animate-spin" />
+                                                ) : (
+                                                    <Keyboard size={18} />
+                                                )}
+                                            </button>
                                             <button 
                                                 type="submit"
                                                 disabled={!inputText.trim() || isUploading}

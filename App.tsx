@@ -165,6 +165,7 @@ export const App: React.FC = () => {
         orderCounter, setOrderCounter,
         staffCalls, setStaffCalls,
         leaveRequests, setLeaveRequests,
+        aiExtractedItems, setAiExtractedItems,
         // Settings
         logoUrl, setLogoUrl,
         appLogoUrl, setAppLogoUrl,
@@ -390,6 +391,61 @@ export const App: React.FC = () => {
     const prevOrdersForAutoPrint = useRef<ActiveOrder[] | null>(null);
     // NEW: Ref to track max leave request ID to detect new ones
     const maxKnownLeaveIdRef = useRef<number>(-1);
+
+    useEffect(() => {
+        if (aiExtractedItems && aiExtractedItems.length > 0) {
+            const itemsToAdd: OrderItem[] = [];
+            aiExtractedItems.forEach(extracted => {
+                const menuItem = menuItems.find(m => m.name === extracted.name);
+                if (menuItem) {
+                    const orderItem: OrderItem = {
+                        id: menuItem.id,
+                        name: menuItem.name,
+                        price: menuItem.price,
+                        finalPrice: menuItem.price,
+                        quantity: extracted.quantity,
+                        category: menuItem.category,
+                        cartItemId: `${menuItem.id}-${Date.now()}-${Math.random()}`,
+                        selectedOptions: [],
+                        notes: '',
+                        isTakeaway: false,
+                        imageUrl: menuItem.imageUrl || ''
+                    };
+                    itemsToAdd.push(orderItem);
+                }
+            });
+
+            if (itemsToAdd.length > 0) {
+                setCurrentOrderItems(prev => {
+                    const newItems = [...prev];
+                    itemsToAdd.forEach(item => {
+                        const existingIndex = newItems.findIndex(i => i.id === item.id && i.selectedOptions.length === 0 && i.notes === '');
+                        if (existingIndex !== -1) {
+                            newItems[existingIndex].quantity += item.quantity;
+                        } else {
+                            newItems.push(item);
+                        }
+                    });
+                    return newItems;
+                });
+
+                Swal.fire({
+                    icon: 'success',
+                    title: 'เพิ่มรายการจากรูปภาพสำเร็จ',
+                    text: `เพิ่ม ${itemsToAdd.length} รายการลงในออเดอร์แล้ว`,
+                    timer: 2000,
+                    showConfirmButton: false
+                });
+            } else {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'ไม่พบรายการอาหาร',
+                    text: 'ไม่สามารถจับคู่รายการอาหารในรูปกับเมนูของ้านได้',
+                });
+            }
+            setAiExtractedItems(null);
+        }
+    }, [aiExtractedItems, menuItems, setAiExtractedItems]);
 
     // ... Computed Values ... (Same as before)
     const waitingBadgeCount = useMemo(() => activeOrders.filter(o => o.status === 'waiting' || o.status === 'pending_payment').length, [activeOrders]);

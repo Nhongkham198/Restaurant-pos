@@ -91,11 +91,22 @@ export const EditCompletedOrderModal: React.FC<EditCompletedOrderModalProps> = (
         ).slice(0, 5); 
     }, [searchTerm, menuItems]);
 
-    const handleSubmit = () => {
+    const handleSubmit = async () => {
         if (!order) return;
         
         if (editedItems.length === 0) {
-            if (!window.confirm('ออเดอร์นี้จะไม่มีรายการอาหารเหลืออยู่ คุณต้องการบันทึกหรือไม่?')) {
+            const result = await Swal.fire({
+                title: 'ยืนยันการบันทึก',
+                text: 'ออเดอร์นี้จะไม่มีรายการอาหารเหลืออยู่ คุณต้องการบันทึกหรือไม่?',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#3b82f6',
+                cancelButtonColor: '#d33',
+                confirmButtonText: 'ใช่, บันทึก',
+                cancelButtonText: 'ยกเลิก'
+            });
+
+            if (!result.isConfirmed) {
                 return;
             }
         }

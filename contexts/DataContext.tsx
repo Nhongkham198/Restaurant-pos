@@ -89,6 +89,10 @@ interface DataContextType {
     leaveRequests: LeaveRequest[];
     setLeaveRequests: React.Dispatch<React.SetStateAction<LeaveRequest[]>>;
 
+    // AI Extracted Items
+    aiExtractedItems: { name: string; quantity: number }[] | null;
+    setAiExtractedItems: React.Dispatch<React.SetStateAction<{ name: string; quantity: number }[] | null>>;
+
     // HR Management
     jobApplications: JobApplication[];
     jobApplicationsActions: CollectionActions<JobApplication>;
@@ -470,6 +474,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     
     const [staffCalls, setStaffCalls] = useFirestoreSync<StaffCall[]>(branchId, 'staffCalls', []);
     const [leaveRequests, setLeaveRequests] = useFirestoreSync<LeaveRequest[]>(shouldLoadHeavyData ? null : 'SKIP', 'leaveRequests', []);
+    const [aiExtractedItems, setAiExtractedItems] = useState<{ name: string; quantity: number }[] | null>(null);
 
     // --- HR MANAGEMENT ---
     const [jobApplications, jobApplicationsActions] = useFirestoreCollection<JobApplication>(branchId, 'jobApplications');
@@ -524,6 +529,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             stockLogs, stockLogsActions,
             printHistory, setPrintHistory, maintenanceItems, setMaintenanceItems, maintenanceLogs, setMaintenanceLogs,
             orderCounter, setOrderCounter, staffCalls, setStaffCalls, leaveRequests, setLeaveRequests,
+            aiExtractedItems, setAiExtractedItems,
             
             jobApplications, jobApplicationsActions, employmentContracts, employmentContractsActions,
             timeRecords, setTimeRecords, payrollRecords, setPayrollRecords, jobPositions, setJobPositions,
