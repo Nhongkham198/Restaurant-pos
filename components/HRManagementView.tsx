@@ -135,6 +135,24 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                         setPayrollRecords(prev => prev.filter(item => !selectedItems.includes(item.id)));
                         break;
                     case 'leave':
+                        // Restore quotas for approved leaves being deleted
+                        selectedItems.forEach(id => {
+                            const request = leaveRequests.find(r => r.id === id);
+                            if (request && request.status === 'approved') {
+                                const user = users.find(u => u.id === request.userId);
+                                if (user && user.leaveQuotas) {
+                                    const diffTime = Math.abs(request.endDate - request.startDate);
+                                    const duration = request.isHalfDay ? 0.5 : Math.max(1, Math.round(diffTime / (1000 * 60 * 60 * 24)));
+                                    
+                                    const newQuotas = { ...user.leaveQuotas };
+                                    const type = request.type as keyof typeof newQuotas;
+                                    if (['sick', 'personal', 'vacation'].includes(type)) {
+                                        newQuotas[type] = newQuotas[type] + duration;
+                                        setUsers(prevUsers => prevUsers.map(u => u.id === user.id ? { ...u, leaveQuotas: newQuotas } : u));
+                                    }
+                                }
+                            }
+                        });
                         setLeaveRequests(prev => prev.filter(item => !selectedItems.includes(item.id)));
                         break;
                 }
@@ -604,31 +622,62 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
 
         let isLeaveWithoutPayApproved = false;
 
-        if (newStatus === 'approved' && leaveRequest.type === 'leave-without-pay') {
+        // Calculate duration consistently
+        const getDuration = (req: LeaveRequest) => {
+            if (req.isHalfDay) return 0.5;
+            const diffTime = Math.abs(req.endDate - req.startDate);
+            const days = Math.round(diffTime / (1000 * 60 * 60 * 24));
+            return days > 0 ? days : 1;
+        };
+
+        const leaveDuration = getDuration(leaveRequest);
+
+        if (newStatus === 'approved') {
             const employee = users.find(u => u.id === leaveRequest.userId);
-            const contract = employmentContracts.find(c => c.userId === leaveRequest.userId);
+            
+            if (leaveRequest.type === 'leave-without-pay') {
+                const contract = employmentContracts.find(c => c.userId === leaveRequest.userId);
 
-            if (employee && contract) {
-                isLeaveWithoutPayApproved = true;
-                const lastPayroll = payrollRecords
-                    .filter(pr => pr.employeeName === leaveRequest.employeeName)
-                    .sort((a, b) => new Date(b.month).getTime() - new Date(a.month).getTime())[0];
+                if (employee && contract) {
+                    isLeaveWithoutPayApproved = true;
+                    const lastPayroll = payrollRecords
+                        .filter(pr => pr.employeeName === leaveRequest.employeeName)
+                        .sort((a, b) => new Date(b.month).getTime() - new Date(a.month).getTime())[0];
 
-                const nextPayday = lastPayroll ? new Date(new Date(lastPayroll.month).getTime() + 7 * 24 * 60 * 60 * 1000) : new Date();
-                
-                const leaveDuration = (new Date(leaveRequest.endDate).getTime() - new Date(leaveRequest.startDate).getTime()) / (1000 * 3600 * 24) + 1;
-                const deductionAmount = (contract.salary / 24) * leaveDuration;
+                    const nextPayday = lastPayroll ? new Date(new Date(lastPayroll.month).getTime() + 7 * 24 * 60 * 60 * 1000) : new Date();
+                    
+                    const deductionAmount = (contract.salary / 24) * leaveDuration;
 
-                Swal.fire({
-                    title: 'แจ้งเตือนหักเงินเดือน',
-                    html: `
-                        <p>พนักงาน: <strong>${leaveRequest.employeeName}</strong></p>
-                        <p>มีการลาแบบไม่รับเงินเดือนจำนวน <strong>${leaveDuration}</strong> วัน</p>
-                        <p>ต้องหักเงิน: <strong>${deductionAmount.toFixed(2)}</strong> บาท</p>
-                        <p>ในรอบบิลถัดไปวันที่: <strong>${nextPayday.toLocaleDateString('th-TH')}</strong></p>
-                    `,
-                    icon: 'warning',
-                });
+                    Swal.fire({
+                        title: 'แจ้งเตือนหักเงินเดือน',
+                        html: `
+                            <p>พนักงาน: <strong>${leaveRequest.employeeName}</strong></p>
+                            <p>มีการลาแบบไม่รับเงินเดือนจำนวน <strong>${leaveDuration}</strong> วัน</p>
+                            <p>ต้องหักเงิน: <strong>${deductionAmount.toFixed(2)}</strong> บาท</p>
+                            <p>ในรอบบิลถัดไปวันที่: <strong>${nextPayday.toLocaleDateString('th-TH')}</strong></p>
+                        `,
+                        icon: 'warning',
+                    });
+                }
+            } else if (['sick', 'personal', 'vacation'].includes(leaveRequest.type)) {
+                // Update quota for standard leave types
+                if (employee && employee.leaveQuotas) {
+                    const newQuotas = { ...employee.leaveQuotas };
+                    const type = leaveRequest.type as keyof typeof newQuotas;
+                    newQuotas[type] = Math.max(0, newQuotas[type] - leaveDuration);
+                    
+                    setUsers(prevUsers => prevUsers.map(u => u.id === employee.id ? { ...u, leaveQuotas: newQuotas } : u));
+                    
+                    Swal.fire({
+                        toast: true,
+                        position: 'top-end',
+                        icon: 'success',
+                        title: `อนุมัติแล้ว หักโควต้า ${leaveDuration} วัน`,
+                        showConfirmButton: false,
+                        timer: 3000
+                    });
+                    return; // Avoid double toast
+                }
             }
         }
 
@@ -736,7 +785,7 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                  
                                  if (overlapStart <= overlapEnd) {
                                      const diffTime = Math.abs(overlapEnd.getTime() - overlapStart.getTime());
-                                     const days = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
+                                     const days = l.isHalfDay ? 0.5 : Math.max(1, Math.round(diffTime / (1000 * 60 * 60 * 24)));
                                      retroactiveDays += days;
                                      if (!retroactiveLeavesList.includes(l)) retroactiveLeavesList.push(l);
                                  }
@@ -749,7 +798,7 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                  
                                  if (overlapStart <= overlapEnd) {
                                      const diffTime = Math.abs(overlapEnd.getTime() - overlapStart.getTime());
-                                     const days = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
+                                     const days = l.isHalfDay ? 0.5 : Math.max(1, Math.round(diffTime / (1000 * 60 * 60 * 24)));
                                      currentDays += days;
                                      if (!currentLeavesList.includes(l)) currentLeavesList.push(l);
                                  }
@@ -1415,23 +1464,25 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                 <tbody className="divide-y divide-gray-700">
                                     {leaveRequests.length === 0 ? (
                                         <tr><td colSpan={isEditMode ? 7 : 6} className="p-4 text-center text-gray-500">ไม่พบข้อมูล</td></tr>
-                                    ) : (
-                                        leaveRequests.map((l, index) => {
+                                    ) : (() => {
+                                        // Pre-calculate used days per user and type to avoid O(N^2) in render
+                                        const approvedLeaves = leaveRequests.filter(r => r.status === 'approved');
+                                        const usedDaysMap: Record<string, number> = {};
+                                        
+                                        approvedLeaves.forEach(req => {
+                                            const key = `${req.userId}-${req.type}`;
+                                            const diffTime = Math.abs(req.endDate - req.startDate);
+                                            const duration = req.isHalfDay ? 0.5 : Math.max(1, Math.round(diffTime / (1000 * 60 * 60 * 24)));
+                                            usedDaysMap[key] = (usedDaysMap[key] || 0) + duration;
+                                        });
+
+                                        return leaveRequests.map((l, index) => {
                                             // Try to find user by ID, or fallback to matching name via employment contract
                                             const user = users.find(u => u.id === l.userId) || 
                                                          users.find(u => employmentContracts.some(c => c.userId === u.id && c.employeeName === l.employeeName));
                                             
                                             const quotas = user?.leaveQuotas ?? { sick: 0, personal: 0, vacation: 0 };
-                                            const usedDays = leaveRequests
-                                                .filter(req => req.userId === l.userId && req.type === l.type && req.status === 'approved')
-                                                .reduce((acc, req) => {
-                                                    const start = new Date(req.startDate);
-                                                    const end = new Date(req.endDate);
-                                                    const diffTime = Math.abs(end.getTime() - start.getTime());
-                                                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-                                                    return acc + diffDays;
-                                                }, 0);
-                                            const remainingDays = quotas[l.type as keyof typeof quotas] - usedDays;
+                                            const remainingDays = quotas[l.type as keyof typeof quotas] ?? 0;
 
                                             return (
                                             <tr key={l.id || index} className="hover:bg-gray-700/50">
@@ -1473,8 +1524,9 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                                     )}
                                                 </td>
                                             </tr>
-                                        )})
-                                    )}
+                                            );
+                                        });
+                                    })()}
                                 </tbody>
                             </table>
                         </div>

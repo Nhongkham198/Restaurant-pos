@@ -137,12 +137,12 @@ export const LeaveCalendarView: React.FC<LeaveCalendarViewProps> = ({ leaveReque
         }
 
         const data = visibleRequests.map(req => ({
-            'วันที่ยื่น': req.submittedAt ? new Date(req.submittedAt).toLocaleDateString('th-TH') : '-',
+            'วันที่ยื่น': req.submittedAt ? new Date(req.submittedAt).toLocaleDateString('th-TH', { timeZone: 'Asia/Bangkok' }) : '-',
             'พนักงาน': req.username,
             'สาขา': getBranchName(req.branchId),
             'ประเภท': getTypeLabel(req.type),
-            'วันที่เริ่มลา': new Date(req.startDate).toLocaleDateString('th-TH'),
-            'ถึงวันที่': new Date(req.endDate).toLocaleDateString('th-TH'),
+            'วันที่เริ่มลา': new Date(req.startDate).toLocaleDateString('th-TH', { timeZone: 'Asia/Bangkok' }),
+            'ถึงวันที่': new Date(req.endDate).toLocaleDateString('th-TH', { timeZone: 'Asia/Bangkok' }),
             'เหตุผล': req.reason,
             'สถานะ': req.status === 'approved' ? 'อนุมัติแล้ว' : req.status === 'rejected' ? 'ไม่อนุมัติ' : 'รออนุมัติ'
         }));
@@ -347,13 +347,13 @@ export const LeaveCalendarView: React.FC<LeaveCalendarViewProps> = ({ leaveReque
                                         <tr key={req.id} className="border-b hover:bg-gray-50">
                                             <td className="py-3 px-4 text-gray-500">
                                                 {/* FIX: Use submittedAt if available, otherwise show placeholder to avoid 2513 date */}
-                                                {req.submittedAt ? new Date(req.submittedAt).toLocaleDateString('th-TH') : '-'}
+                                                {req.submittedAt ? new Date(req.submittedAt).toLocaleDateString('th-TH', { timeZone: 'Asia/Bangkok' }) : '-'}
                                             </td>
                                             <td className="py-3 px-4 font-medium">{req.username}</td>
                                             <td className="py-3 px-4 text-gray-600">{getBranchName(req.branchId)}</td>
                                             <td className="py-3 px-4">{getTypeLabel(req.type)}</td>
                                             <td className="py-3 px-4">
-                                                {new Date(req.startDate).toLocaleDateString('th-TH')} - {new Date(req.endDate).toLocaleDateString('th-TH')}
+                                                {new Date(req.startDate).toLocaleDateString('th-TH', { timeZone: 'Asia/Bangkok' })} - {new Date(req.endDate).toLocaleDateString('th-TH', { timeZone: 'Asia/Bangkok' })}
                                             </td>
                                             <td className="py-3 px-4 text-gray-600 max-w-xs truncate" title={req.reason}>{req.reason}</td>
                                             <td className="py-3 px-4">{getStatusBadge(req.status)}</td>

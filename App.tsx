@@ -957,12 +957,14 @@ export const App: React.FC = () => {
         const request = leaveRequests.find(r => r.id === requestId);
         if (!request) return;
 
+        const oldStatus = request.status;
+
         // 1. Update the request status
         const updatedRequests = leaveRequests.map(r => r.id === requestId ? { ...r, status } : r);
         setLeaveRequests(updatedRequests);
 
-        // 2. If approved, deduct quota from user
-        if (status === 'approved') {
+        // 2. Handle quota deduction or addition
+        if (status !== oldStatus) {
             const user = users.find(u => u.id === request.userId);
             if (user && user.leaveQuotas) {
                 let duration = 0;
@@ -970,16 +972,34 @@ export const App: React.FC = () => {
                     duration = 0.5;
                 } else {
                     const diffTime = Math.abs(request.endDate - request.startDate);
-                    duration = Math.round(diffTime / (1000 * 60 * 60 * 24)) + 1;
+                    duration = Math.max(1, Math.round(diffTime / (1000 * 60 * 60 * 24)));
                 }
 
                 const newQuotas = { ...user.leaveQuotas };
-                if (request.type === 'sick') {
-                    newQuotas.sick = Math.max(0, newQuotas.sick - duration);
-                } else if (request.type === 'personal') {
-                    newQuotas.personal = Math.max(0, newQuotas.personal - duration);
-                } else if (request.type === 'vacation') {
-                    newQuotas.vacation = Math.max(0, newQuotas.vacation - duration);
+                const type = request.type as keyof typeof newQuotas;
+
+                if (status === 'approved' && oldStatus !== 'approved') {
+                    // Deduct quota
+                    if (['sick', 'personal', 'vacation'].includes(type)) {
+                        newQuotas[type] = Math.max(0, newQuotas[type] - duration);
+                    }
+                } else if (status !== 'approved' && oldStatus === 'approved') {
+                    // Add back quota
+                    if (['sick', 'personal', 'vacation'].includes(type)) {
+                        newQuotas[type] = newQuotas[type] + duration;
+                    }
+                } else {
+                    // No quota change needed for other transitions (e.g. pending -> rejected)
+                    if (status === 'rejected') {
+                        Swal.fire({
+                            icon: 'info',
+                            title: 'ปฏิเสธคำขอ',
+                            text: 'คำขอลาถูกปฏิเสธแล้ว',
+                            timer: 2000,
+                            showConfirmButton: false
+                        });
+                    }
+                    return;
                 }
 
                 // Update users collection
@@ -994,20 +1014,20 @@ export const App: React.FC = () => {
 
                 Swal.fire({
                     icon: 'success',
-                    title: 'อนุมัติเรียบร้อย',
-                    text: `หักลบวันลา ${duration} วัน เรียบร้อยแล้ว`,
+                    title: status === 'approved' ? 'อนุมัติเรียบร้อย' : 'ปฏิเสธเรียบร้อย',
+                    text: status === 'approved' ? `หักลบวันลา ${duration} วัน เรียบร้อยแล้ว` : `คืนวันลา ${duration} วัน เรียบร้อยแล้ว`,
+                    timer: 2000,
+                    showConfirmButton: false
+                });
+            } else if (status === 'rejected') {
+                Swal.fire({
+                    icon: 'info',
+                    title: 'ปฏิเสธคำขอ',
+                    text: 'คำขอลาถูกปฏิเสธแล้ว',
                     timer: 2000,
                     showConfirmButton: false
                 });
             }
-        } else if (status === 'rejected') {
-            Swal.fire({
-                icon: 'info',
-                title: 'ปฏิเสธคำขอ',
-                text: 'คำขอลาถูกปฏิเสธแล้ว',
-                timer: 2000,
-                showConfirmButton: false
-            });
         }
     };
 
@@ -1033,6 +1053,37 @@ export const App: React.FC = () => {
     };
 
     const handleDeleteLeaveRequest = async (id: number) => {
+        const request = leaveRequests.find(r => r.id === id);
+        if (!request) return false;
+
+        // If it was approved, restore the quota
+        if (request.status === 'approved') {
+            const user = users.find(u => u.id === request.userId);
+            if (user && user.leaveQuotas) {
+                let duration = 0;
+                if (request.isHalfDay) {
+                    duration = 0.5;
+                } else {
+                    const diffTime = Math.abs(request.endDate - request.startDate);
+                    duration = Math.max(1, Math.round(diffTime / (1000 * 60 * 60 * 24)));
+                }
+
+                const newQuotas = { ...user.leaveQuotas };
+                const type = request.type as keyof typeof newQuotas;
+                if (['sick', 'personal', 'vacation'].includes(type)) {
+                    newQuotas[type] = newQuotas[type] + duration;
+                    
+                    const updatedUsers = users.map(u => u.id === user.id ? { ...u, leaveQuotas: newQuotas } : u);
+                    setUsers(updatedUsers);
+                    
+                    if (currentUser && currentUser.id === user.id) {
+                        setCurrentUser({ ...currentUser, leaveQuotas: newQuotas });
+                        localStorage.setItem('currentUser', JSON.stringify({ ...currentUser, leaveQuotas: newQuotas }));
+                    }
+                }
+            }
+        }
+
         setLeaveRequests(prev => prev.filter(r => r.id !== id));
         return true;
     };

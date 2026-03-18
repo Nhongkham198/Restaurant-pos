@@ -641,14 +641,18 @@ exports.sendLeaveRequestNotification = functions.region('asia-southeast1').fires
 
         // Calculate duration and remaining quotas
         let duration = 0;
+        let durationText = "";
         if (newRequest.isHalfDay) {
             duration = 0.5;
+            durationText = "ครึ่งวัน";
         } else {
             const start = new Date(newRequest.startDate);
             const end = new Date(newRequest.endDate);
-            start.setHours(0, 0, 0, 0);
-            end.setHours(0, 0, 0, 0);
-            duration = Math.round((end - start) / (1000 * 60 * 60 * 24)) + 1;
+            // Ensure we are comparing dates in Bangkok time to avoid offset issues
+            // If startDate and endDate are same day, duration should be 1
+            const diffTime = Math.abs(end.getTime() - start.getTime());
+            duration = Math.max(1, Math.round(diffTime / (1000 * 60 * 60 * 24)));
+            durationText = `${duration} วัน`;
         }
 
         let remainingSick = 0;
@@ -661,11 +665,13 @@ exports.sendLeaveRequestNotification = functions.region('asia-southeast1').fires
                 remainingSick = user.leaveQuotas.sick || 0;
                 remainingPersonal = user.leaveQuotas.personal || 0;
                 
-                // Deduct current request from remaining quotas for display
+                // Note: Quota is already deducted in App.tsx when approved, 
+                // but here we are notifying about a NEW (pending) request.
+                // The user wants to see what the balance WOULD BE if this is approved.
                 if (newRequest.type === 'sick') {
-                    remainingSick -= duration;
+                    remainingSick = Math.max(0, remainingSick - duration);
                 } else if (newRequest.type === 'personal') {
-                    remainingPersonal -= duration;
+                    remainingPersonal = Math.max(0, remainingPersonal - duration);
                 }
             }
         } catch (err) {
@@ -685,11 +691,10 @@ exports.sendLeaveRequestNotification = functions.region('asia-southeast1').fires
             if (lineToken && lineUserId) {
                 const https = require('https');
                 
-                // Format dates for Thai locale
-                const optionsDate = { year: 'numeric', month: 'long', day: 'numeric' };
-                const startDate = new Date(newRequest.startDate).toLocaleDateString('th-TH', optionsDate);
-                const endDate = new Date(newRequest.endDate).toLocaleDateString('th-TH', optionsDate);
-                const submittedDate = newRequest.submittedAt ? new Date(newRequest.submittedAt).toLocaleDateString('th-TH', optionsDate) : '-';
+                // Format dates for Thai locale with Bangkok timezone
+                const optionsDate = { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'Asia/Bangkok' };
+                const startDateStr = new Date(newRequest.startDate).toLocaleDateString('th-TH', optionsDate);
+                const endDateStr = new Date(newRequest.endDate).toLocaleDateString('th-TH', optionsDate);
                 
                 const typeMap = {
                     'sick': 'ลาป่วย',
@@ -701,10 +706,10 @@ exports.sendLeaveRequestNotification = functions.region('asia-southeast1').fires
                 
                 const messageText = `📢 แจ้งเตือนคำขอลาใหม่!\n` +
                                     `👤 พนักงาน: ${newRequest.username}\n` +
-                                    `📅 วันที่ลาจริง: ${startDate} ถึง ${endDate} (${duration} วัน)\n` +
+                                    `📅 วันที่ลาจริง: ${startDateStr} ถึง ${endDateStr} (${durationText})\n` +
                                     `📝 ประเภท: ${typeMap[newRequest.type] || newRequest.type}\n` +
                                     `💬 เหตุผล: ${newRequest.reason}\n\n` +
-                                    `📊 สรุปวันลาคงเหลือหลังหักครั้งนี้:\n` +
+                                    `📊 สรุปวันลาคงเหลือหากอนุมัติ:\n` +
                                     `🤒 ลาป่วยคงเหลือ: ${remainingSick} วัน\n` +
                                     `💼 ลากิจคงเหลือ: ${remainingPersonal} วัน`;
 
@@ -762,10 +767,9 @@ exports.sendLeaveRequestNotification = functions.region('asia-southeast1').fires
             const telChatId = telChatIdDoc.exists ? telChatIdDoc.data().value : null;
 
             if (telToken && telChatId) {
-                const optionsDate = { year: 'numeric', month: 'long', day: 'numeric' };
-                const startDate = new Date(newRequest.startDate).toLocaleDateString('th-TH', optionsDate);
-                const endDate = new Date(newRequest.endDate).toLocaleDateString('th-TH', optionsDate);
-                const submittedDate = newRequest.submittedAt ? new Date(newRequest.submittedAt).toLocaleDateString('th-TH', optionsDate) : '-';
+                const optionsDate = { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'Asia/Bangkok' };
+                const startDateStr = new Date(newRequest.startDate).toLocaleDateString('th-TH', optionsDate);
+                const endDateStr = new Date(newRequest.endDate).toLocaleDateString('th-TH', optionsDate);
                 
                 const typeMap = {
                     'sick': 'ลาป่วย',
@@ -777,10 +781,10 @@ exports.sendLeaveRequestNotification = functions.region('asia-southeast1').fires
                 
                 const messageText = `<b>📢 แจ้งเตือนคำขอลาใหม่!</b>\n` +
                                     `👤 พนักงาน: ${newRequest.username}\n` +
-                                    `📅 วันที่ลาจริง: ${startDate} ถึง ${endDate} (${duration} วัน)\n` +
+                                    `📅 วันที่ลาจริง: ${startDateStr} ถึง ${endDateStr} (${durationText})\n` +
                                     `📝 ประเภท: ${typeMap[newRequest.type] || newRequest.type}\n` +
                                     `💬 เหตุผล: ${newRequest.reason}\n\n` +
-                                    `<b>📊 สรุปวันลาคงเหลือหลังหักครั้งนี้:</b>\n` +
+                                    `<b>📊 สรุปวันลาคงเหลือหากอนุมัติ:</b>\n` +
                                     `🤒 ลาป่วยคงเหลือ: <b>${remainingSick} วัน</b>\n` +
                                     `💼 ลากิจคงเหลือ: <b>${remainingPersonal} วัน</b>`;
 

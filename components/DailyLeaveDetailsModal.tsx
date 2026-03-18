@@ -34,7 +34,18 @@ export const DailyLeaveDetailsModal: React.FC<DailyLeaveDetailsModalProps> = ({ 
         year: 'numeric',
         month: 'long',
         day: 'numeric',
+        timeZone: 'Asia/Bangkok'
     });
+
+    const getDurationText = (leave: LeaveRequest) => {
+        if (leave.isHalfDay) return 'ครึ่งวัน';
+        const start = new Date(leave.startDate);
+        const end = new Date(leave.endDate);
+        const diffTime = Math.abs(end.getTime() - start.getTime());
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        const duration = Math.max(1, diffDays + 1);
+        return `${duration} วัน`;
+    };
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={onClose}>
@@ -48,11 +59,19 @@ export const DailyLeaveDetailsModal: React.FC<DailyLeaveDetailsModalProps> = ({ 
                         leaves.map(leave => (
                             <div key={leave.id} className="bg-gray-50 border border-gray-200 rounded-lg p-3">
                                 <div className="flex justify-between items-start">
-                                    <p className="font-bold text-gray-800">{leave.username}</p>
+                                    <div>
+                                        <p className="font-bold text-gray-800">{leave.username}</p>
+                                        <p className="text-xs text-blue-600 font-medium">
+                                            {new Date(leave.startDate).toLocaleDateString('th-TH', { timeZone: 'Asia/Bangkok' })} - {new Date(leave.endDate).toLocaleDateString('th-TH', { timeZone: 'Asia/Bangkok' })}
+                                            <span className="ml-2 text-gray-500">({getDurationText(leave)})</span>
+                                        </p>
+                                    </div>
                                     {getStatusBadge(leave.status)}
                                 </div>
-                                <p className="text-sm text-gray-600">ประเภท: {getTypeLabel(leave.type)}</p>
-                                <p className="text-sm text-gray-600 mt-1">เหตุผล: {leave.reason}</p>
+                                <div className="mt-2 pt-2 border-t border-gray-100">
+                                    <p className="text-sm text-gray-600"><span className="font-semibold">ประเภท:</span> {getTypeLabel(leave.type)}</p>
+                                    <p className="text-sm text-gray-600 mt-1"><span className="font-semibold">เหตุผล:</span> {leave.reason}</p>
+                                </div>
                             </div>
                         ))
                     ) : (
