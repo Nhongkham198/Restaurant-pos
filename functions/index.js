@@ -71,9 +71,48 @@ exports.sendHighPriorityOrderNotification = functions.region('asia-southeast1').
 
         console.log(`New order detected: #${newOrder.orderNumber} for Table ${newOrder.tableName} in branch ${context.params.branchId}`);
 
-        // --- Redundant Telegram Notification Removed ---
-        // Telegram notifications for orders are now handled by the frontend 
-        // to provide the specific format preferred by the user.
+        // --- Restore Telegram Notification ---
+        try {
+            const [telTokenDoc, telChatIdDoc] = await Promise.all([
+                admin.firestore().doc(`branches/${context.params.branchId}/telegramBotToken/data`).get(),
+                admin.firestore().doc(`branches/${context.params.branchId}/telegramChatId/data`).get()
+            ]);
+
+            const telToken = telTokenDoc.exists ? telTokenDoc.data().value : null;
+            const telChatId = telChatIdDoc.exists ? telChatIdDoc.data().value : null;
+
+            if (telToken && telChatId) {
+                const totalAmount = Math.round(newOrder.items.reduce((sum, item) => sum + (item.finalPrice * item.quantity), 0));
+                const itemsList = newOrder.items.map(item => {
+                    let itemText = `• ${item.name} x${item.quantity}`;
+                    if (item.selectedOptions && item.selectedOptions.length > 0) {
+                        const optionsText = item.selectedOptions.map(opt => opt.name).join(', ');
+                        itemText += `\n(<i>${optionsText}</i>)`;
+                    }
+                    return itemText;
+                }).join('\n');
+
+                const displayOrderNumber = newOrder.manualOrderNumber ? `${newOrder.manualOrderNumber}` : `${newOrder.orderNumber}`;
+                const timeStr = new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: 'Asia/Bangkok' });
+                
+                const tableDisplay = newOrder.floor && newOrder.floor !== 'Unknown' && newOrder.floor !== 'Delivery' 
+                    ? `${newOrder.tableName} (${newOrder.floor})` 
+                    : newOrder.tableName;
+
+                const messageText = `🔔 <b>ออเดอร์ใหม่! #${displayOrderNumber}</b>\n` +
+                                    `📍 โต๊ะ: ${tableDisplay}\n` +
+                                    `👤 ลูกค้า: ${newOrder.customerName || 'ทั่วไป'}\n` +
+                                    `🕒 เวลา: ${timeStr}\n` +
+                                    `--------------------------\n` +
+                                    `${itemsList}\n` +
+                                    `--------------------------\n` +
+                                    `💰 ยอดรวม: <b>฿${totalAmount}</b>`;
+
+                await sendTelegramMessage(telToken, telChatId, messageText);
+            }
+        } catch (error) {
+            console.error('Failed to send Telegram order notification:', error);
+        }
 
         // Get all users from the 'users/data' document to find tokens.
         const usersDoc = await admin.firestore().collection('users').doc('data').get();

@@ -37,24 +37,28 @@ export const sendTelegramMessage = async (config: TelegramConfig, message: strin
 };
 
 export const formatOrderMessage = (order: any) => {
-    let message = `<b>🔔 ออเดอร์ใหม่! #${order.orderNumber}</b>\n`;
-    message += `📍 โต๊ะ: ${order.tableName} (${order.floor})\n`;
+    const totalAmount = Math.round(order.items.reduce((sum: number, item: any) => sum + (item.finalPrice * item.quantity), 0));
+    const timeStr = new Date(order.orderTime).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: 'Asia/Bangkok' });
+    
+    const tableDisplay = order.floor && order.floor !== 'Unknown' && order.floor !== 'Delivery' 
+        ? `${order.tableName} (${order.floor})` 
+        : order.tableName;
+
+    let message = `🔔 <b>ออเดอร์ใหม่! #${order.orderNumber}</b>\n`;
+    message += `📍 โต๊ะ: ${tableDisplay}\n`;
     message += `👤 ลูกค้า: ${order.customerName || 'ทั่วไป'}\n`;
-    message += `🕒 เวลา: ${new Date(order.orderTime).toLocaleTimeString('th-TH')}\n`;
+    message += `🕒 เวลา: ${timeStr}\n`;
     message += `--------------------------\n`;
     
     order.items.forEach((item: any) => {
         message += `• ${item.name} x${item.quantity}\n`;
         if (item.selectedOptions && item.selectedOptions.length > 0) {
-            message += `  <i>(${item.selectedOptions.map((o: any) => o.name).join(', ')})</i>\n`;
-        }
-        if (item.notes) {
-            message += `  📝 หมายเหตุ: ${item.notes}\n`;
+            message += `(<i>${item.selectedOptions.map((o: any) => o.name).join(', ')}</i>)\n`;
         }
     });
     
     message += `--------------------------\n`;
-    message += `💰 ยอดรวม: <b>฿${order.items.reduce((sum: number, item: any) => sum + (item.finalPrice * item.quantity), 0).toLocaleString()}</b>`;
+    message += `💰 ยอดรวม: <b>฿${totalAmount}</b>`;
     
     if (order.customerPhone) {
         message += `\n📞 เบอร์โทร: ${order.customerPhone}`;
