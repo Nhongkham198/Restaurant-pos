@@ -654,6 +654,44 @@ export const App: React.FC = () => {
         }
     }, [staffCalls, staffCallSoundUrl, isAudioUnlocked, currentUser, telegramBotToken, telegramChatId]);
 
+    // NEW: App Badge Notification (Badge on app icon)
+    useEffect(() => {
+        // Only show badge for staff roles who need to see kitchen status
+        const isStaff = currentUser?.role === 'admin' || 
+                        currentUser?.role === 'branch-admin' || 
+                        currentUser?.role === 'kitchen' || 
+                        currentUser?.role === 'pos' ||
+                        currentUser?.role === 'staff' ||
+                        currentUser?.role === 'auditor';
+
+        if (!isStaff || !activeOrders) {
+            if ('clearAppBadge' in navigator) {
+                (navigator as any).clearAppBadge().catch(() => {});
+            }
+            return;
+        }
+
+        // Count orders that are in 'waiting' or 'cooking' status
+        const pendingCount = activeOrders.filter(order => 
+            order.status === 'waiting' || order.status === 'cooking'
+        ).length;
+
+        if ('setAppBadge' in navigator) {
+            if (pendingCount > 0) {
+                (navigator as any).setAppBadge(pendingCount).catch((err: any) => {
+                    console.error('Failed to set app badge:', err);
+                });
+            } else {
+                (navigator as any).clearAppBadge().catch(() => {});
+            }
+        }
+
+        // Support for some Android wrappers if available
+        if (window.AndroidBridge?.setPendingOrderCount) {
+            window.AndroidBridge.setPendingOrderCount(pendingCount);
+        }
+    }, [activeOrders, currentUser]);
+
     // NEW: Leave Request Notification Watcher (Popup)
     useEffect(() => {
         // Wait for initial load
