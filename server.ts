@@ -31,8 +31,25 @@ app.post("/api/read-order", async (req, res) => {
 
   try {
     const ai = new GoogleGenAI({ apiKey: apiKey });
-    const base64Data = imageUrl.split(',')[1];
-    const mimeType = imageUrl.split(';')[0].split(':')[1];
+    
+    // Robust image parsing: handle both data URLs and raw base64
+    let base64Data = "";
+    let mimeType = "image/jpeg"; // Default fallback
+
+    if (imageUrl && imageUrl.includes(',')) {
+      const parts = imageUrl.split(',');
+      base64Data = parts[1];
+      const mimePart = parts[0].split(';')[0];
+      if (mimePart.includes(':')) {
+        mimeType = mimePart.split(':')[1];
+      }
+    } else {
+      base64Data = imageUrl || "";
+    }
+
+    if (!base64Data) {
+      throw new Error("ไม่พบข้อมูลรูปภาพที่ถูกต้อง");
+    }
 
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
@@ -63,12 +80,15 @@ app.post("/api/read-order", async (req, res) => {
               "items": [
                 { "name": "string", "quantity": number, "options": ["string"] }
               ]
-            }`
+            }
+            
+            Strictly follow the JSON format. Do not include any markdown formatting or extra text.`
           }
         ]
       },
       config: {
-        responseMimeType: "application/json"
+        responseMimeType: "application/json",
+        maxOutputTokens: 4096
       }
     });
 
@@ -76,17 +96,22 @@ app.post("/api/read-order", async (req, res) => {
       throw new Error("AI returned an empty response. Please try again.");
     }
 
-    res.json(JSON.parse(response.text));
+    // Clean response text in case it has markdown blocks (e.g., ```json ... ```)
+    let cleanText = response.text.trim();
+    if (cleanText.startsWith("```")) {
+      cleanText = cleanText.replace(/^```json\n?/, "").replace(/\n?```$/, "");
+    }
+
+    res.json(JSON.parse(cleanText));
   } catch (error: any) {
     console.error("AI Error Details:", error);
-    // Extract a cleaner error message if possible
     let errorMessage = "Failed to process image";
-    if (error.message && error.message.includes("API key not valid")) {
-      errorMessage = "API Key ไม่ถูกต้อง กรุณาตรวจสอบการตั้งค่าใน Secrets";
+    if (error.message && (error.message.includes("API key not valid") || error.message.includes("403"))) {
+      errorMessage = "API Key ไม่ถูกต้อง หรือไม่มีสิทธิ์ใช้งาน (403 Forbidden) กรุณาตรวจสอบการตั้งค่าใน Secrets หรือ Vercel Environment Variables";
     } else if (error.message) {
       errorMessage = error.message;
     }
-    res.status(500).json({ error: errorMessage });
+    res.status(500).json({ error: errorMessage, details: error.message });
   }
 });
 

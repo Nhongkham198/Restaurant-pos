@@ -206,7 +206,9 @@ export const StaffChat: React.FC<StaffChatProps> = ({ onAddItemsToBasket }) => {
 
             if (!response.ok) {
                 const errorData = await response.json();
-                throw new Error(errorData.error || "ไม่สามารถประมวลผลรูปภาพได้");
+                const err = new Error(errorData.error || "ไม่สามารถประมวลผลรูปภาพได้") as any;
+                err.details = errorData.details;
+                throw err;
             }
 
             const resultData = await response.json();
@@ -308,11 +310,12 @@ export const StaffChat: React.FC<StaffChatProps> = ({ onAddItemsToBasket }) => {
                 });
             }
 
-        } catch (error) {
+        } catch (error: any) {
             console.error("AI Order Reading Error:", error);
             Swal.fire({
                 title: 'เกิดข้อผิดพลาด',
-                text: 'ไม่สามารถอ่านข้อมูลจากรูปภาพได้ กรุณาลองใหม่อีกครั้ง',
+                text: error.message || 'ไม่สามารถอ่านข้อมูลจากรูปภาพได้ กรุณาลองใหม่อีกครั้ง',
+                footer: error.details ? `<div class="text-xs text-gray-500 text-left">${error.details}</div>` : undefined,
                 icon: 'error'
             });
         } finally {
