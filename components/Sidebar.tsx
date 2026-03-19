@@ -44,7 +44,9 @@ interface SidebarProps {
     onToggleOrderNotifications: () => void;
     deliveryProviders: DeliveryProvider[];
     onToggleEditMode?: () => void;
-    onOpenSettings: () => void; // New prop for Settings
+    onOpenSettings: () => void;
+    initialDeliveryProviderId?: string;
+    initialOrderNumber?: string;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -84,7 +86,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
     onToggleOrderNotifications,
     deliveryProviders,
     onToggleEditMode,
-    onOpenSettings
+    onOpenSettings,
+    initialDeliveryProviderId,
+    initialOrderNumber
 }) => {
     const { preselectedTable, setPreselectedTable } = useUI();
 
@@ -97,6 +101,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
     const [isNumpadOpen, setIsNumpadOpen] = useState(false);
     const [isDeliverySelectionOpen, setIsDeliverySelectionOpen] = useState(false);
     const [deliveryOrderNumber, setDeliveryOrderNumber] = useState('');
+
+    useEffect(() => {
+        if (initialDeliveryProviderId) {
+            const provider = deliveryProviders.find(p => p.id.toLowerCase() === initialDeliveryProviderId.toLowerCase());
+            if (provider) {
+                setSelectedProvider(provider);
+                setIsDelivery(true);
+            }
+        }
+        if (initialOrderNumber) {
+            setDeliveryOrderNumber(initialOrderNumber);
+        }
+    }, [initialDeliveryProviderId, initialOrderNumber, deliveryProviders]);
 
     // State for Virtual Keyboard
     const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);

@@ -128,6 +128,7 @@ export const DEFAULT_MENU_ITEMS: MenuItem[] = [
     { id: 12, name: 'บิบิมบับ (ข้าวยำเกาหลี)', price: 180, category: 'อาหารเกาหลี', imageUrl: 'https://firebasestorage.googleapis.com/v0/b/restaurant-pos-f8bd4.appspot.com/o/menu%2Fbibimbap.jpg?alt=media', cookingTime: 10, isAvailable: true },
     { id: 13, name: 'เจยุก บกกึม หมู/ไก่ผัดซอสโคชูจัง (กับข้าว)', price: 170, category: 'อาหารเกาหลี', imageUrl: 'https://firebasestorage.googleapis.com/v0/b/restaurant-pos-f8bd4.appspot.com/o/menu%2Fjeyuk-bokkeum.jpg?alt=media', cookingTime: 12, isAvailable: true },
     { id: 14, name: 'ซาวครีม ชิ้กเก้น (ไก่ทอดซอสซาวครีม)', price: 150, category: 'ของทานเล่น', imageUrl: 'https://firebasestorage.googleapis.com/v0/b/restaurant-pos-f8bd4.appspot.com/o/menu%2Fsour-cream-chicken.jpg?alt=media', cookingTime: 15, isAvailable: true },
+    { id: 15, name: 'ซุปดุ๊กบลู (ซุปเนื้อหม้อดิน)', price: 180, category: 'อาหารเกาหลี', imageUrl: 'https://firebasestorage.googleapis.com/v0/b/restaurant-pos-f8bd4.appspot.com/o/menu%2Fkimchi-jjigae.jpg?alt=media', cookingTime: 10, isAvailable: true },
 ];
 
 export const DEFAULT_FLOORS: string[] = ['ชั้นล่าง', 'ชั้นบน'];

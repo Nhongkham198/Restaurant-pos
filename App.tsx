@@ -310,6 +310,8 @@ export const App: React.FC = () => {
     const [selectedTableId, setSelectedTableId] = useState<number | null>(null);
     const [customerName, setCustomerName] = useState('');
     const [customerCount, setCustomerCount] = useState(1);
+    const [pendingPlatform, setPendingPlatform] = useState<string | undefined>(undefined);
+    const [pendingOrderNumber, setPendingOrderNumber] = useState<string | undefined>(undefined);
 
     const [notSentToKitchenDetails, setNotSentToKitchenDetails] = useState<{ reason: string; notes: string } | null>(null);
 
@@ -1471,6 +1473,8 @@ export const App: React.FC = () => {
                                         onToggleOrderNotifications={toggleOrderNotifications}
                                         deliveryProviders={deliveryProviders}
                                         onOpenSettings={() => setModalState(prev => ({ ...prev, isSettings: true }))}
+                                        initialDeliveryProviderId={pendingPlatform}
+                                        initialOrderNumber={pendingOrderNumber}
                                     />
                                 )}
                             </aside>
@@ -1498,6 +1502,8 @@ export const App: React.FC = () => {
                                         deliveryProviders={deliveryProviders}
                                         onToggleEditMode={() => setIsEditMode(!isEditMode)}
                                         onOpenSettings={() => setModalState(prev => ({ ...prev, isSettings: true }))}
+                                        initialDeliveryProviderId={pendingPlatform}
+                                        initialOrderNumber={pendingOrderNumber}
                                     />
                                 </div>
                             ) : (
@@ -1750,7 +1756,30 @@ export const App: React.FC = () => {
             />
             <MenuSearchModal isOpen={modalState.isMenuSearch} onClose={handleModalClose} menuItems={menuItems} onSelectItem={handleAddItemToOrder} onToggleAvailability={handleToggleAvailability} />
             <MergeBillModal isOpen={modalState.isMergeBill} onClose={handleModalClose} order={orderForModal as ActiveOrder} allActiveOrders={activeOrders} tables={tables} onConfirmMerge={handleConfirmMerge} />
-            <StaffChat />
+            <StaffChat onAddItemsToBasket={(items, platform, orderNumber) => {
+                setCurrentOrderItems(prev => [...prev, ...items]);
+                if (orderNumber) setCustomerName(orderNumber);
+                setPendingPlatform(platform);
+                setPendingOrderNumber(orderNumber);
+                
+                // If it's a delivery platform, we might want to set a flag or state
+                // that the Sidebar can pick up. For now, we'll just add the items
+                // and switch to POS view.
+                setCurrentView('pos');
+                
+                // If platform is detected, we can show a small toast or hint
+                if (platform && platform !== 'Other') {
+                    Swal.fire({
+                        title: `ตรวจพบออเดอร์จาก ${platform}`,
+                        text: orderNumber ? `หมายเลข: ${orderNumber}` : '',
+                        icon: 'info',
+                        toast: true,
+                        position: 'top-end',
+                        timer: 3000,
+                        showConfirmButton: false
+                    });
+                }
+            }} />
         </div>
     );
 };
