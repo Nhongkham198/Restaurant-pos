@@ -7,8 +7,8 @@ const app = express();
 const PORT = 3000;
 
 async function startServer() {
-
-  app.use(express.json());
+  app.use(express.json({ limit: '10mb' }));
+  app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
   // --- ตัวอย่างการสร้าง API ฟรีของคุณเอง ---
   // คุณสามารถเพิ่ม API ใหม่ๆ ได้ที่นี่
