@@ -310,6 +310,8 @@ export const App: React.FC = () => {
     const [selectedTableId, setSelectedTableId] = useState<number | null>(null);
     const [customerName, setCustomerName] = useState('');
     const [customerCount, setCustomerCount] = useState(1);
+    const [pendingPlatform, setPendingPlatform] = useState<string | undefined>(undefined);
+    const [pendingOrderNumber, setPendingOrderNumber] = useState<string | undefined>(undefined);
 
     const [notSentToKitchenDetails, setNotSentToKitchenDetails] = useState<{ reason: string; notes: string } | null>(null);
 
@@ -653,6 +655,44 @@ export const App: React.FC = () => {
             }
         }
     }, [staffCalls, staffCallSoundUrl, isAudioUnlocked, currentUser, telegramBotToken, telegramChatId]);
+
+    // NEW: App Badge Notification (Badge on app icon)
+    useEffect(() => {
+        // Only show badge for staff roles who need to see kitchen status
+        const isStaff = currentUser?.role === 'admin' || 
+                        currentUser?.role === 'branch-admin' || 
+                        currentUser?.role === 'kitchen' || 
+                        currentUser?.role === 'pos' ||
+                        currentUser?.role === 'staff' ||
+                        currentUser?.role === 'auditor';
+
+        if (!isStaff || !activeOrders) {
+            if ('clearAppBadge' in navigator) {
+                (navigator as any).clearAppBadge().catch(() => {});
+            }
+            return;
+        }
+
+        // Count orders that are in 'waiting' or 'cooking' status
+        const pendingCount = activeOrders.filter(order => 
+            order.status === 'waiting' || order.status === 'cooking'
+        ).length;
+
+        if ('setAppBadge' in navigator) {
+            if (pendingCount > 0) {
+                (navigator as any).setAppBadge(pendingCount).catch((err: any) => {
+                    console.error('Failed to set app badge:', err);
+                });
+            } else {
+                (navigator as any).clearAppBadge().catch(() => {});
+            }
+        }
+
+        // Support for some Android wrappers if available
+        if (window.AndroidBridge?.setPendingOrderCount) {
+            window.AndroidBridge.setPendingOrderCount(pendingCount);
+        }
+    }, [activeOrders, currentUser]);
 
     // NEW: Leave Request Notification Watcher (Popup)
     useEffect(() => {
@@ -1433,6 +1473,8 @@ export const App: React.FC = () => {
                                         onToggleOrderNotifications={toggleOrderNotifications}
                                         deliveryProviders={deliveryProviders}
                                         onOpenSettings={() => setModalState(prev => ({ ...prev, isSettings: true }))}
+                                        initialDeliveryProviderId={pendingPlatform}
+                                        initialOrderNumber={pendingOrderNumber}
                                     />
                                 )}
                             </aside>
@@ -1460,6 +1502,8 @@ export const App: React.FC = () => {
                                         deliveryProviders={deliveryProviders}
                                         onToggleEditMode={() => setIsEditMode(!isEditMode)}
                                         onOpenSettings={() => setModalState(prev => ({ ...prev, isSettings: true }))}
+                                        initialDeliveryProviderId={pendingPlatform}
+                                        initialOrderNumber={pendingOrderNumber}
                                     />
                                 </div>
                             ) : (
@@ -1712,7 +1756,30 @@ export const App: React.FC = () => {
             />
             <MenuSearchModal isOpen={modalState.isMenuSearch} onClose={handleModalClose} menuItems={menuItems} onSelectItem={handleAddItemToOrder} onToggleAvailability={handleToggleAvailability} />
             <MergeBillModal isOpen={modalState.isMergeBill} onClose={handleModalClose} order={orderForModal as ActiveOrder} allActiveOrders={activeOrders} tables={tables} onConfirmMerge={handleConfirmMerge} />
-            <StaffChat />
+            <StaffChat onAddItemsToBasket={(items, platform, orderNumber) => {
+                setCurrentOrderItems(prev => [...prev, ...items]);
+                if (orderNumber) setCustomerName(orderNumber);
+                setPendingPlatform(platform);
+                setPendingOrderNumber(orderNumber);
+                
+                // If it's a delivery platform, we might want to set a flag or state
+                // that the Sidebar can pick up. For now, we'll just add the items
+                // and switch to POS view.
+                setCurrentView('pos');
+                
+                // If platform is detected, we can show a small toast or hint
+                if (platform && platform !== 'Other') {
+                    Swal.fire({
+                        title: `ตรวจพบออเดอร์จาก ${platform}`,
+                        text: orderNumber ? `หมายเลข: ${orderNumber}` : '',
+                        icon: 'info',
+                        toast: true,
+                        position: 'top-end',
+                        timer: 3000,
+                        showConfirmButton: false
+                    });
+                }
+            }} />
         </div>
     );
 };

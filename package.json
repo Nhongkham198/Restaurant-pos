@@ -4,15 +4,18 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "tsx server.ts",
     "start": "vite preview --port 3000 --host",
     "build": "vite build",
     "preview": "vite preview",
     "lint": "tsc --noEmit"
   },
   "dependencies": {
+    "@google/genai": "^1.46.0",
+    "@types/express": "^5.0.6",
     "axios": "^1.13.6",
     "browser-image-compression": "^2.0.2",
+    "express": "^5.2.1",
     "firebase": "^10.7.1",
     "framer-motion": "^12.36.0",
     "lucide-react": "^0.577.0",
@@ -20,6 +23,7 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "sweetalert2": "^11.10.1",
+    "tsx": "^4.21.0",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {

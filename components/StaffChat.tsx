@@ -1,19 +1,52 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MessageCircle, X, Send, Minus, User as UserIcon, Camera, Image as ImageIcon, Loader2, ZoomIn, ZoomOut, RotateCcw, Keyboard } from 'lucide-react';
+import { MessageCircle, X, Send, Minus, User as UserIcon, Camera, Image as ImageIcon, Loader2, ZoomIn, ZoomOut, RotateCcw, Keyboard, FileText, Check, AlertCircle } from 'lucide-react';
 import { firebase, db, storage } from '../firebaseConfig';
 import { useData } from '../contexts/DataContext';
-import { StaffMessage } from '../types';
+import { StaffMessage, MenuItem, OrderItem } from '../types';
 import imageCompression from 'browser-image-compression';
 import { ThaiVirtualKeyboard } from './ThaiVirtualKeyboard';
 import { sendLineMessage } from '../src/services/lineService';
 import { sendTelegramMessage } from '../src/services/telegramService';
+import Swal from 'sweetalert2';
 
-export const StaffChat: React.FC = () => {
+interface StaffChatProps {
+    onAddItemsToBasket?: (items: OrderItem[], platform?: string, orderNumber?: string) => void;
+}
+
+const levenshtein = (a: string, b: string): number => {
+    const matrix = Array.from({ length: a.length + 1 }, (_, i) => [i]);
+    for (let j = 1; j <= b.length; j++) matrix[0][j] = j;
+    for (let i = 1; i <= a.length; i++) {
+        for (let j = 1; j <= b.length; j++) {
+            const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+            matrix[i][j] = Math.min(matrix[i - 1][j] + 1, matrix[i][j - 1] + 1, matrix[i - 1][j - 1] + cost);
+        }
+    }
+    return matrix[a.length][b.length];
+};
+
+const fuzzyMatch = (str1: string, str2: string) => {
+    const clean = (s: string) => s.toLowerCase().replace(/\s+/g, '').replace(/\(.*\)/g, '').replace(/[^a-z0-9ก-ฮ]/g, '').trim();
+    const s1 = clean(str1);
+    const s2 = clean(str2);
+    if (!s1 || !s2) return false;
+    
+    // Exact match or inclusion
+    if (s1 === s2 || s1.includes(s2) || s2.includes(s1)) return true;
+    
+    // Levenshtein distance: allow 20% difference
+    const maxDist = Math.floor(Math.max(s1.length, s2.length) * 0.25);
+    const dist = levenshtein(s1, s2);
+    return dist <= maxDist;
+};
+
+export const StaffChat: React.FC<StaffChatProps> = ({ onAddItemsToBasket }) => {
     const { 
         currentUser, selectedBranch, users,
         lineMessagingToken, lineUserId, lineNotifyToken,
-        telegramBotToken, telegramChatId
+        telegramBotToken, telegramChatId,
+        menuItems
     } = useData();
     const [isOpen, setIsOpen] = useState(false);
     const [messages, setMessages] = useState<StaffMessage[]>([]);
@@ -24,10 +57,12 @@ export const StaffChat: React.FC = () => {
     const [unreadCount, setUnreadCount] = useState(0);
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
     const [scale, setScale] = useState(1);
+    const [isProcessingAI, setIsProcessingAI] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const cameraInputRef = useRef<HTMLInputElement>(null);
     const [windowDirection, setWindowDirection] = useState<'up' | 'down'>('up');
     const scrollRef = useRef<HTMLDivElement>(null);
+    const isMarkingRead = useRef(false);
     const buttonRef = useRef<HTMLButtonElement>(null);
     const constraintsRef = useRef<HTMLDivElement>(null);
 
@@ -113,11 +148,12 @@ export const StaffChat: React.FC = () => {
     }, [messages, isOpen, lastReadTimestamp]);
 
     useEffect(() => {
-        if (isOpen && messages.length > 0 && currentUser && selectedBranch) {
+        if (isOpen && messages.length > 0 && currentUser && selectedBranch && !isMarkingRead.current) {
             const branchIdStr = selectedBranch.id.toString();
             const unreadMessages = messages.filter(m => !m.readBy?.includes(currentUser.id));
             
             if (unreadMessages.length > 0) {
+                isMarkingRead.current = true;
                 const batch = db.batch();
                 unreadMessages.forEach(msg => {
                     const msgRef = db.collection('branches').doc(branchIdStr).collection('staffMessages').doc(msg.id);
@@ -125,10 +161,19 @@ export const StaffChat: React.FC = () => {
                         readBy: firebase.firestore.FieldValue.arrayUnion(currentUser.id)
                     });
                 });
-                batch.commit().catch((err: any) => console.error("Error updating read receipts:", err));
+                
+                batch.commit()
+                    .then(() => {
+                        setUnreadCount(0);
+                    })
+                    .catch((err: any) => console.error("Error updating read receipts:", err))
+                    .finally(() => {
+                        isMarkingRead.current = false;
+                    });
+            } else {
+                setUnreadCount(0);
             }
 
-            setUnreadCount(0);
             const now = Date.now();
             setLastReadTimestamp(now);
             localStorage.setItem('staff_chat_last_read', now.toString());
@@ -138,8 +183,142 @@ export const StaffChat: React.FC = () => {
                 scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
             }
         }
-    }, [isOpen, messages.length, currentUser?.id]);
+    }, [isOpen, messages.length, currentUser?.id, selectedBranch?.id]);
 
+    const handleReadOrder = async (msg: StaffMessage) => {
+        if (!msg.imageUrl || !onAddItemsToBasket || !menuItems) return;
+        
+        setIsProcessingAI(msg.id);
+        
+        try {
+            const menuContext = menuItems.map(m => `- ${m.name}${m.nameEn ? ` (${m.nameEn})` : ''}`).join('\n');
+
+            const response = await fetch('/api/read-order', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    imageUrl: msg.imageUrl,
+                    menuContext: menuContext
+                })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || "ไม่สามารถประมวลผลรูปภาพได้");
+            }
+
+            const resultData = await response.json();
+            const extractedItems = resultData.items || [];
+            const platform = resultData.platform || "Other";
+            const orderNumber = resultData.orderNumber || "";
+            
+            if (!Array.isArray(extractedItems) || extractedItems.length === 0) {
+                throw new Error("ไม่พบรายการอาหารในรูปภาพ");
+            }
+
+            // Match with menu items
+            const matchedOrderItems: OrderItem[] = [];
+            const unmatchedItems: string[] = [];
+
+            extractedItems.forEach((extItem: any) => {
+                // Try exact match or fuzzy match
+                const menuItem = menuItems.find(m => 
+                    m.name.trim() === extItem.name.trim() || 
+                    m.nameEn?.trim() === extItem.name.trim() ||
+                    fuzzyMatch(extItem.name, m.name) ||
+                    (m.nameEn && fuzzyMatch(extItem.name, m.nameEn))
+                );
+
+                if (menuItem) {
+                    // Handle options if available
+                    const selectedOptions: any[] = [];
+                    if (extItem.options && menuItem.optionGroups) {
+                        extItem.options.forEach((optName: string) => {
+                            menuItem.optionGroups?.forEach(group => {
+                                const matchedOpt = group.options.find(o => 
+                                    o.name.trim() === optName.trim() || 
+                                    o.nameEn?.trim() === optName.trim() ||
+                                    fuzzyMatch(optName, o.name)
+                                );
+                                if (matchedOpt) selectedOptions.push(matchedOpt);
+                            });
+                        });
+                    }
+
+                    const orderItem: OrderItem = {
+                        ...menuItem,
+                        quantity: extItem.quantity || 1,
+                        isTakeaway: true, // Default to takeaway for delivery screenshots
+                        cartItemId: `ai-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                        finalPrice: menuItem.price + selectedOptions.reduce((sum, opt) => sum + opt.priceModifier, 0),
+                        selectedOptions,
+                        notes: `AI อ่านจากรูปภาพ: ${extItem.name}${orderNumber ? ` (ออเดอร์ ${orderNumber})` : ''}`
+                    };
+                    matchedOrderItems.push(orderItem);
+                } else {
+                    unmatchedItems.push(extItem.name);
+                }
+            });
+
+            if (matchedOrderItems.length > 0) {
+                const result = await Swal.fire({
+                    title: 'พบรายการอาหาร!',
+                    html: `
+                        <div class="text-left">
+                            <div class="mb-4 p-3 bg-gray-100 rounded-lg">
+                                <p class="text-sm"><b>แพลตฟอร์ม:</b> ${platform}</p>
+                                <p class="text-sm"><b>หมายเลขออเดอร์:</b> ${orderNumber || '-'}</p>
+                            </div>
+                            <p class="mb-2 font-bold">รายการที่พบ:</p>
+                            <ul class="list-disc pl-5 mb-4">
+                                ${matchedOrderItems.map(item => `<li>${item.name} x${item.quantity}</li>`).join('')}
+                            </ul>
+                            ${unmatchedItems.length > 0 ? `
+                                <p class="text-red-500 font-bold mb-1">รายการที่ไม่พบในเมนู:</p>
+                                <ul class="list-disc pl-5 text-red-500 text-sm">
+                                    ${unmatchedItems.map(name => `<li>${name}</li>`).join('')}
+                                </ul>
+                            ` : ''}
+                            <p class="mt-4 text-sm text-gray-500 italic">* กรุณาตรวจสอบความถูกต้องก่อนยืนยัน</p>
+                        </div>
+                    `,
+                    icon: 'success',
+                    showCancelButton: true,
+                    confirmButtonText: 'ลงตะกร้า',
+                    cancelButtonText: 'ยกเลิก',
+                    confirmButtonColor: '#059669'
+                });
+
+                if (result.isConfirmed) {
+                    onAddItemsToBasket(matchedOrderItems, platform, orderNumber);
+                    Swal.fire({
+                        title: 'เพิ่มลงตะกร้าแล้ว!',
+                        icon: 'success',
+                        timer: 1500,
+                        showConfirmButton: false
+                    });
+                }
+            } else {
+                Swal.fire({
+                    title: 'ไม่พบเมนูที่ตรงกัน',
+                    text: `AI อ่านพบ: ${unmatchedItems.join(', ')} แต่ไม่ตรงกับเมนูในระบบ`,
+                    icon: 'warning'
+                });
+            }
+
+        } catch (error) {
+            console.error("AI Order Reading Error:", error);
+            Swal.fire({
+                title: 'เกิดข้อผิดพลาด',
+                text: 'ไม่สามารถอ่านข้อมูลจากรูปภาพได้ กรุณาลองใหม่อีกครั้ง',
+                icon: 'error'
+            });
+        } finally {
+            setIsProcessingAI(null);
+        }
+    };
     const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, isCamera: boolean = false) => {
         const file = e.target.files?.[0];
         if (!file || !currentUser || !selectedBranch) return;
@@ -334,7 +513,7 @@ export const StaffChat: React.FC = () => {
                                 <div className="bg-emerald-600 p-4 flex items-center justify-between text-white cursor-move">
                                     <div className="flex items-center gap-2">
                                         <MessageCircle size={20} />
-                                        <span className="font-semibold">แชทพนักงาน ({selectedBranch?.name})</span>
+                                        <span className="font-semibold">แชทพนักงาน AI ({selectedBranch?.name})</span>
                                     </div>
                                     <button 
                                         onClick={(e) => {
@@ -381,15 +560,37 @@ export const StaffChat: React.FC = () => {
                                                         }`}
                                                     >
                                                         {msg.imageUrl && (
-                                                            <img 
-                                                                src={msg.imageUrl} 
-                                                                alt="Chat attachment" 
-                                                                className="w-full h-auto max-h-64 object-cover cursor-pointer"
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    setSelectedImage(msg.imageUrl || null);
-                                                                }}
-                                                            />
+                                                            <div className="relative group">
+                                                                <img 
+                                                                    src={msg.imageUrl} 
+                                                                    alt="Chat attachment" 
+                                                                    className="w-full h-auto max-h-64 object-cover cursor-pointer"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        setSelectedImage(msg.imageUrl || null);
+                                                                    }}
+                                                                />
+                                                                {isStaff && onAddItemsToBasket && (
+                                                                    <div className="absolute bottom-2 right-2 flex gap-1 z-10">
+                                                                        <button
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                handleReadOrder(msg);
+                                                                            }}
+                                                                            disabled={isProcessingAI === msg.id}
+                                                                            className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-full shadow-xl transition-all active:scale-95 flex items-center gap-1.5 text-xs font-bold border border-white/20"
+                                                                            title="อ่านออเดอร์ด้วย AI"
+                                                                        >
+                                                                            {isProcessingAI === msg.id ? (
+                                                                                <Loader2 size={14} className="animate-spin" />
+                                                                            ) : (
+                                                                                <FileText size={14} />
+                                                                            )}
+                                                                            {isProcessingAI === msg.id ? 'กำลังอ่าน...' : 'อ่านออเดอร์'}
+                                                                        </button>
+                                                                    </div>
+                                                                )}
+                                                            </div>
                                                         )}
                                                         {msg.text && <div className="px-4 py-2">{msg.text}</div>}
                                                     </div>
