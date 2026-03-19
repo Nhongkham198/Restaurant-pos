@@ -256,7 +256,7 @@ export const StaffChat: React.FC<StaffChatProps> = ({ onAddItemsToBasket }) => {
                         cartItemId: `ai-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
                         finalPrice: menuItem.price + selectedOptions.reduce((sum, opt) => sum + opt.priceModifier, 0),
                         selectedOptions,
-                        notes: `AI อ่านจากรูปภาพ: ${extItem.name}${orderNumber ? ` (ออเดอร์ ${orderNumber})` : ''}`
+                        notes: ""
                     };
                     matchedOrderItems.push(orderItem);
                 } else {
