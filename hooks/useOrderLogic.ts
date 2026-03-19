@@ -126,9 +126,15 @@ export const useOrderLogic = () => {
                         const newOrderDocRef = db.collection(`branches/${branchIdStr}/activeOrders`).doc(newOrder.id.toString()); 
                         transaction.set(newOrderDocRef, { ...newOrder, lastUpdated: firebase.firestore.FieldValue.serverTimestamp() }); 
                         
-                        // --- Redundant Frontend Telegram Notification Removed ---
-                        // Notifications are now handled exclusively by Cloud Functions 
-                        // to prevent double alerts and ensure reliability.
+                        // Immediate notification from frontend (as fallback for Cloud Functions)
+                        if (telegramBotToken && telegramChatId) {
+                            try {
+                                const { sendTelegramMessage, formatOrderMessage } = await import('../src/services/telegramService');
+                                sendTelegramMessage({ botToken: telegramBotToken, chatId: telegramChatId }, formatOrderMessage(newOrder));
+                            } catch (e) {
+                                console.error('Frontend Telegram notification failed:', e);
+                            }
+                        }
 
                         if (lineMessagingToken || lineUserId || lineNotifyToken) {
                             try {

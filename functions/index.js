@@ -92,21 +92,16 @@ exports.sendHighPriorityOrderNotification = functions.region('asia-southeast1').
                     return itemText;
                 }).join('\n');
 
-                // Use internal order number for the title as requested (#4)
-                const displayOrderNumber = `${newOrder.orderNumber}`;
+                const displayOrderNumber = newOrder.manualOrderNumber ? `${newOrder.manualOrderNumber}` : `${newOrder.orderNumber}`;
                 const timeStr = new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: 'Asia/Bangkok' });
                 
                 const tableDisplay = newOrder.floor && newOrder.floor !== 'Unknown' && newOrder.floor !== 'Delivery' 
                     ? `${newOrder.tableName} (${newOrder.floor})` 
                     : newOrder.tableName;
 
-                const customerDisplay = newOrder.manualOrderNumber 
-                    ? `${newOrder.customerName || 'ทั่วไป'} #${newOrder.manualOrderNumber}`
-                    : (newOrder.customerName || 'ทั่วไป');
-
                 const messageText = `🔔 <b>ออเดอร์ใหม่! #${displayOrderNumber}</b>\n` +
                                     `📍 โต๊ะ: ${tableDisplay}\n` +
-                                    `👤 ลูกค้า: ${customerDisplay}\n` +
+                                    `👤 ลูกค้า: ${newOrder.customerName || 'ทั่วไป'}\n` +
                                     `🕒 เวลา: ${timeStr}\n` +
                                     `--------------------------\n` +
                                     `${itemsList}\n` +

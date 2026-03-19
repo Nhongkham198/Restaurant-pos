@@ -27,7 +27,7 @@ export default defineConfig(({ mode }) => {
       },
       build: {
         rollupOptions: {
-          // No external dependencies
+          external: ['@google/genai'],
         },
       },
     };
