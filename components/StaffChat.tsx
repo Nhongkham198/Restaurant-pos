@@ -27,7 +27,14 @@ const levenshtein = (a: string, b: string): number => {
 };
 
 const fuzzyMatch = (str1: string, str2: string) => {
-    const clean = (s: string) => s.toLowerCase().replace(/\s+/g, '').replace(/\(.*\)/g, '').replace(/[^a-z0-9ก-ฮ]/g, '').trim();
+    const clean = (s: string) => s.toLowerCase()
+        .replace(/\s+/g, '')
+        .replace(/\(.*\)/g, '')
+        .replace(/\[.*\]/g, '') // Remove [เซตสุดฮิต]
+        .replace(/เกาหลี/g, '') // Remove 'เกาหลี' as it's often extra
+        .replace(/[^a-z0-9ก-ฮ]/g, '')
+        .trim();
+    
     const s1 = clean(str1);
     const s2 = clean(str2);
     if (!s1 || !s2) return false;
@@ -35,8 +42,24 @@ const fuzzyMatch = (str1: string, str2: string) => {
     // Exact match or inclusion
     if (s1 === s2 || s1.includes(s2) || s2.includes(s1)) return true;
     
-    // Levenshtein distance: allow 20% difference
-    const maxDist = Math.floor(Math.max(s1.length, s2.length) * 0.25);
+    // Check for significant overlap (e.g., "หมูย่าง" and "ข้าวญี่ปุ่น" both present)
+    const getWords = (s: string) => {
+        // Simple split for Thai is hard, but we can look for key terms
+        const keyTerms = ['หมูย่าง', 'ข้าวญี่ปุ่น', 'เซต', 'สันคอ', 'สามชั้น', 'ดูโอ', 'ย่างเกลือ', 'โคชูจัง'];
+        return keyTerms.filter(term => s.includes(term));
+    };
+    
+    const words1 = getWords(str1);
+    const words2 = getWords(str2);
+    
+    if (words1.length > 0 && words2.length > 0) {
+        const common = words1.filter(w => words2.includes(w));
+        // If they share at least 2 key terms, it's likely a match
+        if (common.length >= 2) return true;
+    }
+
+    // Levenshtein distance: allow 30% difference
+    const maxDist = Math.floor(Math.max(s1.length, s2.length) * 0.3);
     const dist = levenshtein(s1, s2);
     return dist <= maxDist;
 };
@@ -225,12 +248,25 @@ export const StaffChat: React.FC<StaffChatProps> = ({ onAddItemsToBasket }) => {
             const unmatchedItems: string[] = [];
 
             extractedItems.forEach((extItem: any) => {
+                // Specific mapping for LineMan
+                let itemName = extItem.name.trim();
+                
+                // Case 1: LineMan Pork Set (contains both pork and rice or "เซต" or "+" in the name)
+                if (platform === "LineMan" && itemName.includes("หมูย่างเกาหลี") && (itemName.includes("ข้าวญี่ปุ่น") || itemName.includes("เซต") || itemName.includes("+"))) {
+                    itemName = "เซต หมูย่าง+ข้าวญี่ปุ่น (LineMan only)";
+                }
+                
+                // Case 2: LineMan Pork Side Dish (contains pork but NOT rice/set/+)
+                else if (platform === "LineMan" && itemName.includes("หมูย่างเกาหลี") && !itemName.includes("ข้าวญี่ปุ่น") && !itemName.includes("เซต") && !itemName.includes("+")) {
+                    itemName = "หมูย่างเกาหลี (กับข้าว)";
+                }
+
                 // Try exact match or fuzzy match
                 const menuItem = menuItems.find(m => 
-                    m.name.trim() === extItem.name.trim() || 
-                    m.nameEn?.trim() === extItem.name.trim() ||
-                    fuzzyMatch(extItem.name, m.name) ||
-                    (m.nameEn && fuzzyMatch(extItem.name, m.nameEn))
+                    m.name.trim() === itemName || 
+                    m.nameEn?.trim() === itemName ||
+                    fuzzyMatch(itemName, m.name) ||
+                    (m.nameEn && fuzzyMatch(itemName, m.nameEn))
                 );
 
                 if (menuItem) {
@@ -238,11 +274,17 @@ export const StaffChat: React.FC<StaffChatProps> = ({ onAddItemsToBasket }) => {
                     const selectedOptions: any[] = [];
                     if (extItem.options && menuItem.optionGroups) {
                         extItem.options.forEach((optName: string) => {
+                            // Clean option name (e.g., "หมูย่างดูโอ" -> "ดูโอ Duo")
+                            let cleanOptName = optName.trim();
+                            if (cleanOptName.includes("หมูย่างดูโอ")) cleanOptName = "ดูโอ Duo";
+                            if (cleanOptName.includes("ย่างเกลือ")) cleanOptName = "ย่างเกลือ";
+                            if (cleanOptName.includes("ย่างซอสโคชูจัง")) cleanOptName = "ย่างซอสโคชูจัง";
+
                             menuItem.optionGroups?.forEach(group => {
                                 const matchedOpt = group.options.find(o => 
-                                    o.name.trim() === optName.trim() || 
-                                    o.nameEn?.trim() === optName.trim() ||
-                                    fuzzyMatch(optName, o.name)
+                                    o.name.trim() === cleanOptName || 
+                                    o.nameEn?.trim() === cleanOptName ||
+                                    fuzzyMatch(cleanOptName, o.name)
                                 );
                                 if (matchedOpt) selectedOptions.push(matchedOpt);
                             });

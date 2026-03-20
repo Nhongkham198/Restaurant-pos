@@ -129,6 +129,61 @@ export const DEFAULT_MENU_ITEMS: MenuItem[] = [
     { id: 13, name: 'เจยุก บกกึม หมู/ไก่ผัดซอสโคชูจัง (กับข้าว)', price: 170, category: 'อาหารเกาหลี', imageUrl: 'https://firebasestorage.googleapis.com/v0/b/restaurant-pos-f8bd4.appspot.com/o/menu%2Fjeyuk-bokkeum.jpg?alt=media', cookingTime: 12, isAvailable: true },
     { id: 14, name: 'ซาวครีม ชิ้กเก้น (ไก่ทอดซอสซาวครีม)', price: 150, category: 'ของทานเล่น', imageUrl: 'https://firebasestorage.googleapis.com/v0/b/restaurant-pos-f8bd4.appspot.com/o/menu%2Fsour-cream-chicken.jpg?alt=media', cookingTime: 15, isAvailable: true },
     { id: 15, name: 'ซุปดุ๊กบลู (ซุปเนื้อหม้อดิน)', price: 180, category: 'อาหารเกาหลี', imageUrl: 'https://firebasestorage.googleapis.com/v0/b/restaurant-pos-f8bd4.appspot.com/o/menu%2Fkimchi-jjigae.jpg?alt=media', cookingTime: 10, isAvailable: true },
+    { 
+        id: 16, 
+        name: 'เซต หมูย่าง+ข้าวญี่ปุ่น (LineMan only)', 
+        price: 155, 
+        category: 'อาหารเกาหลี', 
+        imageUrl: 'https://firebasestorage.googleapis.com/v0/b/restaurant-pos-f8bd4.appspot.com/o/menu%2Fpork-set.jpg?alt=media', 
+        cookingTime: 15, 
+        isAvailable: true,
+        optionGroups: [
+            {
+                id: 'meat-type',
+                name: 'เนื้อ',
+                selectionType: 'single',
+                required: true,
+                options: [
+                    { id: 'neck', name: 'สันคอ', priceModifier: 0 },
+                    { id: 'belly', name: 'สามชั้น', priceModifier: 0 },
+                    { id: 'duo', name: 'ดูโอ Duo', priceModifier: 0 },
+                ]
+            },
+            {
+                id: 'grill-type',
+                name: 'การย่าง',
+                selectionType: 'single',
+                required: true,
+                options: [
+                    { id: 'salt', name: 'ย่างเกลือ', priceModifier: 0 },
+                    { id: 'gochujang', name: 'ย่างซอสโคชูจัง', priceModifier: 0 },
+                ]
+            }
+        ]
+    },
+    { id: 17, name: 'ข้าวญี่ปุ่น', price: 20, category: 'อาหารจานเดียว', imageUrl: 'https://firebasestorage.googleapis.com/v0/b/restaurant-pos-f8bd4.appspot.com/o/menu%2Frice.jpg?alt=media', cookingTime: 1, isAvailable: true },
+    { 
+        id: 18, 
+        name: 'หมูย่างเกาหลี (กับข้าว)', 
+        price: 150, 
+        category: 'อาหารเกาหลี', 
+        imageUrl: 'https://firebasestorage.googleapis.com/v0/b/restaurant-pos-f8bd4.appspot.com/o/menu%2Fpork-grill.jpg?alt=media', 
+        cookingTime: 12, 
+        isAvailable: true,
+        optionGroups: [
+            {
+                id: 'meat-type',
+                name: 'เนื้อ',
+                selectionType: 'single',
+                required: true,
+                options: [
+                    { id: 'neck', name: 'สันคอ', priceModifier: 0 },
+                    { id: 'belly', name: 'สามชั้น', priceModifier: 0 },
+                    { id: 'duo', name: 'ดูโอ Duo', priceModifier: 0 },
+                ]
+            }
+        ]
+    },
 ];
 
 export const DEFAULT_FLOORS: string[] = ['ชั้นล่าง', 'ชั้นบน'];

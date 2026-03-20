@@ -71,7 +71,12 @@ app.post("/api/read-order", async (req, res) => {
             IMPORTANT: Here is the list of available menu items in the POS system:
             ${menuContext}
 
-            Try to match the items in the image to the menu items above. If an item is slightly different (e.g., "ซุปตุ๊กบู" vs "ซุปดุ๊กบลู"), use the name from the POS menu. If an item is definitely not in the menu, return its name as it appears in the image.
+            Try to match the items in the image to the menu items above. 
+            - IMPORTANT (LineMan): Look at the main item line (usually starts with "1x"). If it says "[เซตสุดฮิต] หมูย่างเกาหลี + ข้าวญี่ปุ่น", you MUST extract the name as "เซต หมูย่าง+ข้าวญี่ปุ่น (LineMan only)". DO NOT remove the "+ ข้าวญี่ปุ่น" part and DO NOT add "(ไม่มีข้าว)" to the name.
+            - IMPORTANT (LineMan): If you see an option "หมูย่างเกาหลี - เพิ่มข้าว" followed by a bullet point "ข้าวญี่ปุ่น", this is an ADDITIONAL bowl of rice. You MUST return "ข้าวญี่ปุ่น" as a SEPARATE item in the "items" list with quantity 1, in addition to the main set item.
+            - For the pork item options, if you see "หมูย่างดูโอ ย่างเกลือ", extract "ดูโอ Duo" and "ย่างเกลือ" as options for the main pork item.
+            - Delivery platforms often add prefixes like "[เซตสุดฮิต]" or "[Best Seller]". Ignore these when matching.
+            - If an item is definitely not in the menu, return its name as it appears in the image.
 
             Return ONLY a JSON object in this format:
             {
