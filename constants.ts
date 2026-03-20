@@ -162,27 +162,15 @@ export const DEFAULT_MENU_ITEMS: MenuItem[] = [
         ]
     },
     { id: 17, name: 'ข้าวญี่ปุ่น', price: 20, category: 'อาหารจานเดียว', imageUrl: 'https://firebasestorage.googleapis.com/v0/b/restaurant-pos-f8bd4.appspot.com/o/menu%2Frice.jpg?alt=media', cookingTime: 1, isAvailable: true },
+    { id: 18, name: 'หมูย่างเกาหลี (กับข้าว)', price: 150, category: 'อาหารเกาหลี', imageUrl: 'https://firebasestorage.googleapis.com/v0/b/restaurant-pos-f8bd4.appspot.com/o/menu%2Fpork-grill.jpg?alt=media', cookingTime: 12, isAvailable: true, optionGroups: [{ id: 'meat-type', name: 'เนื้อ', selectionType: 'single', required: true, options: [{ id: 'neck', name: 'สันคอ', priceModifier: 0 }, { id: 'belly', name: 'สามชั้น', priceModifier: 0 }, { id: 'duo', name: 'ดูโอ Duo', priceModifier: 0 }] }] },
     { 
-        id: 18, 
-        name: 'หมูย่างเกาหลี (กับข้าว)', 
-        price: 150, 
+        id: 19, 
+        name: 'เซต บิบิมบับ + คิมมาริ (LineMan Only)', 
+        price: 250, 
         category: 'อาหารเกาหลี', 
-        imageUrl: 'https://firebasestorage.googleapis.com/v0/b/restaurant-pos-f8bd4.appspot.com/o/menu%2Fpork-grill.jpg?alt=media', 
-        cookingTime: 12, 
-        isAvailable: true,
-        optionGroups: [
-            {
-                id: 'meat-type',
-                name: 'เนื้อ',
-                selectionType: 'single',
-                required: true,
-                options: [
-                    { id: 'neck', name: 'สันคอ', priceModifier: 0 },
-                    { id: 'belly', name: 'สามชั้น', priceModifier: 0 },
-                    { id: 'duo', name: 'ดูโอ Duo', priceModifier: 0 },
-                ]
-            }
-        ]
+        imageUrl: 'https://firebasestorage.googleapis.com/v0/b/restaurant-pos-f8bd4.appspot.com/o/menu%2Fbibimbap.jpg?alt=media', 
+        cookingTime: 15, 
+        isAvailable: true 
     },
 ];
 

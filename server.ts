@@ -72,8 +72,11 @@ app.post("/api/read-order", async (req, res) => {
             ${menuContext}
 
             Try to match the items in the image to the menu items above. 
-            - IMPORTANT (LineMan): Look at the main item line (usually starts with "1x"). If it says "[เซตสุดฮิต] หมูย่างเกาหลี + ข้าวญี่ปุ่น", you MUST extract the name as "เซต หมูย่าง+ข้าวญี่ปุ่น (LineMan only)". DO NOT remove the "+ ข้าวญี่ปุ่น" part and DO NOT add "(ไม่มีข้าว)" to the name.
-            - IMPORTANT (LineMan): If you see an option "หมูย่างเกาหลี - เพิ่มข้าว" followed by a bullet point "ข้าวญี่ปุ่น", this is an ADDITIONAL bowl of rice. You MUST return "ข้าวญี่ปุ่น" as a SEPARATE item in the "items" list with quantity 1, in addition to the main set item.
+            - IMPORTANT (LineMan): If the item name contains "[เซตสุดฮิต]", "เซต", "Set", or "+", it is almost always a single SET item. You MUST extract it as a single item in the "items" list.
+            - IMPORTANT (LineMan): If you see "[เซตสุดฮิต] คิมมารี" and "บิบิมบับ" mentioned together (even on separate lines or with a "+"), you MUST return it as a single item named "เซต บิบิมบับ + คิมมาริ (LineMan Only)".
+            - IMPORTANT (LineMan): If the item name contains "หมูย่างเกาหลี" and "+ ข้าวญี่ปุ่น" or "เซต", you MUST extract it as "เซต หมูย่าง+ข้าวญี่ปุ่น (LineMan only)".
+            - IMPORTANT (LineMan): NEVER split a set into individual components. If it starts with "[เซตสุดฮิต]", it is one item.
+            - IMPORTANT (LineMan): If you see an option "หมูย่างเกาหลี - เพิ่มข้าว" followed by "ข้าวญี่ปุ่น", this is an ADDITIONAL bowl of rice. You MUST return "ข้าวญี่ปุ่น" as a SEPARATE item in the "items" list, in addition to the main set item.
             - For the pork item options, if you see "หมูย่างดูโอ ย่างเกลือ", extract "ดูโอ Duo" and "ย่างเกลือ" as options for the main pork item.
             - Delivery platforms often add prefixes like "[เซตสุดฮิต]" or "[Best Seller]". Ignore these when matching.
             - If an item is definitely not in the menu, return its name as it appears in the image.

@@ -1,12 +1,10 @@
 
-// FIX: Updated Firebase imports to use the v9 compatibility layer, which provides the v8 namespaced API and fixes initialization errors.
 import firebase from "firebase/compat/app";
 import "firebase/compat/firestore";
 import "firebase/compat/functions";
-import "firebase/compat/storage"; // Import Storage
+import "firebase/compat/auth";
+import { getStorage } from "firebase/storage";
 
-// TODO: Replace the following with your app's Firebase project configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
   apiKey: "AIzaSyCVLo7EeWsDSR1tWmucYuZq7uOuV8zvqXI",
   authDomain: "restaurant-pos-f8bd4.firebaseapp.com",
@@ -17,20 +15,16 @@ const firebaseConfig = {
   measurementId: "G-2B6ZS4VYMF"
 };
 
-// --- CHECK FOR PLACEHOLDER VALUES ---
-export const isFirebaseConfigured = 
-    firebaseConfig.apiKey !== "YOUR_API_KEY" && 
-    firebaseConfig.messagingSenderId !== "YOUR_MESSAGING_SENDER_ID" && 
-    firebaseConfig.appId !== "YOUR_APP_ID";
+export const isFirebaseConfigured = Boolean(firebaseConfig.apiKey);
 
-let app;
-let db: any = null; // Initialize db as null
-let functions: any = null; // Initialize functions as null
-let storage: any = null; // Initialize storage as null
+let app: any;
+let db: any = null;
+let functions: any = null;
+let storage: any = null;
+let auth: any = null;
 
 if (isFirebaseConfigured) {
   try {
-    // FIX: Switched to v8 initialization syntax to resolve module loading error.
     if (!firebase.apps.length) {
       app = firebase.initializeApp(firebaseConfig);
     } else {
@@ -38,29 +32,25 @@ if (isFirebaseConfigured) {
     }
     
     db = firebase.firestore();
+    auth = firebase.auth();
+    functions = firebase.app().functions('asia-southeast1');
     
-    // Removed experimentalForceLongPolling to fix "Detected an update time that is in the future" errors
-    // and clock skew issues. Defaulting to auto-detected transport (WebSockets/LongPolling).
+    // Use modular storage directly to avoid compat issues
+    storage = getStorage(app);
     
-    storage = firebase.storage(); // Initialize Storage
-    
-    // --- ENABLE OFFLINE PERSISTENCE ---
-    // This allows the app to work offline by caching data locally.
-    // It acts as a local buffer, satisfying the requirement to store data locally before sending to Firebase.
     db.enablePersistence({ synchronizeTabs: true })
       .catch((err: any) => {
           if (err.code == 'failed-precondition') {
-              console.warn('Persistence failed: Multiple tabs open. (Only one tab can work offline at a time)');
+              console.warn('Persistence failed: Multiple tabs open');
           } else if (err.code == 'unimplemented') {
               console.warn('Persistence failed: Browser not supported.');
           }
       });
 
-    functions = firebase.app().functions('asia-southeast1');
+    console.log("Firebase initialized successfully");
   } catch (e) {
-    console.error("Error initializing Firebase. Please check your config.", e);
-    // isFirebaseConfigured should remain true, but db will be null, and errors will be caught.
+    console.error("Error initializing Firebase:", e);
   }
 }
 
-export { firebase, db, functions, storage };
+export { firebase, db, functions, storage, auth };

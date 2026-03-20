@@ -55,6 +55,94 @@ async function sendTelegramMessage(botToken, chatId, text) {
 }
 
 /**
+ * Helper to send LINE Messaging API Push messages
+ */
+async function sendLineMessage(lineToken, lineUserId, text) {
+    if (!lineToken || !lineUserId || !text) return;
+    
+    const https = require('https');
+    const postData = JSON.stringify({
+        to: lineUserId,
+        messages: [{ type: 'text', text: text }]
+    });
+
+    const options = {
+        hostname: 'api.line.me',
+        path: '/v2/bot/message/push',
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${lineToken}`,
+            'Content-Length': Buffer.byteLength(postData)
+        }
+    };
+
+    return new Promise((resolve) => {
+        const req = https.request(options, (res) => {
+            let body = '';
+            res.on('data', (chunk) => body += chunk);
+            res.on('end', () => {
+                if (res.statusCode >= 200 && res.statusCode < 300) {
+                    console.log('LINE Bot notification sent successfully.');
+                } else {
+                    console.error('LINE Bot API Error:', body);
+                }
+                resolve();
+            });
+        });
+        req.on('error', (e) => {
+            console.error('Failed to send LINE Bot notification:', e.message);
+            resolve();
+        });
+        req.write(postData);
+        req.end();
+    });
+}
+
+/**
+ * Helper to send LINE Notify messages (DEPRECATED)
+ */
+async function sendLineNotifyMessage(notifyToken, text) {
+    if (!notifyToken || !text) return;
+    
+    const https = require('https');
+    const querystring = require('querystring');
+    const postData = querystring.stringify({ message: text });
+
+    const options = {
+        hostname: 'notify-api.line.me',
+        path: '/api/notify',
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Authorization': `Bearer ${notifyToken}`,
+            'Content-Length': Buffer.byteLength(postData)
+        }
+    };
+
+    return new Promise((resolve) => {
+        const req = https.request(options, (res) => {
+            let body = '';
+            res.on('data', (chunk) => body += chunk);
+            res.on('end', () => {
+                if (res.statusCode >= 200 && res.statusCode < 300) {
+                    console.log('LINE Notify sent successfully.');
+                } else {
+                    console.error('LINE Notify API Error:', body);
+                }
+                resolve();
+            });
+        });
+        req.on('error', (e) => {
+            console.error('Failed to send LINE Notify:', e.message);
+            resolve();
+        });
+        req.write(postData);
+        req.end();
+    });
+}
+
+/**
  * This Cloud Function triggers when a NEW document is created in the 'activeOrders' collection.
  * UPDATED: Listens to the specific document path for the new collection-based architecture.
  */
@@ -71,52 +159,85 @@ exports.sendHighPriorityOrderNotification = functions.region('asia-southeast1').
 
         console.log(`New order detected: #${newOrder.orderNumber} for Table ${newOrder.tableName} in branch ${context.params.branchId}`);
 
-        // --- Restore Telegram Notification ---
+        // 1. Get Notification Configs (Telegram & LINE)
         try {
-            const [telTokenDoc, telChatIdDoc] = await Promise.all([
+            const [telTokenDoc, telChatIdDoc, lineTokenDoc, lineUserIdDoc, lineNotifyTokenDoc] = await Promise.all([
                 admin.firestore().doc(`branches/${context.params.branchId}/telegramBotToken/data`).get(),
-                admin.firestore().doc(`branches/${context.params.branchId}/telegramChatId/data`).get()
+                admin.firestore().doc(`branches/${context.params.branchId}/telegramChatId/data`).get(),
+                admin.firestore().doc(`branches/${context.params.branchId}/lineMessagingToken/data`).get(),
+                admin.firestore().doc(`branches/${context.params.branchId}/lineUserId/data`).get(),
+                admin.firestore().doc(`branches/${context.params.branchId}/lineNotifyToken/data`).get()
             ]);
 
             const telToken = telTokenDoc.exists ? telTokenDoc.data().value : null;
             const telChatId = telChatIdDoc.exists ? telChatIdDoc.data().value : null;
+            const lineToken = lineTokenDoc.exists ? lineTokenDoc.data().value : null;
+            const lineUserId = lineUserIdDoc.exists ? lineUserIdDoc.data().value : null;
+            const lineNotifyToken = lineNotifyTokenDoc.exists ? lineNotifyTokenDoc.data().value : null;
 
+            // 2. Construct Message
+            const totalAmount = Math.round(newOrder.items.reduce((sum, item) => sum + (item.finalPrice * item.quantity), 0));
+            const itemsList = newOrder.items.map(item => {
+                let itemText = `• ${item.name} x${item.quantity}`;
+                if (item.selectedOptions && item.selectedOptions.length > 0) {
+                    const optionsText = item.selectedOptions.map(opt => opt.name).join(', ');
+                    itemText += `\n(${optionsText})`;
+                }
+                return itemText;
+            }).join('\n');
+
+            const displayOrderNumber = `${newOrder.orderNumber}`;
+            const timeStr = new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: 'Asia/Bangkok' });
+            
+            const tableDisplay = newOrder.floor && newOrder.floor !== 'Unknown' && newOrder.floor !== 'Delivery' 
+                ? `${newOrder.tableName} (${newOrder.floor})` 
+                : newOrder.tableName;
+
+            const customerDisplay = newOrder.manualOrderNumber 
+                ? `${newOrder.customerName || 'ทั่วไป'} #${newOrder.manualOrderNumber}`
+                : (newOrder.customerName || 'ทั่วไป');
+
+            // HTML version for Telegram
+            const htmlMessageText = `🔔 <b>ออเดอร์ใหม่! #${displayOrderNumber}</b>\n` +
+                                `📍 โต๊ะ: ${tableDisplay}\n` +
+                                `👤 ลูกค้า: ${customerDisplay}\n` +
+                                `🕒 เวลา: ${timeStr}\n` +
+                                `--------------------------\n` +
+                                `${itemsList}\n` +
+                                `--------------------------\n` +
+                                `💰 ยอดรวม: <b>฿${totalAmount}</b>`;
+
+            // Plain text version for LINE
+            const plainMessageText = `🔔 ออเดอร์ใหม่! #${displayOrderNumber}\n` +
+                                `📍 โต๊ะ: ${tableDisplay}\n` +
+                                `👤 ลูกค้า: ${customerDisplay}\n` +
+                                `🕒 เวลา: ${timeStr}\n` +
+                                `--------------------------\n` +
+                                `${itemsList}\n` +
+                                `--------------------------\n` +
+                                `💰 ยอดรวม: ฿${totalAmount}`;
+
+            // 3. Send Notifications
+            const notificationPromises = [];
+
+            // Telegram
             if (telToken && telChatId) {
-                const totalAmount = Math.round(newOrder.items.reduce((sum, item) => sum + (item.finalPrice * item.quantity), 0));
-                const itemsList = newOrder.items.map(item => {
-                    let itemText = `• ${item.name} x${item.quantity}`;
-                    if (item.selectedOptions && item.selectedOptions.length > 0) {
-                        const optionsText = item.selectedOptions.map(opt => opt.name).join(', ');
-                        itemText += `\n(<i>${optionsText}</i>)`;
-                    }
-                    return itemText;
-                }).join('\n');
-
-                // Use internal order number for the title as requested (#4)
-                const displayOrderNumber = `${newOrder.orderNumber}`;
-                const timeStr = new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: 'Asia/Bangkok' });
-                
-                const tableDisplay = newOrder.floor && newOrder.floor !== 'Unknown' && newOrder.floor !== 'Delivery' 
-                    ? `${newOrder.tableName} (${newOrder.floor})` 
-                    : newOrder.tableName;
-
-                const customerDisplay = newOrder.manualOrderNumber 
-                    ? `${newOrder.customerName || 'ทั่วไป'} #${newOrder.manualOrderNumber}`
-                    : (newOrder.customerName || 'ทั่วไป');
-
-                const messageText = `🔔 <b>ออเดอร์ใหม่! #${displayOrderNumber}</b>\n` +
-                                    `📍 โต๊ะ: ${tableDisplay}\n` +
-                                    `👤 ลูกค้า: ${customerDisplay}\n` +
-                                    `🕒 เวลา: ${timeStr}\n` +
-                                    `--------------------------\n` +
-                                    `${itemsList}\n` +
-                                    `--------------------------\n` +
-                                    `💰 ยอดรวม: <b>฿${totalAmount}</b>`;
-
-                await sendTelegramMessage(telToken, telChatId, messageText);
+                notificationPromises.push(sendTelegramMessage(telToken, telChatId, htmlMessageText));
             }
+
+            // LINE Messaging API (Bot)
+            if (lineToken && lineUserId) {
+                notificationPromises.push(sendLineMessage(lineToken, lineUserId, plainMessageText));
+            }
+
+            // LINE Notify (Deprecated)
+            if (lineNotifyToken) {
+                notificationPromises.push(sendLineNotifyMessage(lineNotifyToken, plainMessageText));
+            }
+
+            await Promise.all(notificationPromises);
         } catch (error) {
-            console.error('Failed to send Telegram order notification:', error);
+            console.error('Failed to send order notifications:', error);
         }
 
         // Get all users from the 'users/data' document to find tokens.
@@ -246,32 +367,8 @@ exports.sendStaffCallNotification = functions.region('asia-southeast1').firestor
             const lineUserId = userIdDoc.exists ? userIdDoc.data().value : null;
 
             if (lineToken && lineUserId) {
-                const https = require('https');
-                const lineMessage = JSON.stringify({
-                    to: lineUserId,
-                    messages: [{ type: 'text', text: `🔔 ลูกค้าเรียกพนักงาน!\nโต๊ะ: ${newCall.tableName}\nคุณ: ${newCall.customerName}\nต้องการความช่วยเหลือ` }]
-                });
-
-                const options = {
-                    hostname: 'api.line.me',
-                    path: '/v2/bot/message/push',
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${lineToken}`,
-                        'Content-Length': Buffer.byteLength(lineMessage)
-                    }
-                };
-
-                await new Promise((resolve) => {
-                    const req = https.request(options, (res) => {
-                        res.on('data', () => {});
-                        res.on('end', () => resolve());
-                    });
-                    req.on('error', () => resolve());
-                    req.write(lineMessage);
-                    req.end();
-                });
+                const text = `🔔 ลูกค้าเรียกพนักงาน!\nโต๊ะ: ${newCall.tableName}\nคุณ: ${newCall.customerName}\nต้องการความช่วยเหลือ`;
+                await sendLineMessage(lineToken, lineUserId, text);
             }
         } catch (error) {
             console.error('Failed to send LINE staff call notification:', error);
@@ -332,153 +429,7 @@ exports.sendStaffCallNotification = functions.region('asia-southeast1').firestor
     });
 
 /**
- * Scheduled function to delete old slip images (older than 2 days).
- * NOTE: This function requires the Firebase "Blaze" (Pay-as-you-go) plan because it uses Cloud Scheduler.
- * It runs every day at 3:00 AM.
- * 
- * UPDATE: Also cleans up Base64 strings in Firestore 'completedOrders_v2' documents (New Collection).
- */
-exports.cleanupOldData = functions.region('asia-southeast1').pubsub.schedule('0 4 * * *')
-  .timeZone('Asia/Bangkok')
-  .onRun(async (context) => {
-    // ... (existing code)
-    return null;
-});
-
-/**
- * Triggered when a new order is created in 'activeOrders'.
- * Sends a LINE Messaging API Push Message if configured.
- * Replaces the discontinued LINE Notify.
- */
-exports.sendLineOrderNotification = functions.region('asia-southeast1').firestore
-    .document('branches/{branchId}/activeOrders/{orderId}')
-    .onCreate(async (snap, context) => {
-        const newOrder = snap.data();
-        const branchId = context.params.branchId;
-
-        if (!newOrder) return null;
-
-        // 1. Get Branch Config (LINE Token & User ID) from sub-documents
-        const [tokenDoc, userIdDoc, notifyTokenDoc] = await Promise.all([
-            admin.firestore().doc(`branches/${branchId}/lineMessagingToken/data`).get(),
-            admin.firestore().doc(`branches/${branchId}/lineUserId/data`).get(),
-            admin.firestore().doc(`branches/${branchId}/lineNotifyToken/data`).get()
-        ]);
-
-        const lineToken = tokenDoc.exists ? tokenDoc.data().value : null;
-        const lineUserId = userIdDoc.exists ? userIdDoc.data().value : null;
-        const lineNotifyToken = notifyTokenDoc.exists ? notifyTokenDoc.data().value : null;
-
-        if (!lineToken && !lineUserId && !lineNotifyToken) {
-            console.log(`LINE not configured for branch ${branchId}.`);
-            return null;
-        }
-
-        // 2. Construct Message
-        const totalAmount = newOrder.items.reduce((sum, item) => sum + (item.finalPrice * item.quantity), 0).toFixed(2);
-        const itemsList = newOrder.items.map(item => {
-            let itemText = `- ${item.name} x ${item.quantity}`;
-            if (item.selectedOptions && item.selectedOptions.length > 0) {
-                const optionsText = item.selectedOptions.map(opt => opt.name).join(', ');
-                itemText += ` (${optionsText})`;
-            }
-            if (item.notes) {
-                itemText += ` [Note: ${item.notes}]`;
-            }
-            return itemText;
-        }).join('\n');
-        
-        // Use manualOrderNumber (e.g. LineMan #9702) if available, otherwise use run number
-        const displayOrderNumber = newOrder.manualOrderNumber ? `#${newOrder.manualOrderNumber}` : `#${newOrder.orderNumber}`;
-
-        let messageText = `🔔 มีออเดอร์ใหม่!\n` +
-                            `โต๊ะ: ${newOrder.tableName}\n` +
-                            `ออเดอร์: ${displayOrderNumber}\n` +
-                            `รายการ:\n${itemsList}\n` +
-                            `ยอดรวม: ${totalAmount} บาท`;
-
-        if (newOrder.customerPhone || newOrder.phone) {
-            messageText += `\n📞 เบอร์โทร: ${newOrder.customerPhone || newOrder.phone}`;
-        }
-
-        if ((newOrder.latitude && newOrder.longitude) || (newOrder.lat && newOrder.lng)) {
-            const lat = newOrder.latitude || newOrder.lat;
-            const lng = newOrder.longitude || newOrder.lng;
-            messageText += `\n📍 พิกัด: https://www.google.com/maps?q=${lat},${lng}`;
-        }
-
-        // 3. Send via LINE Messaging API (Bot)
-        if (lineToken && lineUserId) {
-            try {
-                const https = require('https');
-                const postData = JSON.stringify({
-                    to: lineUserId,
-                    messages: [{ type: 'text', text: messageText }]
-                });
-
-                const options = {
-                    hostname: 'api.line.me',
-                    path: '/v2/bot/message/push',
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${lineToken}`,
-                        'Content-Length': Buffer.byteLength(postData)
-                    }
-                };
-
-                await new Promise((resolve) => {
-                    const req = https.request(options, (res) => {
-                        let body = '';
-                        res.on('data', (chunk) => body += chunk);
-                        res.on('end', () => {
-                            if (res.statusCode >= 200 && res.statusCode < 300) {
-                                console.log('LINE Bot notification sent successfully.');
-                            } else {
-                                console.error('LINE Bot API Error:', body);
-                            }
-                            resolve();
-                        });
-                    });
-                    req.on('error', (e) => {
-                        console.error('Failed to send LINE Bot notification:', e.message);
-                        resolve();
-                    });
-                    req.write(postData);
-                    req.end();
-                });
-            } catch (error) {
-                console.error('LINE Bot notification error:', error);
-            }
-        }
-
-        // 4. Send via LINE Notify
-        if (lineNotifyToken) {
-            try {
-                const https = require('https');
-                const querystring = require('querystring');
-                const postData = querystring.stringify({ message: messageText });
-
-                const options = {
-                    hostname: 'notify-api.line.me',
-                    path: '/api/notify',
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                        'Authorization': `Bearer ${lineNotifyToken}`,
-                        'Content-Length': Buffer.byteLength(postData)
-                    }
-                };
-
-                await new Promise((resolve) => {
-                    const req = https.request(options, (res) => {
-                        let body = '';
-                        res.on('data', (chunk) => body += chunk);
-                        res.on('end', () => {
-                            if (res.statusCode >= 200 && res.statusCode < 300) {
-                                console.log('LINE Notify sent successfully.');
-                            } else {
-                                console.error('LINE Notify API Error:', body);
+ * Scheduled function to del              console.error('LINE Notify API Error:', body);
                             }
                             resolve();
                         });
@@ -733,8 +684,6 @@ exports.sendLeaveRequestNotification = functions.region('asia-southeast1').fires
             const lineUserId = userIdDoc.exists ? userIdDoc.data().value : null;
 
             if (lineToken && lineUserId) {
-                const https = require('https');
-                
                 // Format dates for Thai locale with Bangkok timezone
                 const optionsDate = { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'Asia/Bangkok' };
                 const startDateStr = new Date(newRequest.startDate).toLocaleDateString('th-TH', optionsDate);
@@ -757,42 +706,7 @@ exports.sendLeaveRequestNotification = functions.region('asia-southeast1').fires
                                     `🤒 ลาป่วยคงเหลือ: ${remainingSick} วัน\n` +
                                     `💼 ลากิจคงเหลือ: ${remainingPersonal} วัน`;
 
-                const postData = JSON.stringify({
-                    to: lineUserId,
-                    messages: [{ type: 'text', text: messageText }]
-                });
-
-                const options = {
-                    hostname: 'api.line.me',
-                    path: '/v2/bot/message/push',
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${lineToken}`,
-                        'Content-Length': Buffer.byteLength(postData)
-                    }
-                };
-
-                await new Promise((resolve) => {
-                    const req = https.request(options, (res) => {
-                        let body = '';
-                        res.on('data', (chunk) => body += chunk);
-                        res.on('end', () => {
-                            if (res.statusCode >= 200 && res.statusCode < 300) {
-                                console.log('Leave request LINE notification sent.');
-                            } else {
-                                console.error('LINE API Error (Leave):', body);
-                            }
-                            resolve();
-                        });
-                    });
-                    req.on('error', (e) => {
-                        console.error('HTTPS Error (Leave):', e.message);
-                        resolve();
-                    });
-                    req.write(postData);
-                    req.end();
-                });
+                await sendLineMessage(lineToken, lineUserId, messageText);
             } else {
                 console.log(`LINE not configured for branch ${branchId} for leave notification.`);
             }

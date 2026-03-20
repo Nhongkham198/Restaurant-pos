@@ -2,8 +2,8 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import type { ActiveOrder, PaymentDetails } from '../types';
 import Swal from 'sweetalert2';
-// storage is no longer needed
-// import { storage } from '../firebaseConfig'; 
+import { storage } from '../firebaseConfig';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 interface PaymentModalProps {
     isOpen: boolean;
@@ -155,28 +155,34 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, order, onClo
                 return;
             }
 
-            let slipBase64 = undefined;
-
             if (slipFile) {
                 setIsProcessing(true);
                 try {
-                    // UPDATE: Convert to Base64 directly instead of uploading to Storage
-                    // This avoids network errors for file uploads and works offline (synced later)
-                    slipBase64 = await fileToBase64(slipFile);
+                    // --- FIREBASE STORAGE UPLOAD ---
+                    const fileName = `slips/${order.id}/${Date.now()}-${slipFile.name}`;
+                    const storageRef = ref(storage, fileName);
                     
+                    // Upload the compressed file
+                    const uploadResult = await uploadBytes(storageRef, slipFile);
+                    const downloadUrl = await getDownloadURL(uploadResult.ref);
+                    
+                    details = { 
+                        method: 'transfer',
+                        slipImage: downloadUrl // Store the download URL
+                    };
                 } catch (error: any) {
-                    console.error("Image processing failed:", error);
-                    Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถประมวลผลรูปภาพได้: ' + error.message, 'error');
+                    console.error("Image processing/upload failed:", error);
+                    Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถอัปโหลดรูปภาพได้: ' + error.message, 'error');
                     setIsProcessing(false);
                     return; 
                 }
                 setIsProcessing(false);
+            } else {
+                details = { 
+                    method: 'transfer',
+                    slipImage: undefined
+                };
             }
-
-            details = { 
-                method: 'transfer',
-                slipImage: slipBase64 // Store the Base64 string directly
-            };
             onConfirmPayment(order.id, details);
         }
     };

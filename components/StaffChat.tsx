@@ -32,7 +32,8 @@ const fuzzyMatch = (str1: string, str2: string) => {
         .replace(/\(.*\)/g, '')
         .replace(/\[.*\]/g, '') // Remove [เซตสุดฮิต]
         .replace(/เกาหลี/g, '') // Remove 'เกาหลี' as it's often extra
-        .replace(/[^a-z0-9ก-ฮ]/g, '')
+        .replace(/ี/g, 'ิ') // Treat 'ี' and 'ิ' as the same for matching
+        .replace(/[^a-z0-9ก-ฮิ]/g, '')
         .trim();
     
     const s1 = clean(str1);
@@ -200,13 +201,31 @@ export const StaffChat: React.FC<StaffChatProps> = ({ onAddItemsToBasket }) => {
             const now = Date.now();
             setLastReadTimestamp(now);
             localStorage.setItem('staff_chat_last_read', now.toString());
-            
-            // Scroll to bottom
-            if (scrollRef.current) {
-                scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-            }
         }
     }, [isOpen, messages.length, currentUser?.id, selectedBranch?.id]);
+
+    // Dedicated effect for scrolling to bottom
+    useEffect(() => {
+        if (isOpen && scrollRef.current) {
+            const scrollToBottom = () => {
+                if (scrollRef.current) {
+                    scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+                }
+            };
+            
+            // Scroll immediately
+            scrollToBottom();
+            
+            // Also scroll after a short delay to ensure DOM is fully rendered (especially for images)
+            const timeoutId = setTimeout(scrollToBottom, 100);
+            const longTimeoutId = setTimeout(scrollToBottom, 500); // Extra safety for images
+            
+            return () => {
+                clearTimeout(timeoutId);
+                clearTimeout(longTimeoutId);
+            };
+        }
+    }, [isOpen, messages.length, pendingMessages.length]);
 
     const handleReadOrder = async (msg: StaffMessage) => {
         if (!msg.imageUrl || !onAddItemsToBasket || !menuItems) return;
@@ -235,12 +254,43 @@ export const StaffChat: React.FC<StaffChatProps> = ({ onAddItemsToBasket }) => {
             }
 
             const resultData = await response.json();
-            const extractedItems = resultData.items || [];
+            let extractedItems = resultData.items || [];
             const platform = resultData.platform || "Other";
             const orderNumber = resultData.orderNumber || "";
             
             if (!Array.isArray(extractedItems) || extractedItems.length === 0) {
                 throw new Error("ไม่พบรายการอาหารในรูปภาพ");
+            }
+
+            // --- PRE-PROCESSING FOR LINEMAN SETS ---
+            if (platform === "LineMan") {
+                // Check for Bibimbap + Kimmari split
+                const hasBibimbap = extractedItems.some((i: any) => i.name.includes("บิบิมบับ"));
+                const hasKimmari = extractedItems.some((i: any) => i.name.includes("คิมมารี") || i.name.includes("คิมมาริ"));
+                
+                if (hasBibimbap && hasKimmari) {
+                    // Find the quantities (usually 1)
+                    const bibimItem = extractedItems.find((i: any) => i.name.includes("บิบิมบับ"));
+                    const kimmariItem = extractedItems.find((i: any) => i.name.includes("คิมมารี") || i.name.includes("คิมมาริ"));
+                    
+                    // If they have the same quantity, it's likely a set
+                    if (bibimItem.quantity === kimmariItem.quantity) {
+                        // Create a new merged item
+                        const mergedItem = {
+                            name: "เซต บิบิมบับ + คิมมาริ (LineMan Only)",
+                            quantity: bibimItem.quantity,
+                            options: [...(bibimItem.options || []), ...(kimmariItem.options || [])]
+                        };
+                        
+                        // Remove the individual items and add the merged one
+                        extractedItems = extractedItems.filter((i: any) => 
+                            !i.name.includes("บิบิมบับ") && 
+                            !i.name.includes("คิมมารี") && 
+                            !i.name.includes("คิมมาริ")
+                        );
+                        extractedItems.push(mergedItem);
+                    }
+                }
             }
 
             // Match with menu items
@@ -254,6 +304,11 @@ export const StaffChat: React.FC<StaffChatProps> = ({ onAddItemsToBasket }) => {
                 // Case 1: LineMan Pork Set (contains both pork and rice or "เซต" or "+" in the name)
                 if (platform === "LineMan" && itemName.includes("หมูย่างเกาหลี") && (itemName.includes("ข้าวญี่ปุ่น") || itemName.includes("เซต") || itemName.includes("+"))) {
                     itemName = "เซต หมูย่าง+ข้าวญี่ปุ่น (LineMan only)";
+                }
+                
+                // Case 1.1: LineMan Bibimbap + Kimmari Set
+                else if (platform === "LineMan" && itemName.includes("คิมมารี") && itemName.includes("บิบิมบับ")) {
+                    itemName = "เซต บิบิมบับ + คิมมาริ (LineMan Only)";
                 }
                 
                 // Case 2: LineMan Pork Side Dish (contains pork but NOT rice/set/+)

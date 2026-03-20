@@ -4,7 +4,9 @@ import type { PrinterConfig, ReceiptPrintSettings, KitchenPrinterSettings, Cashi
 import { printerService } from '../services/printerService';
 import Swal from 'sweetalert2';
 import { MenuItemImage } from './MenuItemImage';
-import { functions } from '../firebaseConfig';
+import { functions, storage } from '../firebaseConfig';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import imageCompression from 'browser-image-compression';
 
 interface SettingsModalProps {
     isOpen: boolean;
@@ -133,6 +135,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
 
     const [tempRecommendedIds, setTempRecommendedIds] = useState<number[]>(props.currentRecommendedMenuItemIds || []);
     const [tempDeliveryProviders, setTempDeliveryProviders] = useState<DeliveryProvider[]>(props.deliveryProviders || []);
+    const [isUploading, setIsUploading] = useState(false);
 
     // Refs for file inputs
     const logoInputRef = useRef<HTMLInputElement>(null);
@@ -178,16 +181,53 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
         setSettingsForm(prev => ({ ...prev, [field]: value }));
     };
 
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, field: string) => {
+    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>, field: string) => {
         const file = e.target.files?.[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = (event) => {
-                if (event.target?.result) {
-                    setSettingsForm(prev => ({ ...prev, [field]: event.target?.result as string }));
-                }
-            };
-            reader.readAsDataURL(file);
+        if (!file) return;
+
+        setIsUploading(true);
+        Swal.fire({
+            title: 'กำลังอัปโหลดไฟล์...',
+            allowOutsideClick: false,
+            didOpen: () => {
+                Swal.showLoading();
+            }
+        });
+
+        try {
+            let fileToUpload: File | Blob = file;
+            
+            // Only compress if it's an image
+            if (file.type.startsWith('image/')) {
+                const options = {
+                    maxSizeMB: 0.5,
+                    maxWidthOrHeight: 800,
+                    useWebWorker: true,
+                    fileType: 'image/webp' as any,
+                    initialQuality: 0.8
+                };
+                fileToUpload = await imageCompression(file, options);
+            }
+            
+            const fileName = `settings/${field}/${Date.now()}-${file.name}`;
+            const storageRef = ref(storage, fileName);
+            
+            const uploadResult = await uploadBytes(storageRef, fileToUpload);
+            const downloadUrl = await getDownloadURL(uploadResult.ref);
+
+            setSettingsForm(prev => ({ ...prev, [field]: downloadUrl }));
+            
+            Swal.fire({
+                icon: 'success',
+                title: 'อัปโหลดสำเร็จ',
+                timer: 1500,
+                showConfirmButton: false
+            });
+        } catch (error) {
+            console.error('Error uploading file:', error);
+            Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถอัปโหลดไฟล์ได้', 'error');
+        } finally {
+            setIsUploading(false);
         }
     };
 

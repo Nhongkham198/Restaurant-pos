@@ -1,7 +1,10 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import type { MenuItem, MenuOption, MenuOptionGroup } from '../types';
 import Swal from 'sweetalert2';
+import { storage } from '../firebaseConfig';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import imageCompression from 'browser-image-compression';
 
 interface MenuItemModalProps {
     isOpen: boolean;
@@ -27,6 +30,8 @@ export const MenuItemModal: React.FC<MenuItemModalProps> = ({ isOpen, onClose, o
     const [priceString, setPriceString] = useState('0');
     const [isAddingCategory, setIsAddingCategory] = useState(false);
     const [newCategoryName, setNewCategoryName] = useState('');
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const [isUploading, setIsUploading] = useState(false);
 
     const normalizedCategories = useMemo(() => {
         if (!Array.isArray(categories)) return [];
@@ -145,6 +150,50 @@ export const MenuItemModal: React.FC<MenuItemModalProps> = ({ isOpen, onClose, o
         });
     };
     
+    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setIsUploading(true);
+        Swal.fire({
+            title: 'กำลังอัปโหลดรูปภาพ...',
+            allowOutsideClick: false,
+            didOpen: () => {
+                Swal.showLoading();
+            }
+        });
+
+        try {
+            const options = {
+                maxSizeMB: 0.5,
+                maxWidthOrHeight: 800,
+                useWebWorker: true,
+                fileType: 'image/webp' as any,
+                initialQuality: 0.8
+            };
+            
+            const compressedFile = await imageCompression(file, options);
+            const fileName = `menu/${Date.now()}-${file.name}`;
+            const storageRef = ref(storage, fileName);
+            
+            const uploadResult = await uploadBytes(storageRef, compressedFile);
+            const downloadUrl = await getDownloadURL(uploadResult.ref);
+
+            setFormState(prev => ({ ...prev, imageUrl: downloadUrl }));
+            Swal.fire({
+                icon: 'success',
+                title: 'อัปโหลดสำเร็จ',
+                timer: 1500,
+                showConfirmButton: false
+            });
+        } catch (error) {
+            console.error('Error uploading image:', error);
+            Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถอัปโหลดรูปภาพได้', 'error');
+        } finally {
+            setIsUploading(false);
+        }
+    };
+
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (!formState.name || priceString === '' || formState.price < 0 || !formState.category) {
@@ -205,8 +254,36 @@ export const MenuItemModal: React.FC<MenuItemModalProps> = ({ isOpen, onClose, o
                             )}
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-gray-700">Image URL</label>
-                            <input type="text" value={formState.imageUrl} onChange={(e) => setFormState(prev => ({...prev, imageUrl: e.target.value}))} className={inputClasses} placeholder="https://..." />
+                            <label className="block text-sm font-medium text-gray-700">รูปภาพเมนู</label>
+                            <div className="mt-1 flex items-center gap-4">
+                                {formState.imageUrl && (
+                                    <img src={formState.imageUrl} alt="Preview" className="w-16 h-16 object-cover rounded-md border" />
+                                )}
+                                <div className="flex-grow">
+                                    <input 
+                                        type="text" 
+                                        value={formState.imageUrl} 
+                                        onChange={(e) => setFormState(prev => ({...prev, imageUrl: e.target.value}))} 
+                                        className={inputClasses} 
+                                        placeholder="URL รูปภาพ หรืออัปโหลดใหม่" 
+                                    />
+                                    <input 
+                                        type="file" 
+                                        ref={fileInputRef} 
+                                        onChange={handleFileChange} 
+                                        className="hidden" 
+                                        accept="image/*" 
+                                    />
+                                    <button 
+                                        type="button" 
+                                        onClick={() => fileInputRef.current?.click()} 
+                                        disabled={isUploading}
+                                        className="mt-2 text-sm text-blue-600 hover:text-blue-800 font-medium"
+                                    >
+                                        {isUploading ? 'กำลังอัปโหลด...' : '+ อัปโหลดรูปภาพ'}
+                                    </button>
+                                </div>
+                            </div>
                         </div>
 
                         {/* Option Groups */}
