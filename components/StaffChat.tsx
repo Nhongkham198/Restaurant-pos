@@ -29,11 +29,10 @@ const levenshtein = (a: string, b: string): number => {
 const fuzzyMatch = (str1: string, str2: string) => {
     const clean = (s: string) => s.toLowerCase()
         .replace(/\s+/g, '')
-        .replace(/\(.*\)/g, '')
         .replace(/\[.*\]/g, '') // Remove [เซตสุดฮิต]
-        .replace(/เกาหลี/g, '') // Remove 'เกาหลี' as it's often extra
-        .replace(/ี/g, 'ิ') // Treat 'ี' and 'ิ' as the same for matching
-        .replace(/[^a-z0-9ก-ฮิ]/g, '')
+        .replace(/เกาหลี/g, '') // Remove 'เกาหลี'
+        .replace(/[ิีึืุูเแโใไะาำะัํ็่้๊๋์]/g, '') // Remove Thai vowels/tone marks for base consonant matching
+        .replace(/[^a-z0-9ก-ฮ]/g, '')
         .trim();
     
     const s1 = clean(str1);
@@ -43,10 +42,21 @@ const fuzzyMatch = (str1: string, str2: string) => {
     // Exact match or inclusion
     if (s1 === s2 || s1.includes(s2) || s2.includes(s1)) return true;
     
-    // Check for significant overlap (e.g., "หมูย่าง" and "ข้าวญี่ปุ่น" both present)
+    // Check content inside parentheses specifically
+    const getParenContent = (s: string) => {
+        const match = s.match(/\((.*)\)/);
+        return match ? clean(match[1]) : null;
+    };
+    
+    const p1 = getParenContent(str1);
+    const p2 = getParenContent(str2);
+    
+    if (p1 && (s2.includes(p1) || p1.includes(s2))) return true;
+    if (p2 && (s1.includes(p2) || p2.includes(s1))) return true;
+
+    // Check for significant overlap with key terms
     const getWords = (s: string) => {
-        // Simple split for Thai is hard, but we can look for key terms
-        const keyTerms = ['หมูย่าง', 'ข้าวญี่ปุ่น', 'เซต', 'สันคอ', 'สามชั้น', 'ดูโอ', 'ย่างเกลือ', 'โคชูจัง'];
+        const keyTerms = ['หมูย่าง', 'ข้าวญี่ปุ่น', 'เซต', 'สันคอ', 'สามชั้น', 'ดูโอ', 'ย่างเกลือ', 'โคชูจัง', 'บะหมี่', 'ซอสดำ', 'กิมจิ', 'บิบิมบับ', 'คิมมาริ'];
         return keyTerms.filter(term => s.includes(term));
     };
     
@@ -55,13 +65,12 @@ const fuzzyMatch = (str1: string, str2: string) => {
     
     if (words1.length > 0 && words2.length > 0) {
         const common = words1.filter(w => words2.includes(w));
-        // If they share at least 2 key terms, it's likely a match
         if (common.length >= 2) return true;
+        if (common.length >= 1 && (s1.length < 10 || s2.length < 10)) return true;
     }
 
-    // Levenshtein distance: allow 30% difference
-    const maxDist = Math.floor(Math.max(s1.length, s2.length) * 0.3);
     const dist = levenshtein(s1, s2);
+    const maxDist = Math.floor(Math.max(s1.length, s2.length) * 0.4); 
     return dist <= maxDist;
 };
 
@@ -254,7 +263,7 @@ export const StaffChat: React.FC<StaffChatProps> = ({ onAddItemsToBasket }) => {
             }
 
             const resultData = await response.json();
-            let extractedItems = resultData.items || [];
+            const extractedItems = resultData.items || [];
             const platform = resultData.platform || "Other";
             const orderNumber = resultData.orderNumber || "";
             
@@ -262,94 +271,75 @@ export const StaffChat: React.FC<StaffChatProps> = ({ onAddItemsToBasket }) => {
                 throw new Error("ไม่พบรายการอาหารในรูปภาพ");
             }
 
-            // --- PRE-PROCESSING FOR LINEMAN SETS ---
-            if (platform === "LineMan") {
-                // Check for Bibimbap + Kimmari split
-                const hasBibimbap = extractedItems.some((i: any) => i.name.includes("บิบิมบับ"));
-                const hasKimmari = extractedItems.some((i: any) => i.name.includes("คิมมารี") || i.name.includes("คิมมาริ"));
-                
-                if (hasBibimbap && hasKimmari) {
-                    // Find the quantities (usually 1)
-                    const bibimItem = extractedItems.find((i: any) => i.name.includes("บิบิมบับ"));
-                    const kimmariItem = extractedItems.find((i: any) => i.name.includes("คิมมารี") || i.name.includes("คิมมาริ"));
-                    
-                    // If they have the same quantity, it's likely a set
-                    if (bibimItem.quantity === kimmariItem.quantity) {
-                        // Create a new merged item
-                        const mergedItem = {
-                            name: "เซต บิบิมบับ + คิมมาริ (LineMan Only)",
-                            quantity: bibimItem.quantity,
-                            options: [...(bibimItem.options || []), ...(kimmariItem.options || [])]
-                        };
-                        
-                        // Remove the individual items and add the merged one
-                        extractedItems = extractedItems.filter((i: any) => 
-                            !i.name.includes("บิบิมบับ") && 
-                            !i.name.includes("คิมมารี") && 
-                            !i.name.includes("คิมมาริ")
-                        );
-                        extractedItems.push(mergedItem);
-                    }
-                }
-            }
-
             // Match with menu items
             const matchedOrderItems: OrderItem[] = [];
             const unmatchedItems: string[] = [];
 
             extractedItems.forEach((extItem: any) => {
-                // Specific mapping for LineMan
                 let itemName = extItem.name.trim();
                 
-                // Case 1: LineMan Pork Set (contains both pork and rice or "เซต" or "+" in the name)
-                if (platform === "LineMan" && itemName.includes("หมูย่างเกาหลี") && (itemName.includes("ข้าวญี่ปุ่น") || itemName.includes("เซต") || itemName.includes("+"))) {
-                    itemName = "เซต หมูย่าง+ข้าวญี่ปุ่น (LineMan only)";
-                }
-                
-                // Case 1.1: LineMan Bibimbap + Kimmari Set
-                else if (platform === "LineMan" && itemName.includes("คิมมารี") && itemName.includes("บิบิมบับ")) {
-                    itemName = "เซต บิบิมบับ + คิมมาริ (LineMan Only)";
-                }
-                
-                // Case 2: LineMan Pork Side Dish (contains pork but NOT rice/set/+)
-                else if (platform === "LineMan" && itemName.includes("หมูย่างเกาหลี") && !itemName.includes("ข้าวญี่ปุ่น") && !itemName.includes("เซต") && !itemName.includes("+")) {
-                    itemName = "หมูย่างเกาหลี (กับข้าว)";
-                }
-
                 // Try exact match or fuzzy match
-                const menuItem = menuItems.find(m => 
-                    m.name.trim() === itemName || 
-                    m.nameEn?.trim() === itemName ||
-                    fuzzyMatch(itemName, m.name) ||
-                    (m.nameEn && fuzzyMatch(itemName, m.nameEn))
-                );
+                // We prioritize exact matches first, then nameEn, then fuzzy
+                let menuItem = menuItems.find(m => m.name.trim() === itemName);
+                
+                if (!menuItem) {
+                    menuItem = menuItems.find(m => m.nameEn?.trim() === itemName);
+                }
+                
+                if (!menuItem) {
+                    menuItem = menuItems.find(m => 
+                        fuzzyMatch(itemName, m.name) ||
+                        (m.nameEn && fuzzyMatch(itemName, m.nameEn))
+                    );
+                }
 
                 if (menuItem) {
                     // Handle options if available
                     const selectedOptions: any[] = [];
-                    if (extItem.options && menuItem.optionGroups) {
+                    if (extItem.options) {
                         extItem.options.forEach((optName: string) => {
-                            // Clean option name (e.g., "หมูย่างดูโอ" -> "ดูโอ Duo")
                             let cleanOptName = optName.trim();
-                            if (cleanOptName.includes("หมูย่างดูโอ")) cleanOptName = "ดูโอ Duo";
-                            if (cleanOptName.includes("ย่างเกลือ")) cleanOptName = "ย่างเกลือ";
-                            if (cleanOptName.includes("ย่างซอสโคชูจัง")) cleanOptName = "ย่างซอสโคชูจัง";
-
-                            menuItem.optionGroups?.forEach(group => {
-                                const matchedOpt = group.options.find(o => 
-                                    o.name.trim() === cleanOptName || 
-                                    o.nameEn?.trim() === cleanOptName ||
-                                    fuzzyMatch(cleanOptName, o.name)
+                            let matchedInGroup = false;
+                            
+                            if (menuItem.optionGroups) {
+                                menuItem.optionGroups.forEach(group => {
+                                    const matchedOpt = group.options.find(o => 
+                                        o.name.trim() === cleanOptName || 
+                                        o.nameEn?.trim() === cleanOptName ||
+                                        fuzzyMatch(cleanOptName, o.name)
+                                    );
+                                    if (matchedOpt) {
+                                        selectedOptions.push(matchedOpt);
+                                        matchedInGroup = true;
+                                    }
+                                });
+                            }
+                            
+                            // If not matched in group, check if it's a separate menu item (like "กิมจิผักกาด")
+                            if (!matchedInGroup) {
+                                const separateItem = menuItems.find(m => 
+                                    m.name.trim() === cleanOptName || 
+                                    fuzzyMatch(cleanOptName, m.name)
                                 );
-                                if (matchedOpt) selectedOptions.push(matchedOpt);
-                            });
+                                if (separateItem) {
+                                    matchedOrderItems.push({
+                                        ...separateItem,
+                                        quantity: extItem.quantity || 1,
+                                        isTakeaway: true,
+                                        cartItemId: `ai-opt-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                                        finalPrice: separateItem.price,
+                                        selectedOptions: [],
+                                        notes: `(จากรายการ: ${menuItem.name})`
+                                    } as OrderItem);
+                                }
+                            }
                         });
                     }
 
                     const orderItem: OrderItem = {
                         ...menuItem,
                         quantity: extItem.quantity || 1,
-                        isTakeaway: true, // Default to takeaway for delivery screenshots
+                        isTakeaway: true,
                         cartItemId: `ai-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
                         finalPrice: menuItem.price + selectedOptions.reduce((sum, opt) => sum + opt.priceModifier, 0),
                         selectedOptions,

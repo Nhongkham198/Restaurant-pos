@@ -4,6 +4,7 @@ import type { ActiveOrder, PaymentDetails } from '../types';
 import Swal from 'sweetalert2';
 import { storage } from '../firebaseConfig';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import imageCompression from 'browser-image-compression';
 
 interface PaymentModalProps {
     isOpen: boolean;
@@ -22,49 +23,21 @@ const NumpadButton: React.FC<{ value: string; onClick: (value: string) => void; 
     </button>
 );
 
-// --- Image Compression Helper (Optimized for WebP 500px for Base64 embedding) ---
-const compressImage = (file: File): Promise<File> => {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = (event) => {
-            const img = new Image();
-            img.src = event.target?.result as string;
-            img.onload = () => {
-                const canvas = document.createElement('canvas');
-                // UPDATE: Reduced max width to 500px for Base64 safety and speed
-                const maxWidth = 500; 
-                const scaleSize = maxWidth / img.width;
-                const width = (img.width > maxWidth) ? maxWidth : img.width;
-                const height = (img.width > maxWidth) ? img.height * scaleSize : img.height;
-
-                canvas.width = width;
-                canvas.height = height;
-                const ctx = canvas.getContext('2d');
-                if (ctx) {
-                    ctx.drawImage(img, 0, 0, width, height);
-                    
-                    // Compress to WebP, quality 0.8
-                    canvas.toBlob((blob) => {
-                        if (blob) {
-                            const newFileName = file.name.replace(/\.[^/.]+$/, "") + ".webp";
-                            const compressedFile = new File([blob], newFileName, {
-                                type: 'image/webp',
-                                lastModified: Date.now(),
-                            });
-                            resolve(compressedFile);
-                        } else {
-                            reject(new Error('Canvas is empty'));
-                        }
-                    }, 'image/webp', 0.8); 
-                } else {
-                    reject(new Error('Canvas context not found'));
-                }
-            };
-            img.onerror = (error) => reject(error);
-        };
-        reader.onerror = (error) => reject(error);
-    });
+// --- Image Compression Helper (Optimized for WebP for faster uploads) ---
+const compressImage = async (file: File): Promise<File> => {
+    const options = {
+        maxSizeMB: 0.05, // Max 50KB for ultra-fast upload
+        maxWidthOrHeight: 500, // Sufficient for reading slip details
+        useWebWorker: true,
+        fileType: 'image/webp' as any,
+        initialQuality: 0.4
+    };
+    try {
+        return await imageCompression(file, options);
+    } catch (error) {
+        console.error("Compression failed, using original file", error);
+        return file;
+    }
 };
 
 // --- Helper to convert File to Base64 String ---
@@ -405,7 +378,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, order, onClo
                                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                 </svg>
-                                {isCompressing ? 'กำลังย่อรูป (WebP)...' : isProcessing ? 'กำลังประมวลผล...' : 'กำลังดำเนินการ...'}
+                                {isCompressing ? 'กำลังย่อรูป (WebP)...' : isProcessing ? 'กำลังอัปโหลดสลิป...' : 'กำลังดำเนินการ...'}
                             </>
                         ) : (
                             'ยืนยันการชำระเงิน'

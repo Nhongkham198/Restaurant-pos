@@ -62,28 +62,38 @@ app.post("/api/read-order", async (req, res) => {
             }
           },
           {
-            text: `Analyze this food delivery order screenshot (e.g., Shopee Food, Grab, LineMan).
+            text: `Analyze this food delivery order screenshot (e.g., LineMan, Shopee Food, Grab).
+            
+            CRITICAL CONCEPT: "Block Processing" (Multi-line Context)
+            1. Identify the "Main Item" which usually starts with a quantity like "1x" or "2x".
+            2. All subsequent lines below a Main Item are "Options" or "Details" for that item until you reach the next Main Item (another "1x").
+            3. Link these lines together. For example, if you see:
+               1x บะหมี่ซอสดำ (จาจังมยอน)
+               เครื่องเคียง
+               • กิมจิผักกาด
+               This is ONE item: "บะหมี่ซอสดำ (จาจังมยอน)" with option "กิมจิผักกาด".
+            
+            4. [Set] Handling: If an item starts with "[เซตสุดฮิต]", look at all the lines below it to find what's included and what options were chosen (e.g., egg doneness "ไข่ดาวสุก").
+            5. Header Filtering: Skip headers like "เครื่องเคียง", "ความสุก", "ประเภท", "ตัวเลือก" and extract the actual values (e.g., "กิมจิผักกาด", "ไข่ดาวสุก").
+            
             Extract the following information:
-            1. Platform: Identify the delivery platform. If there is a prominent ORANGE bar/header at the top, it is likely "ShopeeFood".
-            2. Order Number: Look for a number preceded by '#' (e.g., #125).
-            3. Items: Extract all food items, their quantities, and any options/notes.
-
+            1. Platform: Identify the delivery platform (LineMan, ShopeeFood, GrabFood, etc.).
+            2. Order Number: Look for a number preceded by '#' (e.g., #8298).
+            3. Items: Extract all food items as structured blocks.
+            
             IMPORTANT: Here is the list of available menu items in the POS system:
             ${menuContext}
-
-            Try to match the items in the image to the menu items above. 
-            - IMPORTANT (LineMan): If the item name contains "[เซตสุดฮิต]", "เซต", "Set", or "+", it is almost always a single SET item. You MUST extract it as a single item in the "items" list.
-            - IMPORTANT (LineMan): If you see "[เซตสุดฮิต] คิมมารี" and "บิบิมบับ" mentioned together (even on separate lines or with a "+"), you MUST return it as a single item named "เซต บิบิมบับ + คิมมาริ (LineMan Only)".
-            - IMPORTANT (LineMan): If the item name contains "หมูย่างเกาหลี" and "+ ข้าวญี่ปุ่น" or "เซต", you MUST extract it as "เซต หมูย่าง+ข้าวญี่ปุ่น (LineMan only)".
-            - IMPORTANT (LineMan): NEVER split a set into individual components. If it starts with "[เซตสุดฮิต]", it is one item.
-            - IMPORTANT (LineMan): If you see an option "หมูย่างเกาหลี - เพิ่มข้าว" followed by "ข้าวญี่ปุ่น", this is an ADDITIONAL bowl of rice. You MUST return "ข้าวญี่ปุ่น" as a SEPARATE item in the "items" list, in addition to the main set item.
-            - For the pork item options, if you see "หมูย่างดูโอ ย่างเกลือ", extract "ดูโอ Duo" and "ย่างเกลือ" as options for the main pork item.
-            - Delivery platforms often add prefixes like "[เซตสุดฮิต]" or "[Best Seller]". Ignore these when matching.
+            
+            Try to match the items in the image to the menu items above.
+            - (LineMan): If you see "[เซตสุดฮิต] คิมมารี" and "บิบิมบับ" together in a block, match to "เซต บิบิมบับ + คิมมาริ (LineMan Only)".
+            - (LineMan): If you see "หมูย่างเกาหลี" and "+ ข้าวญี่ปุ่น" together in a block, match to "เซต หมูย่าง+ข้าวญี่ปุ่น (LineMan only)".
+            - (LineMan): If you see "หมูย่างเกาหลี" WITHOUT rice/set mentioned in the block, it is likely "หมูย่างเกาหลี (กับข้าว)".
+            - Delivery platforms often add prefixes like "[เซตสุดฮิต]" or "[Best Seller]". Ignore these when matching to the menu list.
             - If an item is definitely not in the menu, return its name as it appears in the image.
-
+            
             Return ONLY a JSON object in this format:
             {
-              "platform": "ShopeeFood" | "GrabFood" | "LineMan" | "Other",
+              "platform": "string",
               "orderNumber": "string",
               "items": [
                 { "name": "string", "quantity": number, "options": ["string"] }
