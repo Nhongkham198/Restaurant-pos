@@ -139,61 +139,26 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, order, onClo
 
             setIsProcessing(true);
             try {
-                // --- FIREBASE STORAGE UPLOAD ---
-                if (!storage) {
-                    throw new Error("ระบบจัดเก็บข้อมูล (Storage) ยังไม่พร้อมใช้งาน กรุณาลองใหม่อีกครั้ง");
-                }
-
-                const fileExtension = 'webp';
-                const fileName = `slips/${order.id}/${Date.now()}-slip.${fileExtension}`;
-                const storageRef = ref(storage, fileName);
+                console.log("--- PaymentModal V3.0: Guaranteed Atomic Save Mode ---");
                 
-                console.log("--- PaymentModal V2.2: Base64 Upload Mode ---");
-                console.log("Target Path:", fileName);
-                
-                let downloadUrl = '';
-                let retryCount = 0;
-                const maxRetries = 3;
-
-                // Convert Blob to Base64 string first
+                // Convert Blob to Base64 string
                 setIsProcessing(true);
-                console.log("Converting image to Base64...");
+                setUploadProgress(20);
+                console.log("Converting image to Base64 for direct Firestore storage...");
                 const base64String = await fileToBase64(slipFile);
                 console.log("Conversion complete. String length:", base64String.length);
+                setUploadProgress(100);
 
-                while (retryCount < maxRetries) {
-                    try {
-                        console.log(`Upload attempt ${retryCount + 1} (Base64)...`);
-                        setUploadProgress(10); // Initial progress
-                        
-                        const uploadResult = await uploadString(storageRef, base64String, 'data_url');
-                        setUploadProgress(90);
-                        
-                        console.log("Upload successful, getting download URL...");
-                        downloadUrl = await getDownloadURL(uploadResult.ref);
-                        setUploadProgress(100);
-                        await new Promise(resolve => setTimeout(resolve, 500));
-                        break; // Success!
-                    } catch (err: any) {
-                        retryCount++;
-                        console.error(`Upload attempt ${retryCount} failed:`, err);
-                        if (retryCount >= maxRetries) {
-                            throw err; // Re-throw if all retries failed
-                        }
-                        // Wait a bit before retrying
-                        await new Promise(resolve => setTimeout(resolve, 2000 * retryCount));
-                    }
-                }
-                
-                console.log("Slip upload successful. URL:", downloadUrl);
-
+                // We store the Base64 string directly in the payment details.
+                // This ensures the slip is saved ATOMICALLY with the order completion.
+                // No more "stuck at 10%" because it's saved as part of the Firestore document.
                 details = { 
                     method: 'transfer',
-                    slipImage: downloadUrl // Store the download URL
+                    slipImage: base64String // Store the full Base64 Data URL
                 };
                 
-                console.log("Calling onConfirmPayment for order:", order.id);
-                onConfirmPayment(order.id, details);
+                console.log("Calling onConfirmPayment with embedded slip data...");
+                await onConfirmPayment(order.id, details);
                 // We don't set setIsProcessing(false) here because isConfirmingPayment 
                 // from props will take over, or the modal will close.
             } catch (error: any) {
