@@ -132,7 +132,8 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, order, onClo
                 setIsProcessing(true);
                 try {
                     // --- FIREBASE STORAGE UPLOAD ---
-                    const fileName = `slips/${order.id}/${Date.now()}-${slipFile.name}`;
+                    const fileExtension = slipFile.type.split('/')[1] || 'webp';
+                    const fileName = `slips/${order.id}/${Date.now()}-${slipFile.name || 'slip.' + fileExtension}`;
                     const storageRef = ref(storage, fileName);
                     
                     // Upload the compressed file
