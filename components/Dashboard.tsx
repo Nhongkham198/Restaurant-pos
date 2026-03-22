@@ -48,13 +48,25 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
 
 
     // Helper to extract provider name from delivery orders
-    const getDeliveryProviderName = (order: { orderType: string, customerName?: string }) => {
+    const getDeliveryProviderName = (order: { orderType: string, customerName?: string, tableName?: string }) => {
         if (order.orderType !== 'lineman') return null;
+        
+        // 1. Try to get provider name from tableName (most reliable for recent orders)
+        if (order.tableName && order.tableName !== 'Delivery' && order.tableName !== 'Unknown') {
+            return order.tableName;
+        }
+        
+        // 2. Try to parse from customerName (e.g. "LineMan #4703")
         if (order.customerName && order.customerName.includes('#')) {
-            // Assumes format "Provider #123"
             return order.customerName.split('#')[0].trim();
         }
-        return order.customerName || 'Delivery'; // Default fallback
+        
+        // 3. Fallback to customerName if it's not just a number
+        if (order.customerName && isNaN(Number(order.customerName))) {
+            return order.customerName;
+        }
+        
+        return 'Delivery'; // Final fallback
     };
 
     const handleViewModeChange = (mode: 'daily' | 'monthly') => {
