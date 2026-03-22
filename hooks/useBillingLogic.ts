@@ -52,16 +52,32 @@ export const useBillingLogic = () => {
                 paymentDetails: paymentDetails, 
                 completedBy: currentUser?.username || 'Unknown' 
             }; 
-            await activeOrdersActions.update(orderId, { status: 'completed', completionTime: completed.completionTime, paymentDetails: paymentDetails }); 
-            await db.collection(`branches/${branchId}/completedOrders_v2`).doc(orderId.toString()).set(completed); 
-        } catch (error) { 
-            console.error("Payment failed", error); 
-            Swal.fire('Error', 'Payment processing failed', 'error'); 
-        } finally { 
+            
+            // Use a batch to ensure atomicity: Save to history and remove from active orders
+            console.log("Starting batch commit for order:", orderId);
+            const batch = db.batch();
+            const activeRef = db.collection(`branches/${branchId}/activeOrders`).doc(orderId.toString());
+            const completedRef = db.collection(`branches/${branchId}/completedOrders_v2`).doc(orderId.toString());
+            
+            batch.set(completedRef, {
+                ...completed,
+                lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            batch.delete(activeRef);
+            
+            await batch.commit();
+            console.log("Batch commit successful for order:", orderId);
+
+            // Success feedback
             setIsConfirmingPayment(false); 
             setModalState(prev => ({ ...prev, isPayment: false, isPaymentSuccess: true })); 
             setSelectedOrderIdForModal(orderToComplete.id);
-            setOrderForModal(orderToComplete); 
+            setOrderForModal(completed); // Use the completed object for the success modal
+            
+        } catch (error: any) { 
+            console.error("Payment failed", error); 
+            Swal.fire('Error', 'ไม่สามารถบันทึกข้อมูลการชำระเงินได้: ' + (error.message || 'Unknown error'), 'error'); 
+            setIsConfirmingPayment(false); 
         } 
     };
 

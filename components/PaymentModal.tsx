@@ -3,7 +3,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import type { ActiveOrder, PaymentDetails } from '../types';
 import Swal from 'sweetalert2';
 import { storage } from '../firebaseConfig';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { ref, uploadBytes, getDownloadURL, uploadString } from 'firebase/storage';
 import imageCompression from 'browser-image-compression';
 
 interface PaymentModalProps {
@@ -101,7 +101,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, order, onClo
 
     const handleConfirm = async () => {
         if (!order) return;
-        let details: PaymentDetails;
+        let details: PaymentDetails | null = null;
         
         if (paymentMethod === 'cash') {
             const received = parseFloat(cashReceived);
@@ -128,41 +128,56 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, order, onClo
                 return;
             }
 
-            if (slipFile) {
-                setIsProcessing(true);
-                try {
-                    // --- FIREBASE STORAGE UPLOAD ---
-                    if (!storage) {
-                        throw new Error("ระบบจัดเก็บข้อมูล (Storage) ยังไม่พร้อมใช้งาน กรุณาลองใหม่อีกครั้ง");
-                    }
-
-                    const fileExtension = slipFile.type.split('/')[1] || 'webp';
-                    const fileName = `slips/${order.id}/${Date.now()}-${slipFile.name || 'slip.' + fileExtension}`;
-                    const storageRef = ref(storage, fileName);
-                    
-                    // Upload the compressed file using uploadBytes
-                    // We use uploadBytes for simplicity as it's a small file (50KB)
-                    const uploadResult = await uploadBytes(storageRef, slipFile);
-                    const downloadUrl = await getDownloadURL(uploadResult.ref);
-                    
-                    details = { 
-                        method: 'transfer',
-                        slipImage: downloadUrl // Store the download URL
-                    };
-                } catch (error: any) {
-                    console.error("Image processing/upload failed:", error);
-                    Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถอัปโหลดรูปภาพได้: ' + error.message, 'error');
-                    setIsProcessing(false);
-                    return; 
+            setIsProcessing(true);
+            try {
+                // --- FIREBASE STORAGE UPLOAD ---
+                if (!storage) {
+                    throw new Error("ระบบจัดเก็บข้อมูล (Storage) ยังไม่พร้อมใช้งาน กรุณาลองใหม่อีกครั้ง");
                 }
-                setIsProcessing(false);
-            } else {
+
+                const fileExtension = 'webp';
+                const fileName = `slips/${order.id}/${Date.now()}-slip.${fileExtension}`;
+                const storageRef = ref(storage, fileName);
+                
+                console.log("Starting slip upload to:", fileName);
+                
+                // Use FileReader to convert to Data URL for more robust upload in iframe/sandbox
+                const reader = new FileReader();
+                const uploadPromise = new Promise<string>((resolve, reject) => {
+                    reader.onloadend = async () => {
+                        try {
+                            const base64data = reader.result as string;
+                            console.log("Image converted to data URL, starting uploadString...");
+                            const uploadResult = await uploadString(storageRef, base64data, 'data_url');
+                            const downloadUrl = await getDownloadURL(uploadResult.ref);
+                            resolve(downloadUrl);
+                        } catch (err) {
+                            reject(err);
+                        }
+                    };
+                    reader.onerror = () => reject(new Error('ไม่สามารถอ่านไฟล์รูปภาพได้'));
+                    reader.readAsDataURL(slipFile);
+                });
+
+                const downloadUrl = await uploadPromise;
+                
+                console.log("Slip upload successful:", downloadUrl);
+
                 details = { 
                     method: 'transfer',
-                    slipImage: undefined
+                    slipImage: downloadUrl // Store the download URL
                 };
+                
+                console.log("Calling onConfirmPayment for order:", order.id);
+                onConfirmPayment(order.id, details);
+                // We don't set setIsProcessing(false) here because isConfirmingPayment 
+                // from props will take over, or the modal will close.
+            } catch (error: any) {
+                console.error("Image processing/upload failed:", error);
+                Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถอัปโหลดรูปภาพได้: ' + (error.message || 'Unknown error'), 'error');
+                setIsProcessing(false);
+                return; 
             }
-            onConfirmPayment(order.id, details);
         }
     };
 
