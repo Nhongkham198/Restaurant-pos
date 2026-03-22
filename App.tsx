@@ -1758,7 +1758,10 @@ export const App: React.FC = () => {
             <MergeBillModal isOpen={modalState.isMergeBill} onClose={handleModalClose} order={orderForModal as ActiveOrder} allActiveOrders={activeOrders} tables={tables} onConfirmMerge={handleConfirmMerge} />
             <StaffChat onAddItemsToBasket={(items, platform, orderNumber) => {
                 setCurrentOrderItems(prev => [...prev, ...items]);
-                if (orderNumber) setCustomerName(orderNumber);
+                if (orderNumber) {
+                    const formattedName = platform && platform !== 'Other' ? `${platform} #${orderNumber}` : orderNumber;
+                    setCustomerName(formattedName);
+                }
                 setPendingPlatform(platform);
                 setPendingOrderNumber(orderNumber);
                 
