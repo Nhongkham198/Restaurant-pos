@@ -3,7 +3,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import type { ActiveOrder, PaymentDetails } from '../types';
 import Swal from 'sweetalert2';
 import { storage } from '../firebaseConfig';
-import { ref, uploadBytes, getDownloadURL, uploadString } from 'firebase/storage';
+import { ref, uploadBytes, getDownloadURL, uploadString, uploadBytesResumable } from 'firebase/storage';
 import imageCompression from 'browser-image-compression';
 
 interface PaymentModalProps {
@@ -26,11 +26,11 @@ const NumpadButton: React.FC<{ value: string; onClick: (value: string) => void; 
 // --- Image Compression Helper (Optimized for WebP for faster uploads) ---
 const compressImage = async (file: File): Promise<File> => {
     const options = {
-        maxSizeMB: 0.05, // Max 50KB for ultra-fast upload
-        maxWidthOrHeight: 500, // Sufficient for reading slip details
+        maxSizeMB: 0.1, // 100KB is still very small but better quality
+        maxWidthOrHeight: 800, // Better readability for slips
         useWebWorker: true,
         fileType: 'image/webp' as any,
-        initialQuality: 0.4
+        initialQuality: 0.6
     };
     try {
         return await imageCompression(file, options);
@@ -57,6 +57,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, order, onClo
     const [slipFile, setSlipFile] = useState<File | null>(null); // The actual file to process
     const [isProcessing, setIsProcessing] = useState(false); // Used for compression/conversion state
     const [isCompressing, setIsCompressing] = useState(false); 
+    const [uploadProgress, setUploadProgress] = useState<number>(0);
     
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -96,6 +97,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, order, onClo
             setSlipFile(null);
             setIsProcessing(false);
             setIsCompressing(false);
+            setUploadProgress(0);
         }
     }, [isOpen, order]);
 
@@ -128,6 +130,13 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, order, onClo
                 return;
             }
 
+            // Ensure slipFile is a valid Blob/File
+            if (!(slipFile instanceof Blob)) {
+                console.error("Invalid slipFile type:", typeof slipFile);
+                Swal.fire('เกิดข้อผิดพลาด', 'ไฟล์รูปภาพไม่ถูกต้อง กรุณาลองเลือกใหม่อีกครั้ง', 'error');
+                return;
+            }
+
             setIsProcessing(true);
             try {
                 // --- FIREBASE STORAGE UPLOAD ---
@@ -139,29 +148,44 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, order, onClo
                 const fileName = `slips/${order.id}/${Date.now()}-slip.${fileExtension}`;
                 const storageRef = ref(storage, fileName);
                 
-                console.log("Starting slip upload to:", fileName);
+                console.log("--- PaymentModal V2.2: Base64 Upload Mode ---");
+                console.log("Target Path:", fileName);
                 
-                // Use FileReader to convert to Data URL for more robust upload in iframe/sandbox
-                const reader = new FileReader();
-                const uploadPromise = new Promise<string>((resolve, reject) => {
-                    reader.onloadend = async () => {
-                        try {
-                            const base64data = reader.result as string;
-                            console.log("Image converted to data URL, starting uploadString...");
-                            const uploadResult = await uploadString(storageRef, base64data, 'data_url');
-                            const downloadUrl = await getDownloadURL(uploadResult.ref);
-                            resolve(downloadUrl);
-                        } catch (err) {
-                            reject(err);
-                        }
-                    };
-                    reader.onerror = () => reject(new Error('ไม่สามารถอ่านไฟล์รูปภาพได้'));
-                    reader.readAsDataURL(slipFile);
-                });
+                let downloadUrl = '';
+                let retryCount = 0;
+                const maxRetries = 3;
 
-                const downloadUrl = await uploadPromise;
+                // Convert Blob to Base64 string first
+                setIsProcessing(true);
+                console.log("Converting image to Base64...");
+                const base64String = await fileToBase64(slipFile);
+                console.log("Conversion complete. String length:", base64String.length);
+
+                while (retryCount < maxRetries) {
+                    try {
+                        console.log(`Upload attempt ${retryCount + 1} (Base64)...`);
+                        setUploadProgress(10); // Initial progress
+                        
+                        const uploadResult = await uploadString(storageRef, base64String, 'data_url');
+                        setUploadProgress(90);
+                        
+                        console.log("Upload successful, getting download URL...");
+                        downloadUrl = await getDownloadURL(uploadResult.ref);
+                        setUploadProgress(100);
+                        await new Promise(resolve => setTimeout(resolve, 500));
+                        break; // Success!
+                    } catch (err: any) {
+                        retryCount++;
+                        console.error(`Upload attempt ${retryCount} failed:`, err);
+                        if (retryCount >= maxRetries) {
+                            throw err; // Re-throw if all retries failed
+                        }
+                        // Wait a bit before retrying
+                        await new Promise(resolve => setTimeout(resolve, 2000 * retryCount));
+                    }
+                }
                 
-                console.log("Slip upload successful:", downloadUrl);
+                console.log("Slip upload successful. URL:", downloadUrl);
 
                 details = { 
                     method: 'transfer',
@@ -399,7 +423,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, order, onClo
                                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                 </svg>
-                                {isCompressing ? 'กำลังย่อรูป (WebP)...' : isProcessing ? 'กำลังอัปโหลดสลิป...' : 'กำลังดำเนินการ...'}
+                                {isCompressing ? 'กำลังย่อรูป (WebP)...' : isProcessing ? `กำลังอัปโหลดสลิป (${uploadProgress.toFixed(0)}%)...` : 'กำลังดำเนินการ...'}
                             </>
                         ) : (
                             'ยืนยันการชำระเงิน'
