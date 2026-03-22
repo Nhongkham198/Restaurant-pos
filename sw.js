@@ -8,7 +8,7 @@ const firebaseConfig = {
   apiKey: "AIzaSyCVLo7EeWsDSR1tWmucYuZq7uOuV8zvqXI",
   authDomain: "restaurant-pos-f8bd4.firebaseapp.com",
   projectId: "restaurant-pos-f8bd4",
-  storageBucket: "restaurant-pos-f8bd4.firebasestorage.app",
+  storageBucket: "restaurant-pos-f8bd4.appspot.com",
   messagingSenderId: "822986056017",
   appId: "1:822986056017:web:a1955349d8d94adcda3370",
   measurementId: "G-2B6ZS4VYMF"

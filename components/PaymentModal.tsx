@@ -132,11 +132,16 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, order, onClo
                 setIsProcessing(true);
                 try {
                     // --- FIREBASE STORAGE UPLOAD ---
+                    if (!storage) {
+                        throw new Error("ระบบจัดเก็บข้อมูล (Storage) ยังไม่พร้อมใช้งาน กรุณาลองใหม่อีกครั้ง");
+                    }
+
                     const fileExtension = slipFile.type.split('/')[1] || 'webp';
                     const fileName = `slips/${order.id}/${Date.now()}-${slipFile.name || 'slip.' + fileExtension}`;
                     const storageRef = ref(storage, fileName);
                     
-                    // Upload the compressed file
+                    // Upload the compressed file using uploadBytes
+                    // We use uploadBytes for simplicity as it's a small file (50KB)
                     const uploadResult = await uploadBytes(storageRef, slipFile);
                     const downloadUrl = await getDownloadURL(uploadResult.ref);
                     
