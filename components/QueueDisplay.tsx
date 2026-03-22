@@ -1,5 +1,7 @@
 import React, { useMemo, useEffect, useState } from 'react';
 import type { ActiveOrder } from '../types';
+import { Check } from 'lucide-react';
+import Swal from 'sweetalert2';
 
 interface QueueDisplayProps {
     activeOrders: ActiveOrder[];
@@ -21,6 +23,7 @@ const OrderNumberCard: React.FC<{ orderNumber: number; manualOrderNumber?: strin
 export const QueueDisplay: React.FC<QueueDisplayProps> = ({ activeOrders, restaurantName, logoUrl }) => {
 
     const [currentTime, setCurrentTime] = useState(new Date());
+    const [filterType, setFilterType] = useState<'all' | 'delivery' | 'dine-in'>('delivery');
 
     useEffect(() => {
         const timer = setInterval(() => {
@@ -29,17 +32,52 @@ export const QueueDisplay: React.FC<QueueDisplayProps> = ({ activeOrders, restau
         return () => clearInterval(timer);
     }, []);
 
+    const handleFilterChange = async (newType: 'all' | 'delivery' | 'dine-in') => {
+        if (newType === filterType) return;
+
+        const { value: password } = await Swal.fire({
+            title: 'กรุณาใส่รหัสผ่าน',
+            input: 'password',
+            inputLabel: 'รหัสผ่านเพื่อเปลี่ยนการแสดงผล',
+            inputPlaceholder: 'ใส่รหัสผ่านที่นี่',
+            inputAttributes: {
+                autocapitalize: 'off',
+                autocorrect: 'off'
+            },
+            showCancelButton: true,
+            confirmButtonText: 'ยืนยัน',
+            cancelButtonText: 'ยกเลิก',
+            confirmButtonColor: '#3b82f6'
+        });
+
+        if (password === '198') {
+            setFilterType(newType);
+        } else if (password !== undefined) {
+            Swal.fire({
+                icon: 'error',
+                title: 'รหัสผ่านไม่ถูกต้อง',
+                text: 'กรุณาลองใหม่อีกครั้ง',
+                confirmButtonColor: '#ef4444'
+            });
+        }
+    };
 
     const { waitingOrders, cookingOrders } = useMemo(() => {
-        const waiting = activeOrders
+        const filtered = activeOrders.filter(o => {
+            if (filterType === 'delivery') return o.orderType === 'lineman';
+            if (filterType === 'dine-in') return o.orderType === 'dine-in';
+            return true; // 'all'
+        });
+
+        const waiting = filtered
             .filter(o => o.status === 'waiting')
             .sort((a, b) => a.orderTime - b.orderTime);
-        const cooking = activeOrders
+        const cooking = filtered
             .filter(o => o.status === 'cooking')
             .sort((a, b) => (a.cookingStartTime || a.orderTime) - (b.cookingStartTime || b.orderTime));
 
         return { waitingOrders: waiting, cookingOrders: cooking };
-    }, [activeOrders]);
+    }, [activeOrders, filterType]);
 
     return (
         <div className="h-screen w-screen bg-gray-900 text-white font-sans flex flex-col overflow-hidden">
@@ -48,6 +86,31 @@ export const QueueDisplay: React.FC<QueueDisplayProps> = ({ activeOrders, restau
                     {logoUrl && <img src={logoUrl} alt="Logo" className="h-10 sm:h-12 w-auto object-contain rounded-md" />}
                     <h1 className="text-2xl sm:text-4xl font-bold text-white tracking-wide">{restaurantName}</h1>
                 </div>
+
+                <div className="flex items-center gap-2 bg-gray-900/50 p-1 rounded-xl border border-gray-700">
+                    <button 
+                        onClick={() => handleFilterChange('all')}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${filterType === 'all' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-400 hover:bg-gray-800'}`}
+                    >
+                        {filterType === 'all' && <Check size={16} />}
+                        แสดงออเดอร์ทั้งหมด
+                    </button>
+                    <button 
+                        onClick={() => handleFilterChange('delivery')}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${filterType === 'delivery' ? 'bg-green-600 text-white shadow-lg' : 'text-gray-400 hover:bg-gray-800'}`}
+                    >
+                        {filterType === 'delivery' && <Check size={16} />}
+                        แสดงเฉพาะออเดอร์ Delivery
+                    </button>
+                    <button 
+                        onClick={() => handleFilterChange('dine-in')}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${filterType === 'dine-in' ? 'bg-orange-600 text-white shadow-lg' : 'text-gray-400 hover:bg-gray-800'}`}
+                    >
+                        {filterType === 'dine-in' && <Check size={16} />}
+                        แสดงเฉพาะนั่งทานที่ร้าน
+                    </button>
+                </div>
+
                 <div className="text-xl sm:text-2xl font-mono font-bold text-gray-300">
                     {currentTime.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}
                 </div>
