@@ -46,12 +46,17 @@ const fuzzyMatch = (str1: string, str2: string) => {
     
     // Check for significant overlap with key terms
     const getWords = (s: string) => {
-        const keyTerms = ['หมูย่าง', 'ข้าวญี่ปุ่น', 'เซต', 'สันคอ', 'สามชั้น', 'ดูโอ', 'ย่างเกลือ', 'โคชูจัง', 'บะหมี่', 'ซอสดำ', 'กิมจิ', 'บิบิมบับ', 'คิมมาริ', 'ไก่ทอด', 'ต๊อกบกกี'];
+        const keyTerms = ['หมูย่าง', 'ข้าวญี่ปุ่น', 'เซต', 'สันคอ', 'สามชั้น', 'ดูโอ', 'ย่างเกลือ', 'โคชูจัง', 'บะหมี่', 'ซอสดำ', 'กิมจิ', 'บิบิมบับ', 'คิมมาริ', 'ไก่ทอด', 'ต๊อกบกกี', 'ไข่ดาว', 'ไข่ต้ม'];
         return keyTerms.filter(term => s.includes(term));
     };
     
     const words1 = getWords(str1);
     const words2 = getWords(str2);
+    
+    // STRICT: If one has 'ไข่ดาว' and other has 'ไข่ต้ม', they must NOT match
+    if ((str1.includes('ไข่ดาว') && str2.includes('ไข่ต้ม')) || (str1.includes('ไข่ต้ม') && str2.includes('ไข่ดาว'))) {
+        return false;
+    }
     
     if (words1.length > 0 && words2.length > 0) {
         const common = words1.filter(w => words2.includes(w));
@@ -242,7 +247,8 @@ export const StaffChat: React.FC<StaffChatProps> = ({ onAddItemsToBasket }) => {
                 },
                 body: JSON.stringify({
                     imageUrl: msg.imageUrl,
-                    menuContext: menuContext
+                    menuContext: menuContext,
+                    branchId: selectedBranch.id
                 })
             });
 
@@ -294,17 +300,32 @@ export const StaffChat: React.FC<StaffChatProps> = ({ onAddItemsToBasket }) => {
                             
                             if (menuItem.optionGroups) {
                                 menuItem.optionGroups.forEach(group => {
-                                    const matchedOpt = group.options.find(o => 
-                                        o.name.trim() === cleanOptName || 
-                                        o.nameEn?.trim() === cleanOptName ||
-                                        fuzzyMatch(cleanOptName, o.name) ||
-                                        // Handle cases where the option name in receipt might be longer (e.g., "ย่างซอสโคชูจัง" vs "ซอสโคชูจัง")
-                                        o.name.includes(cleanOptName) ||
-                                        cleanOptName.includes(o.name) ||
-                                        // Handle "No add" cases (e.g., "ไม่เพิ่มชีส" -> "ไม่เพิ่มอะไรเลย")
-                                        ((cleanOptName.includes('ไม่เพิ่ม') || cleanOptName.includes('ไม่รับ')) && 
-                                         (o.name.includes('ไม่เพิ่ม') || o.name.includes('No add')))
-                                    );
+                                    const matchedOpt = group.options.find(o => {
+                                        const name = o.name.trim();
+                                        const nameEn = o.nameEn?.trim() || "";
+                                        
+                                        // 1. Exact match
+                                        if (name === cleanOptName || nameEn === cleanOptName) return true;
+                                        
+                                        // 2. "No add" logic (e.g., "ไม่เพิ่มชีส" -> "ไม่เพิ่มอะไรเลย")
+                                        const isNoAddInReceipt = cleanOptName.includes('ไม่เพิ่ม') || cleanOptName.includes('ไม่รับ');
+                                        const isNoAddInPOS = name.includes('ไม่เพิ่ม') || name.includes('No add') || name.includes('ไม่รับ');
+                                        
+                                        if (isNoAddInReceipt && isNoAddInPOS) {
+                                            // If receipt says "ไม่เพิ่มชีส" and POS says "ไม่เพิ่มอะไรเลย", it's a match
+                                            return true;
+                                        }
+                                        
+                                        // 3. If receipt says "ไม่เพิ่มชีส" but POS says "ชีส", it's NOT a match
+                                        if (isNoAddInReceipt && (name.includes('ชีส') || nameEn.includes('Cheese')) && !isNoAddInPOS) {
+                                            return false;
+                                        }
+
+                                        // 4. Fuzzy and inclusion
+                                        return fuzzyMatch(cleanOptName, name) ||
+                                               name.includes(cleanOptName) ||
+                                               cleanOptName.includes(name);
+                                    });
                                     if (matchedOpt) {
                                         selectedOptions.push(matchedOpt);
                                         matchedInGroup = true;

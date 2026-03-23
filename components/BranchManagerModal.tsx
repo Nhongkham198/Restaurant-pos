@@ -16,7 +16,7 @@ const initialFormState = { name: '', location: '' };
 export const BranchManagerModal: React.FC<BranchManagerModalProps> = ({ isOpen, onClose, branches, setBranches, currentUser }) => {
     const [isAdding, setIsAdding] = useState(false);
     const [editingBranch, setEditingBranch] = useState<Branch | null>(null);
-    const [formData, setFormData] = useState<{ name: string; location?: string }>(initialFormState);
+    const [formData, setFormData] = useState<{ name: string; location?: string; geminiApiKey?: string }>(initialFormState);
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
@@ -111,7 +111,7 @@ export const BranchManagerModal: React.FC<BranchManagerModalProps> = ({ isOpen, 
     const startEdit = (branch: Branch) => {
         setEditingBranch(branch);
         setIsAdding(false);
-        setFormData({ name: branch.name, location: branch.location || '' });
+        setFormData({ name: branch.name, location: branch.location || '', geminiApiKey: branch.geminiApiKey || '' });
     };
 
     if (!isOpen) return null;
@@ -151,6 +151,11 @@ export const BranchManagerModal: React.FC<BranchManagerModalProps> = ({ isOpen, 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                             <input type="text" name="name" value={formData.name} onChange={handleInputChange} placeholder="ชื่อสาขา (เช่น สยาม)" className="px-3 py-2 border rounded-md bg-white border-gray-300 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500" />
                             <input type="text" name="location" value={formData.location} onChange={handleInputChange} placeholder="ที่ตั้ง (ถ้ามี)" className="px-3 py-2 border rounded-md bg-white border-gray-300 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                            <div className="md:col-span-2">
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Gemini API Key (เฉพาะสาขานี้)</label>
+                                <input type="password" name="geminiApiKey" value={formData.geminiApiKey || ''} onChange={handleInputChange} placeholder="AIza..." className="w-full px-3 py-2 border rounded-md bg-white border-gray-300 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                                <p className="text-xs text-gray-500 mt-1">หากเว้นว่างไว้ ระบบจะใช้ API Key ส่วนกลาง</p>
+                            </div>
                         </div>
                         <div className="flex gap-2 justify-end pt-2">
                             <button onClick={cancelAction} className="px-4 py-2 bg-gray-200 rounded-md hover:bg-gray-300">ยกเลิก</button>

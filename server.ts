@@ -1,5 +1,6 @@
 import express from "express";
 import path from "path";
+import axios from "axios";
 import { GoogleGenAI } from "@google/genai";
 
 const app = express();
@@ -17,9 +18,41 @@ app.get("/api/hello", (req, res) => {
 
 // API สำหรับอ่านออเดอร์ (ย้ายมาไว้ฝั่ง Server เพื่อความปลอดภัยของ API Key)
 app.post("/api/read-order", async (req, res) => {
-  const { imageUrl, menuContext } = req.body;
+  const { imageUrl, menuContext, branchId } = req.body;
   
-  const apiKey = (process.env.GEMINI_API_KEY2 || process.env.GEMINI_API_KEY || process.env.API_KEY || "").trim();
+  let apiKey = (process.env.GEMINI_API_KEY2 || process.env.GEMINI_API_KEY || process.env.API_KEY || "").trim();
+  
+  // Try to fetch branch-specific API key if branchId is provided
+  if (branchId) {
+    try {
+      const projectId = "restaurant-pos-f8bd4";
+      // useFirestoreSync stores branches in 'branches/data' document under 'value' field
+      const firestoreUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/branches/data`;
+      const branchRes = await axios.get(firestoreUrl);
+      const branchesArray = branchRes.data.fields?.value?.arrayValue?.values || [];
+      
+      // Find the branch with matching ID
+      const targetBranch = branchesArray.find((b: any) => {
+        const fields = b.mapValue?.fields;
+        return fields?.id?.integerValue === branchId.toString() || fields?.id?.doubleValue === branchId;
+      });
+
+      if (targetBranch) {
+        const fields = targetBranch.mapValue?.fields;
+        if (fields?.geminiApiKey && fields.geminiApiKey.stringValue) {
+          const branchKey = fields.geminiApiKey.stringValue.trim();
+          if (branchKey && branchKey !== "YOUR_API_KEY") {
+            apiKey = branchKey;
+            console.log(`Using branch-specific API key for branch ${branchId}`);
+          }
+        }
+      }
+    } catch (err: any) {
+      console.warn(`Could not fetch branch-specific API key for branch ${branchId}:`, err.message);
+      // Fallback to default apiKey
+    }
+  }
+  
   console.log("API Key present:", !!apiKey);
   if (apiKey) {
     console.log("API Key preview:", apiKey.substring(0, 10) + "...");
@@ -64,34 +97,33 @@ app.post("/api/read-order", async (req, res) => {
           {
             text: `Analyze this food delivery order screenshot (e.g., LineMan, Shopee Food, Grab).
             
-            CRITICAL CONCEPT: "Block Processing" (Multi-line Context)
+            CRITICAL CONCEPT: "Bullet Point Priority"
             1. Identify the "Main Item" which usually starts with a quantity like "1x" or "2x".
-            2. All subsequent lines below a Main Item are "Options" or "Details" for that item until you reach the next Main Item (another "1x").
-            3. Link these lines together.
+            2. All subsequent lines below a Main Item that start with a bullet point (•) are the "Options" or "Choices" for that item.
+            3. IGNORE any lines that are headers (e.g., "ความสุก", "ประเภท", "เพิ่มชีส", "การย่าง"). ONLY extract the values after the bullet points (•).
             
-            4. [Set] & Parentheses Handling: 
+            4. STRICT MATCHING:
+               - You must distinguish between different types of items even if they share adjectives.
+               - Example: "• ไข่ดาวสุก" is NOT the same as "ไข่ต้มสุก". You must extract exactly what follows the bullet.
+               - Example: "• สันคอหมูย่างซอสโคชูจัง" -> extract "สันคอหมูย่างซอสโคชูจัง".
+            
+            5. "No add" Handling:
+               - If an option says "• ไม่เพิ่มชีส" or "• ไม่รับ...", you must extract this exact string. 
+               - The system will map this to a "No add" option in the POS.
+            
+            6. [Set] & Parentheses Handling: 
                - If an item starts with "[เซตสุดฮิต]" or "[Best Seller]", ignore these prefixes.
                - Ignore text inside parentheses for the main item name matching (e.g., "บิบิมบับ (ข้าวยำเกาหลี)" -> "บิบิมบับ").
                - Example: "1x [เซตสุดฮิต] บิบิมบับ (ข้าวยำเกาหลี) + ต๊อกบกกี (ต๊อกผัดซอสเกาหลี) + คิมมารี (สาหร่ายห่อวุ้นเส้นทอด)" 
                  Match to: "เซต บิบิมบับ + ต๊อกบกกี + คิมมารี (LineMan only)".
             
-            5. Header & Option Filtering: 
-               - Skip headers like "เครื่องเคียง", "ความสุก", "ประเภท", "ตัวเลือก", "เนื้อ", "การย่าง", "เพิ่มชีส".
-               - Extract the actual values (e.g., "สามชั้น", "ย่างซอสโคชูจัง", "ไม่เพิ่มชีส").
-               - If you see "ไม่เพิ่ม..." or "ไม่รับ...", extract it as an option.
-            
             Extract the following information:
             1. Platform: Identify the delivery platform (LineMan, ShopeeFood, GrabFood, etc.).
-            2. Order Number: Look for a number preceded by '#' (e.g., #8298).
+            2. Order Number: Look for a number preceded by '#' (e.g., #1388).
             3. Items: Extract all food items as structured blocks.
             
             IMPORTANT: Here is the list of available menu items in the POS system:
             ${menuContext}
-            
-            Matching Rules:
-            - (LineMan): "[เซตสุดฮิต] หมูย่างเกาหลี + ข้าวญี่ปุ่น" -> "เซต หมูย่างเกาหลี + ข้าวญี่ปุ่น (LineMan only)".
-            - (LineMan): "[เซตสุดฮิต] บิบิมบับ + ต๊อกบกกี + คิมมารี" -> "เซต บิบิมบับ + ต๊อกบกกี + คิมมารี (LineMan only)".
-            - (LineMan): "หมูย่างเกาหลี" WITHOUT rice/set mentioned -> "หมูย่างเกาหลี (กับข้าว)".
             
             Return ONLY a JSON object in this format:
             {

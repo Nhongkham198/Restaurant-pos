@@ -10,6 +10,7 @@ export interface Branch {
     lineUserId?: string; // LINE User ID or Group ID to send notifications to // Added: LINE Notify Access Token
     telegramBotToken?: string; // Telegram Bot API Token
     telegramChatId?: string; // Telegram Chat ID or Group ID
+    geminiApiKey?: string; // Branch-specific Gemini API Key
 }
 
 export interface LeaveQuotas {
