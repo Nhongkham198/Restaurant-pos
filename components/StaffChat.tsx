@@ -30,7 +30,9 @@ const fuzzyMatch = (str1: string, str2: string) => {
     const clean = (s: string) => s.toLowerCase()
         .replace(/\s+/g, '')
         .replace(/\[.*\]/g, '') // Remove [เซตสุดฮิต]
+        .replace(/\(.*\)/g, '') // Remove content in parentheses for base matching
         .replace(/เกาหลี/g, '') // Remove 'เกาหลี'
+        .replace(/linemanonly/g, '') // Remove 'LineMan only'
         .replace(/[ิีึืุูเแโใไะาำะัํ็่้๊๋์]/g, '') // Remove Thai vowels/tone marks for base consonant matching
         .replace(/[^a-z0-9ก-ฮ]/g, '')
         .trim();
@@ -42,21 +44,9 @@ const fuzzyMatch = (str1: string, str2: string) => {
     // Exact match or inclusion
     if (s1 === s2 || s1.includes(s2) || s2.includes(s1)) return true;
     
-    // Check content inside parentheses specifically
-    const getParenContent = (s: string) => {
-        const match = s.match(/\((.*)\)/);
-        return match ? clean(match[1]) : null;
-    };
-    
-    const p1 = getParenContent(str1);
-    const p2 = getParenContent(str2);
-    
-    if (p1 && (s2.includes(p1) || p1.includes(s2))) return true;
-    if (p2 && (s1.includes(p2) || p2.includes(s1))) return true;
-
     // Check for significant overlap with key terms
     const getWords = (s: string) => {
-        const keyTerms = ['หมูย่าง', 'ข้าวญี่ปุ่น', 'เซต', 'สันคอ', 'สามชั้น', 'ดูโอ', 'ย่างเกลือ', 'โคชูจัง', 'บะหมี่', 'ซอสดำ', 'กิมจิ', 'บิบิมบับ', 'คิมมาริ'];
+        const keyTerms = ['หมูย่าง', 'ข้าวญี่ปุ่น', 'เซต', 'สันคอ', 'สามชั้น', 'ดูโอ', 'ย่างเกลือ', 'โคชูจัง', 'บะหมี่', 'ซอสดำ', 'กิมจิ', 'บิบิมบับ', 'คิมมาริ', 'ไก่ทอด', 'ต๊อกบกกี'];
         return keyTerms.filter(term => s.includes(term));
     };
     
@@ -66,7 +56,8 @@ const fuzzyMatch = (str1: string, str2: string) => {
     if (words1.length > 0 && words2.length > 0) {
         const common = words1.filter(w => words2.includes(w));
         if (common.length >= 2) return true;
-        if (common.length >= 1 && (s1.length < 10 || s2.length < 10)) return true;
+        // If one is very short and matches a key term exactly
+        if (common.length >= 1 && (s1.length < 8 || s2.length < 8)) return true;
     }
 
     const dist = levenshtein(s1, s2);
@@ -306,7 +297,13 @@ export const StaffChat: React.FC<StaffChatProps> = ({ onAddItemsToBasket }) => {
                                     const matchedOpt = group.options.find(o => 
                                         o.name.trim() === cleanOptName || 
                                         o.nameEn?.trim() === cleanOptName ||
-                                        fuzzyMatch(cleanOptName, o.name)
+                                        fuzzyMatch(cleanOptName, o.name) ||
+                                        // Handle cases where the option name in receipt might be longer (e.g., "ย่างซอสโคชูจัง" vs "ซอสโคชูจัง")
+                                        o.name.includes(cleanOptName) ||
+                                        cleanOptName.includes(o.name) ||
+                                        // Handle "No add" cases (e.g., "ไม่เพิ่มชีส" -> "ไม่เพิ่มอะไรเลย")
+                                        ((cleanOptName.includes('ไม่เพิ่ม') || cleanOptName.includes('ไม่รับ')) && 
+                                         (o.name.includes('ไม่เพิ่ม') || o.name.includes('No add')))
                                     );
                                     if (matchedOpt) {
                                         selectedOptions.push(matchedOpt);

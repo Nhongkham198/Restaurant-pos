@@ -67,14 +67,18 @@ app.post("/api/read-order", async (req, res) => {
             CRITICAL CONCEPT: "Block Processing" (Multi-line Context)
             1. Identify the "Main Item" which usually starts with a quantity like "1x" or "2x".
             2. All subsequent lines below a Main Item are "Options" or "Details" for that item until you reach the next Main Item (another "1x").
-            3. Link these lines together. For example, if you see:
-               1x บะหมี่ซอสดำ (จาจังมยอน)
-               เครื่องเคียง
-               • กิมจิผักกาด
-               This is ONE item: "บะหมี่ซอสดำ (จาจังมยอน)" with option "กิมจิผักกาด".
+            3. Link these lines together.
             
-            4. [Set] Handling: If an item starts with "[เซตสุดฮิต]", look at all the lines below it to find what's included and what options were chosen (e.g., egg doneness "ไข่ดาวสุก").
-            5. Header Filtering: Skip headers like "เครื่องเคียง", "ความสุก", "ประเภท", "ตัวเลือก" and extract the actual values (e.g., "กิมจิผักกาด", "ไข่ดาวสุก").
+            4. [Set] & Parentheses Handling: 
+               - If an item starts with "[เซตสุดฮิต]" or "[Best Seller]", ignore these prefixes.
+               - Ignore text inside parentheses for the main item name matching (e.g., "บิบิมบับ (ข้าวยำเกาหลี)" -> "บิบิมบับ").
+               - Example: "1x [เซตสุดฮิต] บิบิมบับ (ข้าวยำเกาหลี) + ต๊อกบกกี (ต๊อกผัดซอสเกาหลี) + คิมมารี (สาหร่ายห่อวุ้นเส้นทอด)" 
+                 Match to: "เซต บิบิมบับ + ต๊อกบกกี + คิมมารี (LineMan only)".
+            
+            5. Header & Option Filtering: 
+               - Skip headers like "เครื่องเคียง", "ความสุก", "ประเภท", "ตัวเลือก", "เนื้อ", "การย่าง", "เพิ่มชีส".
+               - Extract the actual values (e.g., "สามชั้น", "ย่างซอสโคชูจัง", "ไม่เพิ่มชีส").
+               - If you see "ไม่เพิ่ม..." or "ไม่รับ...", extract it as an option.
             
             Extract the following information:
             1. Platform: Identify the delivery platform (LineMan, ShopeeFood, GrabFood, etc.).
@@ -84,12 +88,10 @@ app.post("/api/read-order", async (req, res) => {
             IMPORTANT: Here is the list of available menu items in the POS system:
             ${menuContext}
             
-            Try to match the items in the image to the menu items above.
-            - (LineMan): If you see "[เซตสุดฮิต] คิมมารี" and "บิบิมบับ" together in a block, match to "เซต บิบิมบับ + คิมมาริ (LineMan Only)".
-            - (LineMan): If you see "หมูย่างเกาหลี" and "+ ข้าวญี่ปุ่น" together in a block, match to "เซต หมูย่าง+ข้าวญี่ปุ่น (LineMan only)".
-            - (LineMan): If you see "หมูย่างเกาหลี" WITHOUT rice/set mentioned in the block, it is likely "หมูย่างเกาหลี (กับข้าว)".
-            - Delivery platforms often add prefixes like "[เซตสุดฮิต]" or "[Best Seller]". Ignore these when matching to the menu list.
-            - If an item is definitely not in the menu, return its name as it appears in the image.
+            Matching Rules:
+            - (LineMan): "[เซตสุดฮิต] หมูย่างเกาหลี + ข้าวญี่ปุ่น" -> "เซต หมูย่างเกาหลี + ข้าวญี่ปุ่น (LineMan only)".
+            - (LineMan): "[เซตสุดฮิต] บิบิมบับ + ต๊อกบกกี + คิมมารี" -> "เซต บิบิมบับ + ต๊อกบกกี + คิมมารี (LineMan only)".
+            - (LineMan): "หมูย่างเกาหลี" WITHOUT rice/set mentioned -> "หมูย่างเกาหลี (กับข้าว)".
             
             Return ONLY a JSON object in this format:
             {
