@@ -458,18 +458,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
                 {/* Floor Selection (Disable if Delivery) */}
                 <div className={isDelivery ? "opacity-50 pointer-events-none" : ""}>
-                    <label className="text-xs font-medium text-gray-400">เลือกชั้น:</label>
-                    <div className="mt-1 grid grid-cols-2 gap-2">
+                    <label htmlFor="floor-select" className="block text-xs font-medium text-gray-400 mb-1">เลือกชั้น:</label>
+                    <select
+                        id="floor-select"
+                        value={selectedFloor}
+                        onChange={(e) => handleFloorChange(e.target.value)}
+                        className="w-full p-2.5 bg-gray-800 rounded-lg border border-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-blue-600 transition-all"
+                    >
                         {floors.map(floor => (
-                            <button
-                                key={floor}
-                                onClick={() => handleFloorChange(floor)}
-                                className={`py-2 px-4 rounded-lg font-semibold transition-all border ${selectedFloor === floor ? 'bg-blue-600 text-white border-blue-600 shadow-md' : 'bg-gray-800 text-gray-400 border-gray-700 hover:bg-gray-700 hover:border-gray-600'}`}
-                            >
-                                {floor}
-                            </button>
+                            <option key={floor} value={floor}>{floor}</option>
                         ))}
-                    </div>
+                    </select>
                 </div>
 
                 {/* Table and Customer Count */}
