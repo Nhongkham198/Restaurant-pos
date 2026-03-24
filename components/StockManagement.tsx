@@ -88,9 +88,11 @@ export const StockManagement: React.FC<StockManagementProps> = ({
         let result = validItems;
 
         if (selectedCategory === 'รายการสั่งของ') {
-             const startOfDay = new Date();
-             startOfDay.setHours(0,0,0,0);
-             result = validItems.filter(item => item.orderDate && item.orderDate >= startOfDay.getTime());
+             // Filter only items with orderedQuantity > 0 as requested by user
+             result = validItems.filter(item => {
+                 const qty = Number(item.orderedQuantity);
+                 return !isNaN(qty) && qty > 0;
+             });
         } else if (selectedCategory !== 'ทั้งหมด') {
              result = validItems.filter(item => item.category === selectedCategory);
         }

@@ -88,6 +88,8 @@ interface DataContextType {
     setStaffCalls: React.Dispatch<React.SetStateAction<StaffCall[]>>;
     leaveRequests: LeaveRequest[];
     setLeaveRequests: React.Dispatch<React.SetStateAction<LeaveRequest[]>>;
+    lastSalesCleanupDate: string;
+    setLastSalesCleanupDate: React.Dispatch<React.SetStateAction<string>>;
 
     // HR Management
     jobApplications: JobApplication[];
@@ -470,6 +472,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     
     const [staffCalls, setStaffCalls] = useFirestoreSync<StaffCall[]>(branchId, 'staffCalls', []);
     const [leaveRequests, setLeaveRequests] = useFirestoreSync<LeaveRequest[]>(shouldLoadHeavyData ? null : 'SKIP', 'leaveRequests', []);
+    const [lastSalesCleanupDate, setLastSalesCleanupDate] = useFirestoreSync<string>(heavyDataBranchId, 'lastSalesCleanupDate', '');
 
     // --- HR MANAGEMENT ---
     const [jobApplications, jobApplicationsActions] = useFirestoreCollection<JobApplication>(branchId, 'jobApplications');
@@ -524,6 +527,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             stockLogs, stockLogsActions,
             printHistory, setPrintHistory, maintenanceItems, setMaintenanceItems, maintenanceLogs, setMaintenanceLogs,
             orderCounter, setOrderCounter, staffCalls, setStaffCalls, leaveRequests, setLeaveRequests,
+            lastSalesCleanupDate, setLastSalesCleanupDate,
             
             jobApplications, jobApplicationsActions, employmentContracts, employmentContractsActions,
             timeRecords, setTimeRecords, payrollRecords, setPayrollRecords, jobPositions, setJobPositions,

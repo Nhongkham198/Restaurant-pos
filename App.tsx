@@ -108,6 +108,7 @@ import { MenuSearchModal } from './components/MenuSearchModal';
 import { MergeBillModal } from './components/MergeBillModal';
 
 import Swal from 'sweetalert2';
+import * as XLSX from 'xlsx';
 import type { SubmitLeaveRequestPayload, PlaceOrderPayload } from './services/firebaseFunctionsService';
 
 declare global {
@@ -165,6 +166,7 @@ export const App: React.FC = () => {
         orderCounter, setOrderCounter,
         staffCalls, setStaffCalls,
         leaveRequests, setLeaveRequests,
+        lastSalesCleanupDate, setLastSalesCleanupDate,
         // Settings
         logoUrl, setLogoUrl,
         appLogoUrl, setAppLogoUrl,
@@ -584,6 +586,104 @@ export const App: React.FC = () => {
             }
         });
     }, [activeOrders, tables, isOnline]);
+
+    // Data Safety First - Annual Cleanup
+    useEffect(() => {
+        if (!currentUser || currentUser.role !== 'admin' || !selectedBranch || !heavyDataBranchId || !isOnline) return;
+
+        const checkCleanup = async () => {
+            const now = new Date();
+            const lastCleanup = lastSalesCleanupDate ? new Date(lastSalesCleanupDate) : null;
+            
+            // If no last cleanup, set it to now and return (first time setup)
+            if (!lastCleanup) {
+                setLastSalesCleanupDate(now.toISOString());
+                return;
+            }
+
+            const oneYearInMs = 365 * 24 * 60 * 60 * 1000;
+            if (now.getTime() - lastCleanup.getTime() >= oneYearInMs) {
+                const result = await Swal.fire({
+                    title: 'ครบรอบ 1 ปีแล้ว!',
+                    text: 'ท่านต้องการสำรองข้อมูลยอดขายและล้างข้อมูลเก่าใช่หรือไม่? (ข้อมูลจะถูกส่งออกเป็นไฟล์ Excel)',
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonText: 'สำรองข้อมูลและล้างข้อมูล',
+                    cancelButtonText: 'ข้ามไปก่อน',
+                    confirmButtonColor: '#d33',
+                    cancelButtonColor: '#3085d6',
+                });
+
+                if (result.isConfirmed) {
+                    Swal.fire({
+                        title: 'กำลังดำเนินการ...',
+                        text: 'กรุณารอสักครู่ ระบบกำลังสำรองข้อมูลและลบรายการเก่า',
+                        allowOutsideClick: false,
+                        didOpen: () => {
+                            Swal.showLoading();
+                        }
+                    });
+
+                    try {
+                        // 1. Export to Excel
+                        const wb = XLSX.utils.book_new();
+                        
+                        const completedData = completedOrders.map(o => {
+                            const subtotal = o.items.reduce((acc, item) => acc + (item.finalPrice * item.quantity), 0);
+                            const total = subtotal + o.taxAmount;
+                            return {
+                                'รหัสออเดอร์': o.id,
+                                'โต๊ะ': o.tableId > 0 ? `โต๊ะ ${o.tableId}` : (o.tableId === -1 ? 'กลับบ้าน' : 'Delivery'),
+                                'รายการ': o.items.map(i => `${i.name} x${i.quantity}`).join(', '),
+                                'ยอดรวม': total,
+                                'วิธีชำระเงิน': o.paymentDetails.method === 'cash' ? 'เงินสด' : 'โอนเงิน',
+                                'วันที่': new Date(o.completionTime).toLocaleString('th-TH'),
+                                'พนักงาน': o.completedBy || '-'
+                            };
+                        });
+                        const wsCompleted = XLSX.utils.json_to_sheet(completedData);
+                        XLSX.utils.book_append_sheet(wb, wsCompleted, "ออเดอร์ที่สำเร็จ");
+
+                        const cancelledData = cancelledOrders.map(o => {
+                            const subtotal = o.items.reduce((acc, item) => acc + (item.finalPrice * item.quantity), 0);
+                            const total = subtotal + o.taxAmount;
+                            return {
+                                'รหัสออเดอร์': o.id,
+                                'โต๊ะ': o.tableId > 0 ? `โต๊ะ ${o.tableId}` : (o.tableId === -1 ? 'กลับบ้าน' : 'Delivery'),
+                                'รายการ': o.items.map(i => `${i.name} x${i.quantity}`).join(', '),
+                                'ยอดรวม': total,
+                                'เหตุผลที่ยกเลิก': o.cancellationReason || '-',
+                                'วันที่': new Date(o.cancellationTime).toLocaleString('th-TH'),
+                                'พนักงาน': o.cancelledBy || '-'
+                            };
+                        });
+                        const wsCancelled = XLSX.utils.json_to_sheet(cancelledData);
+                        XLSX.utils.book_append_sheet(wb, wsCancelled, "รายการที่ยกเลิก");
+
+                        XLSX.writeFile(wb, `Sales_Backup_${selectedBranch.name}_${now.toISOString().split('T')[0]}.xlsx`);
+
+                        // 2. Delete data
+                        for (const order of completedOrders) {
+                            await newCompletedOrdersActions.remove(order.id);
+                        }
+                        for (const order of cancelledOrders) {
+                            await newCancelledOrdersActions.remove(order.id);
+                        }
+
+                        // 3. Update last cleanup date
+                        setLastSalesCleanupDate(now.toISOString());
+
+                        Swal.fire('สำเร็จ!', 'สำรองข้อมูลและล้างข้อมูลเรียบร้อยแล้ว', 'success');
+                    } catch (error) {
+                        console.error('Cleanup error:', error);
+                        Swal.fire('ผิดพลาด!', 'เกิดข้อผิดพลาดในการสำรองข้อมูล', 'error');
+                    }
+                }
+            }
+        };
+
+        checkCleanup();
+    }, [currentUser, selectedBranch, heavyDataBranchId, lastSalesCleanupDate, completedOrders, cancelledOrders, newCompletedOrdersActions, newCancelledOrdersActions, setLastSalesCleanupDate, isOnline]);
     useEffect(() => { const handleResize = () => setIsDesktop(window.innerWidth >= 1024); window.addEventListener('resize', handleResize); return () => window.removeEventListener('resize', handleResize); }, []);
     useEffect(() => { if ('serviceWorker' in navigator && navigator.serviceWorker.controller) { const soundsToCache = []; if (notificationSoundUrl) soundsToCache.push(notificationSoundUrl); if (staffCallSoundUrl) soundsToCache.push(staffCallSoundUrl); if (soundsToCache.length > 0) { soundsToCache.forEach(url => fetch(url, { mode: 'no-cors' }).catch(() => {})); } } }, [notificationSoundUrl, staffCallSoundUrl]);
     
