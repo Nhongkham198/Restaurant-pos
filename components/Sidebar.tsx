@@ -109,9 +109,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 setSelectedProvider(provider);
                 setIsDelivery(true);
             }
+        } else {
+            // Clear if prop is cleared
+            setSelectedProvider(null);
+            setIsDelivery(false);
         }
-        if (initialOrderNumber) {
-            setDeliveryOrderNumber(initialOrderNumber);
+
+        if (initialOrderNumber !== undefined) {
+            setDeliveryOrderNumber(initialOrderNumber || '');
+        } else {
+            // Clear if prop is cleared
+            setDeliveryOrderNumber('');
         }
     }, [initialDeliveryProviderId, initialOrderNumber, deliveryProviders]);
 

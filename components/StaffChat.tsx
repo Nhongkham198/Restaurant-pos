@@ -238,7 +238,16 @@ export const StaffChat: React.FC<StaffChatProps> = ({ onAddItemsToBasket }) => {
         setIsProcessingAI(msg.id);
         
         try {
-            const menuContext = menuItems.map(m => `- ${m.name}${m.nameEn ? ` (${m.nameEn})` : ''}`).join('\n');
+            const menuContext = menuItems.map(m => {
+                let text = `- ${m.name}${m.nameEn ? ` (${m.nameEn})` : ''}`;
+                if (m.optionGroups) {
+                    m.optionGroups.forEach(group => {
+                        const opts = group.options.map(o => `${o.name}${o.nameEn ? ` (${o.nameEn})` : ''}`).join(', ');
+                        text += ` [${group.name}: ${opts}]`;
+                    });
+                }
+                return text;
+            }).join('\n');
 
             const response = await fetch('/api/read-order', {
                 method: 'POST',

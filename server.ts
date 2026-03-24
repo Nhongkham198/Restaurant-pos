@@ -102,10 +102,11 @@ app.post("/api/read-order", async (req, res) => {
             2. All subsequent lines below a Main Item that start with a bullet point (•) are the "Options" or "Choices" for that item.
             3. IGNORE any lines that are headers (e.g., "ความสุก", "ประเภท", "เพิ่มชีส", "การย่าง"). ONLY extract the values after the bullet points (•).
             
-            4. STRICT MATCHING:
+            4. STRICT MATCHING & SPLITTING:
                - You must distinguish between different types of items even if they share adjectives.
-               - Example: "• ไข่ดาวสุก" is NOT the same as "ไข่ต้มสุก". You must extract exactly what follows the bullet.
-               - Example: "• สันคอหมูย่างซอสโคชูจัง" -> extract "สันคอหมูย่างซอสโคชูจัง".
+               - If a single bullet point contains multiple distinct attributes (e.g., "Meat Type" + "Cooking Style" + "Add-ons"), you MUST split them into separate strings in the "options" array.
+               - Example: "• หมูย่างดูโอ ย่างซอสโคชูจัง (สันคอ+สามชั้น)" -> split into ["หมูย่างดูโอ", "ย่างซอสโคชูจัง", "(สันคอ+สามชั้น)"].
+               - Example: "• สันคอหมูย่างซอสโคชูจัง" -> split into ["สันคอหมูย่าง", "ซอสโคชูจัง"].
             
             5. "No add" Handling:
                - If an option says "• ไม่เพิ่มชีส" or "• ไม่รับ...", you must extract this exact string. 
@@ -114,8 +115,11 @@ app.post("/api/read-order", async (req, res) => {
             6. [Set] & Parentheses Handling: 
                - If an item starts with "[เซตสุดฮิต]" or "[Best Seller]", ignore these prefixes.
                - Ignore text inside parentheses for the main item name matching (e.g., "บิบิมบับ (ข้าวยำเกาหลี)" -> "บิบิมบับ").
-               - Example: "1x [เซตสุดฮิต] บิบิมบับ (ข้าวยำเกาหลี) + ต๊อกบกกี (ต๊อกผัดซอสเกาหลี) + คิมมารี (สาหร่ายห่อวุ้นเส้นทอด)" 
-                 Match to: "เซต บิบิมบับ + ต๊อกบกกี + คิมมารี (LineMan only)".
+               - For options, keep parentheses text as a separate option if it contains important details like "(สันคอ+สามชั้น)".
+            
+            7. KEYWORD PRIORITY:
+               - "ดูโอ" or "Duo" is a high-priority keyword for meat types. Ensure it is extracted clearly.
+               - "ย่างเกลือ", "ซอสโคชูจัง", "ย่างซอส" are high-priority keywords for cooking styles.
             
             Extract the following information:
             1. Platform: Identify the delivery platform (LineMan, ShopeeFood, GrabFood, etc.).
