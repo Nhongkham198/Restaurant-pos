@@ -95,7 +95,13 @@ app.post("/api/read-order", async (req, res) => {
             }
           },
           {
-            text: `Analyze this food delivery order screenshot (e.g., LineMan, Shopee Food, Grab).
+            text: `Analyze this food delivery order screenshot.
+            
+            PLATFORM IDENTIFICATION (CRITICAL):
+            - LineMan: Look for GREEN accents, green buttons (e.g., "พร้อมจัดส่ง"), or the LineMan logo.
+            - ShopeeFood: Look for ORANGE or RED accents, orange buttons, or the Shopee logo.
+            - GrabFood: Look for GREEN/WHITE accents with a distinct Grab layout.
+            - Check the top header, logos, and overall color theme carefully. Do not default to LineMan if you see orange/red.
             
             CRITICAL CONCEPT: "Bullet Point Priority"
             1. Identify the "Main Item" which usually starts with a quantity like "1x" or "2x".
@@ -123,7 +129,7 @@ app.post("/api/read-order", async (req, res) => {
             
             Extract the following information:
             1. Platform: Identify the delivery platform (LineMan, ShopeeFood, GrabFood, etc.).
-            2. Order Number: Look for a number preceded by '#' (e.g., #1388).
+            2. Order Number: Look for a number preceded by '#' (e.g., #1388) or a long order ID string.
             3. Items: Extract all food items as structured blocks.
             
             IMPORTANT: Here is the list of available menu items in the POS system:
