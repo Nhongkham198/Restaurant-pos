@@ -57,6 +57,19 @@ const fuzzyMatch = (str1: string, str2: string) => {
     if ((str1.includes('ไข่ดาว') && str2.includes('ไข่ต้ม')) || (str1.includes('ไข่ต้ม') && str2.includes('ไข่ดาว'))) {
         return false;
     }
+
+    // STRICT: If one has 'ไม่มีข้าว' and other has 'ข้าว', they must NOT match
+    const hasNoRice1 = str1.includes('ไม่มีข้าว');
+    const hasNoRice2 = str2.includes('ไม่มีข้าว');
+    const hasRice1 = (str1.includes('ข้าว') || str1.includes('Rice')) && !hasNoRice1;
+    const hasRice2 = (str2.includes('ข้าว') || str2.includes('Rice')) && !hasNoRice2;
+
+    if ((hasNoRice1 && hasRice2) || (hasNoRice2 && hasRice1)) {
+        return false;
+    }
+
+    // STRICT: If one has 'เซต'/'Set' and other doesn't mention it, but there's a better match, we should be careful.
+    // However, fuzzyMatch is used for many things, so we'll keep it simple here and handle priority in the loop.
     
     if (words1.length > 0 && words2.length > 0) {
         const common = words1.filter(w => words2.includes(w));
@@ -283,6 +296,7 @@ export const StaffChat: React.FC<StaffChatProps> = ({ onAddItemsToBasket }) => {
 
             extractedItems.forEach((extItem: any) => {
                 let itemName = extItem.name.trim();
+                const isSetInReceipt = itemName.includes('เซต') || itemName.includes('Set') || itemName.includes('ชุด');
                 
                 // Try exact match or fuzzy match
                 // We prioritize exact matches first, then nameEn, then fuzzy
@@ -290,6 +304,14 @@ export const StaffChat: React.FC<StaffChatProps> = ({ onAddItemsToBasket }) => {
                 
                 if (!menuItem) {
                     menuItem = menuItems.find(m => m.nameEn?.trim() === itemName);
+                }
+
+                // If it's a set, prioritize matching items that are also sets
+                if (!menuItem && isSetInReceipt) {
+                    menuItem = menuItems.find(m => {
+                        const isSetInMenu = m.name.includes('เซต') || m.name.includes('Set') || m.name.includes('ชุด');
+                        return isSetInMenu && (fuzzyMatch(itemName, m.name) || (m.nameEn && fuzzyMatch(itemName, m.nameEn)));
+                    });
                 }
                 
                 if (!menuItem) {
@@ -303,8 +325,19 @@ export const StaffChat: React.FC<StaffChatProps> = ({ onAddItemsToBasket }) => {
                     // Handle options if available
                     const selectedOptions: any[] = [];
                     if (extItem.options) {
+                        const hasDuo = extItem.options.some((o: string) => o.includes('ดูโอ') || o.toLowerCase().includes('duo'));
+                        
                         extItem.options.forEach((optName: string) => {
                             let cleanOptName = optName.trim();
+                            
+                            // If "Duo" is present, ignore "Sankor" or "Samchan" as they are likely descriptions of the Duo set
+                            const isRedundantMeat = cleanOptName.includes('สันคอ') || 
+                                                   cleanOptName.includes('สามชั้น') || 
+                                                   cleanOptName.toLowerCase().includes('sankor') || 
+                                                   cleanOptName.toLowerCase().includes('samchan');
+                            
+                            if (hasDuo && isRedundantMeat) return;
+
                             let matchedInGroup = false;
                             
                             if (menuItem.optionGroups) {
