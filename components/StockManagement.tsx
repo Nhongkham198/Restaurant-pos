@@ -8,6 +8,8 @@ import { PurchaseOrderModal } from './PurchaseOrderModal';
 import { functionsService } from '../services/firebaseFunctionsService';
 import { CollectionActions } from '../hooks/useFirestoreSync';
 
+import { ThaiVirtualKeyboard } from './ThaiVirtualKeyboard';
+
 // Declare XLSX to inform TypeScript that it's available globally from the script tag
 declare var XLSX: any;
 // Declare html2canvas for potential direct usage if needed, though mainly used in modal
@@ -48,6 +50,7 @@ export const StockManagement: React.FC<StockManagementProps> = ({
 }) => {
     const [selectedCategory, setSelectedCategory] = useState('ทั้งหมด');
     const [searchTerm, setSearchTerm] = useState('');
+    const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
     const [isItemModalOpen, setIsItemModalOpen] = useState(false);
     const [isAdjustModalOpen, setIsAdjustModalOpen] = useState(false);
     const [isPurchaseOrderModalOpen, setIsPurchaseOrderModalOpen] = useState(false);
@@ -962,9 +965,27 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                     placeholder="ค้นหาวัตถุดิบ..."
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
-                                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-900 shadow-sm"
+                                    className="w-full pl-10 pr-12 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-900 shadow-sm"
                                 />
+                                <button
+                                    onClick={() => setIsKeyboardOpen(!isKeyboardOpen)}
+                                    className={`absolute inset-y-0 right-0 flex items-center pr-3 transition-colors ${isKeyboardOpen ? 'text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
+                                    title="เปิดคีย์บอร์ด"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                                    </svg>
+                                </button>
                             </div>
+                            
+                            {isKeyboardOpen && (
+                                <ThaiVirtualKeyboard
+                                    onKeyPress={(key) => setSearchTerm(prev => prev + key)}
+                                    onBackspace={() => setSearchTerm(prev => prev.slice(0, -1))}
+                                    onClear={() => setSearchTerm('')}
+                                    onClose={() => setIsKeyboardOpen(false)}
+                                />
+                            )}
                             
                             {/* Mobile Category Dropdown - Visible only on small screens */}
                             <div className="sm:hidden flex-shrink-0 relative">

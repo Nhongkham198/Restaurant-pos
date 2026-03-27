@@ -6,6 +6,8 @@ import { CancelledOrderCard } from './CancelledOrderCard';
 import { PrintHistoryCard } from './PrintHistoryCard';
 import Swal from 'sweetalert2';
 
+import { ThaiVirtualKeyboard } from './ThaiVirtualKeyboard';
+
 declare var XLSX: any;
 
 interface SalesHistoryProps {
@@ -41,6 +43,7 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({
     // Local state for smooth typing of year input
     const [yearInput, setYearInput] = useState(new Date().getFullYear().toString());
     const [searchTerm, setSearchTerm] = useState('');
+    const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
     
     // Selection state for deletion
     const [selectedCompletedIds, setSelectedCompletedIds] = useState<Set<number>>(new Set());
@@ -615,19 +618,32 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({
 
                 {/* 3. Search Bar */}
                 <div className="relative w-full">
-                    <span className="absolute inset-y-0 left-0 flex items-center pl-4 text-gray-400">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    <button
+                        onClick={() => setIsKeyboardOpen(!isKeyboardOpen)}
+                        className={`absolute inset-y-0 left-0 flex items-center pl-4 transition-colors z-10 ${isKeyboardOpen ? 'text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
+                        title="เปิดคีย์บอร์ด"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
                         </svg>
-                    </span>
+                    </button>
                     <input 
                         type="text" 
                         placeholder="ค้นหาด้วย #ID, ชื่อโต๊ะ, หรืออื่นๆ..." 
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full pl-11 pr-4 py-3 border-none rounded-2xl bg-white shadow-sm text-gray-700 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 transition-all"
+                        className="w-full pl-12 pr-4 py-3 border-none rounded-2xl bg-white shadow-sm text-gray-700 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 transition-all"
                     />
                 </div>
+
+                {isKeyboardOpen && (
+                    <ThaiVirtualKeyboard
+                        onKeyPress={(key) => setSearchTerm(prev => prev + key)}
+                        onBackspace={() => setSearchTerm(prev => prev.slice(0, -1))}
+                        onClear={() => setSearchTerm('')}
+                        onClose={() => setIsKeyboardOpen(false)}
+                    />
+                )}
             </div>
 
             {/* Selection Toolbar (Edit Mode) */}
