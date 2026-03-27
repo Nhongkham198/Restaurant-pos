@@ -10,7 +10,7 @@ interface RecipeModalProps {
     menuItem: MenuItem;
     stockItems: StockItem[];
     recipe: Recipe | null;
-    onSave: (recipe: Recipe, deliveryPrices: { [providerId: string]: number }) => void;
+    onSave: (recipe: Recipe, deliveryPrices: { [providerId: string]: number }, deliveryGPs: { [providerId: string]: number }) => void;
     currentUser: User | null;
 }
 
@@ -29,6 +29,7 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
     const [hiddenCostPercentage, setHiddenCostPercentage] = useState(0);
     const [searchTerm, setSearchTerm] = useState('');
     const [deliveryPrices, setDeliveryPrices] = useState<{ [providerId: string]: number }>(menuItem.deliveryPrices || {});
+    const [deliveryGPs, setDeliveryGPs] = useState<{ [providerId: string]: number }>(menuItem.deliveryGPs || {});
 
     useEffect(() => {
         if (recipe) {
@@ -41,6 +42,7 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
             setHiddenCostPercentage(0);
         }
         setDeliveryPrices(menuItem.deliveryPrices || {});
+        setDeliveryGPs(menuItem.deliveryGPs || {});
     }, [recipe, menuItem]);
 
     const filteredStock = stockItems.filter(item => 
@@ -124,7 +126,7 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
             lastUpdated: Date.now(),
             lastUpdatedBy: currentUser?.username || 'Unknown'
         };
-        onSave(newRecipe, deliveryPrices);
+        onSave(newRecipe, deliveryPrices, deliveryGPs);
     };
 
     if (!isOpen) return null;
@@ -332,18 +334,34 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
                                             <img src={provider.iconUrl} alt={provider.name} className="w-6 h-6 rounded-md object-contain" />
                                             <span className="text-sm font-bold text-gray-700">{provider.name}</span>
                                         </div>
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-gray-400 text-xs font-bold">฿</span>
-                                            <input
-                                                type="number"
-                                                value={deliveryPrices[provider.id] || ''}
-                                                onChange={(e) => setDeliveryPrices({
-                                                    ...deliveryPrices,
-                                                    [provider.id]: parseFloat(e.target.value) || 0
-                                                })}
-                                                placeholder={menuItem.price.toString()}
-                                                className="w-24 px-2 py-1.5 border border-gray-200 rounded-lg text-right font-bold text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                                            />
+                                        <div className="flex flex-col gap-2">
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-gray-400 text-xs font-bold">฿</span>
+                                                <input
+                                                    type="number"
+                                                    value={deliveryPrices[provider.id] || ''}
+                                                    onChange={(e) => setDeliveryPrices({
+                                                        ...deliveryPrices,
+                                                        [provider.id]: parseFloat(e.target.value) || 0
+                                                    })}
+                                                    placeholder={menuItem.price.toString()}
+                                                    className="w-24 px-2 py-1.5 border border-gray-200 rounded-lg text-right font-bold text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                                />
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-gray-400 text-[10px] font-bold">GP</span>
+                                                <input
+                                                    type="number"
+                                                    value={deliveryGPs[provider.id] || ''}
+                                                    onChange={(e) => setDeliveryGPs({
+                                                        ...deliveryGPs,
+                                                        [provider.id]: parseFloat(e.target.value) || 0
+                                                    })}
+                                                    placeholder="0"
+                                                    className="w-16 px-2 py-1 border border-gray-200 rounded-lg text-right font-bold text-[11px] focus:ring-2 focus:ring-red-500 outline-none"
+                                                />
+                                                <span className="text-gray-400 text-[10px] font-bold">%</span>
+                                            </div>
                                         </div>
                                     </div>
                                 ))}

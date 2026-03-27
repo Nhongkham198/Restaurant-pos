@@ -321,9 +321,12 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
                         // Calculate delivery profits
                         const deliveryProfits = item.deliveryPrices ? Object.entries(item.deliveryPrices).map(([providerId, price]) => {
                             const p = price || item.price;
-                            const dProfit = p - cost;
+                            const gp = item.deliveryGPs?.[providerId] || 0;
+                            const gpAmount = p * (gp / 100);
+                            const netRevenue = p - gpAmount;
+                            const dProfit = netRevenue - cost;
                             const dMargin = p > 0 ? (dProfit / p) * 100 : 0;
-                            return { providerId, profit: dProfit, margin: dMargin, price: p };
+                            return { providerId, profit: dProfit, margin: dMargin, price: p, gp };
                         }) : [];
 
                         return (
@@ -371,7 +374,7 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
                                                 <p className="text-[10px] font-bold text-gray-400 uppercase">Delivery Profit</p>
                                                 {deliveryProfits.map(dp => (
                                                     <div key={dp.providerId} className="flex justify-between items-start text-sm">
-                                                        <span className="text-gray-500 text-xs">{dp.providerId}:</span>
+                                                        <span className="text-gray-500 text-xs">{dp.providerId} ({dp.gp}%):</span>
                                                         <div className="text-right">
                                                             <span className={`font-bold block text-xs ${dp.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                                                                 ฿{dp.profit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -409,7 +412,7 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
                     menuItem={selectedMenuItem}
                     stockItems={stockItems}
                     recipe={recipeMap.get(selectedMenuItem.id) || null}
-                    onSave={(newRecipe, deliveryPrices) => {
+                    onSave={(newRecipe, deliveryPrices, deliveryGPs) => {
                         // Update Recipe
                         setRecipes(prev => {
                             const index = prev.findIndex(r => r.menuItemId === newRecipe.menuItemId);
@@ -421,10 +424,10 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
                             return [...prev, newRecipe];
                         });
 
-                        // Update MenuItem Delivery Prices
+                        // Update MenuItem Delivery Prices and GPs
                         setMenuItems(prev => prev.map(item => 
                             item.id === selectedMenuItem.id 
-                            ? { ...item, deliveryPrices } 
+                            ? { ...item, deliveryPrices, deliveryGPs } 
                             : item
                         ));
 
