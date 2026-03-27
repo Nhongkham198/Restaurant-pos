@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import type { MenuItem, StockItem, Recipe, RecipeIngredient, User } from '../types';
+import type { MenuItem, StockItem, Recipe, RecipeIngredient, User, DeliveryProvider } from '../types';
 import { useData } from '../contexts/DataContext';
 import Swal from 'sweetalert2';
 
@@ -10,7 +10,7 @@ interface RecipeModalProps {
     menuItem: MenuItem;
     stockItems: StockItem[];
     recipe: Recipe | null;
-    onSave: (recipe: Recipe) => void;
+    onSave: (recipe: Recipe, deliveryPrices: { [providerId: string]: number }) => void;
     currentUser: User | null;
 }
 
@@ -23,11 +23,12 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
     onSave,
     currentUser
 }) => {
-    const { stockUnits, setStockUnits } = useData();
+    const { stockUnits, setStockUnits, deliveryProviders } = useData();
     const [ingredients, setIngredients] = useState<RecipeIngredient[]>([]);
     const [additionalCost, setAdditionalCost] = useState(0);
     const [hiddenCostPercentage, setHiddenCostPercentage] = useState(0);
     const [searchTerm, setSearchTerm] = useState('');
+    const [deliveryPrices, setDeliveryPrices] = useState<{ [providerId: string]: number }>(menuItem.deliveryPrices || {});
 
     useEffect(() => {
         if (recipe) {
@@ -39,6 +40,7 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
             setAdditionalCost(0);
             setHiddenCostPercentage(0);
         }
+        setDeliveryPrices(menuItem.deliveryPrices || {});
     }, [recipe, menuItem]);
 
     const filteredStock = stockItems.filter(item => 
@@ -122,7 +124,7 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
             lastUpdated: Date.now(),
             lastUpdatedBy: currentUser?.username || 'Unknown'
         };
-        onSave(newRecipe);
+        onSave(newRecipe, deliveryPrices);
     };
 
     if (!isOpen) return null;
@@ -318,6 +320,36 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
                             </div>
                         </div>
                     </div>
+
+                    {/* Delivery Prices */}
+                    {deliveryProviders.length > 0 && (
+                        <div>
+                            <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">ราคาขาย Delivery (แยกตามแพลตฟอร์ม)</h3>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                {deliveryProviders.filter(p => p.isEnabled).map(provider => (
+                                    <div key={provider.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl border border-gray-100">
+                                        <div className="flex items-center gap-3">
+                                            <img src={provider.iconUrl} alt={provider.name} className="w-6 h-6 rounded-md object-contain" />
+                                            <span className="text-sm font-bold text-gray-700">{provider.name}</span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-gray-400 text-xs font-bold">฿</span>
+                                            <input
+                                                type="number"
+                                                value={deliveryPrices[provider.id] || ''}
+                                                onChange={(e) => setDeliveryPrices({
+                                                    ...deliveryPrices,
+                                                    [provider.id]: parseFloat(e.target.value) || 0
+                                                })}
+                                                placeholder={menuItem.price.toString()}
+                                                className="w-24 px-2 py-1.5 border border-gray-200 rounded-lg text-right font-bold text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                            />
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 <div className="p-6 border-t border-gray-100 bg-gray-50 flex items-center justify-between">

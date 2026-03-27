@@ -7,6 +7,7 @@ import * as XLSX from 'xlsx';
 
 interface RecipeManagementProps {
     menuItems: MenuItem[];
+    setMenuItems: React.Dispatch<React.SetStateAction<MenuItem[]>>;
     stockItems: StockItem[];
     recipes: Recipe[];
     setRecipes: React.Dispatch<React.SetStateAction<Recipe[]>>;
@@ -15,6 +16,7 @@ interface RecipeManagementProps {
 
 export const RecipeManagement: React.FC<RecipeManagementProps> = ({
     menuItems,
+    setMenuItems,
     stockItems,
     recipes,
     setRecipes,
@@ -316,6 +318,14 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
                         const profit = item.price - cost;
                         const profitMargin = item.price > 0 ? (profit / item.price) * 100 : 0;
 
+                        // Calculate delivery profits
+                        const deliveryProfits = item.deliveryPrices ? Object.entries(item.deliveryPrices).map(([providerId, price]) => {
+                            const p = price || item.price;
+                            const dProfit = p - cost;
+                            const dMargin = p > 0 ? (dProfit / p) * 100 : 0;
+                            return { providerId, profit: dProfit, margin: dMargin, price: p };
+                        }) : [];
+
                         return (
                             <div key={item.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-shadow">
                                 <div className="flex p-4 gap-4">
@@ -345,17 +355,35 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
                                             <span className="font-medium text-gray-900">฿{cost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                                         </div>
                                         <div className="flex justify-between text-sm">
-                                            <span className="text-gray-500">กำไรสุทธิ:</span>
-                                            <span className={`font-bold ${profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                                ฿{profit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                            </span>
+                                            <span className="text-gray-500 font-bold">หน้าร้าน:</span>
+                                            <div className="text-right">
+                                                <span className={`font-bold block ${profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                    ฿{profit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                </span>
+                                                <span className={`text-[10px] font-medium ${profitMargin >= 30 ? 'text-green-500' : 'text-yellow-500'}`}>
+                                                    Margin: {profitMargin.toFixed(1)}%
+                                                </span>
+                                            </div>
                                         </div>
-                                        <div className="flex justify-between text-xs">
-                                            <span className="text-gray-400">Margin:</span>
-                                            <span className={`font-medium ${profitMargin >= 30 ? 'text-green-500' : 'text-yellow-500'}`}>
-                                                {profitMargin.toFixed(1)}%
-                                            </span>
-                                        </div>
+
+                                        {deliveryProfits.length > 0 && (
+                                            <div className="pt-2 border-t border-gray-200 space-y-2">
+                                                <p className="text-[10px] font-bold text-gray-400 uppercase">Delivery Profit</p>
+                                                {deliveryProfits.map(dp => (
+                                                    <div key={dp.providerId} className="flex justify-between items-start text-sm">
+                                                        <span className="text-gray-500 text-xs">{dp.providerId}:</span>
+                                                        <div className="text-right">
+                                                            <span className={`font-bold block text-xs ${dp.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                                ฿{dp.profit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                            </span>
+                                                            <span className={`text-[9px] font-medium ${dp.margin >= 30 ? 'text-green-500' : 'text-yellow-500'}`}>
+                                                                {dp.margin.toFixed(1)}%
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
                                     </div>
                                     
                                     <button
@@ -381,7 +409,8 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
                     menuItem={selectedMenuItem}
                     stockItems={stockItems}
                     recipe={recipeMap.get(selectedMenuItem.id) || null}
-                    onSave={(newRecipe) => {
+                    onSave={(newRecipe, deliveryPrices) => {
+                        // Update Recipe
                         setRecipes(prev => {
                             const index = prev.findIndex(r => r.menuItemId === newRecipe.menuItemId);
                             if (index >= 0) {
@@ -391,6 +420,14 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
                             }
                             return [...prev, newRecipe];
                         });
+
+                        // Update MenuItem Delivery Prices
+                        setMenuItems(prev => prev.map(item => 
+                            item.id === selectedMenuItem.id 
+                            ? { ...item, deliveryPrices } 
+                            : item
+                        ));
+
                         setIsModalOpen(false);
                         Swal.fire({
                             toast: true,

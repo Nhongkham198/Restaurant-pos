@@ -79,6 +79,7 @@ export interface MenuItem {
     optionGroups?: MenuOptionGroup[];
     isAvailable?: boolean; // New property for stock status
     isVisible?: boolean; // New property for visibility on customer screen
+    deliveryPrices?: { [providerId: string]: number }; // Added: Prices for different delivery platforms
 }
 
 export type TakeawayCutleryOption = 'spoon-fork' | 'chopsticks' | 'other' | 'none';
