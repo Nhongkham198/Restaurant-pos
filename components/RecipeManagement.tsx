@@ -4,6 +4,7 @@ import type { MenuItem, StockItem, Recipe, User, RecipeIngredient } from '../typ
 import Swal from 'sweetalert2';
 import { RecipeModal } from './RecipeModal';
 import * as XLSX from 'xlsx';
+import { useData } from '../contexts/DataContext';
 
 interface RecipeManagementProps {
     menuItems: MenuItem[];
@@ -28,6 +29,7 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedMenuItem, setSelectedMenuItem] = useState<MenuItem | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const { deliveryProviders } = useData();
 
     const lastUpdateInfo = useMemo(() => {
         if (recipes.length === 0) return null;
@@ -51,7 +53,7 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
     const handleExport = () => {
         const exportData = recipes.map(recipe => {
             const menuItem = menuItems.find(m => m.id === recipe.menuItemId);
-            return {
+            const row: any = {
                 'Menu Item ID': recipe.menuItemId,
                 'Menu Name': menuItem?.name || 'Unknown',
                 'Additional Cost': recipe.additionalCost,
@@ -65,10 +67,19 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
                         unit: ing.unit,
                         unitPrice: ing.unitPrice
                     };
-                })),
-                'Last Updated': new Date(recipe.lastUpdated).toLocaleString('th-TH'),
-                'Updated By': recipe.lastUpdatedBy
+                }))
             };
+
+            // Add delivery prices and GPs
+            deliveryProviders.filter(p => p.isEnabled).forEach(provider => {
+                row[`${provider.name} Price`] = menuItem?.deliveryPrices?.[provider.id] || 0;
+                row[`${provider.name} GP %`] = menuItem?.deliveryGPs?.[provider.id] || 0;
+            });
+
+            row['Last Updated'] = new Date(recipe.lastUpdated).toLocaleString('th-TH');
+            row['Updated By'] = recipe.lastUpdatedBy;
+
+            return row;
         });
 
         const ws = XLSX.utils.json_to_sheet(exportData);
@@ -90,7 +101,13 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
                 const ws = wb.Sheets[wsname];
                 const data = XLSX.utils.sheet_to_json(ws) as any[];
 
-                const newRecipes: Recipe[] = data.map(row => {
+                const newRecipes: Recipe[] = [];
+                const updatedMenuItemsData: { [id: number]: { deliveryPrices: { [p: string]: number }, deliveryGPs: { [p: string]: number } } } = {};
+
+                data.forEach(row => {
+                    const menuItemId = Number(row['Menu Item ID']);
+                    if (isNaN(menuItemId)) return;
+
                     let ingredients: RecipeIngredient[] = [];
                     try {
                         ingredients = JSON.parse(row['Ingredients']);
@@ -98,9 +115,9 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
                         console.error("Error parsing ingredients for row", row);
                     }
 
-                    return {
-                        id: row['Menu Item ID'].toString(),
-                        menuItemId: Number(row['Menu Item ID']),
+                    newRecipes.push({
+                        id: menuItemId.toString(),
+                        menuItemId: menuItemId,
                         additionalCost: Number(row['Additional Cost'] || 0),
                         hiddenCostPercentage: Number(row['Hidden Cost %'] || 0),
                         ingredients: ingredients.map(ing => ({
@@ -111,7 +128,19 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
                         })),
                         lastUpdated: Date.now(),
                         lastUpdatedBy: currentUser?.username || 'System'
-                    };
+                    });
+
+                    // Parse delivery prices and GPs
+                    const deliveryPrices: { [p: string]: number } = {};
+                    const deliveryGPs: { [p: string]: number } = {};
+                    deliveryProviders.filter(p => p.isEnabled).forEach(provider => {
+                        const price = Number(row[`${provider.name} Price`]);
+                        const gp = Number(row[`${provider.name} GP %`]);
+                        if (!isNaN(price)) deliveryPrices[provider.id] = price;
+                        if (!isNaN(gp)) deliveryGPs[provider.id] = gp;
+                    });
+
+                    updatedMenuItemsData[menuItemId] = { deliveryPrices, deliveryGPs };
                 });
 
                 setRecipes(prev => {
@@ -127,6 +156,17 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
                     return updated;
                 });
 
+                setMenuItems(prev => prev.map(item => {
+                    if (updatedMenuItemsData[item.id]) {
+                        return {
+                            ...item,
+                            deliveryPrices: updatedMenuItemsData[item.id].deliveryPrices,
+                            deliveryGPs: updatedMenuItemsData[item.id].deliveryGPs
+                        };
+                    }
+                    return item;
+                }));
+
                 Swal.fire({
                     icon: 'success',
                     title: 'นำเข้าข้อมูลเรียบร้อย',
@@ -135,6 +175,7 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
                     showConfirmButton: false
                 });
             } catch (err) {
+                console.error(err);
                 Swal.fire({
                     icon: 'error',
                     title: 'เกิดข้อผิดพลาดในการนำเข้า',
