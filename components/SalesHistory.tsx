@@ -122,7 +122,8 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({
             const searchMatch = !searchTerm || 
                 order.orderNumber.toString().includes(searchTerm) || 
                 (order.customerName && order.customerName.toLowerCase().includes(searchTerm.toLowerCase())) ||
-                (order.tableName && order.tableName.toLowerCase().includes(searchTerm.toLowerCase()));
+                (order.tableName && order.tableName.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                order.items.some(item => item.name.toLowerCase().includes(searchTerm.toLowerCase()));
 
             return dateMatch && searchMatch;
         });
@@ -144,7 +145,8 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({
 
             const searchMatch = !searchTerm || 
                 order.orderNumber.toString().includes(searchTerm) || 
-                (order.tableName && order.tableName.toLowerCase().includes(searchTerm.toLowerCase()));
+                (order.tableName && order.tableName.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                order.items.some(item => item.name.toLowerCase().includes(searchTerm.toLowerCase()));
 
             return dateMatch && searchMatch;
         });
@@ -166,7 +168,8 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({
 
             const searchMatch = !searchTerm || 
                 entry.orderNumber.toString().includes(searchTerm) ||
-                (entry.tableName && entry.tableName.toLowerCase().includes(searchTerm.toLowerCase()));
+                (entry.tableName && entry.tableName.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                entry.orderItemsPreview.some(itemName => itemName.toLowerCase().includes(searchTerm.toLowerCase()));
 
             return dateMatch && searchMatch;
         });

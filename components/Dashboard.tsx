@@ -38,6 +38,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
     const [selectedHourFilter, setSelectedHourFilter] = useState<number | null>(null);
     // NEW: State for Menu Ranking Sort Mode
     const [menuSortMode, setMenuSortMode] = useState<'quantity' | 'profit-desc' | 'profit-asc'>('quantity');
+    const [isMenuSortOpen, setIsMenuSortOpen] = useState(false);
 
     // Check permissions for monthly view
     const canViewMonthly = useMemo(() => {
@@ -810,37 +811,51 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
                                         <h4 className="font-bold text-green-800 flex items-center gap-2">
                                             <span className="text-lg">🏆</span> 5 อันดับเมนู
                                         </h4>
-                                        <div className="flex gap-1">
+                                        <div className="relative">
                                             <button 
-                                                onClick={() => setMenuSortMode('quantity')}
-                                                className={`flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${menuSortMode === 'quantity' ? 'bg-green-600 text-white shadow-md' : 'bg-white text-green-600 border border-green-200 hover:bg-green-50'}`}
-                                                title="เรียงตามจำนวนที่ขายได้"
+                                                onClick={() => setIsMenuSortOpen(!isMenuSortOpen)}
+                                                className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium bg-white border border-gray-200 rounded-lg shadow-sm hover:border-green-300 hover:bg-green-50 transition-all group"
                                             >
-                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M3 8h18M3 12h18" />
+                                                <span className="text-gray-500 group-hover:text-green-600">เรียงตาม:</span>
+                                                <span className={`font-bold ${
+                                                    menuSortMode === 'quantity' ? 'text-green-600' : 
+                                                    menuSortMode === 'profit-desc' ? 'text-blue-600' : 'text-red-600'
+                                                }`}>
+                                                    {menuSortMode === 'quantity' ? 'จำนวนขาย' : menuSortMode === 'profit-desc' ? 'กำไรมาก' : 'กำไรน้อย'}
+                                                </span>
+                                                <svg xmlns="http://www.w3.org/2000/svg" className={`h-3.5 w-3.5 text-gray-400 transition-transform duration-200 ${isMenuSortOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                                                 </svg>
-                                                ตามจำนวน
                                             </button>
-                                            <button 
-                                                onClick={() => setMenuSortMode('profit-desc')}
-                                                className={`flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${menuSortMode === 'profit-desc' ? 'bg-blue-600 text-white shadow-md' : 'bg-white text-blue-600 border border-blue-200 hover:bg-blue-50'}`}
-                                                title="เรียงตามกำไร (มากไปน้อย)"
-                                            >
-                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-                                                </svg>
-                                                กำไรมาก
-                                            </button>
-                                            <button 
-                                                onClick={() => setMenuSortMode('profit-asc')}
-                                                className={`flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${menuSortMode === 'profit-asc' ? 'bg-red-600 text-white shadow-md' : 'bg-white text-red-600 border border-red-200 hover:bg-red-50'}`}
-                                                title="เรียงตามกำไร (น้อยไปมาก)"
-                                            >
-                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6" />
-                                                </svg>
-                                                กำไรน้อย
-                                            </button>
+                                            
+                                            {isMenuSortOpen && (
+                                                <>
+                                                    <div className="fixed inset-0 z-40" onClick={() => setIsMenuSortOpen(false)}></div>
+                                                    <div className="absolute right-0 mt-2 w-44 bg-white border border-gray-100 rounded-xl shadow-xl z-50 overflow-hidden py-1 animate-in fade-in zoom-in duration-200 origin-top-right">
+                                                        <button 
+                                                            onClick={() => { setMenuSortMode('quantity'); setIsMenuSortOpen(false); }}
+                                                            className={`w-full flex items-center gap-3 px-4 py-2.5 text-xs transition-colors ${menuSortMode === 'quantity' ? 'bg-green-50 text-green-700 font-bold' : 'text-gray-600 hover:bg-gray-50'}`}
+                                                        >
+                                                            <div className={`w-2 h-2 rounded-full ${menuSortMode === 'quantity' ? 'bg-green-500' : 'bg-transparent border border-gray-200'}`}></div>
+                                                            ตามจำนวนขาย
+                                                        </button>
+                                                        <button 
+                                                            onClick={() => { setMenuSortMode('profit-desc'); setIsMenuSortOpen(false); }}
+                                                            className={`w-full flex items-center gap-3 px-4 py-2.5 text-xs transition-colors ${menuSortMode === 'profit-desc' ? 'bg-blue-50 text-blue-700 font-bold' : 'text-gray-600 hover:bg-gray-50'}`}
+                                                        >
+                                                            <div className={`w-2 h-2 rounded-full ${menuSortMode === 'profit-desc' ? 'bg-blue-500' : 'bg-transparent border border-gray-200'}`}></div>
+                                                            กำไรมากไปน้อย
+                                                        </button>
+                                                        <button 
+                                                            onClick={() => { setMenuSortMode('profit-asc'); setIsMenuSortOpen(false); }}
+                                                            className={`w-full flex items-center gap-3 px-4 py-2.5 text-xs transition-colors ${menuSortMode === 'profit-asc' ? 'bg-red-50 text-red-700 font-bold' : 'text-gray-600 hover:bg-gray-50'}`}
+                                                        >
+                                                            <div className={`w-2 h-2 rounded-full ${menuSortMode === 'profit-asc' ? 'bg-red-500' : 'bg-transparent border border-gray-200'}`}></div>
+                                                            กำไรน้อยไปมาก
+                                                        </button>
+                                                    </div>
+                                                </>
+                                            )}
                                         </div>
                                     </div>
                                     <div className="p-2 flex-1">
