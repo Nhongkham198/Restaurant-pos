@@ -249,7 +249,28 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         return null;
     });
 
-    const urlBranchId = useMemo(() => new URLSearchParams(window.location.search).get('branchId'), []);
+    // Reactive URL Branch ID
+    const [urlBranchId, setUrlBranchId] = useState(() => new URLSearchParams(window.location.search).get('branchId'));
+
+    // Listen for URL changes (e.g. from history.replaceState)
+    useEffect(() => {
+        const handleUrlChange = () => {
+            const newId = new URLSearchParams(window.location.search).get('branchId');
+            setUrlBranchId(newId);
+        };
+        window.addEventListener('popstate', handleUrlChange);
+        // We also need to manually trigger this when we use replaceState in our own code
+        const originalReplaceState = window.history.replaceState;
+        window.history.replaceState = function(...args) {
+            originalReplaceState.apply(this, args);
+            handleUrlChange();
+        };
+        return () => {
+            window.removeEventListener('popstate', handleUrlChange);
+            window.history.replaceState = originalReplaceState;
+        };
+    }, []);
+
     const branchId = urlBranchId ? urlBranchId : (selectedBranch ? selectedBranch.id.toString() : null);
 
     const shouldLoadHeavyData = useMemo(() => {
@@ -295,6 +316,12 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     }, [selectedBranch, isCustomerMode, currentUser]);
 
     useEffect(() => {
+        // Skip if user is explicitly trying to change branch
+        if (localStorage.getItem('intentToChangeBranch')) {
+            console.log('[DataContext] Pause Lock: Skipping URL sync because intentToChangeBranch is set.');
+            return;
+        }
+
         if (branches.length > 0 && urlBranchId) {
             if (!selectedBranch || selectedBranch.id.toString() !== urlBranchId) {
                 const b = branches.find(br => br.id.toString() === urlBranchId);

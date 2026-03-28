@@ -187,8 +187,27 @@ export const App: React.FC = () => {
         facebookPageUrl, setFacebookPageUrl
     } = useData();
 
-    // Re-introduce urlBranchId for local logic checks
-    const urlBranchId = useMemo(() => new URLSearchParams(window.location.search).get('branchId'), []);
+    // Reactive URL Branch ID
+    const [urlBranchId, setUrlBranchId] = useState(() => new URLSearchParams(window.location.search).get('branchId'));
+
+    // Listen for URL changes
+    useEffect(() => {
+        const handleUrlChange = () => {
+            const newId = new URLSearchParams(window.location.search).get('branchId');
+            setUrlBranchId(newId);
+        };
+        window.addEventListener('popstate', handleUrlChange);
+        // We also need to manually trigger this when we use replaceState in our own code
+        const originalReplaceState = window.history.replaceState;
+        window.history.replaceState = function(...args) {
+            originalReplaceState.apply(this, args);
+            handleUrlChange();
+        };
+        return () => {
+            window.removeEventListener('popstate', handleUrlChange);
+            window.history.replaceState = originalReplaceState;
+        };
+    }, []);
 
     // --- NEW: Handle URL parameters for Auto-Login (LINE OA / QR Code) ---
     useEffect(() => {
