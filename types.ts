@@ -81,6 +81,7 @@ export interface MenuItem {
     isVisible?: boolean; // New property for visibility on customer screen
     deliveryPrices?: { [providerId: string]: number }; // Added: Prices for different delivery platforms
     deliveryGPs?: { [providerId: string]: number }; // Added: GP percentage for different delivery platforms
+    deliveryTaxes?: { [providerId: string]: number }; // Added: Tax percentage for different delivery platforms
 }
 
 export type TakeawayCutleryOption = 'spoon-fork' | 'chopsticks' | 'other' | 'none';

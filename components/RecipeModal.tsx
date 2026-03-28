@@ -10,7 +10,7 @@ interface RecipeModalProps {
     menuItem: MenuItem;
     stockItems: StockItem[];
     recipe: Recipe | null;
-    onSave: (recipe: Recipe, deliveryPrices: { [providerId: string]: number }, deliveryGPs: { [providerId: string]: number }) => void;
+    onSave: (recipe: Recipe, deliveryPrices: { [providerId: string]: number }, deliveryGPs: { [providerId: string]: number }, deliveryTaxes: { [providerId: string]: number }) => void;
     currentUser: User | null;
 }
 
@@ -30,6 +30,7 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
     const [searchTerm, setSearchTerm] = useState('');
     const [deliveryPrices, setDeliveryPrices] = useState<{ [providerId: string]: number }>(menuItem.deliveryPrices || {});
     const [deliveryGPs, setDeliveryGPs] = useState<{ [providerId: string]: number }>(menuItem.deliveryGPs || {});
+    const [deliveryTaxes, setDeliveryTaxes] = useState<{ [providerId: string]: number }>(menuItem.deliveryTaxes || {});
 
     useEffect(() => {
         if (recipe) {
@@ -43,6 +44,7 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
         }
         setDeliveryPrices(menuItem.deliveryPrices || {});
         setDeliveryGPs(menuItem.deliveryGPs || {});
+        setDeliveryTaxes(menuItem.deliveryTaxes || {});
     }, [recipe, menuItem]);
 
     const filteredStock = stockItems.filter(item => 
@@ -126,7 +128,7 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
             lastUpdated: Date.now(),
             lastUpdatedBy: currentUser?.username || 'Unknown'
         };
-        onSave(newRecipe, deliveryPrices, deliveryGPs);
+        onSave(newRecipe, deliveryPrices, deliveryGPs, deliveryTaxes);
     };
 
     if (!isOpen) return null;
@@ -359,6 +361,20 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
                                                     })}
                                                     placeholder="0"
                                                     className="w-16 px-2 py-1 border border-gray-200 rounded-lg text-right font-bold text-[11px] focus:ring-2 focus:ring-red-500 outline-none"
+                                                />
+                                                <span className="text-gray-400 text-[10px] font-bold">%</span>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-gray-400 text-[10px] font-bold">ภาษี</span>
+                                                <input
+                                                    type="number"
+                                                    value={deliveryTaxes[provider.id] || ''}
+                                                    onChange={(e) => setDeliveryTaxes({
+                                                        ...deliveryTaxes,
+                                                        [provider.id]: parseFloat(e.target.value) || 0
+                                                    })}
+                                                    placeholder="0"
+                                                    className="w-16 px-2 py-1 border border-gray-200 rounded-lg text-right font-bold text-[11px] focus:ring-2 focus:ring-blue-500 outline-none"
                                                 />
                                                 <span className="text-gray-400 text-[10px] font-bold">%</span>
                                             </div>

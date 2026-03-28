@@ -70,10 +70,11 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
                 }))
             };
 
-            // Add delivery prices and GPs
+            // Add delivery prices, GPs, and Taxes
             deliveryProviders.filter(p => p.isEnabled).forEach(provider => {
                 row[`${provider.name} Price`] = menuItem?.deliveryPrices?.[provider.id] || 0;
                 row[`${provider.name} GP %`] = menuItem?.deliveryGPs?.[provider.id] || 0;
+                row[`${provider.name} Tax %`] = menuItem?.deliveryTaxes?.[provider.id] || 0;
             });
 
             row['Last Updated'] = new Date(recipe.lastUpdated).toLocaleString('th-TH');
@@ -102,7 +103,7 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
                 const data = XLSX.utils.sheet_to_json(ws) as any[];
 
                 const newRecipes: Recipe[] = [];
-                const updatedMenuItemsData: { [id: number]: { deliveryPrices: { [p: string]: number }, deliveryGPs: { [p: string]: number } } } = {};
+                const updatedMenuItemsData: { [id: number]: { deliveryPrices: { [p: string]: number }, deliveryGPs: { [p: string]: number }, deliveryTaxes: { [p: string]: number } } } = {};
 
                 data.forEach(row => {
                     const menuItemId = Number(row['Menu Item ID']);
@@ -130,17 +131,20 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
                         lastUpdatedBy: currentUser?.username || 'System'
                     });
 
-                    // Parse delivery prices and GPs
+                    // Parse delivery prices, GPs, and Taxes
                     const deliveryPrices: { [p: string]: number } = {};
                     const deliveryGPs: { [p: string]: number } = {};
+                    const deliveryTaxes: { [p: string]: number } = {};
                     deliveryProviders.filter(p => p.isEnabled).forEach(provider => {
                         const price = Number(row[`${provider.name} Price`]);
                         const gp = Number(row[`${provider.name} GP %`]);
+                        const tax = Number(row[`${provider.name} Tax %`]);
                         if (!isNaN(price)) deliveryPrices[provider.id] = price;
                         if (!isNaN(gp)) deliveryGPs[provider.id] = gp;
+                        if (!isNaN(tax)) deliveryTaxes[provider.id] = tax;
                     });
 
-                    updatedMenuItemsData[menuItemId] = { deliveryPrices, deliveryGPs };
+                    updatedMenuItemsData[menuItemId] = { deliveryPrices, deliveryGPs, deliveryTaxes };
                 });
 
                 setRecipes(prev => {
@@ -161,7 +165,8 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
                         return {
                             ...item,
                             deliveryPrices: updatedMenuItemsData[item.id].deliveryPrices,
-                            deliveryGPs: updatedMenuItemsData[item.id].deliveryGPs
+                            deliveryGPs: updatedMenuItemsData[item.id].deliveryGPs,
+                            deliveryTaxes: updatedMenuItemsData[item.id].deliveryTaxes
                         };
                     }
                     return item;
@@ -363,11 +368,16 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
                         const deliveryProfits = item.deliveryPrices ? Object.entries(item.deliveryPrices).map(([providerId, price]) => {
                             const p = price || item.price;
                             const gp = item.deliveryGPs?.[providerId] || 0;
+                            const tax = item.deliveryTaxes?.[providerId] || 0;
+                            
                             const gpAmount = p * (gp / 100);
-                            const netRevenue = p - gpAmount;
+                            const netAfterGP = p - gpAmount;
+                            const taxAmount = netAfterGP * (tax / 100);
+                            const netRevenue = netAfterGP - taxAmount;
+                            
                             const dProfit = netRevenue - cost;
                             const dMargin = p > 0 ? (dProfit / p) * 100 : 0;
-                            return { providerId, profit: dProfit, margin: dMargin, price: p, gp };
+                            return { providerId, profit: dProfit, margin: dMargin, price: p, gp, tax };
                         }) : [];
 
                         return (
@@ -415,7 +425,10 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
                                                 <p className="text-[10px] font-bold text-gray-400 uppercase">Delivery Profit</p>
                                                 {deliveryProfits.map(dp => (
                                                     <div key={dp.providerId} className="flex justify-between items-start text-sm">
-                                                        <span className="text-gray-500 text-xs">{dp.providerId} ({dp.gp}%):</span>
+                                                        <div className="flex flex-col">
+                                                            <span className="text-gray-500 text-xs">{dp.providerId}</span>
+                                                            <span className="text-[9px] text-gray-400">GP: {dp.gp}% | Tax: {dp.tax}%</span>
+                                                        </div>
                                                         <div className="text-right">
                                                             <span className={`font-bold block text-xs ${dp.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                                                                 ฿{dp.profit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -453,7 +466,7 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
                     menuItem={selectedMenuItem}
                     stockItems={stockItems}
                     recipe={recipeMap.get(selectedMenuItem.id) || null}
-                    onSave={(newRecipe, deliveryPrices, deliveryGPs) => {
+                    onSave={(newRecipe, deliveryPrices, deliveryGPs, deliveryTaxes) => {
                         // Update Recipe
                         setRecipes(prev => {
                             const index = prev.findIndex(r => r.menuItemId === newRecipe.menuItemId);
@@ -465,10 +478,10 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
                             return [...prev, newRecipe];
                         });
 
-                        // Update MenuItem Delivery Prices and GPs
+                        // Update MenuItem Delivery Prices, GPs, and Taxes
                         setMenuItems(prev => prev.map(item => 
                             item.id === selectedMenuItem.id 
-                            ? { ...item, deliveryPrices, deliveryGPs } 
+                            ? { ...item, deliveryPrices, deliveryGPs, deliveryTaxes } 
                             : item
                         ));
 
