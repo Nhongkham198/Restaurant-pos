@@ -8,9 +8,6 @@ import {
     Recipe
 } from '../types';
 import { 
-    DEFAULT_MENU_ITEMS, DEFAULT_CATEGORIES, DEFAULT_TABLES, DEFAULT_FLOORS,
-    DEFAULT_STOCK_ITEMS, DEFAULT_STOCK_CATEGORIES, DEFAULT_STOCK_UNITS,
-    DEFAULT_MAINTENANCE_ITEMS, DEFAULT_DELIVERY_PROVIDERS,
     DEFAULT_USERS, DEFAULT_BRANCHES,
     DEFAULT_JOB_APPLICATIONS, DEFAULT_EMPLOYMENT_CONTRACTS
 } from '../constants';
@@ -156,6 +153,7 @@ interface DataContextType {
     setTelegramBotToken: React.Dispatch<React.SetStateAction<string>>;
     telegramChatId: string;
     setTelegramChatId: React.Dispatch<React.SetStateAction<string>>;
+    isDataLoading: boolean;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -369,12 +367,12 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     }, [urlBranchId]);
 
     // --- ESSENTIAL DATA ---
-    const [menuItems, setMenuItems] = useFirestoreSync<MenuItem[]>(branchId, 'menuItems', [], DEFAULT_MENU_ITEMS);
-    const [recipes, setRecipes] = useFirestoreSync<Recipe[]>(branchId, 'recipes', []);
-    const [categories, setCategories] = useFirestoreSync<string[]>(branchId, 'categories', [], DEFAULT_CATEGORIES);
-    const [tables, setTables] = useFirestoreSync<Table[]>(branchId, 'tables', [], DEFAULT_TABLES);
-    const [floors, setFloors] = useFirestoreSync<string[]>(branchId, 'floors', [], DEFAULT_FLOORS);
-    const [recommendedMenuItemIds, setRecommendedMenuItemIds] = useFirestoreSync<number[]>(branchId, 'recommendedMenuItemIds', []);
+    const [menuItems, setMenuItems, isMenuItemsLoading] = useFirestoreSync<MenuItem[]>(branchId, 'menuItems', []);
+    const [recipes, setRecipes, isRecipesLoading] = useFirestoreSync<Recipe[]>(branchId, 'recipes', []);
+    const [categories, setCategories, isCategoriesLoading] = useFirestoreSync<string[]>(branchId, 'categories', []);
+    const [tables, setTables, isTablesLoading] = useFirestoreSync<Table[]>(branchId, 'tables', []);
+    const [floors, setFloors, isFloorsLoading] = useFirestoreSync<string[]>(branchId, 'floors', []);
+    const [recommendedMenuItemIds, setRecommendedMenuItemIds, isRecommendedLoading] = useFirestoreSync<number[]>(branchId, 'recommendedMenuItemIds', []);
     
     // Active Orders
     const [rawActiveOrders, activeOrdersActions] = useFirestoreCollection<ActiveOrder>(branchId, 'activeOrders');
@@ -384,8 +382,8 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     }, [rawActiveOrders]);
 
     // --- HEAVY DATA ---
-    const [legacyCompletedOrders, setLegacyCompletedOrders] = useFirestoreSync<CompletedOrder[]>(heavyDataBranchId, 'completedOrders', []);
-    const [legacyCancelledOrders, setLegacyCancelledOrders] = useFirestoreSync<CancelledOrder[]>(heavyDataBranchId, 'cancelledOrders', []);
+    const [legacyCompletedOrders, setLegacyCompletedOrders, isLegacyCompletedLoading] = useFirestoreSync<CompletedOrder[]>(heavyDataBranchId, 'completedOrders', []);
+    const [legacyCancelledOrders, setLegacyCancelledOrders, isLegacyCancelledLoading] = useFirestoreSync<CancelledOrder[]>(heavyDataBranchId, 'cancelledOrders', []);
     const [newCompletedOrders, newCompletedOrdersActions] = useFirestoreCollection<CompletedOrder>(heavyDataBranchId, 'completedOrders_v2');
     const [newCancelledOrders, newCancelledOrdersActions] = useFirestoreCollection<CancelledOrder>(heavyDataBranchId, 'cancelledOrders_v2');
 
@@ -403,15 +401,15 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         return Array.from(unique.values()).sort((a, b) => b.cancellationTime - a.cancellationTime);
     }, [legacyCancelledOrders, newCancelledOrders]);
 
-    const [stockItems, setStockItems] = useFirestoreSync<StockItem[]>(heavyDataBranchId, 'stockItems', [], DEFAULT_STOCK_ITEMS);
-    const [stockTags, setStockTags] = useFirestoreSync<StockTag[]>(heavyDataBranchId, 'stockTags', []);
-    const [stockCategories, setStockCategories] = useFirestoreSync<string[]>(heavyDataBranchId, 'stockCategories', [], DEFAULT_STOCK_CATEGORIES);
-    const [stockUnits, setStockUnits] = useFirestoreSync<string[]>(heavyDataBranchId, 'stockUnits', [], DEFAULT_STOCK_UNITS);
+    const [stockItems, setStockItems, isStockItemsLoading] = useFirestoreSync<StockItem[]>(heavyDataBranchId, 'stockItems', []);
+    const [stockTags, setStockTags, isStockTagsLoading] = useFirestoreSync<StockTag[]>(heavyDataBranchId, 'stockTags', []);
+    const [stockCategories, setStockCategories, isStockCategoriesLoading] = useFirestoreSync<string[]>(heavyDataBranchId, 'stockCategories', []);
+    const [stockUnits, setStockUnits, isStockUnitsLoading] = useFirestoreSync<string[]>(heavyDataBranchId, 'stockUnits', []);
     
-    const [printHistory, setPrintHistory] = useFirestoreSync<PrintHistoryEntry[]>(heavyDataBranchId, 'printHistory', []);
-    const [maintenanceItems, setMaintenanceItems] = useFirestoreSync<MaintenanceItem[]>(heavyDataBranchId, 'maintenanceItems', [], DEFAULT_MAINTENANCE_ITEMS);
-    const [maintenanceLogs, setMaintenanceLogs] = useFirestoreSync<MaintenanceLog[]>(heavyDataBranchId, 'maintenanceLogs', []);
-    const [orderCounter, setOrderCounter] = useFirestoreSync<OrderCounter>(heavyDataBranchId, 'orderCounter', { count: 0, lastResetDate: new Date().toISOString().split('T')[0] });
+    const [printHistory, setPrintHistory, isPrintHistoryLoading] = useFirestoreSync<PrintHistoryEntry[]>(heavyDataBranchId, 'printHistory', []);
+    const [maintenanceItems, setMaintenanceItems, isMaintenanceItemsLoading] = useFirestoreSync<MaintenanceItem[]>(heavyDataBranchId, 'maintenanceItems', []);
+    const [maintenanceLogs, setMaintenanceLogs, isMaintenanceLogsLoading] = useFirestoreSync<MaintenanceLog[]>(heavyDataBranchId, 'maintenanceLogs', []);
+    const [orderCounter, setOrderCounter, isOrderCounterLoading] = useFirestoreSync<OrderCounter>(heavyDataBranchId, 'orderCounter', { count: 0, lastResetDate: new Date().toISOString().split('T')[0] });
     
     const [stockLogs, stockLogsActions] = useFirestoreCollection<StockLog>(heavyDataBranchId, 'stockLogs');
 
@@ -479,12 +477,12 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     const [employmentContracts, employmentContractsActions] = useFirestoreCollection<EmploymentContract>(branchId, 'employmentContracts');
     const [timeRecords, setTimeRecords] = useFirestoreSync<TimeRecord[]>(branchId, 'timeRecords', []);
     const [payrollRecords, setPayrollRecords] = useFirestoreSync<PayrollRecord[]>(branchId, 'payrollRecords', []);
-    const [jobPositions, setJobPositions] = useFirestoreSync<string[]>(branchId, 'jobPositions', [], ['แม่ครัว', 'พนักงานเตรียมครัว', 'พนักงานทั่วไป']);
+    const [jobPositions, setJobPositions] = useFirestoreSync<string[]>(branchId, 'jobPositions', []);
 
     // --- SETTINGS ---
     const [logoUrl, setLogoUrl] = useFirestoreSync<string | null>(branchId, 'logoUrl', null);
     const [appLogoUrl, setAppLogoUrl] = useFirestoreSync<string | null>(branchId, 'appLogoUrl', null);
-    const [restaurantName, setRestaurantName] = useFirestoreSync<string>(branchId, 'restaurantName', '', 'ชื่อร้านอาหาร');
+    const [restaurantName, setRestaurantName] = useFirestoreSync<string>(branchId, 'restaurantName', '');
     const [restaurantAddress, setRestaurantAddress] = useFirestoreSync<string>(branchId, 'restaurantAddress', '');
     const [restaurantPhone, setRestaurantPhone] = useFirestoreSync<string>(branchId, 'restaurantPhone', '');
     const [taxId, setTaxId] = useFirestoreSync<string>(branchId, 'taxId', '');
@@ -494,12 +492,12 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     const [notificationSoundUrl, setNotificationSoundUrl] = useFirestoreSync<string | null>(branchId, 'notificationSoundUrl', null);
     const [staffCallSoundUrl, setStaffCallSoundUrl] = useFirestoreSync<string | null>(branchId, 'staffCallSoundUrl', null);
     const [printerConfig, setPrinterConfig] = useFirestoreSync<PrinterConfig | null>(branchId, 'printerConfig', null);
-    const [openingTime, setOpeningTime] = useFirestoreSync<string | null>(branchId, 'openingTime', '', '10:00');
-    const [closingTime, setClosingTime] = useFirestoreSync<string | null>(branchId, 'closingTime', '', '22:00');
+    const [openingTime, setOpeningTime] = useFirestoreSync<string | null>(branchId, 'openingTime', '');
+    const [closingTime, setClosingTime] = useFirestoreSync<string | null>(branchId, 'closingTime', '');
     const [isTaxEnabled, setIsTaxEnabled] = useFirestoreSync<boolean>(branchId, 'isTaxEnabled', false);
     const [taxRate, setTaxRate] = useFirestoreSync<number>(branchId, 'taxRate', 7);
     const [sendToKitchen, setSendToKitchen] = useFirestoreSync<boolean>(branchId, 'sendToKitchen', true);
-    const [deliveryProviders, setDeliveryProviders] = useFirestoreSync<DeliveryProvider[]>(branchId, 'deliveryProviders', [], DEFAULT_DELIVERY_PROVIDERS);
+    const [deliveryProviders, setDeliveryProviders, isDeliveryProvidersLoading] = useFirestoreSync<DeliveryProvider[]>(branchId, 'deliveryProviders', []);
     const [facebookAppId, setFacebookAppId] = useFirestoreSync<string>(branchId, 'facebookAppId', '');
     const [facebookAppSecret, setFacebookAppSecret] = useFirestoreSync<string>(branchId, 'facebookAppSecret', '');
     const [lineOaUrl, setLineOaUrl] = useFirestoreSync<string>(branchId, 'lineOaUrl', '');
@@ -509,6 +507,8 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     const [lineUserId, setLineUserId] = useFirestoreSync<string>(branchId, 'lineUserId', '');
     const [telegramBotToken, setTelegramBotToken] = useFirestoreSync<string>(branchId, 'telegramBotToken', '');
     const [telegramChatId, setTelegramChatId] = useFirestoreSync<string>(branchId, 'telegramChatId', '');
+
+    const isDataLoading = isMenuItemsLoading || isCategoriesLoading || isTablesLoading || isFloorsLoading || isDeliveryProvidersLoading;
 
     return (
         <DataContext.Provider value={{
@@ -543,9 +543,15 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             lineMessagingToken, setLineMessagingToken,
             lineUserId, setLineUserId,
             telegramBotToken, setTelegramBotToken,
-            telegramChatId, setTelegramChatId
+            telegramChatId, setTelegramChatId,
+            isDataLoading
         }}>
-            {children}
+            {isDataLoading ? (
+                <div className="fixed inset-0 bg-white z-[9999] flex flex-col items-center justify-center">
+                    <div className="w-12 h-12 border-4 border-orange-200 border-t-orange-500 rounded-full animate-spin mb-4"></div>
+                    <p className="text-gray-500 font-medium animate-pulse">กำลังโหลดข้อมูลร้านค้า...</p>
+                </div>
+            ) : children}
         </DataContext.Provider>
     );
 };

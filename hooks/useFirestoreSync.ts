@@ -11,8 +11,9 @@ export function useFirestoreSync<T>(
     collectionKey: string,
     initialValue: T,
     fallbackValue?: T // NEW: Optional fallback value to seed DB if empty
-): [T, React.Dispatch<React.SetStateAction<T>>] {
+): [T, React.Dispatch<React.SetStateAction<T>>, boolean] {
     const [value, setValue] = useState<T>(initialValue);
+    const [isLoading, setIsLoading] = useState(true);
     const initialValueRef = useRef(initialValue);
     const fallbackValueRef = useRef(fallbackValue);
     
@@ -28,6 +29,7 @@ export function useFirestoreSync<T>(
     useEffect(() => {
         if (!db) {
             console.error("Firestore is not initialized.");
+            setIsLoading(false);
             return () => {};
         }
 
@@ -36,9 +38,11 @@ export function useFirestoreSync<T>(
 
         if (isBranchSpecific && !branchId) {
             setValue(currentInitialValue);
+            setIsLoading(false);
             return () => {};
         }
 
+        setIsLoading(true);
         const pathSegments = isBranchSpecific && branchId
             ? ['branches', branchId, collectionKey, 'data']
             : [collectionKey, 'data'];
@@ -64,6 +68,7 @@ export function useFirestoreSync<T>(
                                 docRef.set({ value: fallbackValueRef.current });
                                 setValue(fallbackValueRef.current as T);
                                 hasOverriddenRef.current = true; // Prevent infinite loop
+                                setIsLoading(false);
                                 return; // Stop further processing, as we've just set the correct state
                             }
                         }
@@ -87,6 +92,7 @@ export function useFirestoreSync<T>(
                             const counterData = valueToSet as any;
                             if (!counterData || typeof counterData !== 'object' || typeof counterData.count !== 'number') {
                                 setValue(currentInitialValue);
+                                setIsLoading(false);
                                 return;
                             }
                             const { count, lastResetDate } = counterData;
@@ -104,6 +110,7 @@ export function useFirestoreSync<T>(
                                 valueToSet = { count, lastResetDate: correctedDateString };
                             } else {
                                 setValue(currentInitialValue);
+                                setIsLoading(false);
                                 return;
                             }
                         }
@@ -131,9 +138,11 @@ export function useFirestoreSync<T>(
                         setValue(currentInitialValue);
                     }
                 }
+                setIsLoading(false);
             },
             (error) => {
                 console.error(`Firestore sync error for ${collectionKey}:`, error);
+                setIsLoading(false);
             }
         );
 
@@ -170,7 +179,7 @@ export function useFirestoreSync<T>(
         });
     }, [branchId, collectionKey]);
 
-    return [value, setAndSyncValue];
+    return [value, setAndSyncValue, isLoading];
 }
 
 // Hook for Collection-based Sync (Robust, Granular Updates)

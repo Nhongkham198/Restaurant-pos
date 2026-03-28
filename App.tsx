@@ -6,16 +6,7 @@ import './datepicker.css';
 // ... (Keep existing imports same as before) ...
 import { 
     DEFAULT_BRANCHES, 
-    DEFAULT_CATEGORIES, 
-    DEFAULT_MENU_ITEMS, 
-    DEFAULT_TABLES, 
     DEFAULT_USERS, 
-    DEFAULT_STOCK_CATEGORIES, 
-    DEFAULT_STOCK_UNITS, 
-    DEFAULT_STOCK_ITEMS, 
-    DEFAULT_FLOORS, 
-    DEFAULT_MAINTENANCE_ITEMS,
-    DEFAULT_DELIVERY_PROVIDERS
 } from './constants';
 // ... types import
 import type { 
