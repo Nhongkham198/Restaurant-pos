@@ -414,7 +414,7 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
                                                 <span className={`font-bold block ${profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                                                     ฿{profit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                 </span>
-                                                <span className={`text-[10px] font-medium ${profitMargin >= 30 ? 'text-green-500' : 'text-yellow-500'}`}>
+                                                <span className={`text-xs font-bold ${profitMargin >= 30 ? 'text-green-500' : 'text-yellow-500'}`}>
                                                     Margin: {profitMargin.toFixed(1)}%
                                                 </span>
                                             </div>
@@ -422,18 +422,18 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
 
                                         {deliveryProfits.length > 0 && (
                                             <div className="pt-2 border-t border-gray-200 space-y-2">
-                                                <p className="text-[10px] font-bold text-gray-400 uppercase">Delivery Profit</p>
+                                                <p className="text-xs font-bold text-gray-500 uppercase">Delivery Profit</p>
                                                 {deliveryProfits.map(dp => (
                                                     <div key={dp.providerId} className="flex justify-between items-start text-sm">
                                                         <div className="flex flex-col">
-                                                            <span className="text-gray-500 text-xs">{dp.providerId}</span>
-                                                            <span className="text-[9px] text-gray-400">GP: {dp.gp}% | Tax: {dp.tax}%</span>
+                                                            <span className="text-gray-700 text-sm font-bold">{dp.providerId}</span>
+                                                            <span className="text-[11px] text-gray-500">GP: {dp.gp}% | Tax: {dp.tax}%</span>
                                                         </div>
                                                         <div className="text-right">
-                                                            <span className={`font-bold block text-xs ${dp.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                            <span className={`font-bold block text-sm ${dp.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                                                                 ฿{dp.profit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                             </span>
-                                                            <span className={`text-[9px] font-medium ${dp.margin >= 30 ? 'text-green-500' : 'text-yellow-500'}`}>
+                                                            <span className={`text-[11px] font-bold ${dp.margin >= 30 ? 'text-green-500' : 'text-yellow-500'}`}>
                                                                 {dp.margin.toFixed(1)}%
                                                             </span>
                                                         </div>
