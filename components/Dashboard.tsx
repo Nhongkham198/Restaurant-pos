@@ -41,6 +41,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
     // NEW: State for Menu Ranking Sort Mode
     const [menuSortMode, setMenuSortMode] = useState<'quantity' | 'profit-desc' | 'profit-asc'>('quantity');
     const [isMenuSortOpen, setIsMenuSortOpen] = useState(false);
+    const [activeTab, setActiveTab] = useState<'overview' | 'profit'>('overview');
 
     // Check permissions for monthly view
     const canViewMonthly = useMemo(() => {
@@ -71,6 +72,82 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
         
         return 'Delivery'; // Final fallback
     };
+
+    const dailyProfitData = useMemo(() => {
+        if (!startDate || !endDate) return [];
+
+        const daysDiff = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 3600 * 24)) + 1;
+        const days = Array.from({ length: daysDiff }, (_, i) => {
+            const d = new Date(startDate);
+            d.setDate(startDate.getDate() + i);
+            d.setHours(0, 0, 0, 0);
+            return d;
+        });
+
+        return days.map(day => {
+            const dayStart = day.getTime();
+            const dayEnd = dayStart + (24 * 3600 * 1000);
+
+            const dayOrders = completedOrders.filter(order => 
+                order.completionTime >= dayStart && order.completionTime < dayEnd
+            );
+
+            let totalRevenue = 0;
+            let totalCost = 0;
+            let totalGP = 0;
+            let totalAdCost = 0;
+            let totalTaxOnGP = 0;
+            let totalTaxOnAd = 0;
+
+            dayOrders.forEach(order => {
+                const isDelivery = order.orderType === 'lineman';
+                const providerName = getDeliveryProviderName(order);
+                const provider = deliveryProviders.find(p => p.name === providerName);
+                
+                order.items.forEach(item => {
+                    const sellingPrice = item.finalPrice;
+                    const itemQty = item.quantity;
+                    totalRevenue += sellingPrice * itemQty;
+
+                    // Find recipe for cost
+                    const recipe = recipes.find(r => r.menuItemId === item.id);
+                    const costPerUnit = recipe ? (recipe.ingredients.reduce((sum, ing) => sum + (ing.quantity * (ing.unitPrice || 0)), 0) + recipe.additionalCost) : (sellingPrice * 0.6);
+                    totalCost += costPerUnit * itemQty;
+
+                    if (isDelivery) {
+                        const gp = item.deliveryGPs?.[provider?.id || ''] || 0;
+                        const tax = item.deliveryTaxes?.[provider?.id || ''] ?? taxRate;
+                        
+                        const gpAmount = sellingPrice * (gp / 100);
+                        const taxOnGP = gpAmount * (tax / 100);
+                        
+                        totalGP += gpAmount * itemQty;
+                        totalTaxOnGP += taxOnGP * itemQty;
+                    }
+                });
+
+                if (isDelivery && provider) {
+                    const fixedAdCost = provider.fixedAdCost || 0;
+                    const tax = taxRate; 
+                    const taxOnAd = fixedAdCost * (tax / 100);
+                    
+                    totalAdCost += fixedAdCost;
+                    totalTaxOnAd += taxOnAd;
+                }
+            });
+
+            const netProfit = totalRevenue - totalCost - totalGP - totalTaxOnGP - totalAdCost - totalTaxOnAd;
+
+            return {
+                date: day.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' }),
+                revenue: totalRevenue,
+                cost: totalCost,
+                gp: totalGP + totalTaxOnGP,
+                adCost: totalAdCost + totalTaxOnAd,
+                netProfit
+            };
+        });
+    }, [completedOrders, startDate, endDate, recipes, deliveryProviders, taxRate]);
 
     const handleViewModeChange = (mode: 'daily' | 'monthly') => {
         setViewMode(mode);
@@ -619,9 +696,25 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
     return (
         <div className="p-4 md:p-6 space-y-6 h-full overflow-y-auto w-full pb-24">
             <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-                <h1 className="text-3xl font-bold text-gray-800">
-                    Dashboard <span className="text-lg font-medium text-gray-500">({formattedDateDisplay})</span>
-                </h1>
+                <div className="flex flex-col gap-2">
+                    <h1 className="text-3xl font-bold text-gray-800">
+                        Dashboard <span className="text-lg font-medium text-gray-500">({formattedDateDisplay})</span>
+                    </h1>
+                    <div className="flex items-center gap-1">
+                        <button 
+                            onClick={() => setActiveTab('overview')}
+                            className={`px-4 py-1.5 rounded-full text-sm font-bold transition-all ${activeTab === 'overview' ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                        >
+                            ภาพรวมยอดขาย
+                        </button>
+                        <button 
+                            onClick={() => setActiveTab('profit')}
+                            className={`px-4 py-1.5 rounded-full text-sm font-bold transition-all ${activeTab === 'profit' ? 'bg-green-600 text-white shadow-md' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                        >
+                            รายงานกำไรรายวัน
+                        </button>
+                    </div>
+                </div>
                 
                 <div className="flex items-center gap-4 bg-white p-2 rounded-xl shadow-sm border border-gray-200">
                     {canViewMonthly && (
@@ -670,7 +763,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
                 </div>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {activeTab === 'overview' ? (
+                <>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <StatCard title="ยอดขายรวม" value={`${dailyStats.totalSales.toLocaleString('th-TH', { style: 'currency', currency: 'THB', minimumFractionDigits: 0 })}`} icon={<span>💰</span>} color="border-green-500" />
                 <StatCard title="ออเดอร์สำเร็จ" value={dailyStats.completedCount.toLocaleString()} icon={<span>✅</span>} color="border-blue-500" />
                 <StatCard title="ลูกค้าทั้งหมด" value={dailyStats.totalCustomers.toLocaleString()} icon={<span>👥</span>} color="border-purple-500" />
@@ -947,6 +1042,74 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
                     />
                 </div>
             </div>
+                </>
+            ) : (
+                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    <div className="bg-white p-6 rounded-xl shadow-md">
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+                            <div>
+                                <h3 className="text-xl font-bold text-gray-800">สรุปกำไรสุทธิรายวัน (Daily Net Profit)</h3>
+                                <p className="text-sm text-gray-500 mt-1">วิเคราะห์ผลกระทบจากค่าโฆษณาและค่า GP ต่อกำไรสุทธิ</p>
+                            </div>
+                            <div className="bg-green-50 px-4 py-2 rounded-lg border border-green-100">
+                                <p className="text-xs text-green-700 font-bold uppercase tracking-wider">กำไรสุทธิรวมช่วงนี้</p>
+                                <p className="text-2xl font-black text-green-600">
+                                    {dailyProfitData.reduce((sum, d) => sum + d.netProfit, 0).toLocaleString('th-TH', { style: 'currency', currency: 'THB', minimumFractionDigits: 0 })}
+                                </p>
+                            </div>
+                        </div>
+                        
+                        <div className="h-80 w-full">
+                            <SalesChart
+                                title="แนวโน้มกำไรสุทธิรายวัน"
+                                data={dailyProfitData.map(d => d.netProfit)}
+                                labels={dailyProfitData.map(d => d.date)}
+                                maxValue={Math.max(...dailyProfitData.map(d => d.netProfit), 1000)}
+                            />
+                        </div>
+                    </div>
+
+                    <div className="bg-white rounded-xl shadow-md overflow-hidden">
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left border-collapse">
+                                <thead>
+                                    <tr className="bg-gray-50 border-b border-gray-100">
+                                        <th className="px-6 py-4 text-sm font-bold text-gray-600">วันที่</th>
+                                        <th className="px-6 py-4 text-sm font-bold text-gray-600 text-right">รายรับรวม</th>
+                                        <th className="px-6 py-4 text-sm font-bold text-gray-600 text-right">ต้นทุนวัตถุดิบ</th>
+                                        <th className="px-6 py-4 text-sm font-bold text-gray-600 text-right">ค่า GP + ภาษี</th>
+                                        <th className="px-6 py-4 text-sm font-bold text-gray-600 text-right">ค่าโฆษณา + ภาษี</th>
+                                        <th className="px-6 py-4 text-sm font-bold text-gray-600 text-right">กำไรสุทธิ</th>
+                                        <th className="px-6 py-4 text-sm font-bold text-gray-600 text-right">Margin %</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {dailyProfitData.slice().reverse().map((day, idx) => {
+                                        const margin = day.revenue > 0 ? (day.netProfit / day.revenue) * 100 : 0;
+                                        return (
+                                            <tr key={idx} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
+                                                <td className="px-6 py-4 text-sm font-bold text-gray-800">{day.date}</td>
+                                                <td className="px-6 py-4 text-sm text-gray-700 text-right">{day.revenue.toLocaleString()}</td>
+                                                <td className="px-6 py-4 text-sm text-gray-500 text-right">{day.cost.toLocaleString()}</td>
+                                                <td className="px-6 py-4 text-sm text-red-400 text-right">{day.gp > 0 ? `-${day.gp.toLocaleString()}` : '0'}</td>
+                                                <td className="px-6 py-4 text-sm text-orange-400 text-right">{day.adCost > 0 ? `-${day.adCost.toLocaleString()}` : '0'}</td>
+                                                <td className={`px-6 py-4 text-sm font-black text-right ${day.netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                    {day.netProfit.toLocaleString()}
+                                                </td>
+                                                <td className="px-6 py-4 text-right">
+                                                    <span className={`px-2 py-1 rounded text-xs font-bold ${margin >= 30 ? 'bg-green-100 text-green-700' : margin >= 15 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
+                                                        {margin.toFixed(1)}%
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
