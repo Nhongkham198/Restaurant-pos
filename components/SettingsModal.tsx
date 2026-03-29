@@ -543,7 +543,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
         ));
     };
 
-    const handleDeliveryFieldChange = (providerId: string, field: 'iconUrl' | 'color', value: string) => {
+    const handleDeliveryFieldChange = (providerId: string, field: 'iconUrl' | 'color' | 'fixedAdCost', value: any) => {
         setTempDeliveryProviders(prev => prev.map(p => 
             p.id === providerId ? { ...p, [field]: value } : p
         ));
@@ -1165,7 +1165,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
                                         </div>
                                         
                                         {/* Edit Fields */}
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-gray-200">
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2 border-t border-gray-200">
                                             <div>
                                                 <label className="block text-xs font-bold text-gray-500 mb-1">URL รูปไอคอน</label>
                                                 <input 
@@ -1193,6 +1193,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
                                                         className="flex-1 text-sm border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 uppercase"
                                                     />
                                                 </div>
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-bold text-gray-500 mb-1">ค่าโฆษณาต่อออเดอร์ (บาท)</label>
+                                                <input 
+                                                    type="number" 
+                                                    value={provider.fixedAdCost || 0} 
+                                                    onChange={(e) => handleDeliveryFieldChange(provider.id, 'fixedAdCost', parseFloat(e.target.value) || 0)}
+                                                    placeholder="เช่น 32"
+                                                    className="w-full text-sm border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500"
+                                                />
                                             </div>
                                         </div>
                                     </div>

@@ -366,6 +366,9 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
 
                         // Calculate delivery profits
                         const deliveryProfits = item.deliveryPrices ? Object.entries(item.deliveryPrices).map(([providerId, price]) => {
+                            const provider = deliveryProviders.find(p => p.id === providerId);
+                            const fixedAdCost = provider?.fixedAdCost || 0;
+                            
                             const p = price || item.price;
                             const gp = item.deliveryGPs?.[providerId] || 0;
                             const tax = item.deliveryTaxes?.[providerId] || 0;
@@ -376,8 +379,20 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
                             const netRevenue = netAfterGP - taxAmount;
                             
                             const dProfit = netRevenue - cost;
-                            const dMargin = p > 0 ? (dProfit / p) * 100 : 0;
-                            return { providerId, profit: dProfit, margin: dMargin, price: p, gp, tax };
+                            const netProfit = dProfit - fixedAdCost;
+                            const dMargin = p > 0 ? (netProfit / p) * 100 : 0;
+                            
+                            return { 
+                                providerId, 
+                                providerName: provider?.name || providerId,
+                                profit: netProfit, 
+                                margin: dMargin, 
+                                price: p, 
+                                gp, 
+                                tax,
+                                fixedAdCost,
+                                isUnprofitable: netProfit <= 0 && fixedAdCost > 0
+                            };
                         }) : [];
 
                         return (
@@ -422,12 +437,28 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
 
                                         {deliveryProfits.length > 0 && (
                                             <div className="pt-2 border-t border-gray-200 space-y-2">
-                                                <p className="text-xs font-bold text-gray-500 uppercase">Delivery Profit</p>
+                                                <p className="text-xs font-bold text-gray-500 uppercase">Delivery Profit (หักค่าโฆษณาแล้ว)</p>
                                                 {deliveryProfits.map(dp => (
-                                                    <div key={dp.providerId} className="flex justify-between items-start text-sm">
+                                                    <div 
+                                                        key={dp.providerId} 
+                                                        className={`flex justify-between items-start text-sm p-1.5 rounded-lg transition-all border border-transparent ${
+                                                            dp.isUnprofitable 
+                                                            ? 'animate-danger-pulse bg-red-50 border-red-200 shadow-sm' 
+                                                            : ''
+                                                        }`}
+                                                    >
                                                         <div className="flex flex-col">
-                                                            <span className="text-gray-700 text-sm font-bold">{dp.providerId}</span>
-                                                            <span className="text-[11px] text-gray-500">GP: {dp.gp}% | Tax: {dp.tax}%</span>
+                                                            <span className={`text-sm font-bold ${dp.isUnprofitable ? 'text-red-700' : 'text-gray-700'}`}>
+                                                                {dp.providerName}
+                                                            </span>
+                                                            <div className="flex flex-col gap-0.5">
+                                                                <span className="text-[10px] text-gray-500">GP: {dp.gp}% | Tax: {dp.tax}%</span>
+                                                                {dp.fixedAdCost > 0 && (
+                                                                    <span className={`text-[10px] font-medium ${dp.isUnprofitable ? 'text-red-600' : 'text-blue-600'}`}>
+                                                                        ค่าโฆษณา: ฿{dp.fixedAdCost.toLocaleString()}
+                                                                    </span>
+                                                                )}
+                                                            </div>
                                                         </div>
                                                         <div className="text-right">
                                                             <span className={`font-bold block text-sm ${dp.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>

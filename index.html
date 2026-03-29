@@ -71,6 +71,15 @@
       .animate-pop-in {
         animation: pop-in 0.3s ease-out;
       }
+      
+      @keyframes danger-pulse {
+        0% { background-color: rgba(254, 226, 226, 1); border-color: rgba(248, 113, 113, 1); }
+        50% { background-color: rgba(254, 202, 202, 1); border-color: rgba(239, 68, 68, 1); transform: scale(1.02); }
+        100% { background-color: rgba(254, 226, 226, 1); border-color: rgba(248, 113, 113, 1); }
+      }
+      .animate-danger-pulse {
+        animation: danger-pulse 2s infinite ease-in-out;
+      }
     </style>
 
     <script>

@@ -26,6 +26,7 @@ export interface DeliveryProvider {
     color?: string; // New: Brand color for buttons/badges
     isEnabled: boolean;
     isDefault?: boolean; // System defaults like LineMan
+    fixedAdCost?: number; // Added: Fixed advertising cost per order (e.g. 32 THB)
 }
 
 export interface User {
