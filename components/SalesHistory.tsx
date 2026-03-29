@@ -25,6 +25,7 @@ interface SalesHistoryProps {
     recipes: Recipe[];
     deliveryProviders: DeliveryProvider[];
     taxRate: number;
+    onUpdateCompletedOrder?: (orderId: number, updates: Partial<CompletedOrder>) => Promise<void>;
 }
 
 export const SalesHistory: React.FC<SalesHistoryProps> = ({
@@ -41,7 +42,8 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({
     onReprintReceipt, // Destructure
     recipes,
     deliveryProviders,
-    taxRate
+    taxRate,
+    onUpdateCompletedOrder
 }) => {
     const [activeTab, setActiveTab] = useState<'completed' | 'cancelled' | 'print'>('completed');
     const [filterType, setFilterType] = useState<'daily' | 'monthly' | 'year' | 'all'>('daily');
@@ -688,6 +690,7 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({
                                     recipes={recipes}
                                     deliveryProviders={deliveryProviders}
                                     taxRate={taxRate}
+                                    onUpdateOrder={onUpdateCompletedOrder}
                                 />
                             ))}
                         </div>

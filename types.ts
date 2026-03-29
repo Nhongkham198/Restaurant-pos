@@ -167,6 +167,7 @@ export interface CompletedOrder extends BaseOrder {
     completionTime: number; // timestamp
     paymentDetails: PaymentDetails;
     completedBy?: string; // Name of the staff who received the payment
+    isFromAd?: boolean;
 }
 
 export interface CancelledOrder extends BaseOrder {

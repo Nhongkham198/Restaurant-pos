@@ -126,7 +126,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
                     }
                 });
 
-                if (isDelivery && provider) {
+                if (isDelivery && provider && order.isFromAd) {
                     const fixedAdCost = provider.fixedAdCost || 0;
                     const tax = taxRate; 
                     const taxOnAd = fixedAdCost * (tax / 100);

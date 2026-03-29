@@ -15,6 +15,7 @@ interface CompletedOrderCardProps {
     recipes: Recipe[];
     deliveryProviders: DeliveryProvider[];
     taxRate: number;
+    onUpdateOrder?: (orderId: number, updates: Partial<CompletedOrder>) => Promise<void>;
 }
 
 export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({ 
@@ -28,7 +29,8 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({
     onReprintReceipt, // Destructure new prop
     recipes,
     deliveryProviders,
-    taxRate
+    taxRate,
+    onUpdateOrder
 }) => {
     const [isExpanded, setIsExpanded] = useState(false);
     
@@ -63,7 +65,8 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({
         const providerName = order.orderType === 'lineman' ? 'LineMan' : (order.tableName || order.customerName || 'Delivery');
         const provider = deliveryProviders.find(p => p.name.toLowerCase() === providerName.toLowerCase());
 
-        if (order.orderType === 'lineman') {
+        // Only calculate Ad Cost if isFromAd is true
+        if (order.orderType === 'lineman' && order.isFromAd) {
             fixedAdCost = provider?.fixedAdCost || 0;
             adCostTax = fixedAdCost * (taxRate / 100);
         }
@@ -78,7 +81,7 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({
                 totalRawMaterialCost += (baseCost + hiddenCost) * item.quantity;
             }
 
-            // GP and GP Tax
+            // GP and GP Tax - ALWAYS calculated for delivery
             if (order.orderType === 'lineman') {
                 const gpPercent = item.deliveryGPs?.[provider?.id || ''] || 0;
                 const gpTaxPercent = item.deliveryTaxes?.[provider?.id || ''] || 0;
@@ -104,6 +107,25 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({
             providerName: provider?.name || 'ทั่วไป'
         };
     }, [order, recipes, deliveryProviders, taxRate]);
+
+    const handleToggleAd = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (onUpdateOrder) {
+            try {
+                await onUpdateOrder(order.id, { isFromAd: e.target.checked });
+            } catch (error) {
+                console.error('Failed to update ad status:', error);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'เกิดข้อผิดพลาด',
+                    text: 'ไม่สามารถบันทึกสถานะโฆษณาได้',
+                    toast: true,
+                    position: 'top-end',
+                    showConfirmButton: false,
+                    timer: 3000
+                });
+            }
+        }
+    };
     
     const cardClasses = useMemo(() => {
         if (order.isDeleted) {
@@ -264,12 +286,25 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({
                         {/* Profit Summary Section */}
                         {!order.isDeleted && (
                             <div className="mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
-                                <h4 className="text-sm font-bold text-gray-700 mb-2 flex items-center gap-2">
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                                    </svg>
-                                    สรุปกำไรเบื้องต้น
-                                </h4>
+                                <div className="flex justify-between items-center mb-2">
+                                    <h4 className="text-sm font-bold text-gray-700 flex items-center gap-2">
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                                        </svg>
+                                        สรุปกำไรเบื้องต้น
+                                    </h4>
+                                    {order.orderType === 'lineman' && (
+                                        <label className="flex items-center gap-2 cursor-pointer bg-blue-50 px-2 py-1 rounded border border-blue-100 hover:bg-blue-100 transition-colors">
+                                            <input 
+                                                type="checkbox" 
+                                                checked={!!order.isFromAd} 
+                                                onChange={handleToggleAd}
+                                                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                            />
+                                            <span className="text-xs font-bold text-blue-700">มาจากโฆษณา</span>
+                                        </label>
+                                    )}
+                                </div>
                                 <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
                                     <div className="text-gray-500">ยอดขายรวม:</div>
                                     <div className="text-right font-medium text-gray-800">{profitDetails.totalRevenue.toLocaleString(undefined, { minimumFractionDigits: 2 })} ฿</div>
