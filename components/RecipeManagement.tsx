@@ -29,7 +29,7 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedMenuItem, setSelectedMenuItem] = useState<MenuItem | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const { deliveryProviders } = useData();
+    const { deliveryProviders, taxRate } = useData();
 
     const lastUpdateInfo = useMemo(() => {
         if (recipes.length === 0) return null;
@@ -371,15 +371,13 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
                             
                             const p = price || item.price;
                             const gp = item.deliveryGPs?.[providerId] || 0;
-                            const tax = item.deliveryTaxes?.[providerId] || 0;
+                            const tax = item.deliveryTaxes?.[providerId] ?? taxRate;
                             
                             const gpAmount = p * (gp / 100);
-                            const netAfterGP = p - gpAmount;
-                            const taxAmount = netAfterGP * (tax / 100);
-                            const netRevenue = netAfterGP - taxAmount;
+                            const taxOnGP = gpAmount * (tax / 100);
+                            const adCostWithTax = fixedAdCost + (fixedAdCost * (tax / 100));
                             
-                            const dProfit = netRevenue - cost;
-                            const netProfit = dProfit - fixedAdCost;
+                            const netProfit = p - gpAmount - taxOnGP - cost - adCostWithTax;
                             const dMargin = p > 0 ? (netProfit / p) * 100 : 0;
                             
                             return { 

@@ -1,7 +1,7 @@
 
 import React, { useMemo, useState } from 'react';
 import DatePicker from 'react-datepicker';
-import type { CompletedOrder, CancelledOrder, User, Recipe } from '../types';
+import type { CompletedOrder, CancelledOrder, User, Recipe, DeliveryProvider } from '../types';
 import { SalesChart } from './SalesChart';
 import PieChart from './PieChart';
 
@@ -12,6 +12,8 @@ interface DashboardProps {
     closingTime: string;
     currentUser: User | null;
     recipes: Recipe[];
+    deliveryProviders: DeliveryProvider[];
+    taxRate: number;
 }
 
 const StatCard: React.FC<{ title: string; value: string; icon: React.ReactNode; color: string }> = ({ title, value, icon, color }) => (
@@ -24,7 +26,7 @@ const StatCard: React.FC<{ title: string; value: string; icon: React.ReactNode; 
     </div>
 );
 
-export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelledOrders, openingTime, closingTime, currentUser, recipes }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelledOrders, openingTime, closingTime, currentUser, recipes, deliveryProviders, taxRate }) => {
     // Initialize with today's date
     const [viewMode, setViewMode] = useState<'daily' | 'monthly'>('daily');
     const [dateRange, setDateRange] = useState<[Date | null, Date | null]>([new Date(), new Date()]);
@@ -507,52 +509,61 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
 
         // Menu Analysis
         const menuRanking = Array.from(itemSales.entries()).map(([name, qty]) => {
-            // Find a sample item to get its price (or calculate average price)
-            // For simplicity, we'll find the first occurrence in ordersInMonth
-            let totalRevenue = 0;
-            let totalQty = 0;
-            ordersInMonth.forEach(o => {
-                o.items.forEach(i => {
-                    if (i.name === name) {
-                        totalRevenue += i.finalPrice * i.quantity;
-                        totalQty += i.quantity;
+            let totalItemProfit = 0;
+            let totalItemRevenue = 0;
+            let totalItemQty = 0;
+
+            // Calculate profit for each occurrence of this item
+            ordersInMonth.forEach(order => {
+                const itemsInOrder = order.items.filter(i => i.name === name);
+                if (itemsInOrder.length === 0) return;
+
+                itemsInOrder.forEach(item => {
+                    const sellingPrice = item.finalPrice;
+                    const itemQty = item.quantity;
+                    totalItemRevenue += sellingPrice * itemQty;
+                    totalItemQty += itemQty;
+
+                    // Find recipe
+                    const recipe = recipes.find(r => r.menuItemId === item.id);
+                    const costPerUnit = recipe ? (recipe.ingredients.reduce((sum, ing) => sum + (ing.quantity * (ing.unitPrice || 0)), 0) + recipe.additionalCost) : (sellingPrice * 0.6);
+
+                    if (order.orderType === 'lineman') {
+                        // Delivery Profit Formula
+                        const providerName = getDeliveryProviderName(order);
+                        const provider = deliveryProviders.find(p => p.name === providerName);
+                        const fixedAdCost = provider?.fixedAdCost || 0;
+                        
+                        const gp = item.deliveryGPs?.[provider?.id || ''] || 0;
+                        const tax = item.deliveryTaxes?.[provider?.id || ''] ?? taxRate;
+                        
+                        const gpAmount = sellingPrice * (gp / 100);
+                        const taxOnGP = gpAmount * (tax / 100);
+                        const adCostWithTax = fixedAdCost + (fixedAdCost * (tax / 100));
+                        
+                        // Distribute fixed ad cost across all items in the order to get per-item profit
+                        // Total items in order
+                        const totalItemsInOrder = order.items.reduce((sum, i) => sum + i.quantity, 0);
+                        const adCostPerUnit = totalItemsInOrder > 0 ? adCostWithTax / totalItemsInOrder : 0;
+
+                        const netProfitPerUnit = (sellingPrice - gpAmount - taxOnGP) - costPerUnit - adCostPerUnit;
+                        totalItemProfit += netProfitPerUnit * itemQty;
+                    } else {
+                        // Dine-in / Takeaway Profit (Simplified)
+                        // Assuming sellingPrice already includes tax or tax is handled separately
+                        const netProfitPerUnit = sellingPrice - costPerUnit;
+                        totalItemProfit += netProfitPerUnit * itemQty;
                     }
                 });
             });
-            const avgPrice = totalQty > 0 ? totalRevenue / totalQty : 0;
 
-            // Find recipe for this item
-            // We need to match by name or ID. Since itemSales uses name, we'll try to find a menu item with this name.
-            // This is a bit tricky since we only have names in itemSales.
-            // Let's assume names are unique enough for this dashboard.
-            const recipe = recipes.find(r => {
-                // We need to find the menu item ID first. 
-                // This is inefficient but necessary given the current structure.
-                return true; // Placeholder, we'll improve this
-            });
-
-            // Calculate Profit
-            // For now, let's just use a placeholder if recipe is missing
-            // In a real app, we'd have a more direct mapping.
-            // Let's calculate profit based on the first matching recipe we can find.
-            // We'll search for the menu item first.
-            let profitPerUnit = avgPrice * 0.4; // Default 40% margin if no recipe
-            
-            // Try to find the actual recipe
-            const sampleOrder = ordersInMonth.find(o => o.items.some(i => i.name === name));
-            const sampleItem = sampleOrder?.items.find(i => i.name === name);
-            if (sampleItem) {
-                const actualRecipe = recipes.find(r => r.menuItemId === sampleItem.id);
-                if (actualRecipe) {
-                    const cost = actualRecipe.ingredients.reduce((sum, ing) => sum + (ing.quantity * (ing.unitPrice || 0)), 0) + actualRecipe.additionalCost;
-                    profitPerUnit = avgPrice - cost;
-                }
-            }
+            const avgPrice = totalItemQty > 0 ? totalItemRevenue / totalItemQty : 0;
+            const profitPerUnit = totalItemQty > 0 ? totalItemProfit / totalItemQty : 0;
 
             return {
                 name,
                 quantity: qty,
-                totalProfit: profitPerUnit * qty,
+                totalProfit: totalItemProfit,
                 profitPerUnit
             };
         });
@@ -576,7 +587,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
             bottom5,
             hasData: ordersInMonth.length > 0
         };
-    }, [completedOrders, startDate, endDate, currentUser, recipes, menuSortMode]);
+    }, [completedOrders, startDate, endDate, currentUser, recipes, menuSortMode, deliveryProviders]);
 
 
     const handleHourlyTrafficClick = (index: number) => {
