@@ -127,18 +127,26 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({
         }
     };
     
+    const providerColor = useMemo(() => {
+        const providerName = order.orderType === 'lineman' ? 'LineMan' : (order.tableName || order.customerName || 'Delivery');
+        const provider = deliveryProviders.find(p => p.name.toLowerCase() === providerName.toLowerCase());
+        return provider?.color || '#3b82f6'; // Default blue
+    }, [order.orderType, order.tableName, order.customerName, deliveryProviders]);
+
     const cardClasses = useMemo(() => {
         if (order.isDeleted) {
             return "bg-red-50/50 rounded-lg shadow-md border border-red-200 overflow-hidden transition-colors opacity-70";
         }
-        let base = "bg-white rounded-lg shadow-md border overflow-hidden transition-colors ";
+        let base = "relative bg-white rounded-lg shadow-md border overflow-hidden transition-colors ";
         if (isEditMode && isSelected) {
             base += "border-blue-400 bg-blue-50 ring-2 ring-blue-300";
+        } else if (order.isFromAd) {
+            base += "border-2";
         } else {
             base += "border-gray-200";
         }
         return base;
-    }, [isEditMode, isSelected, order.isDeleted]);
+    }, [isEditMode, isSelected, order.isDeleted, order.isFromAd]);
 
     const handleViewSlip = (e: React.MouseEvent) => {
         e.stopPropagation();
@@ -192,7 +200,15 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({
 
     return (
         <>
-            <div className={cardClasses}>
+            <div className={cardClasses} style={order.isFromAd ? { borderColor: providerColor } : {}}>
+                {order.isFromAd && (
+                    <div 
+                        className="absolute top-0 right-0 px-2 py-0.5 text-[10px] font-bold text-white rounded-bl-lg z-10 shadow-sm"
+                        style={{ backgroundColor: providerColor }}
+                    >
+                        โฆษณา
+                    </div>
+                )}
                 <header className={`p-4 flex justify-between items-start ${order.isDeleted ? 'bg-red-100/60' : 'bg-gray-50'}`} >
                     <div className="flex items-center gap-4 flex-1 overflow-hidden">
                         {isEditMode && (

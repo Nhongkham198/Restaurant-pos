@@ -98,6 +98,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
             let totalAdCost = 0;
             let totalTaxOnGP = 0;
             let totalTaxOnAd = 0;
+            const adOrderCounts: Record<string, number> = {};
 
             dayOrders.forEach(order => {
                 const isDelivery = order.orderType === 'lineman';
@@ -133,6 +134,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
                     
                     totalAdCost += fixedAdCost;
                     totalTaxOnAd += taxOnAd;
+                    
+                    adOrderCounts[provider.name] = (adOrderCounts[provider.name] || 0) + 1;
                 }
             });
 
@@ -144,6 +147,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
                 cost: totalCost,
                 gp: totalGP + totalTaxOnGP,
                 adCost: totalAdCost + totalTaxOnAd,
+                adOrderCounts,
                 netProfit
             };
         });
@@ -1092,7 +1096,27 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
                                                 <td className="px-6 py-4 text-sm text-gray-700 text-right">{day.revenue.toLocaleString()}</td>
                                                 <td className="px-6 py-4 text-sm text-gray-500 text-right">{day.cost.toLocaleString()}</td>
                                                 <td className="px-6 py-4 text-sm text-red-400 text-right">{day.gp > 0 ? `-${day.gp.toLocaleString()}` : '0'}</td>
-                                                <td className="px-6 py-4 text-sm text-orange-400 text-right">{day.adCost > 0 ? `-${day.adCost.toLocaleString()}` : '0'}</td>
+                                                <td className="px-6 py-4 text-sm text-orange-400 text-right">
+                                                    {day.adCost > 0 ? (
+                                                        <div className="flex flex-col items-end">
+                                                            <span>-{day.adCost.toLocaleString()}</span>
+                                                            <div className="flex flex-wrap justify-end gap-1 mt-1">
+                                                                {Object.entries(day.adOrderCounts).map(([name, count]) => {
+                                                                    const provider = deliveryProviders.find(p => p.name === name);
+                                                                    return (
+                                                                        <span 
+                                                                            key={name} 
+                                                                            className="text-[10px] px-1 rounded-sm text-white font-bold"
+                                                                            style={{ backgroundColor: provider?.color || '#f97316' }}
+                                                                        >
+                                                                            {name}: {count}
+                                                                        </span>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        </div>
+                                                    ) : '0'}
+                                                </td>
                                                 <td className={`px-6 py-4 text-sm font-black text-right ${day.netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                                                     {day.netProfit.toLocaleString()}
                                                 </td>
