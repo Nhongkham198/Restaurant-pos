@@ -128,9 +128,33 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({
     };
     
     const providerColor = useMemo(() => {
-        const providerName = order.orderType === 'lineman' ? 'LineMan' : (order.tableName || order.customerName || 'Delivery');
+        // 1. Determine provider name
+        let providerName = 'Delivery';
+        if (order.orderType === 'lineman') {
+            if (order.tableName && order.tableName !== 'Delivery' && order.tableName !== 'Unknown') {
+                providerName = order.tableName;
+            } else if (order.customerName) {
+                providerName = order.customerName.split('#')[0].trim();
+            } else {
+                providerName = 'LineMan';
+            }
+        } else {
+            providerName = order.tableName || order.customerName || 'Dine-in';
+        }
+
+        // 2. Try to find in configured providers
         const provider = deliveryProviders.find(p => p.name.toLowerCase() === providerName.toLowerCase());
-        return provider?.color || '#3b82f6'; // Default blue
+        if (provider?.color) return provider.color;
+
+        // 3. Fallback to standard brand colors
+        const name = providerName.toLowerCase();
+        if (name.includes('shopeefood') || name.includes('shopee')) return '#FF5722'; // Shopee Orange
+        if (name.includes('lineman')) return '#00B14F'; // LineMan Green
+        if (name.includes('grab')) return '#00B14F'; // Grab Green
+        if (name.includes('foodpanda')) return '#D70F64'; // FoodPanda Pink
+        if (name.includes('robinhood')) return '#802D8C'; // Robinhood Purple
+        
+        return '#3b82f6'; // Default blue
     }, [order.orderType, order.tableName, order.customerName, deliveryProviders]);
 
     const cardClasses = useMemo(() => {

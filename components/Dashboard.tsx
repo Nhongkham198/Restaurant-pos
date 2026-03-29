@@ -102,8 +102,18 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
 
             dayOrders.forEach(order => {
                 const isDelivery = order.orderType === 'lineman';
-                const providerName = getDeliveryProviderName(order);
-                const provider = deliveryProviders.find(p => p.name === providerName);
+                
+                // Identify provider name consistently
+                let providerName = 'LineMan';
+                if (isDelivery) {
+                    if (order.tableName && order.tableName !== 'Delivery' && order.tableName !== 'Unknown') {
+                        providerName = order.tableName;
+                    } else if (order.customerName) {
+                        providerName = order.customerName.split('#')[0].trim();
+                    }
+                }
+
+                const provider = deliveryProviders.find(p => p.name.toLowerCase() === providerName.toLowerCase());
                 
                 order.items.forEach(item => {
                     const sellingPrice = item.finalPrice;
@@ -135,7 +145,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
                     totalAdCost += fixedAdCost;
                     totalTaxOnAd += taxOnAd;
                     
-                    adOrderCounts[provider.name] = (adOrderCounts[provider.name] || 0) + 1;
+                    adOrderCounts[providerName] = (adOrderCounts[providerName] || 0) + 1;
                 }
             });
 
@@ -1102,12 +1112,25 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
                                                             <span>-{day.adCost.toLocaleString()}</span>
                                                             <div className="flex flex-wrap justify-end gap-1 mt-1">
                                                                 {Object.entries(day.adOrderCounts).map(([name, count]) => {
-                                                                    const provider = deliveryProviders.find(p => p.name === name);
+                                                                    const provider = deliveryProviders.find(p => p.name.toLowerCase() === name.toLowerCase());
+                                                                    
+                                                                    // Fallback colors for dashboard table
+                                                                    let color = provider?.color;
+                                                                    if (!color) {
+                                                                        const lowerName = name.toLowerCase();
+                                                                        if (lowerName.includes('shopeefood') || lowerName.includes('shopee')) color = '#FF5722';
+                                                                        else if (lowerName.includes('lineman')) color = '#00B14F';
+                                                                        else if (lowerName.includes('grab')) color = '#00B14F';
+                                                                        else if (lowerName.includes('foodpanda')) color = '#D70F64';
+                                                                        else if (lowerName.includes('robinhood')) color = '#802D8C';
+                                                                        else color = '#f97316';
+                                                                    }
+
                                                                     return (
                                                                         <span 
                                                                             key={name} 
                                                                             className="text-[10px] px-1 rounded-sm text-white font-bold"
-                                                                            style={{ backgroundColor: provider?.color || '#f97316' }}
+                                                                            style={{ backgroundColor: color }}
                                                                         >
                                                                             {name}: {count}
                                                                         </span>
