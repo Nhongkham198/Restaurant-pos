@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import type { CompletedOrder, CancelledOrder, PrintHistoryEntry, User } from '../types';
+import type { CompletedOrder, CancelledOrder, PrintHistoryEntry, User, Recipe, DeliveryProvider } from '../types';
 import { CompletedOrderCard } from './CompletedOrderCard';
 import { CancelledOrderCard } from './CancelledOrderCard';
 import { PrintHistoryCard } from './PrintHistoryCard';
@@ -22,6 +22,9 @@ interface SalesHistoryProps {
     onDeleteHistory: (completedIds: number[], cancelledIds: number[], printIds: number[]) => Promise<void>;
     currentUser: User | null;
     onReprintReceipt: (order: CompletedOrder) => void; // New Prop for actual receipt reprint
+    recipes: Recipe[];
+    deliveryProviders: DeliveryProvider[];
+    taxRate: number;
 }
 
 export const SalesHistory: React.FC<SalesHistoryProps> = ({
@@ -35,7 +38,10 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({
     onInitiateCashBill,
     onDeleteHistory,
     currentUser,
-    onReprintReceipt // Destructure
+    onReprintReceipt, // Destructure
+    recipes,
+    deliveryProviders,
+    taxRate
 }) => {
     const [activeTab, setActiveTab] = useState<'completed' | 'cancelled' | 'print'>('completed');
     const [filterType, setFilterType] = useState<'daily' | 'monthly' | 'year' | 'all'>('daily');
@@ -679,6 +685,9 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({
                                     isSelected={selectedCompletedIds.has(order.id)}
                                     onToggleSelection={(id) => toggleSelect(id, 'completed')}
                                     onReprintReceipt={onReprintReceipt} // Pass new prop
+                                    recipes={recipes}
+                                    deliveryProviders={deliveryProviders}
+                                    taxRate={taxRate}
                                 />
                             ))}
                         </div>

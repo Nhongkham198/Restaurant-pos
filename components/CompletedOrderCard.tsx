@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import type { CompletedOrder } from '../types';
+import type { CompletedOrder, Recipe, DeliveryProvider } from '../types';
 import Swal from 'sweetalert2';
 
 interface CompletedOrderCardProps {
@@ -12,6 +12,9 @@ interface CompletedOrderCardProps {
     isSelected: boolean;
     onToggleSelection: (orderId: number) => void;
     onReprintReceipt: (order: CompletedOrder) => void; // New Prop
+    recipes: Recipe[];
+    deliveryProviders: DeliveryProvider[];
+    taxRate: number;
 }
 
 export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({ 
@@ -22,7 +25,10 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({
     onInitiateCashBill, 
     isSelected, 
     onToggleSelection,
-    onReprintReceipt // Destructure new prop
+    onReprintReceipt, // Destructure new prop
+    recipes,
+    deliveryProviders,
+    taxRate
 }) => {
     const [isExpanded, setIsExpanded] = useState(false);
     
@@ -43,6 +49,61 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({
     }, [order.items, order.taxAmount]);
 
     const completionDate = useMemo(() => new Date(order.completionTime).toLocaleString('th-TH'), [order.completionTime]);
+
+    // --- Profit Calculation ---
+    const profitDetails = useMemo(() => {
+        let totalRevenue = total;
+        let totalRawMaterialCost = 0;
+        let totalGPCost = 0;
+        let totalGPTax = 0;
+        let fixedAdCost = 0;
+        let adCostTax = 0;
+
+        // Find delivery provider
+        const providerName = order.orderType === 'lineman' ? 'LineMan' : (order.tableName || order.customerName || 'Delivery');
+        const provider = deliveryProviders.find(p => p.name.toLowerCase() === providerName.toLowerCase());
+
+        if (order.orderType === 'lineman') {
+            fixedAdCost = provider?.fixedAdCost || 0;
+            adCostTax = fixedAdCost * (taxRate / 100);
+        }
+
+        order.items.forEach(item => {
+            // Raw Material Cost
+            const recipe = recipes.find(r => r.menuItemId === item.id);
+            if (recipe) {
+                const ingredientCost = recipe.ingredients.reduce((sum, ing) => sum + (ing.quantity * (ing.unitPrice || 0)), 0);
+                const baseCost = ingredientCost + recipe.additionalCost;
+                const hiddenCost = baseCost * ((recipe.hiddenCostPercentage || 0) / 100);
+                totalRawMaterialCost += (baseCost + hiddenCost) * item.quantity;
+            }
+
+            // GP and GP Tax
+            if (order.orderType === 'lineman') {
+                const gpPercent = item.deliveryGPs?.[provider?.id || ''] || 0;
+                const gpTaxPercent = item.deliveryTaxes?.[provider?.id || ''] || 0;
+                
+                const itemGP = (item.finalPrice * item.quantity) * (gpPercent / 100);
+                const itemGPTax = itemGP * (gpTaxPercent / 100);
+                
+                totalGPCost += itemGP;
+                totalGPTax += itemGPTax;
+            }
+        });
+
+        const netProfit = totalRevenue - totalRawMaterialCost - totalGPCost - totalGPTax - fixedAdCost - adCostTax;
+        
+        return {
+            totalRevenue,
+            totalRawMaterialCost,
+            totalGPCost,
+            totalGPTax,
+            fixedAdCost,
+            adCostTax,
+            netProfit,
+            providerName: provider?.name || 'ทั่วไป'
+        };
+    }, [order, recipes, deliveryProviders, taxRate]);
     
     const cardClasses = useMemo(() => {
         if (order.isDeleted) {
@@ -165,7 +226,7 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({
                         <div className="grid grid-cols-2 gap-4 mb-4 text-base">
                             <div className={order.isDeleted ? 'text-gray-500' : 'text-gray-600'}>
                                 <p><strong>ลูกค้า:</strong> {order.customerCount} คน</p>
-                                <p><strong>ประเภท:</strong> {order.orderType === 'dine-in' ? 'ทานที่ร้าน' : 'กลับบ้าน'}</p>
+                                <p><strong>ประเภท:</strong> {order.orderType === 'dine-in' ? 'ทานที่ร้าน' : order.orderType === 'takeaway' ? 'กลับบ้าน' : `เดลิเวอรี่ (${profitDetails.providerName})`}</p>
                                 {order.parentOrderId && <p><strong>แยกจากบิล:</strong> #{String(order.parentOrderId).padStart(4, '0')}</p>}
                             </div>
                             <div className={order.isDeleted ? 'text-gray-500' : 'text-gray-600'}>
@@ -199,6 +260,56 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({
                                 {order.taxAmount > 0 && <p><strong>ภาษี ({order.taxRate}%):</strong> {order.taxAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} ฿</p>}
                             </div>
                         </div>
+
+                        {/* Profit Summary Section */}
+                        {!order.isDeleted && (
+                            <div className="mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                                <h4 className="text-sm font-bold text-gray-700 mb-2 flex items-center gap-2">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                                    </svg>
+                                    สรุปกำไรเบื้องต้น
+                                </h4>
+                                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+                                    <div className="text-gray-500">ยอดขายรวม:</div>
+                                    <div className="text-right font-medium text-gray-800">{profitDetails.totalRevenue.toLocaleString(undefined, { minimumFractionDigits: 2 })} ฿</div>
+                                    
+                                    <div className="text-gray-500">ต้นทุนวัตถุดิบ:</div>
+                                    <div className="text-right font-medium text-red-600">-{profitDetails.totalRawMaterialCost.toLocaleString(undefined, { minimumFractionDigits: 2 })} ฿</div>
+                                    
+                                    {order.orderType === 'lineman' && (
+                                        <>
+                                            <div className="text-gray-500">ค่า GP ({profitDetails.providerName}):</div>
+                                            <div className="text-right font-medium text-red-600">-{profitDetails.totalGPCost.toLocaleString(undefined, { minimumFractionDigits: 2 })} ฿</div>
+                                            
+                                            <div className="text-gray-500">ภาษี GP (VAT):</div>
+                                            <div className="text-right font-medium text-red-600">-{profitDetails.totalGPTax.toLocaleString(undefined, { minimumFractionDigits: 2 })} ฿</div>
+                                            
+                                            {profitDetails.fixedAdCost > 0 && (
+                                                <>
+                                                    <div className="text-gray-500">ค่าโฆษณาคงที่:</div>
+                                                    <div className="text-right font-medium text-red-600">-{profitDetails.fixedAdCost.toLocaleString(undefined, { minimumFractionDigits: 2 })} ฿</div>
+                                                    
+                                                    <div className="text-gray-500">ภาษีค่าโฆษณา:</div>
+                                                    <div className="text-right font-medium text-red-600">-{profitDetails.adCostTax.toLocaleString(undefined, { minimumFractionDigits: 2 })} ฿</div>
+                                                </>
+                                            )}
+                                        </>
+                                    )}
+                                    
+                                    <div className="col-span-2 border-t my-1"></div>
+                                    
+                                    <div className="font-bold text-gray-800">กำไรสุทธิ:</div>
+                                    <div className={`text-right font-bold ${profitDetails.netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                        {profitDetails.netProfit.toLocaleString(undefined, { minimumFractionDigits: 2 })} ฿
+                                    </div>
+                                    
+                                    <div className="text-xs text-gray-400 italic col-span-2 mt-1">
+                                        * หลังจากจ่ายให้ {profitDetails.providerName} และหักต้นทุนแล้ว เราเหลือเงินเข้ากระเป๋าจริงๆ เท่าไหร่
+                                    </div>
+                                </div>
+                            </div>
+                        )}
 
                         <div className="space-y-2 border-t pt-3">
                             <h4 className="font-semibold text-gray-700 mb-2">รายการอาหาร</h4>
