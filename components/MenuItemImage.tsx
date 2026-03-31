@@ -89,7 +89,6 @@ export const MenuItemImage: React.FC<MenuItemImageProps> = ({ src, alt, classNam
                     className={`w-full h-full object-cover transition-opacity duration-500 ${isLoaded ? 'opacity-100' : 'opacity-0'}`}
                     onLoad={handleLoad}
                     onError={handleError}
-                    loading="lazy"
                 />
             ) : (
                 // Placeholder for permanent error or if no src is provided

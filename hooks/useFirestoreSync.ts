@@ -191,8 +191,7 @@ export interface CollectionActions<T> {
 
 export function useFirestoreCollection<T extends { id: number | string }>(
     branchId: string | null,
-    collectionName: string,
-    queryFn?: (ref: firebase.firestore.CollectionReference) => firebase.firestore.Query
+    collectionName: string
 ): [T[], CollectionActions<T>] {
     const [data, setData] = useState<T[]>([]);
 
@@ -200,9 +199,8 @@ export function useFirestoreCollection<T extends { id: number | string }>(
         if (!db || !branchId) return;
 
         const collectionRef = db.collection(`branches/${branchId}/${collectionName}`);
-        const query = queryFn ? queryFn(collectionRef) : collectionRef;
 
-        const unsubscribe = query.onSnapshot(snapshot => {
+        const unsubscribe = collectionRef.onSnapshot(snapshot => {
             const items: T[] = [];
             snapshot.forEach(doc => {
                 items.push(doc.data() as T);
@@ -213,7 +211,7 @@ export function useFirestoreCollection<T extends { id: number | string }>(
         });
 
         return () => unsubscribe();
-    }, [branchId, collectionName, queryFn]);
+    }, [branchId, collectionName]);
 
     const actions: CollectionActions<T> = {
         add: async (item: T) => {

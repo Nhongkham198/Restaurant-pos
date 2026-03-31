@@ -118,36 +118,6 @@ const PageLoading = () => (
     </div>
 );
 
-// Menu Skeleton for "Instant" feel
-const MenuSkeleton = () => (
-    <div className="h-screen w-screen bg-gray-50 flex flex-col overflow-hidden animate-pulse">
-        <header className="bg-white shadow-sm h-14 w-full flex items-center px-4 justify-between">
-            <div className="h-6 w-32 bg-gray-200 rounded"></div>
-            <div className="h-8 w-20 bg-gray-200 rounded-lg"></div>
-        </header>
-        <div className="px-4 py-3 flex justify-between items-center border-b bg-white">
-            <div className="h-6 w-24 bg-gray-200 rounded-full"></div>
-            <div className="h-6 w-20 bg-gray-200 rounded-md"></div>
-        </div>
-        <div className="flex-1 p-4 grid grid-cols-2 gap-4 overflow-hidden">
-            {[...Array(6)].map((_, i) => (
-                <div key={i} className="bg-white rounded-xl shadow-sm h-48 flex flex-col overflow-hidden">
-                    <div className="h-28 bg-gray-200"></div>
-                    <div className="p-2 space-y-2">
-                        <div className="h-4 w-3/4 bg-gray-200 rounded"></div>
-                        <div className="h-4 w-1/2 bg-gray-200 rounded"></div>
-                    </div>
-                </div>
-            ))}
-        </div>
-        <div className="h-16 bg-white border-t flex items-center px-4 justify-around">
-            <div className="h-10 w-10 bg-gray-200 rounded-full"></div>
-            <div className="h-10 w-10 bg-gray-200 rounded-full"></div>
-            <div className="h-10 w-10 bg-gray-200 rounded-full"></div>
-        </div>
-    </div>
-);
-
 export const App: React.FC = () => {
     // 1. STATE INITIALIZATION
     const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 1024);
@@ -244,11 +214,6 @@ export const App: React.FC = () => {
         const params = new URLSearchParams(window.location.search);
         const tableIdParam = params.get('tableId');
         const branchIdParam = params.get('branchId');
-
-        // Pre-load CustomerView if we detect customer mode parameters
-        if (tableIdParam && branchIdParam) {
-            import('./components/CustomerView').catch(err => console.error("Preload failed", err));
-        }
 
         if (tableIdParam && branchIdParam) {
             const tId = parseInt(tableIdParam, 10);
@@ -1406,7 +1371,7 @@ export const App: React.FC = () => {
         if (customerTable) {
              const visibleMenuItems = menuItems.filter(item => item.isVisible !== false);
              return (
-                <Suspense fallback={<MenuSkeleton />}>
+                <Suspense fallback={<PageLoading />}>
                     <CustomerView 
                         table={customerTable}
                         menuItems={visibleMenuItems}
