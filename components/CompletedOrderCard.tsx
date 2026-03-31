@@ -54,7 +54,7 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({
 
     // --- Profit Calculation ---
     const profitDetails = useMemo(() => {
-        let totalRevenue = total;
+        let totalRevenue = 0;
         let totalRawMaterialCost = 0;
         let totalGPCost = 0;
         let totalGPTax = 0;
@@ -72,6 +72,19 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({
         }
 
         order.items.forEach(item => {
+            // Revenue calculation: Use delivery price if isFromAd is true, otherwise use finalPrice
+            let itemRevenue = item.finalPrice * item.quantity;
+            if (order.isFromAd && provider && item.deliveryPrices?.[provider.id]) {
+                // Use delivery price from recipe, but add options price modifier if any
+                // Actually, the user said "เลือกราคาขายDeliveryในหน้าสูตรอาหารมาแสดง"
+                // Usually delivery price in recipe already includes base price.
+                // If there are options, we should probably add them too? 
+                // But the user's request sounds like they want the specific price from the recipe.
+                // Let's assume the delivery price in recipe is the total price for that item.
+                itemRevenue = (item.deliveryPrices[provider.id]) * item.quantity;
+            }
+            totalRevenue += itemRevenue;
+
             // Raw Material Cost
             const recipe = recipes.find(r => r.menuItemId === item.id);
             if (recipe) {
@@ -86,13 +99,22 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({
                 const gpPercent = item.deliveryGPs?.[provider?.id || ''] || 0;
                 const gpTaxPercent = item.deliveryTaxes?.[provider?.id || ''] || 0;
                 
-                const itemGP = (item.finalPrice * item.quantity) * (gpPercent / 100);
+                // Use the same revenue basis for GP calculation
+                const itemGP = itemRevenue * (gpPercent / 100);
                 const itemGPTax = itemGP * (gpTaxPercent / 100);
                 
                 totalGPCost += itemGP;
                 totalGPTax += itemGPTax;
             }
         });
+
+        // Add order-level tax if not using delivery prices (if using delivery prices, tax is usually included or handled differently)
+        // But the original code added order.taxAmount to totalRevenue.
+        // If isFromAd is false, totalRevenue starts as 0 and adds item.finalPrice * qty.
+        // We should add order.taxAmount if isFromAd is false.
+        if (!order.isFromAd) {
+            totalRevenue += order.taxAmount;
+        }
 
         const netProfit = totalRevenue - totalRawMaterialCost - totalGPCost - totalGPTax - fixedAdCost - adCostTax;
         
@@ -346,7 +368,7 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({
                                     )}
                                 </div>
                                 <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-                                    <div className="text-gray-500">ยอดขายรวม:</div>
+                                    <div className="text-gray-500">{order.isFromAd ? 'ยอดขาย Delivery:' : 'ยอดขายรวม:'}</div>
                                     <div className="text-right font-medium text-gray-800">{profitDetails.totalRevenue.toLocaleString(undefined, { minimumFractionDigits: 2 })} ฿</div>
                                     
                                     <div className="text-gray-500">ต้นทุนวัตถุดิบ:</div>

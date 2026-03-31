@@ -116,7 +116,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
                 const provider = deliveryProviders.find(p => p.name.toLowerCase() === providerName.toLowerCase());
                 
                 order.items.forEach(item => {
-                    const sellingPrice = item.finalPrice;
+                    let sellingPrice = item.finalPrice;
+                    if (order.isFromAd && provider && item.deliveryPrices?.[provider.id]) {
+                        sellingPrice = item.deliveryPrices[provider.id];
+                    }
                     const itemQty = item.quantity;
                     totalRevenue += sellingPrice * itemQty;
 
@@ -317,15 +320,25 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
         // Stats use global filtered orders (not hour filtered) to show daily summary unless we want dynamic stats too.
         // Usually dashboard stats remain for the day. Let's keep them day-based.
         const totalSales = filteredCompletedOrders.reduce((sum, order) => {
+            const isDelivery = order.orderType === 'lineman';
+            const providerName = isDelivery ? getDeliveryProviderName(order) : null;
+            const provider = providerName ? deliveryProviders.find(p => p.name.toLowerCase() === providerName.toLowerCase()) : null;
+
             const subtotal = order.items.reduce((itemSum, item) => {
                 // Apply Category Filter to Sum if active
                 if (selectedCategoryFilter && (item.category || 'ไม่มีหมวดหมู่') !== selectedCategoryFilter) {
                     return itemSum;
                 }
-                return itemSum + item.finalPrice * item.quantity;
+                
+                let sellingPrice = item.finalPrice;
+                if (order.isFromAd && provider && item.deliveryPrices?.[provider.id]) {
+                    sellingPrice = item.deliveryPrices[provider.id];
+                }
+                
+                return itemSum + sellingPrice * item.quantity;
             }, 0);
             
-            return sum + subtotal + (selectedCategoryFilter ? 0 : order.taxAmount);
+            return sum + subtotal + (selectedCategoryFilter || order.isFromAd ? 0 : order.taxAmount);
         }, 0);
         
         const totalCustomers = filteredCompletedOrders.reduce((sum, order) => sum + order.customerCount, 0);
@@ -353,17 +366,30 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
                 const dayIndex = days.findIndex(d => d.getDate() === orderDate.getDate() && d.getMonth() === orderDate.getMonth() && d.getFullYear() === orderDate.getFullYear());
                 if (dayIndex > -1) {
                     let orderTotal = 0;
+                    const isDelivery = order.orderType === 'lineman';
+                    const providerName = isDelivery ? getDeliveryProviderName(order) : null;
+                    const provider = providerName ? deliveryProviders.find(p => p.name.toLowerCase() === providerName.toLowerCase()) : null;
                     
                     if (selectedCategoryFilter) {
                         orderTotal = order.items.reduce((sum, item) => {
                             const itemCategory = item.category || 'ไม่มีหมวดหมู่';
                             if (itemCategory === selectedCategoryFilter) {
-                                return sum + (item.finalPrice * item.quantity);
+                                let sellingPrice = item.finalPrice;
+                                if (order.isFromAd && provider && item.deliveryPrices?.[provider.id]) {
+                                    sellingPrice = item.deliveryPrices[provider.id];
+                                }
+                                return sum + (sellingPrice * item.quantity);
                             }
                             return sum;
                         }, 0);
                     } else {
-                        orderTotal = order.items.reduce((sum, item) => sum + item.finalPrice * item.quantity, 0) + order.taxAmount;
+                        orderTotal = order.items.reduce((sum, item) => {
+                            let sellingPrice = item.finalPrice;
+                            if (order.isFromAd && provider && item.deliveryPrices?.[provider.id]) {
+                                sellingPrice = item.deliveryPrices[provider.id];
+                            }
+                            return sum + sellingPrice * item.quantity;
+                        }, 0) + (order.isFromAd ? 0 : order.taxAmount);
                     }
 
                     salesByDay[dayIndex] += orderTotal;
@@ -394,17 +420,30 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
                 const hourIndex = hours.indexOf(orderHour);
                 if (hourIndex > -1) {
                     let orderTotal = 0;
+                    const isDelivery = order.orderType === 'lineman';
+                    const providerName = isDelivery ? getDeliveryProviderName(order) : null;
+                    const provider = providerName ? deliveryProviders.find(p => p.name.toLowerCase() === providerName.toLowerCase()) : null;
 
                     if (selectedCategoryFilter) {
                         orderTotal = order.items.reduce((sum, item) => {
                             const itemCategory = item.category || 'ไม่มีหมวดหมู่';
                             if (itemCategory === selectedCategoryFilter) {
-                                return sum + (item.finalPrice * item.quantity);
+                                let sellingPrice = item.finalPrice;
+                                if (order.isFromAd && provider && item.deliveryPrices?.[provider.id]) {
+                                    sellingPrice = item.deliveryPrices[provider.id];
+                                }
+                                return sum + (sellingPrice * item.quantity);
                             }
                             return sum;
                         }, 0);
                     } else {
-                        orderTotal = order.items.reduce((sum, item) => sum + item.finalPrice * item.quantity, 0) + order.taxAmount;
+                        orderTotal = order.items.reduce((sum, item) => {
+                            let sellingPrice = item.finalPrice;
+                            if (order.isFromAd && provider && item.deliveryPrices?.[provider.id]) {
+                                sellingPrice = item.deliveryPrices[provider.id];
+                            }
+                            return sum + sellingPrice * item.quantity;
+                        }, 0) + (order.isFromAd ? 0 : order.taxAmount);
                     }
 
                     salesByHour[hourIndex] += orderTotal;
@@ -480,9 +519,17 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
         const salesByCategory: Record<string, number> = {};
         
         ordersForCharts.forEach(order => {
+            const isDelivery = order.orderType === 'lineman';
+            const providerName = isDelivery ? getDeliveryProviderName(order) : null;
+            const provider = providerName ? deliveryProviders.find(p => p.name.toLowerCase() === providerName.toLowerCase()) : null;
+            
             order.items.forEach(item => {
                 const category = item.category || 'ไม่มีหมวดหมู่';
-                const itemTotal = item.finalPrice * item.quantity;
+                let sellingPrice = item.finalPrice;
+                if (order.isFromAd && provider && item.deliveryPrices?.[provider.id]) {
+                    sellingPrice = item.deliveryPrices[provider.id];
+                }
+                const itemTotal = sellingPrice * item.quantity;
                 salesByCategory[category] = (salesByCategory[category] || 0) + itemTotal;
             });
         });
@@ -576,7 +623,17 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
         ordersInMonth.forEach(o => {
             // Aggregate Sales by Date
             const dateKey = new Date(o.completionTime).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' });
-            const total = o.items.reduce((s, i) => s + (i.finalPrice * i.quantity), 0) + o.taxAmount;
+            const isDelivery = o.orderType === 'lineman';
+            const providerName = isDelivery ? getDeliveryProviderName(o) : null;
+            const provider = providerName ? deliveryProviders.find(p => p.name.toLowerCase() === providerName.toLowerCase()) : null;
+
+            const total = o.items.reduce((s, i) => {
+                let sellingPrice = i.finalPrice;
+                if (o.isFromAd && provider && i.deliveryPrices?.[provider.id]) {
+                    sellingPrice = i.deliveryPrices[provider.id];
+                }
+                return s + (sellingPrice * i.quantity);
+            }, 0) + (o.isFromAd ? 0 : o.taxAmount);
             salesByDate.set(dateKey, (salesByDate.get(dateKey) || 0) + total);
 
             // Aggregate Menu Items
@@ -609,8 +666,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
                 const itemsInOrder = order.items.filter(i => i.name === name);
                 if (itemsInOrder.length === 0) return;
 
+                const isDelivery = order.orderType === 'lineman';
+                const providerName = isDelivery ? getDeliveryProviderName(order) : null;
+                const provider = providerName ? deliveryProviders.find(p => p.name.toLowerCase() === providerName.toLowerCase()) : null;
+
                 itemsInOrder.forEach(item => {
-                    const sellingPrice = item.finalPrice;
+                    let sellingPrice = item.finalPrice;
+                    if (order.isFromAd && provider && item.deliveryPrices?.[provider.id]) {
+                        sellingPrice = item.deliveryPrices[provider.id];
+                    }
                     const itemQty = item.quantity;
                     totalItemRevenue += sellingPrice * itemQty;
                     totalItemQty += itemQty;
@@ -619,18 +683,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
                     const recipe = recipes.find(r => r.menuItemId === item.id);
                     const costPerUnit = recipe ? (recipe.ingredients.reduce((sum, ing) => sum + (ing.quantity * (ing.unitPrice || 0)), 0) + recipe.additionalCost) : (sellingPrice * 0.6);
 
-                    if (order.orderType === 'lineman') {
+                    if (isDelivery) {
                         // Delivery Profit Formula
-                        const providerName = getDeliveryProviderName(order);
-                        const provider = deliveryProviders.find(p => p.name === providerName);
-                        const fixedAdCost = provider?.fixedAdCost || 0;
+                        const fixedAdCost = (order.isFromAd && provider) ? provider.fixedAdCost || 0 : 0;
                         
                         const gp = item.deliveryGPs?.[provider?.id || ''] || 0;
                         const tax = item.deliveryTaxes?.[provider?.id || ''] ?? taxRate;
                         
                         const gpAmount = sellingPrice * (gp / 100);
                         const taxOnGP = gpAmount * (tax / 100);
-                        const adCostWithTax = fixedAdCost + (fixedAdCost * (tax / 100));
+                        const adCostWithTax = fixedAdCost + (fixedAdCost * (taxRate / 100));
                         
                         // Distribute fixed ad cost across all items in the order to get per-item profit
                         // Total items in order
