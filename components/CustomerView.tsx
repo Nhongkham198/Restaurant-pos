@@ -166,34 +166,13 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     });
 
     // --- NEW: Loading Screen State ---
-    const [isLoadingScreen, setIsLoadingScreen] = useState(() => {
-        if (sessionStorage.getItem(`customer_completed_${table.id}`) === 'true') return false;
-        if (sessionStorage.getItem(`has_seen_loading_${table.id}`)) return false;
-        return true;
-    });
+    const [isLoadingScreen, setIsLoadingScreen] = useState(false);
     const [loadingProgress, setLoadingProgress] = useState(0);
 
     useEffect(() => {
-        if (!isLoadingScreen) return;
-        const interval = setInterval(() => {
-            setLoadingProgress((prev) => {
-                if (prev >= 100) {
-                    clearInterval(interval);
-                    return 100;
-                }
-                return prev + 1; 
-            });
-        }, 120); 
-
-        if (loadingProgress === 100) {
-            setTimeout(() => {
-                setIsLoadingScreen(false);
-                sessionStorage.setItem(`has_seen_loading_${table.id}`, 'true');
-            }, 500); 
-        }
-
-        return () => clearInterval(interval);
-    }, [isLoadingScreen, loadingProgress, table.id]);
+        // No longer using artificial delay for "instant" feel
+        setIsLoadingScreen(false);
+    }, []);
 
     // --- NEW: Peeking Logic (แอบมองบิลที่เพิ่งจ่าย) ---
     const [recentTableCompletedOrders, setRecentTableCompletedOrders] = useState<CompletedOrder[]>([]);
@@ -893,40 +872,6 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         }
     }, [allBranchOrders, isAuthenticated, table.id, myItems.length, t]);
 
-    if (isLoadingScreen) {
-        return (
-            <div className="fixed inset-0 z-[9999] bg-white flex flex-col items-center justify-center animate-fade-in font-sans">
-                <div className="mb-10 relative flex justify-center items-center p-6">
-                    <div className="relative">
-                        <div className="absolute inset-0 bg-gray-200 rounded-full blur-2xl opacity-40 animate-pulse"></div>
-                        {logoUrl ? (
-                            <img
-                                src={logoUrl}
-                                alt="Restaurant Logo"
-                                className="w-48 h-48 object-contain relative z-10 drop-shadow-xl"
-                                crossOrigin="anonymous"
-                            />
-                        ) : (
-                             <div className="w-48 h-48 object-contain relative z-10 shimmer-effect rounded-lg"></div>
-                        )}
-                    </div>
-                </div>
-                <div className="text-center space-y-2 mb-8">
-                    <h2 className="text-lg font-medium text-gray-600 tracking-wide font-sarabun">กำลังเตรียมความอร่อย...</h2>
-                    <p className="text-gray-400 text-xs font-sarabun uppercase tracking-[0.2em]">Please wait</p>
-                </div>
-                <div className="w-48 h-1 bg-gray-100 rounded-full overflow-hidden relative">
-                    <div
-                        className="h-full bg-gray-800 rounded-full transition-all duration-100 ease-out shadow-[0_0_10px_rgba(0,0,0,0.2)]"
-                        style={{ width: `${loadingProgress}%` }}
-                    >
-                    </div>
-                </div>
-                <p className="mt-3 text-gray-400 font-mono text-xs font-semibold">{loadingProgress}%</p>
-            </div>
-        );
-    }
-    
     if (isSessionCompleted) {
         return (
             <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6 text-center animate-fade-in">
