@@ -395,14 +395,21 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
     // --- ESSENTIAL DATA ---
     const [menuItems, setMenuItems, isMenuItemsLoading] = useFirestoreSync<MenuItem[]>(branchId, 'menuItems', []);
-    const [recipes, setRecipes, isRecipesLoading] = useFirestoreSync<Recipe[]>(branchId, 'recipes', []);
+    const [recipes, setRecipes, isRecipesLoading] = useFirestoreSync<Recipe[]>(heavyDataBranchId, 'recipes', []);
     const [categories, setCategories, isCategoriesLoading] = useFirestoreSync<string[]>(branchId, 'categories', []);
     const [tables, setTables, isTablesLoading] = useFirestoreSync<Table[]>(branchId, 'tables', []);
-    const [floors, setFloors, isFloorsLoading] = useFirestoreSync<string[]>(branchId, 'floors', []);
+    const [floors, setFloors, isFloorsLoading] = useFirestoreSync<string[]>(heavyDataBranchId, 'floors', []);
     const [recommendedMenuItemIds, setRecommendedMenuItemIds, isRecommendedLoading] = useFirestoreSync<number[]>(branchId, 'recommendedMenuItemIds', []);
     
     // Active Orders
-    const [rawActiveOrders, activeOrdersActions] = useFirestoreCollection<ActiveOrder>(branchId, 'activeOrders');
+    const activeOrdersQueryFn = useMemo(() => {
+        if (isCustomerMode && customerTableId && customerTableId > 0) {
+            return (ref: any) => ref.where('tableId', '==', customerTableId);
+        }
+        return undefined;
+    }, [isCustomerMode, customerTableId]);
+
+    const [rawActiveOrders, activeOrdersActions] = useFirestoreCollection<ActiveOrder>(branchId, 'activeOrders', activeOrdersQueryFn);
     
     const activeOrders = useMemo(() => {
         return rawActiveOrders.filter(o => o.status !== 'completed' && o.status !== 'cancelled');

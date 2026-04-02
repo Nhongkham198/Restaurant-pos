@@ -30,7 +30,13 @@ export default defineConfig(({ mode }) => {
       },
       build: {
         rollupOptions: {
-          // No external dependencies
+          output: {
+            manualChunks: {
+              'vendor-react': ['react', 'react-dom'],
+              'vendor-firebase': ['firebase/compat/app', 'firebase/compat/firestore', 'firebase/compat/auth'],
+              'vendor-ui': ['sweetalert2', 'lucide-react', 'framer-motion'],
+            }
+          }
         },
       },
     };

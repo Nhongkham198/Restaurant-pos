@@ -191,14 +191,19 @@ export interface CollectionActions<T> {
 
 export function useFirestoreCollection<T extends { id: number | string }>(
     branchId: string | null,
-    collectionName: string
+    collectionName: string,
+    queryFn?: (ref: firebase.firestore.CollectionReference | firebase.firestore.Query) => firebase.firestore.Query
 ): [T[], CollectionActions<T>] {
     const [data, setData] = useState<T[]>([]);
 
     useEffect(() => {
         if (!db || !branchId) return;
 
-        const collectionRef = db.collection(`branches/${branchId}/${collectionName}`);
+        let collectionRef: firebase.firestore.CollectionReference | firebase.firestore.Query = db.collection(`branches/${branchId}/${collectionName}`);
+        
+        if (queryFn) {
+            collectionRef = queryFn(collectionRef);
+        }
 
         const unsubscribe = collectionRef.onSnapshot(snapshot => {
             const items: T[] = [];
