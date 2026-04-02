@@ -449,7 +449,7 @@ export const App: React.FC = () => {
         // In a real app, you'd check if they are already deducted in a payroll record.
         // For this request, we just count approved unpaid leaves to show the notification.
         return leaveRequests.filter(req => 
-            req.type === 'leave-without-pay' && 
+            (req.type === 'leave-without-pay' || req.type === 'vacation') && 
             req.status === 'approved' &&
             (currentUser.role === 'admin' || (currentUser.role === 'branch-admin' && currentUser.allowedBranchIds?.includes(req.branchId)))
         ).length;

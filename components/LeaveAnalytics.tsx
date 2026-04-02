@@ -108,7 +108,7 @@ export const LeaveAnalytics: React.FC<LeaveAnalyticsProps> = ({ leaveRequests, u
         switch (type) {
             case 'sick': return 'ลาป่วย';
             case 'personal': return 'ลากิจ';
-            case 'vacation': return 'ลาพักร้อน';
+            case 'vacation': return 'ลาไม่รับเงินเดือน';
             case 'leave-without-pay': return 'ลาไม่รับเงินเดือน';
             default: return 'อื่นๆ';
         }

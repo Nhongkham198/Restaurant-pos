@@ -692,8 +692,8 @@ exports.sendLeaveRequestNotification = functions.region('asia-southeast1').fires
                 const typeMap = {
                     'sick': 'ลาป่วย',
                     'personal': 'ลากิจ',
-                    'vacation': 'ลาพักร้อน',
-                    'leave-without-pay': 'ลาไม่รับค่าจ้าง',
+                    'vacation': 'ลาไม่รับเงินเดือน',
+                    'leave-without-pay': 'ลาไม่รับเงินเดือน',
                     'other': 'อื่นๆ'
                 };
                 
@@ -732,8 +732,8 @@ exports.sendLeaveRequestNotification = functions.region('asia-southeast1').fires
                 const typeMap = {
                     'sick': 'ลาป่วย',
                     'personal': 'ลากิจ',
-                    'vacation': 'ลาพักร้อน',
-                    'leave-without-pay': 'ลาไม่รับค่าจ้าง',
+                    'vacation': 'ลาไม่รับเงินเดือน',
+                    'leave-without-pay': 'ลาไม่รับเงินเดือน',
                     'other': 'อื่นๆ'
                 };
                 

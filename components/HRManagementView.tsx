@@ -78,7 +78,7 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                 <select id="swal-employee-select" class="swal2-input">${employeeOptions}</select>
                 <input id="swal-sick-days" type="number" class="swal2-input" placeholder="วันลาป่วย">
                 <input id="swal-personal-days" type="number" class="swal2-input" placeholder="วันลากิจ">
-                <input id="swal-vacation-days" type="number" class="swal2-input" placeholder="วันลาพักร้อน">
+                <input id="swal-vacation-days" type="number" class="swal2-input" placeholder="วันลาไม่รับเงินเดือน">
             `,
             focusConfirm: false,
             preConfirm: () => {
@@ -548,8 +548,7 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                 <select id="swal-leave-type" class="swal2-input">
                     <option value="sick">ลาป่วย</option>
                     <option value="personal">ลากิจ</option>
-                    <option value="vacation">ลาพักร้อน</option>
-                    <option value="leave-without-pay">ลาไม่รับเงินเดือน</option>
+                    <option value="vacation">ลาไม่รับเงินเดือน</option>
                     <option value="other">อื่นๆ</option>
                 </select>
                 <textarea id="swal-leave-reason" class="swal2-textarea" placeholder="เหตุผลการลา"></textarea>
@@ -635,7 +634,7 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
         if (newStatus === 'approved') {
             const employee = users.find(u => u.id === leaveRequest.userId);
             
-            if (leaveRequest.type === 'leave-without-pay') {
+            if (leaveRequest.type === 'vacation' || leaveRequest.type === 'leave-without-pay') {
                 const contract = employmentContracts.find(c => c.userId === leaveRequest.userId);
 
                 if (employee && contract) {
@@ -659,7 +658,14 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                         icon: 'warning',
                     });
                 }
-            } else if (['sick', 'personal', 'vacation'].includes(leaveRequest.type)) {
+                
+                // Also update quota for vacation type if it's the one used
+                if (leaveRequest.type === 'vacation' && employee && employee.leaveQuotas) {
+                    const newQuotas = { ...employee.leaveQuotas };
+                    newQuotas.vacation = Math.max(0, newQuotas.vacation - leaveDuration);
+                    setUsers(prevUsers => prevUsers.map(u => u.id === employee.id ? { ...u, leaveQuotas: newQuotas } : u));
+                }
+            } else if (['sick', 'personal'].includes(leaveRequest.type)) {
                 // Update quota for standard leave types
                 if (employee && employee.leaveQuotas) {
                     const newQuotas = { ...employee.leaveQuotas };
@@ -765,7 +771,7 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                          // Get all approved unpaid leaves for this user
                          const unpaidLeaves = leaveRequests.filter(l => 
                              l.userId === userId && 
-                             l.type === 'leave-without-pay' && 
+                             (l.type === 'leave-without-pay' || l.type === 'vacation') && 
                              l.status === 'approved'
                          );
 

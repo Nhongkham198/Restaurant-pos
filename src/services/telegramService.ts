@@ -87,8 +87,8 @@ export const formatLeaveRequestMessage = (request: any) => {
     const typeMap: Record<string, string> = {
         'sick': 'ลาป่วย',
         'personal': 'ลากิจ',
-        'vacation': 'ลาพักร้อน',
-        'leave-without-pay': 'ลาไม่รับค่าจ้าง',
+        'vacation': 'ลาไม่รับเงินเดือน',
+        'leave-without-pay': 'ลาไม่รับเงินเดือน',
         'other': 'อื่นๆ'
     };
 

@@ -93,11 +93,9 @@ export const LeaveRequestModal: React.FC<LeaveRequestModalProps> = ({ isOpen, on
     useEffect(() => {
         if (isOpen) {
             if (type === 'personal' && remainingPersonal <= 0) {
-                setType('leave-without-pay');
+                setType('sick');
             } else if (type === 'sick' && remainingSick <= 0) {
-                setType('leave-without-pay');
-            } else if (type === 'vacation' && remainingVacation <= 0) {
-                setType('leave-without-pay');
+                setType('personal');
             }
         }
     }, [isOpen, type, remainingPersonal, remainingSick, remainingVacation]);
@@ -129,15 +127,11 @@ export const LeaveRequestModal: React.FC<LeaveRequestModalProps> = ({ isOpen, on
         }
         
         if (type === 'personal' && remainingPersonal < duration) {
-             Swal.fire('สิทธิ์วันลาไม่พอ', `วันลากิจเหลือ ${remainingPersonal} วัน แต่คุณขอ ${duration} วัน ระบบจะเปลี่ยนเป็นลาไม่รับเงินเดือนแทนหรือไม่?`, 'question').then((result) => {
-                 if(result.isConfirmed) setType('leave-without-pay');
-             });
+             Swal.fire('สิทธิ์วันลาไม่พอ', `วันลากิจเหลือ ${remainingPersonal} วัน แต่คุณขอ ${duration} วัน กรุณาเลือกประเภทการลาอื่นหรือติดต่อฝ่ายบุคคล`, 'warning');
              return;
         }
         if (type === 'sick' && remainingSick < duration) {
-             Swal.fire('สิทธิ์วันลาไม่พอ', `วันลาป่วยเหลือ ${remainingSick} วัน แต่คุณขอ ${duration} วัน ระบบจะเปลี่ยนเป็นลาไม่รับเงินเดือนแทนหรือไม่?`, 'question').then((result) => {
-                 if(result.isConfirmed) setType('leave-without-pay');
-             });
+             Swal.fire('สิทธิ์วันลาไม่พอ', `วันลาป่วยเหลือ ${remainingSick} วัน แต่คุณขอ ${duration} วัน กรุณาเลือกประเภทการลาอื่นหรือติดต่อฝ่ายบุคคล`, 'warning');
              return;
         }
 
@@ -198,8 +192,7 @@ export const LeaveRequestModal: React.FC<LeaveRequestModalProps> = ({ isOpen, on
                         <select value={type} onChange={(e) => setType(e.target.value as LeaveRequest['type'])} className={inputClasses} required>
                             <option value="sick" disabled={remainingSick <= 0}>ลาป่วย (เหลือ {remainingSick} วัน)</option>
                             <option value="personal" disabled={remainingPersonal <= 0}>ลากิจ (เหลือ {remainingPersonal} วัน)</option>
-                            <option value="vacation" disabled={remainingVacation <= 0}>ลาพักร้อน (เหลือ {remainingVacation} วัน)</option>
-                            <option value="leave-without-pay">ลาไม่รับเงินเดือน</option>
+                            <option value="vacation" disabled={remainingVacation <= 0}>ลาไม่รับเงินเดือน (เหลือ {remainingVacation} วัน)</option>
                         </select>
                     </div>
                     <div>
@@ -209,7 +202,7 @@ export const LeaveRequestModal: React.FC<LeaveRequestModalProps> = ({ isOpen, on
                     <div className="text-sm text-gray-500 grid grid-cols-3 gap-2">
                         <p className="text-blue-600 font-bold">ลาป่วย: {remainingSick} วัน</p>
                         <p className="text-green-600 font-bold">ลากิจ: {remainingPersonal} วัน</p>
-                        <p className="text-purple-600 font-bold">พักร้อน: {remainingVacation} วัน</p>
+                        <p className="text-purple-600 font-bold">ลาไม่รับเงินเดือน: {remainingVacation} วัน</p>
                     </div>
                     <div className="flex justify-end gap-2 pt-4">
                         <button type="button" onClick={onClose} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300">ยกเลิก</button>
