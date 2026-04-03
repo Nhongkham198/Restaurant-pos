@@ -179,18 +179,25 @@ export const Header: React.FC<HeaderProps> = ({
     }, [currentUser]);
 
     const handleProfileClick = () => {
+        const hasMultipleBranches = currentUser && currentUser.allowedBranchIds && currentUser.allowedBranchIds.length > 1;
+
         Swal.fire({
             title: 'ยืนยันการออกจากระบบ',
             text: "ท่านต้องการออกจากระบบใช่ไหม?",
             icon: 'question',
             showCancelButton: true,
+            showDenyButton: hasMultipleBranches,
             confirmButtonText: 'ใช่',
+            denyButtonText: 'เปลี่ยนสาขา',
             cancelButtonText: 'ยกเลิก',
             confirmButtonColor: '#d33',
-            cancelButtonColor: '#3085d6'
+            denyButtonColor: '#3085d6',
+            cancelButtonColor: '#6e7881'
         }).then((result) => {
             if (result.isConfirmed) {
                 onLogout();
+            } else if (result.isDenied) {
+                onChangeBranch();
             }
         });
     };

@@ -1086,7 +1086,27 @@ export const App: React.FC = () => {
     };
     
     const handleMobileProfileClick = () => {
-        Swal.fire({ title: 'ยืนยันการออกจากระบบ', text: "ท่านต้องการออกจากระบบใช่ไหม?", icon: 'question', showCancelButton: true, confirmButtonText: 'ใช่', cancelButtonText: 'ยกเลิก' }).then((result) => { if (result.isConfirmed) handleLogout(); });
+        const hasMultipleBranches = currentUser && currentUser.allowedBranchIds && currentUser.allowedBranchIds.length > 1;
+
+        Swal.fire({
+            title: 'ยืนยันการออกจากระบบ',
+            text: "ท่านต้องการออกจากระบบใช่ไหม?",
+            icon: 'question',
+            showCancelButton: true,
+            showDenyButton: hasMultipleBranches,
+            confirmButtonText: 'ใช่',
+            denyButtonText: 'เปลี่ยนสาขา',
+            cancelButtonText: 'ยกเลิก',
+            confirmButtonColor: '#d33',
+            denyButtonColor: '#3085d6',
+            cancelButtonColor: '#6e7881'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                handleLogout();
+            } else if (result.isDenied) {
+                handleChangeBranch();
+            }
+        });
     };
     
     const handleSelectBranch = (branch: Branch) => { 

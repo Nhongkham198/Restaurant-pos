@@ -269,6 +269,30 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({
     const canEdit = currentUser.role === 'admin' || currentUser.role === 'branch-admin';
     const isAuditor = currentUser.role === 'auditor';
 
+    const handleProfileClick = () => {
+        const hasMultipleBranches = currentUser && currentUser.allowedBranchIds && currentUser.allowedBranchIds.length > 1;
+
+        Swal.fire({
+            title: 'ยืนยันการออกจากระบบ',
+            text: "ท่านต้องการออกจากระบบใช่ไหม?",
+            icon: 'question',
+            showCancelButton: true,
+            showDenyButton: hasMultipleBranches,
+            confirmButtonText: 'ใช่',
+            denyButtonText: 'เปลี่ยนสาขา',
+            cancelButtonText: 'ยกเลิก',
+            confirmButtonColor: '#d33',
+            denyButtonColor: '#3085d6',
+            cancelButtonColor: '#6e7881'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                onLogout();
+            } else if (result.isDenied) {
+                onChangeBranch();
+            }
+        });
+    };
+
     return (
         <aside className={`fixed top-0 left-0 z-40 h-screen bg-gray-800 border-r border-gray-700 transition-all duration-300 ${isCollapsed ? 'w-20' : 'w-64'} hidden md:block`}>
             <div className="flex flex-col h-full">
@@ -315,10 +339,10 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({
                 {/* User Profile */}
                 <div className="p-4 border-b border-gray-700 flex flex-col gap-3">
                     <div className={`flex items-center gap-3 ${isCollapsed ? 'justify-center' : ''}`}>
-                        <div className="relative group">
+                        <div className="relative group cursor-pointer" onClick={handleProfileClick}>
                             <img className="h-12 w-12 rounded-full object-cover" src={currentUser.profilePictureUrl || "https://img.icons8.com/fluency/48/user-male-circle.png"} alt="User"/>
                             {isEditMode && !isAuditor && (
-                                <button onClick={handleProfilePictureEdit} className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 flex items-center justify-center rounded-full transition-opacity cursor-pointer" title="เปลี่ยนรูปโปรไฟล์">
+                                <button onClick={(e) => { e.stopPropagation(); handleProfilePictureEdit(); }} className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 flex items-center justify-center rounded-full transition-opacity cursor-pointer" title="เปลี่ยนรูปโปรไฟล์">
                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white opacity-0 group-hover:opacity-100" viewBox="0 0 20 20" fill="currentColor">
                                         <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
                                     </svg>
