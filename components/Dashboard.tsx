@@ -26,6 +26,19 @@ const StatCard: React.FC<{ title: string; value: string; icon: React.ReactNode; 
     </div>
 );
 
+const getProviderColor = (name: string, deliveryProviders: DeliveryProvider[]) => {
+    const provider = deliveryProviders.find(p => p.name.toLowerCase() === name.toLowerCase());
+    if (provider?.color) return provider.color;
+    
+    const lowerName = name.toLowerCase();
+    if (lowerName.includes('shopeefood') || lowerName.includes('shopee')) return '#FF5722';
+    if (lowerName.includes('lineman')) return '#00B14F';
+    if (lowerName.includes('grab')) return '#00B14F';
+    if (lowerName.includes('foodpanda')) return '#D70F64';
+    if (lowerName.includes('robinhood')) return '#802D8C';
+    return '#f97316';
+};
+
 export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelledOrders, openingTime, closingTime, currentUser, recipes, deliveryProviders, taxRate }) => {
     // Initialize with today's date
     const [viewMode, setViewMode] = useState<'daily' | 'monthly'>('daily');
@@ -99,6 +112,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
             let totalTaxOnGP = 0;
             let totalTaxOnAd = 0;
             const adOrderCounts: Record<string, number> = {};
+            const gpByProvider: Record<string, number> = {};
 
             dayOrders.forEach(order => {
                 const isDelivery = order.orderType === 'lineman';
@@ -135,8 +149,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
                         const gpAmount = sellingPrice * (gp / 100);
                         const taxOnGP = gpAmount * (tax / 100);
                         
+                        const totalGPForItem = (gpAmount + taxOnGP) * itemQty;
                         totalGP += gpAmount * itemQty;
                         totalTaxOnGP += taxOnGP * itemQty;
+                        
+                        gpByProvider[providerName] = (gpByProvider[providerName] || 0) + totalGPForItem;
                     }
                 });
 
@@ -159,6 +176,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
                 revenue: totalRevenue,
                 cost: totalCost,
                 gp: totalGP + totalTaxOnGP,
+                gpByProvider,
                 adCost: totalAdCost + totalTaxOnAd,
                 adOrderCounts,
                 netProfit
@@ -1167,37 +1185,38 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
                                                 <td className="px-6 py-4 text-sm font-bold text-gray-800">{day.date}</td>
                                                 <td className="px-6 py-4 text-sm text-gray-700 text-right">{day.revenue.toLocaleString()}</td>
                                                 <td className="px-6 py-4 text-sm text-gray-500 text-right">{day.cost.toLocaleString()}</td>
-                                                <td className="px-6 py-4 text-sm text-red-400 text-right">{day.gp > 0 ? `-${day.gp.toLocaleString()}` : '0'}</td>
+                                                <td className="px-6 py-4 text-sm text-red-400 text-right">
+                                                    {day.gp > 0 ? (
+                                                        <div className="flex flex-col items-end">
+                                                            <span>-{day.gp.toLocaleString()}</span>
+                                                            <div className="flex flex-wrap justify-end gap-1 mt-1">
+                                                                {Object.entries(day.gpByProvider).map(([name, amount]) => (
+                                                                    <span 
+                                                                        key={name} 
+                                                                        className="text-[10px] px-1 rounded-sm text-white font-bold"
+                                                                        style={{ backgroundColor: getProviderColor(name, deliveryProviders) }}
+                                                                    >
+                                                                        {name}: {amount.toLocaleString()}
+                                                                    </span>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    ) : '0'}
+                                                </td>
                                                 <td className="px-6 py-4 text-sm text-orange-400 text-right">
                                                     {day.adCost > 0 ? (
                                                         <div className="flex flex-col items-end">
                                                             <span>-{day.adCost.toLocaleString()}</span>
                                                             <div className="flex flex-wrap justify-end gap-1 mt-1">
-                                                                {Object.entries(day.adOrderCounts).map(([name, count]) => {
-                                                                    const provider = deliveryProviders.find(p => p.name.toLowerCase() === name.toLowerCase());
-                                                                    
-                                                                    // Fallback colors for dashboard table
-                                                                    let color = provider?.color;
-                                                                    if (!color) {
-                                                                        const lowerName = name.toLowerCase();
-                                                                        if (lowerName.includes('shopeefood') || lowerName.includes('shopee')) color = '#FF5722';
-                                                                        else if (lowerName.includes('lineman')) color = '#00B14F';
-                                                                        else if (lowerName.includes('grab')) color = '#00B14F';
-                                                                        else if (lowerName.includes('foodpanda')) color = '#D70F64';
-                                                                        else if (lowerName.includes('robinhood')) color = '#802D8C';
-                                                                        else color = '#f97316';
-                                                                    }
-
-                                                                    return (
-                                                                        <span 
-                                                                            key={name} 
-                                                                            className="text-[10px] px-1 rounded-sm text-white font-bold"
-                                                                            style={{ backgroundColor: color }}
-                                                                        >
-                                                                            {name}: {count}
-                                                                        </span>
-                                                                    );
-                                                                })}
+                                                                {Object.entries(day.adOrderCounts).map(([name, count]) => (
+                                                                    <span 
+                                                                        key={name} 
+                                                                        className="text-[10px] px-1 rounded-sm text-white font-bold"
+                                                                        style={{ backgroundColor: getProviderColor(name, deliveryProviders) }}
+                                                                    >
+                                                                        {name}: {count}
+                                                                    </span>
+                                                                ))}
                                                             </div>
                                                         </div>
                                                     ) : '0'}
