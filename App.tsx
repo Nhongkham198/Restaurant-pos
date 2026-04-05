@@ -323,7 +323,32 @@ export const App: React.FC = () => {
     const [customerName, setCustomerName] = useState('');
     const [customerCount, setCustomerCount] = useState(1);
     const [pendingPlatform, setPendingPlatform] = useState<string | undefined>(undefined);
+    const [currentDeliveryProvider, setCurrentDeliveryProvider] = useState<DeliveryProvider | null>(null);
     const [pendingOrderNumber, setPendingOrderNumber] = useState<string | undefined>(undefined);
+
+    // Update cart item prices when delivery provider changes
+    useEffect(() => {
+        if (currentOrderItems.length > 0) {
+            setCurrentOrderItems(prev => prev.map(item => {
+                let basePrice = item.price;
+                if (currentDeliveryProvider && item.deliveryPrices && item.deliveryPrices[currentDeliveryProvider.id]) {
+                    basePrice = item.deliveryPrices[currentDeliveryProvider.id];
+                }
+                
+                const optionsPrice = item.selectedOptions.reduce((sum, opt) => sum + opt.priceModifier, 0);
+                const newFinalPrice = basePrice + optionsPrice;
+                
+                // Only update if price actually changed
+                if (item.finalPrice !== newFinalPrice) {
+                    return {
+                        ...item,
+                        finalPrice: newFinalPrice
+                    };
+                }
+                return item;
+            }));
+        }
+    }, [currentDeliveryProvider]);
 
     const [notSentToKitchenDetails, setNotSentToKitchenDetails] = useState<{ reason: string; notes: string } | null>(null);
 
@@ -1603,6 +1628,7 @@ export const App: React.FC = () => {
                                         customerName={customerName} onCustomerNameChange={setCustomerName} customerCount={customerCount} onCustomerCountChange={setCustomerCount}
                                         isEditMode={isEditMode} onAddNewTable={handleAddTable} onRemoveLastTable={handleRemoveLastTable} floors={floors} selectedFloor={selectedSidebarFloor}
                                         onFloorChange={setSelectedSidebarFloor} onAddFloor={handleAddFloor} onRemoveFloor={handleRemoveFloor} sendToKitchen={sendToKitchen}
+                                         onDeliveryProviderChange={setCurrentDeliveryProvider}
                                         onSendToKitchenChange={(enabled, details) => { setSendToKitchen(enabled); setNotSentToKitchenDetails(details); }}
                                         onUpdateReservation={(tableId, reservation) => setTables(prev => prev.map(t => t.id === tableId ? {...t, reservation} : t))}
                                         onOpenSearch={() => setModalState(prev => ({...prev, isMenuSearch: true}))} currentUser={currentUser} onEditOrderItem={handleUpdateOrderItem}
@@ -1631,6 +1657,7 @@ export const App: React.FC = () => {
                                         onSelectTable={setSelectedTableId} customerName={customerName} onCustomerNameChange={setCustomerName} customerCount={customerCount}
                                         onCustomerCountChange={setCustomerCount} isEditMode={isEditMode} onAddNewTable={handleAddTable} onRemoveLastTable={handleRemoveLastTable}
                                         floors={floors} selectedFloor={selectedSidebarFloor} onFloorChange={setSelectedSidebarFloor} onAddFloor={handleAddFloor} onRemoveFloor={handleRemoveFloor}
+                                         onDeliveryProviderChange={setCurrentDeliveryProvider}
                                         sendToKitchen={sendToKitchen} onSendToKitchenChange={(enabled, details) => { setSendToKitchen(enabled); setNotSentToKitchenDetails(details); }}
                                         onUpdateReservation={(tableId, reservation) => setTables(prev => prev.map(t => t.id === tableId ? {...t, reservation} : t))}
                                         onOpenSearch={() => setModalState(prev => ({...prev, isMenuSearch: true}))} currentUser={currentUser} onEditOrderItem={handleUpdateOrderItem}
@@ -1884,7 +1911,14 @@ export const App: React.FC = () => {
                 printerConfig={printerConfig}
             />
             <SplitCompletedBillModal isOpen={modalState.isSplitCompleted} order={orderForModal as CompletedOrder | null} onClose={handleModalClose} onConfirmSplit={() => {}} />
-            <ItemCustomizationModal isOpen={modalState.isCustomization} onClose={handleModalClose} item={itemToCustomize} onConfirm={handleConfirmCustomization} orderItemToEdit={orderItemToEdit} />
+            <ItemCustomizationModal 
+                isOpen={modalState.isCustomization} 
+                onClose={handleModalClose} 
+                item={itemToCustomize} 
+                onConfirm={handleConfirmCustomization} 
+                orderItemToEdit={orderItemToEdit} 
+                deliveryProvider={currentDeliveryProvider}
+             />
             <LeaveRequestModal 
                 isOpen={modalState.isLeaveRequest} 
                 onClose={handleModalClose} 

@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import type { MenuItem, MenuOption, OrderItem, MenuOptionGroup, TakeawayCutleryOption } from '../types';
+import type { MenuItem, MenuOption, OrderItem, MenuOptionGroup, TakeawayCutleryOption, DeliveryProvider } from '../types';
 import Swal from 'sweetalert2';
 import { MenuItemImage } from './MenuItemImage';
 import { ThaiVirtualKeyboard } from './ThaiVirtualKeyboard';
@@ -11,9 +11,10 @@ interface ItemCustomizationModalProps {
     item: MenuItem | null;
     orderItemToEdit?: OrderItem | null; // Optional prop for editing
     onConfirm: (itemToAdd: OrderItem) => void;
+    deliveryProvider?: DeliveryProvider | null;
 }
 
-export const ItemCustomizationModal: React.FC<ItemCustomizationModalProps> = ({ isOpen, onClose, item, onConfirm, orderItemToEdit }) => {
+export const ItemCustomizationModal: React.FC<ItemCustomizationModalProps> = ({ isOpen, onClose, item, onConfirm, orderItemToEdit, deliveryProvider }) => {
     const [selections, setSelections] = useState<Record<string, MenuOption[]>>({});
     const [quantity, setQuantity] = useState(1);
     const [notes, setNotes] = useState('');
@@ -53,10 +54,15 @@ export const ItemCustomizationModal: React.FC<ItemCustomizationModalProps> = ({ 
         }
     }, [item, orderItemToEdit]);
 
-    const { finalPrice, selectedOptions } = useMemo(() => {
-        if (!item) return { finalPrice: 0, selectedOptions: [] };
+    const { finalPrice, selectedOptions, basePriceToDisplay } = useMemo(() => {
+        if (!item) return { finalPrice: 0, selectedOptions: [], basePriceToDisplay: 0 };
         
-        const basePrice = item.price;
+        let basePrice = item.price;
+        if (deliveryProvider && item.deliveryPrices && item.deliveryPrices[deliveryProvider.id]) {
+            basePrice = item.deliveryPrices[deliveryProvider.id];
+        }
+
+        const basePriceToDisplay = basePrice;
         let optionsPrice = 0;
         const allSelectedOptions: MenuOption[] = [];
 
@@ -70,10 +76,11 @@ export const ItemCustomizationModal: React.FC<ItemCustomizationModalProps> = ({ 
 
         return {
             finalPrice: basePrice + optionsPrice,
-            selectedOptions: allSelectedOptions
+            selectedOptions: allSelectedOptions,
+            basePriceToDisplay
         };
 
-    }, [item, selections]);
+    }, [item, selections, deliveryProvider]);
 
     const handleSingleSelect = (group: MenuOptionGroup, option: MenuOption) => {
         setSelections(prev => ({
@@ -177,7 +184,10 @@ export const ItemCustomizationModal: React.FC<ItemCustomizationModalProps> = ({ 
                     />
                     <div>
                         <h3 className="text-2xl font-bold text-gray-900">{item.name}</h3>
-                        <p className="text-base text-gray-500">ราคาเริ่มต้น {item.price.toLocaleString()} ฿</p>
+                        <p className="text-base text-gray-500">
+                            ราคาเริ่มต้น {basePriceToDisplay.toLocaleString()} ฿
+                            {deliveryProvider && <span className="ml-2 text-blue-600 font-medium">(ราคา {deliveryProvider.name})</span>}
+                        </p>
                     </div>
                     <button onClick={onClose} className="absolute top-2 right-2 p-2 rounded-full text-gray-500 hover:bg-gray-200 hover:text-gray-800 transition-colors" aria-label="Close">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">

@@ -47,6 +47,7 @@ interface SidebarProps {
     onOpenSettings: () => void;
     initialDeliveryProviderId?: string;
     initialOrderNumber?: string;
+    onDeliveryProviderChange?: (provider: DeliveryProvider | null) => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -88,7 +89,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
     onToggleEditMode,
     onOpenSettings,
     initialDeliveryProviderId,
-    initialOrderNumber
+    initialOrderNumber,
+    onDeliveryProviderChange
 }) => {
     const { preselectedTable, setPreselectedTable } = useUI();
 
@@ -108,11 +110,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
             if (provider) {
                 setSelectedProvider(provider);
                 setIsDelivery(true);
+                onDeliveryProviderChange?.(provider);
             }
         } else {
             // Clear if prop is cleared
             setSelectedProvider(null);
             setIsDelivery(false);
+            onDeliveryProviderChange?.(null);
         }
 
         if (initialOrderNumber !== undefined) {
@@ -121,7 +125,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             // Clear if prop is cleared
             setDeliveryOrderNumber('');
         }
-    }, [initialDeliveryProviderId, initialOrderNumber, deliveryProviders]);
+    }, [initialDeliveryProviderId, initialOrderNumber, deliveryProviders, onDeliveryProviderChange]);
 
     // State for Virtual Keyboard
     const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
@@ -201,6 +205,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             setIsDelivery(false);
             setDeliveryOrderNumber('');
             setSelectedProvider(null);
+            onDeliveryProviderChange?.(null);
             onCustomerNameChange('');
         }
     };
@@ -330,6 +335,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             // Deselect
             setIsDelivery(false);
             setSelectedProvider(null);
+            onDeliveryProviderChange?.(null);
             setDeliveryOrderNumber('');
             onCustomerNameChange('');
         } else {
@@ -716,6 +722,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     setIsDelivery(true);
                     onSelectTable(null); // Clear table selection
                     onCustomerNameChange(`${selectedProvider?.name || 'Delivery'} #${numStr}`); // Auto-fill customer name with provider
+                    onDeliveryProviderChange?.(selectedProvider);
                 }}
             />
 
