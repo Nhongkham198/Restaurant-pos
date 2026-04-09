@@ -134,6 +134,7 @@ interface BaseOrder {
     latitude?: number; // NEW: GPS Latitude
     longitude?: number; // NEW: GPS Longitude
     nearbyLocations?: string; // NEW: Nearby locations text
+    isFromAd?: boolean; // NEW: Track if order came from advertisement
 }
 
 export const CANCELLATION_REASONS = [
@@ -167,7 +168,8 @@ export interface CompletedOrder extends BaseOrder {
     completionTime: number; // timestamp
     paymentDetails: PaymentDetails;
     completedBy?: string; // Name of the staff who received the payment
-    isFromAd?: boolean;
+    recordedAdCost?: number; // Snapshot of ad cost at completion
+    recordedAdCostTax?: number; // Snapshot of ad cost tax at completion
 }
 
 export interface CancelledOrder extends BaseOrder {
@@ -454,4 +456,14 @@ export interface PayrollRecord {
     paymentDate?: number; // timestamp
     status: 'pending' | 'paid';
     slipUrl?: string; // Added: Payment slip URL
+}
+
+export interface DeliveryPriceHistoryEntry {
+    id: string;
+    providerId: string;
+    providerName: string;
+    oldPrice: number;
+    newPrice: number;
+    timestamp: number;
+    updatedBy: string;
 }

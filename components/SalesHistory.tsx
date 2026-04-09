@@ -194,6 +194,21 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({
         filteredCompleted.forEach(order => {
             const orderTotal = order.items.reduce((s, i) => s + i.finalPrice * i.quantity, 0) + order.taxAmount;
             
+            // Calculate Ad Cost
+            const providerName = order.orderType === 'lineman' ? 'LineMan' : (order.tableName || order.customerName || 'Delivery');
+            const provider = deliveryProviders.find(p => p.name.toLowerCase() === providerName.toLowerCase());
+            
+            let totalAdExpense = 0;
+            if (order.orderType === 'lineman' && order.isFromAd) {
+                if (order.recordedAdCost !== undefined) {
+                    totalAdExpense = order.recordedAdCost + (order.recordedAdCostTax || 0);
+                } else {
+                    const adCost = provider?.fixedAdCost || 0;
+                    const adCostTax = adCost * (taxRate / 100);
+                    totalAdExpense = adCost + adCostTax;
+                }
+            }
+
             if (order.items && order.items.length > 0) {
                 order.items.forEach(item => {
                     data.push({
@@ -207,6 +222,8 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({
                         'Unit Price': item.finalPrice,
                         'Item Total': item.finalPrice * item.quantity,
                         'Order Subtotal': orderTotal,
+                        'Is Ad': order.isFromAd ? 'ใช่' : 'ไม่ใช่',
+                        'Ad Cost': totalAdExpense,
                         'Payment': order.paymentDetails.method,
                         'Cashier': order.completedBy || '-'
                     });
@@ -224,6 +241,8 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({
                     'Unit Price': 0,
                     'Item Total': 0,
                     'Order Subtotal': orderTotal,
+                    'Is Ad': order.isFromAd ? 'ใช่' : 'ไม่ใช่',
+                    'Ad Cost': totalAdExpense,
                     'Payment': order.paymentDetails.method,
                     'Cashier': order.completedBy || '-'
                 });
@@ -329,6 +348,22 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({
             const salesData: any[] = [];
             ordersToDelete.forEach(order => {
                 const orderTotal = order.items.reduce((s, i) => s + i.finalPrice * i.quantity, 0) + order.taxAmount;
+                
+                // Calculate Ad Cost
+                const providerName = order.orderType === 'lineman' ? 'LineMan' : (order.tableName || order.customerName || 'Delivery');
+                const provider = deliveryProviders.find(p => p.name.toLowerCase() === providerName.toLowerCase());
+                
+                let totalAdExpense = 0;
+                if (order.orderType === 'lineman' && order.isFromAd) {
+                    if (order.recordedAdCost !== undefined) {
+                        totalAdExpense = order.recordedAdCost + (order.recordedAdCostTax || 0);
+                    } else {
+                        const adCost = provider?.fixedAdCost || 0;
+                        const adCostTax = adCost * (taxRate / 100);
+                        totalAdExpense = adCost + adCostTax;
+                    }
+                }
+
                 if (order.items && order.items.length > 0) {
                     order.items.forEach(item => {
                         salesData.push({
@@ -342,6 +377,8 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({
                             'Unit Price': item.finalPrice,
                             'Item Total': item.finalPrice * item.quantity,
                             'Order Subtotal': orderTotal,
+                            'Is Ad': order.isFromAd ? 'ใช่' : 'ไม่ใช่',
+                            'Ad Cost': totalAdExpense,
                             'Payment': order.paymentDetails.method,
                             'Cashier': order.completedBy || '-'
                         });
@@ -355,6 +392,8 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({
                         'Customer': order.customerName || '-',
                         'Menu Item': '(No Items)',
                         'Order Subtotal': orderTotal,
+                        'Is Ad': order.isFromAd ? 'ใช่' : 'ไม่ใช่',
+                        'Ad Cost': totalAdExpense,
                         'Payment': order.paymentDetails.method,
                         'Cashier': order.completedBy || '-'
                     });

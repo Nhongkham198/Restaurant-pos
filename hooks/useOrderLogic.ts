@@ -23,7 +23,8 @@ export const useOrderLogic = () => {
         lineMessagingToken,
         lineUserId,
         telegramBotToken,
-        telegramChatId
+        telegramChatId,
+        deliveryProviders
     } = useData();
     
     const { setModalState, closeAllModals } = useUI();
@@ -283,13 +284,28 @@ export const useOrderLogic = () => {
             // If it's an online order with a slip, log it to history immediately as requested
             if (order.paymentSlipUrl) {
                 try {
+                    // Calculate Ad Cost Snapshot
+                    let recordedAdCost = 0;
+                    let recordedAdCostTax = 0;
+                    
+                    if (order.orderType === 'lineman' && order.isFromAd) {
+                        const providerName = 'LineMan';
+                        const provider = deliveryProviders.find(p => p.name.toLowerCase() === providerName.toLowerCase());
+                        if (provider) {
+                            recordedAdCost = provider.fixedAdCost || 0;
+                            recordedAdCostTax = recordedAdCost * (taxRate / 100);
+                        }
+                    }
+
                     const paymentDetails: PaymentDetails = { method: 'transfer' };
                     const completed: CompletedOrder = {
                         ...order,
                         status: 'completed',
                         completionTime: Date.now(),
                         paymentDetails: paymentDetails,
-                        completedBy: currentUser?.username || 'System'
+                        completedBy: currentUser?.username || 'System',
+                        recordedAdCost,
+                        recordedAdCostTax
                     };
                     await db.collection(`branches/${branchId}/completedOrders_v2`).doc(order.id.toString()).set(completed);
                 } catch (error) {
@@ -310,8 +326,29 @@ export const useOrderLogic = () => {
         
         if (order.orderType === 'lineman') { 
             try { 
+                // Calculate Ad Cost Snapshot
+                let recordedAdCost = 0;
+                let recordedAdCostTax = 0;
+                
+                if (order.isFromAd) {
+                    const providerName = 'LineMan';
+                    const provider = deliveryProviders.find(p => p.name.toLowerCase() === providerName.toLowerCase());
+                    if (provider) {
+                        recordedAdCost = provider.fixedAdCost || 0;
+                        recordedAdCostTax = recordedAdCost * (taxRate / 100);
+                    }
+                }
+
                 const paymentDetails: PaymentDetails = { method: 'transfer' }; 
-                const completed: CompletedOrder = { ...order, status: 'completed', completionTime: Date.now(), paymentDetails: paymentDetails, completedBy: currentUser?.username || 'Auto-Kitchen' }; 
+                const completed: CompletedOrder = { 
+                    ...order, 
+                    status: 'completed', 
+                    completionTime: Date.now(), 
+                    paymentDetails: paymentDetails, 
+                    completedBy: currentUser?.username || 'Auto-Kitchen',
+                    recordedAdCost,
+                    recordedAdCostTax
+                }; 
                 await activeOrdersActions.update(orderId, { status: 'completed', completionTime: completed.completionTime, paymentDetails: paymentDetails }); 
                 await db.collection(`branches/${branchId}/completedOrders_v2`).doc(orderId.toString()).set(completed); 
                 

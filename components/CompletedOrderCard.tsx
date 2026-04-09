@@ -67,8 +67,14 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({
 
         // Only calculate Ad Cost if isFromAd is true
         if (order.orderType === 'lineman' && order.isFromAd) {
-            fixedAdCost = provider?.fixedAdCost || 0;
-            adCostTax = fixedAdCost * (taxRate / 100);
+            // Use recorded values if available (snapshot), otherwise fallback to current settings
+            if (order.recordedAdCost !== undefined) {
+                fixedAdCost = order.recordedAdCost;
+                adCostTax = order.recordedAdCostTax || 0;
+            } else {
+                fixedAdCost = provider?.fixedAdCost || 0;
+                adCostTax = fixedAdCost * (taxRate / 100);
+            }
         }
 
         order.items.forEach(item => {
@@ -133,7 +139,24 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({
     const handleToggleAd = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (onUpdateOrder) {
             try {
-                await onUpdateOrder(order.id, { isFromAd: e.target.checked });
+                const isFromAd = e.target.checked;
+                const updates: Partial<CompletedOrder> = { isFromAd };
+                
+                // If turning ON, snapshot the current ad cost
+                if (isFromAd) {
+                    const providerName = 'LineMan';
+                    const provider = deliveryProviders.find(p => p.name.toLowerCase() === providerName.toLowerCase());
+                    if (provider) {
+                        updates.recordedAdCost = provider.fixedAdCost || 0;
+                        updates.recordedAdCostTax = updates.recordedAdCost * (taxRate / 100);
+                    }
+                } else {
+                    // If turning OFF, clear the recorded values
+                    updates.recordedAdCost = 0;
+                    updates.recordedAdCostTax = 0;
+                }
+
+                await onUpdateOrder(order.id, updates);
             } catch (error) {
                 console.error('Failed to update ad status:', error);
                 Swal.fire({

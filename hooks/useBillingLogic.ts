@@ -17,7 +17,9 @@ export const useBillingLogic = () => {
         restaurantName, 
         logoUrl, 
         qrCodeUrl,
-        tables
+        tables,
+        deliveryProviders,
+        taxRate
     } = useData();
     
     const { setModalState, setOrderForModal, setSelectedOrderIdForModal, orderForModal, closeAllModals } = useUI();
@@ -45,12 +47,27 @@ export const useBillingLogic = () => {
             return; 
         } 
         try { 
+            // Calculate Ad Cost Snapshot
+            let recordedAdCost = 0;
+            let recordedAdCostTax = 0;
+            
+            if (orderToComplete.orderType === 'lineman' && orderToComplete.isFromAd) {
+                const providerName = 'LineMan'; // Default for lineman type
+                const provider = deliveryProviders.find(p => p.name.toLowerCase() === providerName.toLowerCase());
+                if (provider) {
+                    recordedAdCost = provider.fixedAdCost || 0;
+                    recordedAdCostTax = recordedAdCost * (taxRate / 100);
+                }
+            }
+
             const completed: CompletedOrder = { 
                 ...orderToComplete, 
                 status: 'completed', 
                 completionTime: orderToComplete.isHistoryLogged ? (orderToComplete.completionTime || Date.now()) : Date.now(), 
                 paymentDetails: paymentDetails, 
-                completedBy: currentUser?.username || 'Unknown' 
+                completedBy: currentUser?.username || 'Unknown',
+                recordedAdCost,
+                recordedAdCostTax
             }; 
             
             // Use a batch to ensure atomicity: Save to history and remove from active orders
