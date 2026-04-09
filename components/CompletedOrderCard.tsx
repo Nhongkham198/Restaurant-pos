@@ -78,17 +78,8 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({
         }
 
         order.items.forEach(item => {
-            // Revenue calculation: Use delivery price if isFromAd is true, otherwise use finalPrice
-            let itemRevenue = item.finalPrice * item.quantity;
-            if (order.isFromAd && provider && item.deliveryPrices?.[provider.id]) {
-                // Use delivery price from recipe, but add options price modifier if any
-                // Actually, the user said "เลือกราคาขายDeliveryในหน้าสูตรอาหารมาแสดง"
-                // Usually delivery price in recipe already includes base price.
-                // If there are options, we should probably add them too? 
-                // But the user's request sounds like they want the specific price from the recipe.
-                // Let's assume the delivery price in recipe is the total price for that item.
-                itemRevenue = (item.deliveryPrices[provider.id]) * item.quantity;
-            }
+            // Revenue calculation: Use finalPrice (which is the snapshot of the price at order time)
+            const itemRevenue = item.finalPrice * item.quantity;
             totalRevenue += itemRevenue;
 
             // Raw Material Cost

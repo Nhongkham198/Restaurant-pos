@@ -130,10 +130,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
                 const provider = deliveryProviders.find(p => p.name.toLowerCase() === providerName.toLowerCase());
                 
                 order.items.forEach(item => {
-                    let sellingPrice = item.finalPrice;
-                    if (order.isFromAd && provider && item.deliveryPrices?.[provider.id]) {
-                        sellingPrice = item.deliveryPrices[provider.id];
-                    }
+                    const sellingPrice = item.finalPrice;
                     const itemQty = item.quantity;
                     totalRevenue += sellingPrice * itemQty;
 
@@ -157,15 +154,24 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
                     }
                 });
 
-                if (isDelivery && provider && order.isFromAd) {
-                    const fixedAdCost = provider.fixedAdCost || 0;
-                    const tax = taxRate; 
-                    const taxOnAd = fixedAdCost * (tax / 100);
+                if (isDelivery && order.isFromAd) {
+                    let fixedAdCost = 0;
+                    let taxOnAd = 0;
+
+                    if (order.recordedAdCost !== undefined) {
+                        fixedAdCost = order.recordedAdCost;
+                        taxOnAd = order.recordedAdCostTax || 0;
+                    } else if (provider) {
+                        fixedAdCost = provider.fixedAdCost || 0;
+                        taxOnAd = fixedAdCost * (taxRate / 100);
+                    }
                     
                     totalAdCost += fixedAdCost;
                     totalTaxOnAd += taxOnAd;
                     
-                    adOrderCounts[providerName] = (adOrderCounts[providerName] || 0) + 1;
+                    if (providerName) {
+                        adOrderCounts[providerName] = (adOrderCounts[providerName] || 0) + 1;
+                    }
                 }
             });
 
@@ -348,10 +354,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
                     return itemSum;
                 }
                 
-                let sellingPrice = item.finalPrice;
-                if (order.isFromAd && provider && item.deliveryPrices?.[provider.id]) {
-                    sellingPrice = item.deliveryPrices[provider.id];
-                }
+                const sellingPrice = item.finalPrice;
                 
                 return itemSum + sellingPrice * item.quantity;
             }, 0);
@@ -392,20 +395,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
                         orderTotal = order.items.reduce((sum, item) => {
                             const itemCategory = item.category || 'ไม่มีหมวดหมู่';
                             if (itemCategory === selectedCategoryFilter) {
-                                let sellingPrice = item.finalPrice;
-                                if (order.isFromAd && provider && item.deliveryPrices?.[provider.id]) {
-                                    sellingPrice = item.deliveryPrices[provider.id];
-                                }
+                                const sellingPrice = item.finalPrice;
                                 return sum + (sellingPrice * item.quantity);
                             }
                             return sum;
                         }, 0);
                     } else {
                         orderTotal = order.items.reduce((sum, item) => {
-                            let sellingPrice = item.finalPrice;
-                            if (order.isFromAd && provider && item.deliveryPrices?.[provider.id]) {
-                                sellingPrice = item.deliveryPrices[provider.id];
-                            }
+                            const sellingPrice = item.finalPrice;
                             return sum + sellingPrice * item.quantity;
                         }, 0) + (order.isFromAd ? 0 : order.taxAmount);
                     }
@@ -446,20 +443,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
                         orderTotal = order.items.reduce((sum, item) => {
                             const itemCategory = item.category || 'ไม่มีหมวดหมู่';
                             if (itemCategory === selectedCategoryFilter) {
-                                let sellingPrice = item.finalPrice;
-                                if (order.isFromAd && provider && item.deliveryPrices?.[provider.id]) {
-                                    sellingPrice = item.deliveryPrices[provider.id];
-                                }
+                                const sellingPrice = item.finalPrice;
                                 return sum + (sellingPrice * item.quantity);
                             }
                             return sum;
                         }, 0);
                     } else {
                         orderTotal = order.items.reduce((sum, item) => {
-                            let sellingPrice = item.finalPrice;
-                            if (order.isFromAd && provider && item.deliveryPrices?.[provider.id]) {
-                                sellingPrice = item.deliveryPrices[provider.id];
-                            }
+                            const sellingPrice = item.finalPrice;
                             return sum + sellingPrice * item.quantity;
                         }, 0) + (order.isFromAd ? 0 : order.taxAmount);
                     }
@@ -543,10 +534,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
             
             order.items.forEach(item => {
                 const category = item.category || 'ไม่มีหมวดหมู่';
-                let sellingPrice = item.finalPrice;
-                if (order.isFromAd && provider && item.deliveryPrices?.[provider.id]) {
-                    sellingPrice = item.deliveryPrices[provider.id];
-                }
+                const sellingPrice = item.finalPrice;
                 const itemTotal = sellingPrice * item.quantity;
                 salesByCategory[category] = (salesByCategory[category] || 0) + itemTotal;
             });
@@ -646,10 +634,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
             const provider = providerName ? deliveryProviders.find(p => p.name.toLowerCase() === providerName.toLowerCase()) : null;
 
             const total = o.items.reduce((s, i) => {
-                let sellingPrice = i.finalPrice;
-                if (o.isFromAd && provider && i.deliveryPrices?.[provider.id]) {
-                    sellingPrice = i.deliveryPrices[provider.id];
-                }
+                const sellingPrice = i.finalPrice;
                 return s + (sellingPrice * i.quantity);
             }, 0) + (o.isFromAd ? 0 : o.taxAmount);
             salesByDate.set(dateKey, (salesByDate.get(dateKey) || 0) + total);
@@ -689,10 +674,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
                 const provider = providerName ? deliveryProviders.find(p => p.name.toLowerCase() === providerName.toLowerCase()) : null;
 
                 itemsInOrder.forEach(item => {
-                    let sellingPrice = item.finalPrice;
-                    if (order.isFromAd && provider && item.deliveryPrices?.[provider.id]) {
-                        sellingPrice = item.deliveryPrices[provider.id];
-                    }
+                    const sellingPrice = item.finalPrice;
                     const itemQty = item.quantity;
                     totalItemRevenue += sellingPrice * itemQty;
                     totalItemQty += itemQty;
@@ -703,14 +685,21 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
 
                     if (isDelivery) {
                         // Delivery Profit Formula
-                        const fixedAdCost = (order.isFromAd && provider) ? provider.fixedAdCost || 0 : 0;
+                        let adCostWithTax = 0;
+                        if (order.isFromAd) {
+                            if (order.recordedAdCost !== undefined) {
+                                adCostWithTax = order.recordedAdCost + (order.recordedAdCostTax || 0);
+                            } else if (provider) {
+                                const fixedAdCost = provider.fixedAdCost || 0;
+                                adCostWithTax = fixedAdCost + (fixedAdCost * (taxRate / 100));
+                            }
+                        }
                         
                         const gp = item.deliveryGPs?.[provider?.id || ''] || 0;
                         const tax = item.deliveryTaxes?.[provider?.id || ''] ?? taxRate;
                         
                         const gpAmount = sellingPrice * (gp / 100);
                         const taxOnGP = gpAmount * (tax / 100);
-                        const adCostWithTax = fixedAdCost + (fixedAdCost * (taxRate / 100));
                         
                         // Distribute fixed ad cost across all items in the order to get per-item profit
                         // Total items in order
