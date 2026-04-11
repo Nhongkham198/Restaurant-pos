@@ -28,6 +28,67 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
 
     const [activeTab, setActiveTab] = useState<HRTab>(initialTab);
     
+    // Payroll Sorting State
+    const [payrollSortConfig, setPayrollSortConfig] = useState<{ key: keyof PayrollRecord; direction: 'asc' | 'desc' } | null>({ key: 'month', direction: 'desc' });
+
+    const sortedPayrollRecords = useMemo(() => {
+        const sortableItems = [...payrollRecords];
+        if (payrollSortConfig !== null) {
+            sortableItems.sort((a, b) => {
+                const aValue = a[payrollSortConfig.key];
+                const bValue = b[payrollSortConfig.key];
+                
+                if (payrollSortConfig.key === 'month') {
+                    const aDate = new Date(aValue as string).getTime();
+                    const bDate = new Date(bValue as string).getTime();
+                    return payrollSortConfig.direction === 'asc' ? aDate - bDate : bDate - aDate;
+                }
+                
+                if (aValue < bValue) {
+                    return payrollSortConfig.direction === 'asc' ? -1 : 1;
+                }
+                if (aValue > bValue) {
+                    return payrollSortConfig.direction === 'asc' ? 1 : -1;
+                }
+                return 0;
+            });
+        }
+        return sortableItems;
+    }, [payrollRecords, payrollSortConfig]);
+
+    const handlePayrollSort = (key: keyof PayrollRecord) => {
+        let direction: 'asc' | 'desc' = 'asc';
+        if (payrollSortConfig && payrollSortConfig.key === key && payrollSortConfig.direction === 'asc') {
+            direction = 'desc';
+        }
+        setPayrollSortConfig({ key, direction });
+    };
+
+    const handleAddSlip = (record: PayrollRecord) => {
+        Swal.fire({
+            title: 'เพิ่มลิงก์สลิปโอนเงิน',
+            input: 'url',
+            inputLabel: 'URL ของสลิปโอนเงิน',
+            inputPlaceholder: 'https://example.com/slip.jpg',
+            showCancelButton: true,
+            confirmButtonText: 'บันทึก',
+            cancelButtonText: 'ยกเลิก',
+            inputValidator: (value) => {
+                if (!value) {
+                    return 'กรุณาใส่ URL ของสลิป';
+                }
+                return null;
+            }
+        }).then((result) => {
+            if (result.isConfirmed) {
+                setPayrollRecords(prev => prev.map(item => 
+                    item.id === record.id ? { ...item, slipUrl: result.value, status: 'paid' } : item
+                ));
+                Swal.fire('สำเร็จ', 'บันทึกสลิปโอนเงินเรียบร้อย', 'success');
+            }
+        });
+    };
+    
     const handleManagePositions = () => {
         const positionList = jobPositions.map(p => `<li>${p} <button class='swal-delete-pos' data-pos='${p}'>🗑️</button></li>`).join('');
         Swal.fire({
@@ -1342,7 +1403,17 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                 <thead className="bg-gray-700 text-gray-100 uppercase text-sm">
                                     <tr>
                                         {isEditMode && <th className="p-3 w-10"><input type="checkbox" onChange={(e) => { if(e.target.checked) setSelectedItems(payrollRecords.map(p => p.id)); else setSelectedItems([]); }} checked={selectedItems.length === payrollRecords.length && payrollRecords.length > 0} /></th>}
-                                        <th className="p-3">วันที่จ่าย</th>
+                                        <th 
+                                            className="p-3 cursor-pointer hover:bg-gray-600 transition-colors"
+                                            onClick={() => handlePayrollSort('month')}
+                                        >
+                                            <div className="flex items-center gap-1">
+                                                วันที่จ่าย
+                                                {payrollSortConfig?.key === 'month' && (
+                                                    <span>{payrollSortConfig.direction === 'asc' ? '🔼' : '🔽'}</span>
+                                                )}
+                                            </div>
+                                        </th>
                                         <th className="p-3">พนักงาน</th>
                                         <th className="p-3">เงินเดือนฐาน</th>
                                         <th className="p-3">สุทธิ</th>
@@ -1351,10 +1422,10 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-700">
-                                    {payrollRecords.length === 0 ? (
+                                    {sortedPayrollRecords.length === 0 ? (
                                         <tr><td colSpan={isEditMode ? 6 : 5} className="p-4 text-center text-gray-500">ไม่พบข้อมูล</td></tr>
                                     ) : (
-                                        payrollRecords.map((p, index) => (
+                                        sortedPayrollRecords.map((p, index) => (
                                             <tr key={p.id || index} className="hover:bg-gray-700/50">
                                                 {isEditMode && (
                                                     <td className="p-3">
@@ -1397,7 +1468,7 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                                                     title: 'อัปเดตสถานะแล้ว',
                                                                     showConfirmButton: false,
                                                                     timer: 1000
-                                                                });
+                                                                 });
                                                             }}
                                                             className="bg-gray-700 text-white border border-gray-600 rounded px-2 py-1 text-xs focus:outline-none focus:border-blue-500"
                                                         >
@@ -1418,7 +1489,16 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                                             Link
                                                         </a>
                                                     ) : (
-                                                        <span className="text-gray-500">-</span>
+                                                        p.status === 'pending' ? (
+                                                            <button 
+                                                                onClick={() => handleAddSlip(p)}
+                                                                className="text-blue-400 hover:text-blue-300 text-xs border border-blue-500 px-2 py-1 rounded flex items-center gap-1"
+                                                            >
+                                                                <span>➕</span> เพิ่มลิงก์
+                                                            </button>
+                                                        ) : (
+                                                            <span className="text-gray-500">-</span>
+                                                        )
                                                     )}
                                                 </td>
                                             </tr>
