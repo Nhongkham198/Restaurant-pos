@@ -13,9 +13,10 @@ export function useFirestoreSync<T>(
     fallbackValue?: T // NEW: Optional fallback value to seed DB if empty
 ): [T, React.Dispatch<React.SetStateAction<T>>, boolean] {
     const [value, setValue] = useState<T>(initialValue);
-    const [isLoading, setIsLoading] = useState(true);
+    const [isLoading, setIsLoading] = useState(false); // Start as false to prevent immediate flash
     const initialValueRef = useRef(initialValue);
     const fallbackValueRef = useRef(fallbackValue);
+    const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     
     // Keep a ref to the current value to avoid stale closures
     const valueRef = useRef(value);
@@ -42,7 +43,14 @@ export function useFirestoreSync<T>(
             return () => {};
         }
 
-        setIsLoading(true);
+        // Optimization: Only show loading if it takes more than 150ms (prevents flicker on cache hits)
+        if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
+        loadingTimeoutRef.current = setTimeout(() => {
+            if (!isInitialLoadDoneRef.current) {
+                setIsLoading(true);
+            }
+        }, 150);
+
         const pathSegments = isBranchSpecific && branchId
             ? ['branches', branchId, collectionKey, 'data']
             : [collectionKey, 'data'];
@@ -52,6 +60,11 @@ export function useFirestoreSync<T>(
         const unsubscribe = docRef.onSnapshot(
             { includeMetadataChanges: true }, 
             (docSnapshot) => {
+                if (loadingTimeoutRef.current) {
+                    clearTimeout(loadingTimeoutRef.current);
+                    loadingTimeoutRef.current = null;
+                }
+                
                 isInitialLoadDoneRef.current = true;
                 if (docSnapshot.exists) {
                     const data = docSnapshot.data();

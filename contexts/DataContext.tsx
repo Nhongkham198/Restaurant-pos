@@ -580,12 +580,15 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             telegramChatId, setTelegramChatId,
             isDataLoading
         }}>
-            {isDataLoading ? (
-                <div className="fixed inset-0 bg-white z-[9999] flex flex-col items-center justify-center">
-                    <div className="w-12 h-12 border-4 border-orange-200 border-t-orange-500 rounded-full animate-spin mb-4"></div>
-                    <p className="text-gray-500 font-medium animate-pulse">กำลังโหลดข้อมูลร้านค้า...</p>
+            {/* Non-blocking Top Progress Bar */}
+            {isDataLoading && (
+                <div className="fixed top-0 left-0 right-0 z-[10000] h-1 bg-orange-100 overflow-hidden">
+                    <div className="h-full bg-orange-500 animate-pulse w-full"></div>
                 </div>
-            ) : children}
+            )}
+            
+            {/* Render children immediately to allow instant interaction with cached data */}
+            {children}
         </DataContext.Provider>
     );
 };

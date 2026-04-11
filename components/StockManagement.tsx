@@ -954,7 +954,7 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                         </div>
                     </div>
                      <div className="mt-4 flex flex-col sm:flex-row justify-between sm:items-center gap-4">
-                        {/* Container for Search + Category Dropdown (Mobile) */}
+                        {/* Container for Search (Mobile: Full Width, Desktop: Side-by-side) */}
                         <div className="flex w-full sm:w-auto gap-3">
                             <div className="relative flex-grow sm:w-80">
                                 <span className="absolute inset-y-0 left-0 flex items-center pl-3">
@@ -986,25 +986,57 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                     onClose={() => setIsKeyboardOpen(false)}
                                 />
                             )}
-                            
-                            {/* Mobile Category Dropdown - Visible only on small screens */}
-                            <div className="sm:hidden flex-shrink-0 relative">
+                        </div>
+
+                        {/* Mobile Filters & Sorting - Side by Side (Mobile Only) */}
+                        <div className="sm:hidden flex w-full gap-2">
+                            {/* Mobile Category Dropdown */}
+                            <div className="flex-1 relative">
                                 <select
                                     value={selectedCategory}
                                     onChange={(e) => setSelectedCategory(e.target.value)}
-                                    className="h-full pl-4 pr-10 py-2 border border-gray-300 rounded-lg bg-white text-gray-700 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm appearance-none shadow-sm"
+                                    className="w-full pl-3 pr-8 py-2 border border-gray-300 rounded-lg bg-white text-gray-700 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm appearance-none shadow-sm"
                                 >
-                                    <option value="ทั้งหมด">ทั้งหมด</option>
+                                    <option value="ทั้งหมด">หมวดหมู่: ทั้งหมด</option>
                                     <option value="รายการสั่งของ">รายการสั่งของ</option>
                                     {stockCategories.filter(c => c !== 'ทั้งหมด').map(category => (
                                         <option key={category} value={category}>{category}</option>
                                     ))}
                                 </select>
-                                {/* Custom arrow for select */}
                                 <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-500">
                                     <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
                                 </div>
                             </div>
+
+                            {/* Mobile Sort Dropdown */}
+                            <div className="flex-1 relative">
+                                <select
+                                    value={sortConfig.key}
+                                    onChange={(e) => handleSort(e.target.value)}
+                                    className="w-full pl-3 pr-8 py-2 border border-gray-300 rounded-lg bg-white text-gray-700 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm appearance-none shadow-sm"
+                                >
+                                    <option value="default">เรียงตามปกติ</option>
+                                    <option value="lastUpdated">เรียงตามแก้ไขล่าสุด</option>
+                                    <option value="orderDate">เรียงตามวันที่สั่ง</option>
+                                    <option value="receivedDate">เรียงตามวันที่รับ</option>
+                                </select>
+                                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-500">
+                                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                                </div>
+                            </div>
+
+                            {/* Reset Button (Small icon on mobile to save space) */}
+                            {sortConfig.key !== 'default' && (
+                                <button 
+                                    onClick={() => handleSort('default')}
+                                    className="flex-shrink-0 p-2 bg-red-50 text-red-600 border border-red-100 rounded-lg flex items-center justify-center shadow-sm active:scale-95 transition-all"
+                                    title="รีเซ็ตการเรียง"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                </button>
+                            )}
                         </div>
 
                         {/* Desktop Category Buttons - Hidden on mobile */}
