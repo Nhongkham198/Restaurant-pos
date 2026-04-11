@@ -525,6 +525,15 @@ export const App: React.FC = () => {
         }
         if (currentUser?.role === 'admin' || currentUser?.role === 'branch-admin' || currentUser?.role === 'auditor') {
             items.push({id: 'history', label: 'ประวัติ', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" /></svg>, view: 'history'});
+            
+            if (currentUser?.role === 'admin' || currentUser?.role === 'branch-admin') {
+                items.push({
+                    id: 'expense-analysis',
+                    label: 'ค่าใช้จ่าย',
+                    icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>,
+                    view: 'expense-analysis'
+                });
+            }
         }
         
         if (currentUser?.role !== 'pos') {
@@ -550,7 +559,6 @@ export const App: React.FC = () => {
         }
 
         items.push({
-
             id: 'maintenance',
             label: 'บำรุงรักษา',
             icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>,
@@ -1740,6 +1748,15 @@ export const App: React.FC = () => {
                                                     initialTab={currentView === 'hr-payroll' ? 'payroll' : 'application'}
                                                 />
                                             )}
+                                            {currentView === 'expense-analysis' && (
+                                                <div className="h-full w-full bg-white">
+                                                    <iframe 
+                                                        src="https://store-expense-visualizer-v2.vercel.app/" 
+                                                        className="w-full h-full border-none"
+                                                        title="Expense Analysis"
+                                                    />
+                                                </div>
+                                            )}
                                         </Suspense>
                                     </div>
                                 </div>
@@ -1799,6 +1816,15 @@ export const App: React.FC = () => {
                                     onOpenUserManager={handleOpenUserManagerWithData} 
                                     initialTab={currentView === 'hr-payroll' ? 'payroll' : 'application'}
                                 />
+                            )}
+                            {currentView === 'expense-analysis' && (
+                                <div className="h-full w-full bg-white">
+                                    <iframe 
+                                        src="https://store-expense-visualizer-v2.vercel.app/" 
+                                        className="w-full h-full border-none"
+                                        title="Expense Analysis"
+                                    />
+                                </div>
                             )}
                         </Suspense>
                     )}

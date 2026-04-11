@@ -325,7 +325,7 @@ export interface MaintenanceLog {
     afterImage?: string; // Base64
 }
 
-export type View = 'pos' | 'kitchen' | 'tables' | 'dashboard' | 'history' | 'stock' | 'stock-analytics' | 'recipes' | 'leave' | 'leave-analytics' | 'maintenance' | 'hr' | 'hr-payroll';
+export type View = 'pos' | 'kitchen' | 'tables' | 'dashboard' | 'history' | 'stock' | 'stock-analytics' | 'recipes' | 'leave' | 'leave-analytics' | 'maintenance' | 'hr' | 'hr-payroll' | 'expense-analysis';
 
 export interface NavItem {
     id: string;
