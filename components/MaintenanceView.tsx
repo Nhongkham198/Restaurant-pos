@@ -358,10 +358,41 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
     const handleOpenPerformModal = (item: MaintenanceItem) => {
         setPerformingItem(item);
         setPerformDate(new Date().toISOString().slice(0, 10));
-        setPerformNotes('');
-        setBeforeImage(null);
+        
+        if (item.pendingMaintenance) {
+            setPerformNotes(item.pendingMaintenance.notes || '');
+            setBeforeImage(item.pendingMaintenance.beforeImage);
+            setPerformDate(new Date(item.pendingMaintenance.startDate).toISOString().slice(0, 10));
+        } else {
+            setPerformNotes('');
+            setBeforeImage(null);
+        }
+        
         setAfterImage(null);
         setIsPerformModalOpen(true);
+    };
+
+    const handleSaveBeforeOnly = () => {
+        if (!performingItem) return;
+        if (!beforeImage) {
+            Swal.fire('รูปภาพไม่ครบ', 'กรุณาถ่ายรูป Before ก่อนบันทึก', 'warning');
+            return;
+        }
+
+        const logDate = new Date(performDate).getTime();
+
+        setMaintenanceItems(prev => prev.map(i => i.id === performingItem.id ? {
+            ...i,
+            pendingMaintenance: {
+                startDate: logDate,
+                performedBy: currentUser?.username || 'Unknown',
+                beforeImage: beforeImage,
+                notes: performNotes
+            }
+        } : i));
+
+        setIsPerformModalOpen(false);
+        Swal.fire('บันทึกสำเร็จ', 'บันทึกรูป Before เรียบร้อยแล้ว คุณสามารถกลับมาบันทึกรูป After เมื่อเสร็จงาน', 'success');
     };
 
     const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'before' | 'after') => {
@@ -401,7 +432,8 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
         setMaintenanceItems(prev => prev.map(i => i.id === performingItem.id ? {
             ...i,
             lastMaintenanceDate: logDate,
-            status: 'active' // If maintenance performed, assume it's active again
+            status: 'active', // If maintenance performed, assume it's active again
+            pendingMaintenance: undefined // Clear pending state
         } : i));
 
         setIsPerformModalOpen(false);
@@ -468,7 +500,8 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
 
     // --- Render Components ---
 
-    const StatusBadge = ({ maintenanceStatus, status, days }: { maintenanceStatus: string, status?: MaintenanceStatus, days: number }) => {
+    const StatusBadge = ({ maintenanceStatus, status, days, hasPending }: { maintenanceStatus: string, status?: MaintenanceStatus, days: number, hasPending?: boolean }) => {
+        if (hasPending) return <span className="px-2 py-1 bg-blue-600 text-white text-xs font-bold rounded-full animate-pulse shadow-sm">⏳ กำลังบำรุงรักษา</span>;
         if (status === 'broken') return <span className="px-2 py-1 bg-red-600 text-white text-xs font-bold rounded-full animate-pulse shadow-sm">⚠️ เสีย/พัง</span>;
         if (status === 'repairing') return <span className="px-2 py-1 bg-orange-500 text-white text-xs font-bold rounded-full shadow-sm">🔧 กำลังส่งซ่อม</span>;
         
@@ -595,7 +628,7 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
                                 <div className="h-48 w-full bg-gray-200 relative flex-shrink-0">
                                     <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" />
                                     <div className="absolute top-2 right-2">
-                                        <StatusBadge maintenanceStatus={item.maintenanceStatus} status={item.status} days={item.daysDiff} />
+                                        <StatusBadge maintenanceStatus={item.maintenanceStatus} status={item.status} days={item.daysDiff} hasPending={!!item.pendingMaintenance} />
                                     </div>
                                     <div className="absolute bottom-0 left-0 right-0 bg-black/60 p-2 text-white">
                                         <h3 className="font-bold truncate">{item.name}</h3>
@@ -638,9 +671,9 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
                                             <button 
                                                 onClick={() => handleOpenPerformModal(item)}
                                                 disabled={item.status !== 'active' && item.status !== undefined}
-                                                className={`flex-1 py-2 text-white rounded-lg font-semibold shadow-sm transition-colors text-sm ${item.status === 'broken' || item.status === 'repairing' ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'}`}
+                                                className={`flex-1 py-2 text-white rounded-lg font-semibold shadow-sm transition-colors text-sm ${item.status === 'broken' || item.status === 'repairing' ? 'bg-gray-400 cursor-not-allowed' : item.pendingMaintenance ? 'bg-blue-600 hover:bg-blue-700' : 'bg-green-600 hover:bg-green-700'}`}
                                             >
-                                                บำรุงรักษา
+                                                {item.pendingMaintenance ? 'บันทึกต่อ' : 'บำรุงรักษา'}
                                             </button>
                                             <button 
                                                 onClick={() => handleUpdateStatus(item)}
@@ -854,6 +887,9 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
 
                         <div className="flex justify-end gap-2 mt-6">
                             <button onClick={() => setIsPerformModalOpen(false)} className="px-4 py-2 bg-gray-200 rounded text-gray-700">ยกเลิก</button>
+                            {!performingItem.pendingMaintenance && (
+                                <button onClick={handleSaveBeforeOnly} className="px-4 py-2 bg-blue-600 text-white rounded font-bold hover:bg-blue-700">บันทึกรูป Before เท่านั้น</button>
+                            )}
                             <button onClick={handleSaveLog} className="px-4 py-2 bg-green-600 text-white rounded font-bold hover:bg-green-700">บันทึกงานเสร็จสิ้น</button>
                         </div>
                     </div>

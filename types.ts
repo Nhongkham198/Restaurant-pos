@@ -313,6 +313,12 @@ export interface MaintenanceItem {
     cycleMonths: number; // 1 or 3
     lastMaintenanceDate: number | null; // timestamp
     status?: MaintenanceStatus; // Operational status: active (normal), broken (broken), repairing (in repair)
+    pendingMaintenance?: {
+        startDate: number;
+        performedBy: string;
+        beforeImage: string;
+        notes?: string;
+    };
 }
 
 export interface MaintenanceLog {
