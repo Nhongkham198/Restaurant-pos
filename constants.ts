@@ -2,8 +2,7 @@
 import type { MenuItem, Table, Branch, User, StockItem, MaintenanceItem, DeliveryProvider, LeaveRequest, JobApplication, EmploymentContract } from './types';
 
 export const DEFAULT_BRANCHES: Branch[] = [
-    { id: 1, name: 'สาขากาฬสินธุ์', location: 'กาฬสินธุ์' },
-    { id: 2, name: 'สาขากรุงเทพ', location: 'กรุงเทพมหานคร' }
+    { id: 1, name: 'สาขากาฬสินธุ์', location: 'กาฬสินธุ์' }
 ];
 
 export const DEFAULT_USERS: User[] = [

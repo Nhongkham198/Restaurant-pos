@@ -31,6 +31,9 @@ interface AdminSidebarProps {
     isOrderNotificationsEnabled: boolean;
     onToggleOrderNotifications: () => void;
     printerConfig: PrinterConfig | null; // Added prop
+    branches: { id: number; name: string }[];
+    selectedExpenseBranchId: number | null;
+    onExpenseBranchChange: (branchId: number | null) => void;
 }
 
 const NavItem: React.FC<{
@@ -52,7 +55,7 @@ const NavItem: React.FC<{
     const content = (
         <>
             <span className="flex-shrink-0 w-6 h-6">{icon}</span>
-            <span className={`flex-1 ml-3 whitespace-nowrap transition-opacity duration-200 ${isCollapsed ? 'opacity-0' : 'opacity-100'}`}>{text}</span>
+            <span className={`flex-1 ml-3 text-sm transition-opacity duration-200 ${isCollapsed ? 'opacity-0' : 'opacity-100'} ${isCollapsed ? 'whitespace-nowrap' : 'whitespace-pre-line leading-tight'}`}>{text}</span>
             {hasChildren && !isCollapsed && (
                 <svg className={`w-4 h-4 transition-transform duration-200 ${isOpen ? 'rotate-90' : ''}`} fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
@@ -95,7 +98,7 @@ const SubNavItem: React.FC<{
         <a 
             href="#" 
             onClick={(e) => { e.preventDefault(); onClick(); }}
-            className={`flex items-center p-2 pl-11 w-full text-sm font-medium rounded-lg transition-colors ${
+            className={`flex items-center p-2 pl-11 w-full text-sm font-medium leading-tight rounded-lg transition-colors ${
                 isActive ? 'bg-green-600/80 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-700'
             }`}
         >
@@ -160,11 +163,15 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({
     onUpdateRestaurantName,
     isOrderNotificationsEnabled,
     onToggleOrderNotifications,
-    printerConfig
+    printerConfig,
+    branches,
+    selectedExpenseBranchId,
+    onExpenseBranchChange
 }) => {
     const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({
       'stock': true,
-      'leave': false
+      'leave': false,
+      'expense': true
     });
     const logoInputRef = useRef<HTMLInputElement>(null);
 
@@ -479,10 +486,13 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({
                                 />
                                 <NavItem
                                     icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>}
-                                    text="วิเคราะห์ค่าใช้จ่าย"
+                                    text={"วิเคราะห์ค่าใช้จ่าย\n(สาขากาฬสินธุ์)"}
                                     isCollapsed={isCollapsed}
                                     isActive={currentView === 'expense-analysis'}
-                                    onClick={() => onViewChange('expense-analysis')}
+                                    onClick={() => {
+                                        onExpenseBranchChange(1); // Hardcode to Kalasin (ID 1)
+                                        onViewChange('expense-analysis');
+                                    }}
                                 />
                                 
                                 {/* Stock with Submenu */}

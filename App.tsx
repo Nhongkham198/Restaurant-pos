@@ -280,6 +280,7 @@ export const App: React.FC = () => {
     } = useUI();
 
     const [initialNewUserForModal, setInitialNewUserForModal] = useState<Partial<User> | null>(null);
+    const [selectedExpenseBranchId, setSelectedExpenseBranchId] = useState<number | null>(null);
 
     const handleOpenUserManagerWithData = (userData: Partial<User>) => {
         setInitialNewUserForModal(userData);
@@ -1586,6 +1587,9 @@ export const App: React.FC = () => {
                         onUpdateCurrentUser={handleUpdateCurrentUser} onUpdateLogoUrl={setLogoUrl} onUpdateRestaurantName={setRestaurantName}
                         isOrderNotificationsEnabled={isOrderNotificationsEnabled} onToggleOrderNotifications={toggleOrderNotifications}
                         printerConfig={printerConfig}
+                        branches={branches}
+                        selectedExpenseBranchId={selectedExpenseBranchId}
+                        onExpenseBranchChange={setSelectedExpenseBranchId}
                     />
                 </Suspense>
             )}
@@ -1751,7 +1755,7 @@ export const App: React.FC = () => {
                                             {currentView === 'expense-analysis' && (
                                                 <div className="h-full w-full bg-white">
                                                     <iframe 
-                                                        src="https://store-expense-visualizer-v2.vercel.app/" 
+                                                        src={`https://store-expense-visualizer-v2.vercel.app/${selectedExpenseBranchId ? `?branchId=${selectedExpenseBranchId}` : ''}`} 
                                                         className="w-full h-full border-none"
                                                         title="Expense Analysis"
                                                     />
@@ -1820,7 +1824,7 @@ export const App: React.FC = () => {
                             {currentView === 'expense-analysis' && (
                                 <div className="h-full w-full bg-white">
                                     <iframe 
-                                        src="https://store-expense-visualizer-v2.vercel.app/" 
+                                        src={`https://store-expense-visualizer-v2.vercel.app/${selectedExpenseBranchId ? `?branchId=${selectedExpenseBranchId}` : ''}`} 
                                         className="w-full h-full border-none"
                                         title="Expense Analysis"
                                     />
