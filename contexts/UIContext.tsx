@@ -71,7 +71,7 @@ export const UIProvider = ({ children }: { children: React.ReactNode }) => {
     const [currentView, setCurrentView] = React.useState<View>(() => {
         // 1. Priority: URL Path
         const path = window.location.pathname.substring(1);
-        const validViews = ['pos', 'kitchen', 'tables', 'dashboard', 'history', 'stock', 'stock-analytics', 'leave', 'leave-analytics', 'maintenance'];
+        const validViews = ['pos', 'kitchen', 'tables', 'dashboard', 'history', 'stock', 'stock-analytics', 'leave', 'leave-analytics', 'maintenance', 'expense-analysis'];
         if (validViews.includes(path)) {
             return path as View;
         }
@@ -101,7 +101,7 @@ export const UIProvider = ({ children }: { children: React.ReactNode }) => {
     React.useEffect(() => {
         const handlePopState = () => {
              const path = window.location.pathname.substring(1);
-             const validViews = ['pos', 'kitchen', 'tables', 'dashboard', 'history', 'stock', 'stock-analytics', 'leave', 'leave-analytics', 'maintenance'];
+             const validViews = ['pos', 'kitchen', 'tables', 'dashboard', 'history', 'stock', 'stock-analytics', 'leave', 'leave-analytics', 'maintenance', 'expense-analysis'];
              if (validViews.includes(path)) {
                 setCurrentView(path as View);
             } else if (path === '') {

@@ -748,7 +748,7 @@ export const App: React.FC = () => {
             const audio = new Audio(notificationSoundUrl!);
             audio.play().catch(() => {});
             newOrders.forEach(async (order) => {
-                Swal.fire({ toast: true, position: 'top-end', icon: 'info', title: '🔔 มีออเดอร์ใหม่!', html: `<b>โต๊ะ ${order.tableName}</b> (ออเดอร์ #${String(order.orderNumber).padStart(3, '0')})`, showConfirmButton: true, confirmButtonText: 'ไปที่หน้าครัว', timer: 10000, timerProgressBar: true, }).then((result) => { if (result.isConfirmed) setCurrentView('kitchen'); });
+                Swal.fire({ toast: true, position: 'top-end', icon: 'info', title: '🔔 มีออเดอร์ใหม่!', html: `<b>โต๊ะ ${order.tableName}</b> (ออเดอร์ #${String(order.orderNumber).padStart(3, '0')})`, showConfirmButton: true, confirmButtonText: 'ไปที่หน้าครัว', timer: 10000, timerProgressBar: true, }).then((result) => { if (result.isConfirmed) handleViewChange('kitchen'); });
                 
 
             });
@@ -897,7 +897,7 @@ export const App: React.FC = () => {
                     backdrop: `rgba(0,0,0,0.4)`
                 }).then((result) => {
                     if (result.isConfirmed) {
-                        setCurrentView('leave');
+                        handleViewChange('leave');
                     }
                 });
 
@@ -995,6 +995,42 @@ export const App: React.FC = () => {
         prevViewForStockAlertRef.current = currentView;
     }, [currentView, stockItems]);
 
+    const handleViewChange = useCallback(async (newView: View) => {
+        if (newView === 'expense-analysis') {
+            const { value: password } = await Swal.fire({
+                title: 'ยืนยันรหัสผ่าน',
+                text: 'กรุณากรอกรหัสผ่านเพื่อเข้าถึงหน้าวิเคราะห์ค่าใช้จ่าย',
+                input: 'password',
+                inputPlaceholder: 'รหัสผ่านของคุณ',
+                inputAttributes: {
+                    autocapitalize: 'off',
+                    autocorrect: 'off'
+                },
+                showCancelButton: true,
+                confirmButtonText: 'ยืนยัน',
+                cancelButtonText: 'ยกเลิก',
+                confirmButtonColor: '#3b82f6',
+                cancelButtonColor: '#6e7881'
+            });
+
+            if (password === undefined) return; // User cancelled
+
+            if (password === currentUser?.password) {
+                setCurrentView(newView);
+            } else {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'รหัสผ่านไม่ถูกต้อง',
+                    text: 'กรุณาลองใหม่อีกครั้ง',
+                    timer: 2000,
+                    showConfirmButton: false
+                });
+            }
+        } else {
+            setCurrentView(newView);
+        }
+    }, [currentUser, setCurrentView]);
+
     // --- USER PERSISTENCE ---
     useEffect(() => {
         if (currentUser) {
@@ -1066,7 +1102,7 @@ export const App: React.FC = () => {
                     }
                 }
             } else if (user.role === 'kitchen') {
-                setCurrentView('kitchen');
+                handleViewChange('kitchen');
                 // NEW LOGIC: Branch Selection for Kitchen
                 if (user.allowedBranchIds && user.allowedBranchIds.length > 1) {
                     setSelectedBranch(null); 
@@ -1079,7 +1115,7 @@ export const App: React.FC = () => {
                     }
                 }
             } else if (user.role === 'pos') {
-                setCurrentView('pos');
+                handleViewChange('pos');
                 // NEW LOGIC: Branch Selection for POS
                 if (user.allowedBranchIds && user.allowedBranchIds.length > 1) {
                     setSelectedBranch(null); 
@@ -1092,7 +1128,7 @@ export const App: React.FC = () => {
                     }
                 }
             } else if (['admin', 'branch-admin', 'auditor'].includes(user.role)) {
-                setCurrentView('dashboard');
+                handleViewChange('dashboard');
                 // NEW LOGIC: Branch Selection for Admin/Manager/Auditor
                 if (user.role === 'admin' || (user.allowedBranchIds && user.allowedBranchIds.length > 1)) {
                     setSelectedBranch(null); 
@@ -1579,7 +1615,7 @@ export const App: React.FC = () => {
                         isCollapsed={isAdminSidebarCollapsed} onToggleCollapse={() => setIsAdminSidebarCollapsed(!isAdminSidebarCollapsed)}
                         logoUrl={appLogoUrl || logoUrl} // Prioritize App Logo (Red)
                         restaurantName={restaurantName} branchName={selectedBranch.name} currentUser={currentUser}
-                        onViewChange={setCurrentView} currentView={currentView} onToggleEditMode={() => setIsEditMode(!isEditMode)} isEditMode={isEditMode}
+                        onViewChange={handleViewChange} currentView={currentView} onToggleEditMode={() => setIsEditMode(!isEditMode)} isEditMode={isEditMode}
                         onOpenSettings={() => setModalState(prev => ({...prev, isSettings: true}))} onOpenUserManager={() => setModalState(prev => ({...prev, isUserManager: true}))}
                         onManageBranches={() => setModalState(prev => ({...prev, isBranchManager: true}))} onChangeBranch={handleChangeBranch} onLogout={handleLogout}
                         kitchenBadgeCount={totalKitchenBadgeCount} tablesBadgeCount={tablesBadgeCount} leaveBadgeCount={leaveBadgeCount} stockBadgeCount={stockBadgeCount}
@@ -1598,7 +1634,7 @@ export const App: React.FC = () => {
                 {/* Header for Desktop POS/Kitchen staff */}
                 {isDesktop && !isAdminViewOnDesktop && (
                     <Header
-                        currentView={currentView} onViewChange={setCurrentView} isEditMode={isEditMode} onToggleEditMode={() => setIsEditMode(!isEditMode)}
+                        currentView={currentView} onViewChange={handleViewChange} isEditMode={isEditMode} onToggleEditMode={() => setIsEditMode(!isEditMode)}
                         onOpenSettings={() => setModalState(prev => ({ ...prev, isSettings: true }))} cookingBadgeCount={cookingBadgeCount} waitingBadgeCount={waitingBadgeCount}
                         tablesBadgeCount={tablesBadgeCount} vacantTablesBadgeCount={vacantTablesCount} leaveBadgeCount={leaveBadgeCount} stockBadgeCount={stockBadgeCount} 
                         maintenanceBadgeCount={maintenanceBadgeCount} currentUser={currentUser} onLogout={handleLogout}
@@ -1644,7 +1680,7 @@ export const App: React.FC = () => {
                                         onSendToKitchenChange={(enabled, details) => { setSendToKitchen(enabled); setNotSentToKitchenDetails(details); }}
                                         onUpdateReservation={(tableId, reservation) => setTables(prev => prev.map(t => t.id === tableId ? {...t, reservation} : t))}
                                         onOpenSearch={() => setModalState(prev => ({...prev, isMenuSearch: true}))} currentUser={currentUser} onEditOrderItem={handleUpdateOrderItem}
-                                        onViewChange={setCurrentView} restaurantName={restaurantName} onLogout={handleLogout}
+                                        onViewChange={handleViewChange} restaurantName={restaurantName} onLogout={handleLogout}
                                         onToggleAvailability={handleToggleAvailability}
                                         isOrderNotificationsEnabled={isOrderNotificationsEnabled}
                                         onToggleOrderNotifications={toggleOrderNotifications}
@@ -1673,7 +1709,7 @@ export const App: React.FC = () => {
                                         sendToKitchen={sendToKitchen} onSendToKitchenChange={(enabled, details) => { setSendToKitchen(enabled); setNotSentToKitchenDetails(details); }}
                                         onUpdateReservation={(tableId, reservation) => setTables(prev => prev.map(t => t.id === tableId ? {...t, reservation} : t))}
                                         onOpenSearch={() => setModalState(prev => ({...prev, isMenuSearch: true}))} currentUser={currentUser} onEditOrderItem={handleUpdateOrderItem}
-                                        onViewChange={setCurrentView} restaurantName={restaurantName} onLogout={handleLogout}
+                                        onViewChange={handleViewChange} restaurantName={restaurantName} onLogout={handleLogout}
                                         onToggleAvailability={handleToggleAvailability}
                                         isOrderNotificationsEnabled={isOrderNotificationsEnabled}
                                         onToggleOrderNotifications={toggleOrderNotifications}
@@ -1714,7 +1750,7 @@ export const App: React.FC = () => {
                                                 />
                                             )}
                                             {/* ... Other mobile views ... */}
-                                            {currentView === 'tables' && <TableLayout tables={tables} activeOrders={activeOrders} onTableSelect={(id) => { setSelectedTableId(id); setCurrentView('pos'); }} onShowBill={handleShowBill} onGeneratePin={handleGeneratePin} currentUser={currentUser} printerConfig={printerConfig} floors={floors} selectedBranch={selectedBranch} restaurantName={restaurantName} logoUrl={logoUrl} qrCodeUrl={qrCodeUrl} />}
+                                            {currentView === 'tables' && <TableLayout tables={tables} activeOrders={activeOrders} onTableSelect={(id) => { setSelectedTableId(id); handleViewChange('pos'); }} onShowBill={handleShowBill} onGeneratePin={handleGeneratePin} currentUser={currentUser} printerConfig={printerConfig} floors={floors} selectedBranch={selectedBranch} restaurantName={restaurantName} logoUrl={logoUrl} qrCodeUrl={qrCodeUrl} />}
                                             {currentView === 'dashboard' && <Dashboard completedOrders={completedOrders} cancelledOrders={cancelledOrders} openingTime={openingTime || '10:00'} closingTime={closingTime || '22:00'} currentUser={currentUser} recipes={recipes} deliveryProviders={deliveryProviders} taxRate={taxRate} />}
                                             {currentView === 'history' && <SalesHistory completedOrders={completedOrders} cancelledOrders={cancelledOrders} printHistory={printHistory} onReprint={() => {}} onSplitOrder={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isSplitCompleted: true}))}} isEditMode={isEditMode} onEditOrder={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isEditCompleted: true}))}} onInitiateCashBill={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isCashBill: true}))}} onDeleteHistory={handleDeleteHistory} currentUser={currentUser} onReprintReceipt={handleReprintReceipt} recipes={recipes} deliveryProviders={deliveryProviders} taxRate={taxRate} onUpdateCompletedOrder={newCompletedOrdersActions.update} />}
                                             {currentView === 'stock' && <StockManagement stockItems={stockItems} setStockItems={setStockItems} stockTags={stockTags} setStockTags={setStockTags} stockCategories={stockCategories} setStockCategories={setStockCategories} stockUnits={stockUnits} setStockUnits={setStockUnits} stockLogs={stockLogs} stockLogsActions={stockLogsActions} currentUser={currentUser} isTagModalOpen={modalState.isTagRegistration} onOpenTagModal={() => setModalState(prev => ({ ...prev, isTagRegistration: true }))} onCloseTagModal={() => setModalState(prev => ({ ...prev, isTagRegistration: false }))} />}
@@ -1783,7 +1819,7 @@ export const App: React.FC = () => {
                                     onToggleAutoPrint={toggleAutoPrint}     // Pass handler
                                 />
                             )}
-                            {currentView === 'tables' && <TableLayout tables={tables} activeOrders={activeOrders} onTableSelect={(id) => { setSelectedTableId(id); setCurrentView('pos'); }} onShowBill={handleShowBill} onGeneratePin={handleGeneratePin} currentUser={currentUser} printerConfig={printerConfig} floors={floors} selectedBranch={selectedBranch} restaurantName={restaurantName} logoUrl={logoUrl} qrCodeUrl={qrCodeUrl} />}
+                            {currentView === 'tables' && <TableLayout tables={tables} activeOrders={activeOrders} onTableSelect={(id) => { setSelectedTableId(id); handleViewChange('pos'); }} onShowBill={handleShowBill} onGeneratePin={handleGeneratePin} currentUser={currentUser} printerConfig={printerConfig} floors={floors} selectedBranch={selectedBranch} restaurantName={restaurantName} logoUrl={logoUrl} qrCodeUrl={qrCodeUrl} />}
                             {currentView === 'dashboard' && <Dashboard completedOrders={completedOrders} cancelledOrders={cancelledOrders} openingTime={openingTime || '10:00'} closingTime={closingTime || '22:00'} currentUser={currentUser} recipes={recipes} deliveryProviders={deliveryProviders} taxRate={taxRate} />}
                             {currentView === 'history' && <SalesHistory completedOrders={completedOrders} cancelledOrders={cancelledOrders} printHistory={printHistory} onReprint={() => {}} onSplitOrder={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isSplitCompleted: true}))}} isEditMode={isEditMode} onEditOrder={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isEditCompleted: true}))}} onInitiateCashBill={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isCashBill: true}))}} onDeleteHistory={handleDeleteHistory} currentUser={currentUser} onReprintReceipt={handleReprintReceipt} recipes={recipes} deliveryProviders={deliveryProviders} taxRate={taxRate} onUpdateCompletedOrder={newCompletedOrdersActions.update} />}
                             {currentView === 'stock' && <StockManagement stockItems={stockItems} setStockItems={setStockItems} stockTags={stockTags} setStockTags={setStockTags} stockCategories={stockCategories} setStockCategories={setStockCategories} stockUnits={stockUnits} setStockUnits={setStockUnits} stockLogs={stockLogs} stockLogsActions={stockLogsActions} currentUser={currentUser} isTagModalOpen={modalState.isTagRegistration} onOpenTagModal={() => setModalState(prev => ({ ...prev, isTagRegistration: true }))} onCloseTagModal={() => setModalState(prev => ({ ...prev, isTagRegistration: false }))} />}
@@ -1835,7 +1871,7 @@ export const App: React.FC = () => {
                 </main>
             </div>
             
-            {!isDesktop && currentUser && <BottomNavBar items={mobileNavItems} currentView={currentView} onViewChange={setCurrentView} />}
+            {!isDesktop && currentUser && <BottomNavBar items={mobileNavItems} currentView={currentView} onViewChange={handleViewChange} />}
 
             {/* Modals ... (Keep existing modals) ... */}
             <LoginModal isOpen={false} onClose={() => {}} />
@@ -1971,7 +2007,7 @@ export const App: React.FC = () => {
                 // If it's a delivery platform, we might want to set a flag or state
                 // that the Sidebar can pick up. For now, we'll just add the items
                 // and switch to POS view.
-                setCurrentView('pos');
+                handleViewChange('pos');
                 
                 // If platform is detected, we can show a small toast or hint
                 if (platform && platform !== 'Other') {
