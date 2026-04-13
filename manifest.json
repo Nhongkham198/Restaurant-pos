@@ -10,25 +10,25 @@
       "purpose": "any"
     },
     {
-      "src": "https://picsum.photos/seed/pos/192/192",
+      "src": "/logo.png",
       "type": "image/png",
       "sizes": "192x192",
       "purpose": "any"
     },
     {
-      "src": "https://picsum.photos/seed/pos/512/512",
+      "src": "/logo.png",
       "type": "image/png",
       "sizes": "512x512",
       "purpose": "any"
     },
     {
-      "src": "https://picsum.photos/seed/pos/192/192",
+      "src": "/logo.png",
       "type": "image/png",
       "sizes": "192x192",
       "purpose": "maskable"
     },
     {
-      "src": "https://picsum.photos/seed/pos/512/512",
+      "src": "/logo.png",
       "type": "image/png",
       "sizes": "512x512",
       "purpose": "maskable"

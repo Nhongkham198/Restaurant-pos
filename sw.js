@@ -78,8 +78,7 @@ const urlsToCache = [
   '/index.html',
   '/manifest.json',
   '/icon.svg',
-  'https://picsum.photos/seed/pos/192/192',
-  'https://picsum.photos/seed/pos/512/512',
+  '/logo.png',
   // Note: External resources from CDNs are cached via the fetch handler, not pre-cached here.
 ];
 
