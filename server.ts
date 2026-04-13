@@ -2,6 +2,31 @@ import express from "express";
 import path from "path";
 import axios from "axios";
 import { GoogleGenAI } from "@google/genai";
+import admin from "firebase-admin";
+
+// Initialize Firebase Admin
+if (!admin.apps.length) {
+  try {
+    const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT 
+      ? JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT) 
+      : null;
+
+    if (serviceAccount) {
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount),
+        projectId: "restaurant-pos-f8bd4"
+      });
+      console.log("Firebase Admin initialized with service account");
+    } else {
+      admin.initializeApp({
+        projectId: "restaurant-pos-f8bd4"
+      });
+      console.log("Firebase Admin initialized with default credentials");
+    }
+  } catch (err) {
+    console.error("Error initializing Firebase Admin:", err);
+  }
+}
 
 const app = express();
 const PORT = 3000;
@@ -174,6 +199,33 @@ app.post("/api/read-order", async (req, res) => {
       errorMessage = error.message;
     }
     res.status(500).json({ error: errorMessage, details: error.message });
+  }
+});
+
+// API สำหรับส่งแจ้งเตือน Push Notification
+app.post("/api/send-notification", async (req, res) => {
+  const { tokens, title, body, data } = req.body;
+
+  if (!tokens || !Array.isArray(tokens) || tokens.length === 0) {
+    return res.status(400).json({ error: "No tokens provided" });
+  }
+
+  try {
+    const message = {
+      notification: {
+        title,
+        body,
+      },
+      data: data || {},
+      tokens: tokens,
+    };
+
+    const response = await admin.messaging().sendEachForMulticast(message);
+    console.log("Successfully sent push notifications:", response);
+    res.json({ success: true, response });
+  } catch (error: any) {
+    console.error("Error sending push notifications:", error);
+    res.status(500).json({ error: error.message });
   }
 });
 

@@ -4,6 +4,7 @@ import "firebase/compat/firestore";
 import "firebase/compat/functions";
 import "firebase/compat/auth";
 import { getStorage } from "firebase/storage";
+import { getMessaging, isSupported } from "firebase/messaging";
 
 const firebaseConfig = {
   apiKey: "AIzaSyCVLo7EeWsDSR1tWmucYuZq7uOuV8zvqXI",
@@ -22,6 +23,7 @@ let db: any = null;
 let functions: any = null;
 let storage: any = null;
 let auth: any = null;
+let messaging: any = null;
 
 if (isFirebaseConfigured) {
   try {
@@ -34,6 +36,12 @@ if (isFirebaseConfigured) {
     db = firebase.firestore();
     auth = firebase.auth();
     functions = firebase.app().functions('asia-southeast1');
+    
+    isSupported().then(supported => {
+      if (supported) {
+        messaging = getMessaging(app);
+      }
+    });
     
     // Use modular storage directly to avoid compat issues
     storage = getStorage(app);
@@ -53,4 +61,4 @@ if (isFirebaseConfigured) {
   }
 }
 
-export { firebase, db, functions, storage, auth };
+export { firebase, db, functions, storage, auth, messaging };

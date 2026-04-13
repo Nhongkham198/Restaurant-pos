@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import axios from 'axios';
 import { useData } from '../contexts/DataContext';
 import { useUI } from '../contexts/UIContext';
 import { db } from '../firebaseConfig';
@@ -11,6 +12,7 @@ export const useOrderLogic = () => {
     const { 
         branchId, 
         currentUser, 
+        users,
         tables, 
         sendToKitchen, 
         isTaxEnabled, 
@@ -31,6 +33,28 @@ export const useOrderLogic = () => {
 
     const [isPlacingOrder, setIsPlacingOrder] = useState(false);
     const [lastPlacedOrderId, setLastPlacedOrderId] = useState<number | null>(null);
+
+    const sendPushNotification = async (title: string, body: string, targetRoles: string[]) => {
+        try {
+            // Find users with target roles who have FCM tokens
+            const targetUsers = users.filter(u => targetRoles.includes(u.role) && u.fcmTokens && u.fcmTokens.length > 0);
+            const allTokens = targetUsers.flatMap(u => u.fcmTokens || []);
+
+            if (allTokens.length > 0) {
+                await axios.post('/api/send-notification', {
+                    tokens: allTokens,
+                    title,
+                    body,
+                    data: {
+                        type: 'new_order',
+                        branchId: branchId?.toString()
+                    }
+                });
+            }
+        } catch (error) {
+            console.error('Failed to send push notification:', error);
+        }
+    };
 
     const placeOrder = async (
         orderItems: OrderItem[], 
@@ -164,6 +188,13 @@ export const useOrderLogic = () => {
 
             const { newOrder, isPrintedImmediatelyByThisDevice } = result;
             setLastPlacedOrderId(newOrder.orderNumber); 
+            
+            // Send Push Notification
+            sendPushNotification(
+                `ออเดอร์ใหม่ #${newOrder.orderNumber}`,
+                `โต๊ะ: ${newOrder.tableName} | รายการ: ${newOrder.items.length} อย่าง`,
+                ['admin', 'branch-admin', 'kitchen', 'pos']
+            );
             
             if (!isCustomerMode) {
                 setModalState(prev => ({ ...prev, isOrderSuccess: true })); 

@@ -48,8 +48,9 @@ import { functionsService } from './services/firebaseFunctionsService';
 import { printerService } from './services/printerService';
 import firebase from 'firebase/compat/app';
 import 'firebase/compat/firestore';
-import 'firebase/compat/messaging';
-import { isFirebaseConfigured, db } from './firebaseConfig';
+import { isFirebaseConfigured, db, messaging } from './firebaseConfig';
+import { requestNotificationPermission } from './src/services/fcmService';
+import { onMessage } from 'firebase/messaging';
 
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
@@ -1031,18 +1032,39 @@ export const App: React.FC = () => {
         }
     }, [currentUser, setCurrentView]);
 
-    // --- USER PERSISTENCE ---
     useEffect(() => {
         if (currentUser) {
             localStorage.setItem('currentUser', JSON.stringify(currentUser));
-            if (isFirebaseConfigured && firebase.messaging.isSupported()) {
-                const messaging = firebase.messaging();
-                messaging.getToken({ vapidKey: 'BDBGk_J108hNL-aQh-fFzAIpMwlD8TztXugeAnQj2hcmLAAjY0p8hWlGF3a0cSIwJhY_Jd3Tj3Y-2-fB8dJL_4' }).then((token) => { if (token) { setCurrentFcmToken(token); const userHasToken = prevUserRef.current?.fcmTokens?.includes(token); if (!userHasToken) { const updatedTokens = Array.from(new Set([...(currentUser.fcmTokens || []), token])); setUsers(prevUsers => prevUsers.map(u => u.id === currentUser.id ? { ...u, fcmTokens: updatedTokens } : u)); } } }).catch(() => {});
+            if (isFirebaseConfigured && messaging) {
+                requestNotificationPermission(currentUser.id).then(token => {
+                    if (token) setCurrentFcmToken(token);
+                });
             }
         } 
         
         prevUserRef.current = currentUser;
-    }, [currentUser, setUsers]);
+    }, [currentUser]);
+
+    // Foreground message listener
+    useEffect(() => {
+        if (messaging) {
+            const unsubscribe = onMessage(messaging, (payload) => {
+                console.log('Foreground message received:', payload);
+                if (payload.notification) {
+                    Swal.fire({
+                        title: payload.notification.title,
+                        text: payload.notification.body,
+                        icon: 'info',
+                        toast: true,
+                        position: 'top-end',
+                        showConfirmButton: false,
+                        timer: 5000
+                    });
+                }
+            });
+            return () => unsubscribe();
+        }
+    }, []);
 
     useEffect(() => { if (selectedBranch) localStorage.setItem('selectedBranch', JSON.stringify(selectedBranch)); else if (!isCustomerMode) localStorage.removeItem('selectedBranch'); }, [selectedBranch, isCustomerMode]);
     useEffect(() => { localStorage.setItem('currentView', currentView); }, [currentView]);
@@ -1056,12 +1078,6 @@ export const App: React.FC = () => {
     // ============================================================================
     
     // ... (Keep handler functions same as before) ...
-    const requestNotificationPermission = async () => {
-        if ('Notification' in window && Notification.permission !== 'granted') {
-            try { await Notification.requestPermission(); } catch (error) {}
-        }
-    };
-
     const handleAudioUnlock = useCallback(async () => {
         if (!isAudioUnlocked) {
             const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -1074,7 +1090,7 @@ export const App: React.FC = () => {
     const handleLogin = async (username: string, password: string) => {
         const user = users.find(u => u.username === username && u.password === password);
         if (user) {
-            await requestNotificationPermission();
+            await requestNotificationPermission(user.id);
             
             // Fix: Immediately persist user to localStorage to avoid race conditions on refresh
             localStorage.setItem('currentUser', JSON.stringify(user));
