@@ -1283,16 +1283,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
                                                     />
                                                 </div>
                                             </div>
-                                            <div>
-                                                <label className="block text-xs font-bold text-gray-500 mb-1">ค่าโฆษณาต่อออเดอร์ (บาท)</label>
-                                                <input 
-                                                    type="number" 
-                                                    value={provider.fixedAdCost || 0} 
-                                                    onChange={(e) => handleDeliveryFieldChange(provider.id, 'fixedAdCost', parseFloat(e.target.value) || 0)}
-                                                    placeholder="เช่น 32"
-                                                    className="w-full text-sm border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500"
-                                                />
-                                            </div>
                                         </div>
                                     </div>
                                 ))}

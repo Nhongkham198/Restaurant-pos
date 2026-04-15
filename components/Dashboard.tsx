@@ -5,6 +5,7 @@ import { useData } from '../contexts/DataContext';
 import type { CompletedOrder, CancelledOrder, User, Recipe, DeliveryProvider } from '../types';
 import { SalesChart } from './SalesChart';
 import PieChart from './PieChart';
+import { NumpadModal } from './NumpadModal';
 
 interface DashboardProps {
     completedOrders: CompletedOrder[];
@@ -57,6 +58,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
     const [menuSortMode, setMenuSortMode] = useState<'quantity' | 'profit-desc' | 'profit-asc'>('quantity');
     const [isMenuSortOpen, setIsMenuSortOpen] = useState(false);
     const [activeTab, setActiveTab] = useState<'overview' | 'profit'>('overview');
+    const [isNumpadOpen, setIsNumpadOpen] = useState(false);
+    const [numpadTargetDate, setNumpadTargetDate] = useState<string | null>(null);
+    const [numpadTargetProvider, setNumpadTargetProvider] = useState<string | null>(null);
+    const [numpadInitialValue, setNumpadInitialValue] = useState<number>(0);
 
     // Check permissions for monthly view
     const canViewMonthly = useMemo(() => {
@@ -113,14 +118,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
             let totalAdRevenue = 0;
             let totalCost = 0;
             let totalGP = 0;
-            let totalAdCost = 0;
             let totalTaxOnGP = 0;
-            let totalTaxOnAd = 0;
             const adOrderCounts: Record<string, number> = {};
             const gpByProvider: Record<string, number> = {};
+            const adRevenueByProvider: Record<string, number> = {};
 
             dayOrders.forEach(order => {
-                const isDelivery = order.orderType === 'lineman';
+                const isDelivery = order.orderType === 'lineman' || order.tableName === 'Delivery' || order.customerName?.includes('#');
                 
                 // Identify provider name consistently
                 let providerName = 'LineMan';
@@ -141,6 +145,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
 
                     if (order.isFromAd) {
                         totalAdRevenue += sellingPrice * itemQty;
+                        adRevenueByProvider[providerName] = (adRevenueByProvider[providerName] || 0) + (sellingPrice * itemQty);
                     }
 
                     // Find recipe for cost
@@ -164,42 +169,56 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
                 });
 
                 if (isDelivery && order.isFromAd) {
-                    let fixedAdCost = 0;
-                    let taxOnAd = 0;
-
-                    if (order.recordedAdCost !== undefined) {
-                        fixedAdCost = order.recordedAdCost;
-                        taxOnAd = order.recordedAdCostTax || 0;
-                    } else if (provider) {
-                        fixedAdCost = provider.fixedAdCost || 0;
-                        taxOnAd = fixedAdCost * (taxRate / 100);
-                    }
-                    
-                    totalAdCost += fixedAdCost;
-                    totalTaxOnAd += taxOnAd;
-                    
                     if (providerName) {
                         adOrderCounts[providerName] = (adOrderCounts[providerName] || 0) + 1;
                     }
                 }
+
+                // Add order-level tax to revenue
+                totalRevenue += order.taxAmount;
+                if (order.isFromAd) {
+                    totalAdRevenue += order.taxAmount;
+                    adRevenueByProvider[providerName] = (adRevenueByProvider[providerName] || 0) + order.taxAmount;
+                }
             });
 
-            const totalAdCostWithManual = totalAdCost + totalTaxOnAd + manualAdCost;
-            const netProfit = totalRevenue - totalCost - totalGP - totalTaxOnGP - totalAdCostWithManual;
-            const roas = totalAdCostWithManual > 0 ? totalAdRevenue / totalAdCostWithManual : 0;
+            // Calculate manual ad costs per provider
+            const manualAdCostsByProvider: Record<string, number> = {};
+            let totalManualAdCostWithTax = 0;
+            
+            Object.entries(manualAdCosts).forEach(([key, cost]) => {
+                if (key.startsWith(dayKey)) {
+                    // Extract provider from key "date|provider" or default to LineMan if not present
+                    const provider = key.includes('|') ? key.split('|')[1] : 'LineMan';
+                    manualAdCostsByProvider[provider] = (manualAdCostsByProvider[provider] || 0) + cost;
+                    totalManualAdCostWithTax += cost * 1.07;
+                }
+            });
+
+            const roasByProvider: Record<string, number> = {};
+            const providersWithAds = new Set([...Object.keys(adRevenueByProvider), ...Object.keys(manualAdCostsByProvider)]);
+            
+            providersWithAds.forEach(p => {
+                const rev = adRevenueByProvider[p] || 0;
+                const cost = manualAdCostsByProvider[p] || 0;
+                roasByProvider[p] = cost > 0 ? rev / cost : 0;
+            });
+
+            const netProfit = totalRevenue - totalCost - totalGP - totalTaxOnGP - totalManualAdCostWithTax;
 
             return {
                 date: day.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' }),
                 fullDate: dayKey,
                 revenue: totalRevenue,
                 adRevenue: totalAdRevenue,
+                adRevenueByProvider,
                 cost: totalCost,
                 gp: totalGP + totalTaxOnGP,
                 gpByProvider,
-                adCost: totalAdCostWithManual,
-                manualAdCost,
+                adCost: totalManualAdCostWithTax,
+                manualAdCostsByProvider,
                 adOrderCounts,
-                roas,
+                roasByProvider,
                 netProfit
             };
         });
@@ -774,12 +793,20 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
         }
     };
 
-    const handleManualAdCostChange = (dateKey: string, value: string) => {
+    const handleManualAdCostChange = (dateKey: string, providerName: string, value: string) => {
         const amount = parseFloat(value) || 0;
+        const compositeKey = `${dateKey}|${providerName}`;
         setManualAdCosts(prev => ({
             ...prev,
-            [dateKey]: amount
+            [compositeKey]: amount
         }));
+    };
+
+    const openNumpad = (dateKey: string, providerName: string, currentValue: number) => {
+        setNumpadTargetDate(dateKey);
+        setNumpadTargetProvider(providerName);
+        setNumpadInitialValue(currentValue);
+        setIsNumpadOpen(true);
     };
 
     const formattedDateDisplay = useMemo(() => {
@@ -1219,39 +1246,58 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
                                                     ) : '0'}
                                                 </td>
                                                 <td className="px-6 py-4 text-sm text-orange-400 text-right">
-                                                    <div className="flex flex-col items-end gap-2">
-                                                        <div className="flex items-center gap-2">
-                                                            <span className="text-xs text-gray-400">กรอกเพิ่ม:</span>
-                                                            <input 
-                                                                type="number" 
-                                                                value={day.manualAdCost || ''} 
-                                                                onChange={(e) => handleManualAdCostChange(day.fullDate, e.target.value)}
-                                                                placeholder="0"
-                                                                className="w-20 px-2 py-1 text-right border border-orange-200 rounded bg-orange-50 focus:outline-none focus:ring-1 focus:ring-orange-400 text-orange-700 font-bold"
-                                                            />
-                                                        </div>
-                                                        {day.adCost > 0 && (
-                                                            <div className="flex flex-col items-end">
-                                                                <span className="font-bold">รวม: -{day.adCost.toLocaleString()}</span>
-                                                                <div className="flex flex-wrap justify-end gap-1 mt-1">
-                                                                    {Object.entries(day.adOrderCounts).map(([name, count]) => (
-                                                                        <span 
-                                                                            key={name} 
-                                                                            className="text-[10px] px-1 rounded-sm text-white font-bold"
-                                                                            style={{ backgroundColor: getProviderColor(name, deliveryProviders) }}
-                                                                        >
-                                                                            {name}: {count}
+                                                    <div className="flex flex-col items-end gap-3">
+                                                        {deliveryProviders.filter(p => p.isEnabled).map(provider => {
+                                                            const cost = day.manualAdCostsByProvider[provider.name] || 0;
+                                                            const costWithTax = cost * 1.07;
+                                                            return (
+                                                                <div key={provider.id} className="flex flex-col items-end border-b border-orange-100 pb-2 last:border-0 last:pb-0">
+                                                                    <div className="flex items-center gap-2 mb-1">
+                                                                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded text-white" style={{ backgroundColor: getProviderColor(provider.name, deliveryProviders) }}>
+                                                                            {provider.name}
                                                                         </span>
-                                                                    ))}
+                                                                        <button 
+                                                                            onClick={() => openNumpad(day.fullDate, provider.name, cost)}
+                                                                            className="w-24 px-2 py-1.5 text-right border border-orange-200 rounded bg-orange-50 hover:bg-orange-100 transition-colors focus:outline-none focus:ring-1 focus:ring-orange-400 text-orange-700 font-bold flex items-center justify-end gap-1"
+                                                                        >
+                                                                            {cost.toLocaleString()}
+                                                                            <svg className="w-3 h-3 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
+                                                                        </button>
+                                                                    </div>
+                                                                    {cost > 0 && (
+                                                                        <div className="flex flex-col items-end">
+                                                                            <span className="text-[10px] text-gray-400">ภาษี 7%: +{(cost * 0.07).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                                                            <span className="text-xs font-bold text-orange-600">รวม: -{costWithTax.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                                                            {day.adOrderCounts[provider.name] > 0 && (
+                                                                                <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-green-100 text-green-800 mt-1">
+                                                                                    {provider.name}: {day.adOrderCounts[provider.name]}
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
+                                                                    )}
                                                                 </div>
-                                                            </div>
-                                                        )}
+                                                            );
+                                                        })}
                                                     </div>
                                                 </td>
                                                 <td className="px-6 py-4 text-right">
-                                                    <span className={`px-2 py-1 rounded text-xs font-black ${day.roas >= 5 ? 'bg-green-100 text-green-700' : day.roas >= 3 ? 'bg-blue-100 text-blue-700' : day.roas > 0 ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-400'}`}>
-                                                        {day.roas.toFixed(2)}x
-                                                    </span>
+                                                    <div className="flex flex-col items-end gap-3">
+                                                        {Object.entries(day.roasByProvider).map(([providerName, roas]) => {
+                                                            const adRev = day.adRevenueByProvider[providerName] || 0;
+                                                            if (adRev === 0 && (day.manualAdCostsByProvider[providerName] || 0) === 0) return null;
+                                                            return (
+                                                                <div key={providerName} className="flex flex-col items-end border-b border-gray-100 pb-2 last:border-0 last:pb-0">
+                                                                    <span className="text-[10px] font-bold uppercase tracking-wider mb-0.5" style={{ color: getProviderColor(providerName, deliveryProviders) }}>{providerName}</span>
+                                                                    <span className="text-xs font-bold text-blue-600 mb-1">
+                                                                        {adRev.toLocaleString()} ฿
+                                                                    </span>
+                                                                    <span className={`px-2 py-1 rounded text-xs font-black ${roas >= 5 ? 'bg-green-100 text-green-700' : roas >= 3 ? 'bg-blue-100 text-blue-700' : roas > 0 ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-400'}`}>
+                                                                        {roas.toFixed(2)}x
+                                                                    </span>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
                                                 </td>
                                                 <td className={`px-6 py-4 text-sm font-black text-right ${day.netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                                                     {day.netProfit.toLocaleString()}
@@ -1270,6 +1316,18 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
                     </div>
                 </div>
             )}
+            
+            <NumpadModal
+                isOpen={isNumpadOpen}
+                onClose={() => setIsNumpadOpen(false)}
+                initialValue={numpadInitialValue}
+                onSubmit={(val) => {
+                    if (numpadTargetDate && numpadTargetProvider) {
+                        handleManualAdCostChange(numpadTargetDate, numpadTargetProvider, val);
+                    }
+                }}
+                title={`กรอกค่าโฆษณา (${numpadTargetProvider})`}
+            />
         </div>
     );
 };

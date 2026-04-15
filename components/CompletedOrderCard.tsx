@@ -113,15 +113,15 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({
             totalRevenue += order.taxAmount;
         }
 
-        const netProfit = totalRevenue - totalRawMaterialCost - totalGPCost - totalGPTax - fixedAdCost - adCostTax;
+        const netProfit = totalRevenue - totalRawMaterialCost - totalGPCost - totalGPTax;
         
         return {
             totalRevenue,
             totalRawMaterialCost,
             totalGPCost,
             totalGPTax,
-            fixedAdCost,
-            adCostTax,
+            fixedAdCost: 0,
+            adCostTax: 0,
             netProfit,
             providerName: provider?.name || 'ทั่วไป'
         };
@@ -133,19 +133,9 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({
                 const isFromAd = e.target.checked;
                 const updates: Partial<CompletedOrder> = { isFromAd };
                 
-                // If turning ON, snapshot the current ad cost
-                if (isFromAd) {
-                    const providerName = 'LineMan';
-                    const provider = deliveryProviders.find(p => p.name.toLowerCase() === providerName.toLowerCase());
-                    if (provider) {
-                        updates.recordedAdCost = provider.fixedAdCost || 0;
-                        updates.recordedAdCostTax = updates.recordedAdCost * (taxRate / 100);
-                    }
-                } else {
-                    // If turning OFF, clear the recorded values
-                    updates.recordedAdCost = 0;
-                    updates.recordedAdCostTax = 0;
-                }
+                // Fixed ad cost per order is removed, so we just toggle the flag
+                updates.recordedAdCost = 0;
+                updates.recordedAdCostTax = 0;
 
                 await onUpdateOrder(order.id, updates);
             } catch (error) {
