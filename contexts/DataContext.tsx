@@ -153,6 +153,8 @@ interface DataContextType {
     setTelegramBotToken: React.Dispatch<React.SetStateAction<string>>;
     telegramChatId: string;
     setTelegramChatId: React.Dispatch<React.SetStateAction<string>>;
+    manualAdCosts: Record<string, number>;
+    setManualAdCosts: (newValue: React.SetStateAction<Record<string, number>>) => void;
     isDataLoading: boolean;
 }
 
@@ -541,6 +543,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     const [lineUserId, setLineUserId] = useFirestoreSync<string>(branchId, 'lineUserId', '');
     const [telegramBotToken, setTelegramBotToken] = useFirestoreSync<string>(branchId, 'telegramBotToken', '');
     const [telegramChatId, setTelegramChatId] = useFirestoreSync<string>(branchId, 'telegramChatId', '');
+    const [manualAdCosts, setManualAdCosts] = useFirestoreSync<Record<string, number>>(branchId, 'manualAdCosts', {});
 
     const isDataLoading = isMenuItemsLoading || isCategoriesLoading || isTablesLoading || isFloorsLoading || isDeliveryProvidersLoading;
 
@@ -578,6 +581,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             lineUserId, setLineUserId,
             telegramBotToken, setTelegramBotToken,
             telegramChatId, setTelegramChatId,
+            manualAdCosts, setManualAdCosts,
             isDataLoading
         }}>
             {/* Non-blocking Top Progress Bar */}

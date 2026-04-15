@@ -1,6 +1,7 @@
 
 import React, { useMemo, useState } from 'react';
 import DatePicker from 'react-datepicker';
+import { useData } from '../contexts/DataContext';
 import type { CompletedOrder, CancelledOrder, User, Recipe, DeliveryProvider } from '../types';
 import { SalesChart } from './SalesChart';
 import PieChart from './PieChart';
@@ -40,6 +41,7 @@ const getProviderColor = (name: string, deliveryProviders: DeliveryProvider[]) =
 };
 
 export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelledOrders, openingTime, closingTime, currentUser, recipes, deliveryProviders, taxRate }) => {
+    const { manualAdCosts, setManualAdCosts } = useData();
     // Initialize with today's date
     const [viewMode, setViewMode] = useState<'daily' | 'monthly'>('daily');
     const [dateRange, setDateRange] = useState<[Date | null, Date | null]>([new Date(), new Date()]);
@@ -100,12 +102,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
         return days.map(day => {
             const dayStart = day.getTime();
             const dayEnd = dayStart + (24 * 3600 * 1000);
+            const dayKey = day.toISOString().split('T')[0];
+            const manualAdCost = manualAdCosts[dayKey] || 0;
 
             const dayOrders = completedOrders.filter(order => 
                 order.completionTime >= dayStart && order.completionTime < dayEnd
             );
 
             let totalRevenue = 0;
+            let totalAdRevenue = 0;
             let totalCost = 0;
             let totalGP = 0;
             let totalAdCost = 0;
@@ -133,6 +138,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
                     const sellingPrice = item.finalPrice;
                     const itemQty = item.quantity;
                     totalRevenue += sellingPrice * itemQty;
+
+                    if (order.isFromAd) {
+                        totalAdRevenue += sellingPrice * itemQty;
+                    }
 
                     // Find recipe for cost
                     const recipe = recipes.find(r => r.menuItemId === item.id);
@@ -175,20 +184,26 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
                 }
             });
 
-            const netProfit = totalRevenue - totalCost - totalGP - totalTaxOnGP - totalAdCost - totalTaxOnAd;
+            const totalAdCostWithManual = totalAdCost + totalTaxOnAd + manualAdCost;
+            const netProfit = totalRevenue - totalCost - totalGP - totalTaxOnGP - totalAdCostWithManual;
+            const roas = totalAdCostWithManual > 0 ? totalAdRevenue / totalAdCostWithManual : 0;
 
             return {
                 date: day.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' }),
+                fullDate: dayKey,
                 revenue: totalRevenue,
+                adRevenue: totalAdRevenue,
                 cost: totalCost,
                 gp: totalGP + totalTaxOnGP,
                 gpByProvider,
-                adCost: totalAdCost + totalTaxOnAd,
+                adCost: totalAdCostWithManual,
+                manualAdCost,
                 adOrderCounts,
+                roas,
                 netProfit
             };
         });
-    }, [completedOrders, startDate, endDate, recipes, deliveryProviders, taxRate]);
+    }, [completedOrders, startDate, endDate, recipes, deliveryProviders, taxRate, manualAdCosts]);
 
     const handleViewModeChange = (mode: 'daily' | 'monthly') => {
         setViewMode(mode);
@@ -759,6 +774,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
         }
     };
 
+    const handleManualAdCostChange = (dateKey: string, value: string) => {
+        const amount = parseFloat(value) || 0;
+        setManualAdCosts(prev => ({
+            ...prev,
+            [dateKey]: amount
+        }));
+    };
+
     const formattedDateDisplay = useMemo(() => {
         if (startDate && endDate) {
             if (startDate.getTime() === endDate.getTime()) {
@@ -1159,9 +1182,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
                                     <tr className="bg-gray-50 border-b border-gray-100">
                                         <th className="px-6 py-4 text-sm font-bold text-gray-600">วันที่</th>
                                         <th className="px-6 py-4 text-sm font-bold text-gray-600 text-right">รายรับรวม</th>
+                                        <th className="px-6 py-4 text-sm font-bold text-gray-600 text-right">ยอดขายจากโฆษณา</th>
                                         <th className="px-6 py-4 text-sm font-bold text-gray-600 text-right">ต้นทุนวัตถุดิบ</th>
                                         <th className="px-6 py-4 text-sm font-bold text-gray-600 text-right">ค่า GP + ภาษี</th>
-                                        <th className="px-6 py-4 text-sm font-bold text-gray-600 text-right">ค่าโฆษณา + ภาษี</th>
+                                        <th className="px-6 py-4 text-sm font-bold text-gray-600 text-right">ค่าโฆษณา (รวมที่กรอก)</th>
+                                        <th className="px-6 py-4 text-sm font-bold text-gray-600 text-right">RoAS</th>
                                         <th className="px-6 py-4 text-sm font-bold text-gray-600 text-right">กำไรสุทธิ</th>
                                         <th className="px-6 py-4 text-sm font-bold text-gray-600 text-right">Margin %</th>
                                     </tr>
@@ -1173,6 +1198,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
                                             <tr key={idx} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
                                                 <td className="px-6 py-4 text-sm font-bold text-gray-800">{day.date}</td>
                                                 <td className="px-6 py-4 text-sm text-gray-700 text-right">{day.revenue.toLocaleString()}</td>
+                                                <td className="px-6 py-4 text-sm text-blue-600 font-bold text-right">{day.adRevenue.toLocaleString()}</td>
                                                 <td className="px-6 py-4 text-sm text-gray-500 text-right">{day.cost.toLocaleString()}</td>
                                                 <td className="px-6 py-4 text-sm text-red-400 text-right">
                                                     {day.gp > 0 ? (
@@ -1193,22 +1219,39 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
                                                     ) : '0'}
                                                 </td>
                                                 <td className="px-6 py-4 text-sm text-orange-400 text-right">
-                                                    {day.adCost > 0 ? (
-                                                        <div className="flex flex-col items-end">
-                                                            <span>-{day.adCost.toLocaleString()}</span>
-                                                            <div className="flex flex-wrap justify-end gap-1 mt-1">
-                                                                {Object.entries(day.adOrderCounts).map(([name, count]) => (
-                                                                    <span 
-                                                                        key={name} 
-                                                                        className="text-[10px] px-1 rounded-sm text-white font-bold"
-                                                                        style={{ backgroundColor: getProviderColor(name, deliveryProviders) }}
-                                                                    >
-                                                                        {name}: {count}
-                                                                    </span>
-                                                                ))}
-                                                            </div>
+                                                    <div className="flex flex-col items-end gap-2">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-xs text-gray-400">กรอกเพิ่ม:</span>
+                                                            <input 
+                                                                type="number" 
+                                                                value={day.manualAdCost || ''} 
+                                                                onChange={(e) => handleManualAdCostChange(day.fullDate, e.target.value)}
+                                                                placeholder="0"
+                                                                className="w-20 px-2 py-1 text-right border border-orange-200 rounded bg-orange-50 focus:outline-none focus:ring-1 focus:ring-orange-400 text-orange-700 font-bold"
+                                                            />
                                                         </div>
-                                                    ) : '0'}
+                                                        {day.adCost > 0 && (
+                                                            <div className="flex flex-col items-end">
+                                                                <span className="font-bold">รวม: -{day.adCost.toLocaleString()}</span>
+                                                                <div className="flex flex-wrap justify-end gap-1 mt-1">
+                                                                    {Object.entries(day.adOrderCounts).map(([name, count]) => (
+                                                                        <span 
+                                                                            key={name} 
+                                                                            className="text-[10px] px-1 rounded-sm text-white font-bold"
+                                                                            style={{ backgroundColor: getProviderColor(name, deliveryProviders) }}
+                                                                        >
+                                                                            {name}: {count}
+                                                                        </span>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-4 text-right">
+                                                    <span className={`px-2 py-1 rounded text-xs font-black ${day.roas >= 5 ? 'bg-green-100 text-green-700' : day.roas >= 3 ? 'bg-blue-100 text-blue-700' : day.roas > 0 ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-400'}`}>
+                                                        {day.roas.toFixed(2)}x
+                                                    </span>
                                                 </td>
                                                 <td className={`px-6 py-4 text-sm font-black text-right ${day.netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                                                     {day.netProfit.toLocaleString()}
