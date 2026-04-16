@@ -242,6 +242,22 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
             };
         });
     }, [completedOrders, startDate, endDate, recipes, deliveryProviders, taxRate, manualAdCosts]);
+    
+    const roasSummary = useMemo(() => {
+        let high = 0;   // Green: >= 7.1
+        let medium = 0; // Yellow: 4.1 - 7.0
+        let low = 0;    // Red: 0.1 - 4.0
+        
+        dailyProfitData.forEach(day => {
+            Object.values(day.roasByProvider).forEach(roas => {
+                if (roas >= 7.1) high++;
+                else if (roas >= 4.1) medium++;
+                else if (roas > 0) low++;
+            });
+        });
+
+        return { high, medium, low };
+    }, [dailyProfitData]);
 
     const handleViewModeChange = (mode: 'daily' | 'monthly') => {
         setViewMode(mode);
@@ -852,7 +868,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
         : null;
 
     return (
-        <div className="p-4 md:p-6 space-y-6 h-full overflow-y-auto w-full pb-24">
+        <div className="p-4 md:p-6 space-y-6 h-full overflow-y-auto overflow-x-auto w-full pb-24 custom-scrollbar">
             <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
                 <div className="flex flex-col gap-2">
                     <h1 className="text-3xl font-bold text-gray-800">
@@ -1227,20 +1243,38 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
                         </div>
                     </div>
 
-                    <div className="bg-white rounded-xl shadow-md overflow-hidden">
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left border-collapse">
+                    <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-wrap items-center gap-6">
+                        <div className="text-sm font-bold text-gray-500 uppercase tracking-wider">สรุปประสิทธิภาพ RoAS:</div>
+                        <div className="flex flex-wrap gap-3">
+                            <div className="flex items-center gap-2 bg-green-50 px-3 py-1.5 rounded-lg border border-green-200 shadow-sm">
+                                <span className="w-3 h-3 rounded-full bg-green-500 animate-pulse"></span>
+                                <span className="text-sm font-bold text-green-700">ประสิทธิภาพสูง (7.1x+): <span className="text-lg ml-1">{roasSummary.high}</span></span>
+                            </div>
+                            <div className="flex items-center gap-2 bg-yellow-50 px-3 py-1.5 rounded-lg border border-yellow-200 shadow-sm">
+                                <span className="w-3 h-3 rounded-full bg-yellow-500"></span>
+                                <span className="text-sm font-bold text-yellow-700">ปานกลาง (4.1-7.0x): <span className="text-lg ml-1">{roasSummary.medium}</span></span>
+                            </div>
+                            <div className="flex items-center gap-2 bg-red-50 px-3 py-1.5 rounded-lg border border-red-200 shadow-sm">
+                                <span className="w-3 h-3 rounded-full bg-red-500"></span>
+                                <span className="text-sm font-bold text-red-700">ควรปรับปรุง (0-4.0x): <span className="text-lg ml-1">{roasSummary.low}</span></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="bg-white rounded-xl shadow-md">
+                        <div className="">
+                            <table className="w-full text-left border-separate border-spacing-0">
                                 <thead>
-                                    <tr className="bg-gray-50 border-b border-gray-100">
-                                        <th className="px-6 py-4 text-sm font-bold text-gray-600">วันที่</th>
-                                        <th className="px-6 py-4 text-sm font-bold text-gray-600 text-right">รายรับรวม</th>
-                                        <th className="px-6 py-4 text-sm font-bold text-gray-600 text-right">ยอดขายจากโฆษณา</th>
-                                        <th className="px-6 py-4 text-sm font-bold text-gray-600 text-right">ต้นทุนวัตถุดิบ</th>
-                                        <th className="px-6 py-4 text-sm font-bold text-gray-600 text-right">ค่า GP + ภาษี</th>
-                                        <th className="px-6 py-4 text-sm font-bold text-gray-600 text-right">ค่าโฆษณา (รวมที่กรอก)</th>
-                                        <th className="px-6 py-4 text-sm font-bold text-gray-600 text-right">RoAS</th>
-                                        <th className="px-6 py-4 text-sm font-bold text-gray-600 text-right">กำไรสุทธิ</th>
-                                        <th className="px-6 py-4 text-sm font-bold text-gray-600 text-right">Margin %</th>
+                                    <tr>
+                                        <th className="sticky top-[-16px] md:top-[-24px] z-30 px-6 py-4 text-sm font-bold text-gray-600 bg-gray-50 border-b border-gray-100 first:rounded-tl-xl last:rounded-tr-xl">วันที่</th>
+                                        <th className="sticky top-[-16px] md:top-[-24px] z-30 px-6 py-4 text-sm font-bold text-gray-600 text-right bg-gray-50 border-b border-gray-100">รายรับรวม</th>
+                                        <th className="sticky top-[-16px] md:top-[-24px] z-30 px-6 py-4 text-sm font-bold text-gray-600 text-right bg-gray-50 border-b border-gray-100">ยอดขายจากโฆษณา</th>
+                                        <th className="sticky top-[-16px] md:top-[-24px] z-30 px-6 py-4 text-sm font-bold text-gray-600 text-right bg-gray-50 border-b border-gray-100">ต้นทุนวัตถุดิบ</th>
+                                        <th className="sticky top-[-16px] md:top-[-24px] z-20 px-6 py-4 text-sm font-bold text-gray-600 text-right bg-gray-50 border-b border-gray-100">ค่า GP + ภาษี</th>
+                                        <th className="sticky top-[-16px] md:top-[-24px] z-20 px-6 py-4 text-sm font-bold text-gray-600 text-right bg-gray-50 border-b border-gray-100">ค่าโฆษณา (รวมที่กรอก)</th>
+                                        <th className="sticky top-[-16px] md:top-[-24px] z-20 px-6 py-4 text-sm font-bold text-gray-600 text-right bg-gray-50 border-b border-gray-100">RoAS</th>
+                                        <th className="sticky top-[-16px] md:top-[-24px] z-20 px-6 py-4 text-sm font-bold text-gray-600 text-right bg-gray-50 border-b border-gray-100">กำไรสุทธิ</th>
+                                        <th className="sticky top-[-16px] md:top-[-24px] z-20 px-6 py-4 text-sm font-bold text-gray-600 text-right bg-gray-50 border-b border-gray-100">Margin %</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -1330,7 +1364,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
                                                                     <span className="text-sm font-bold text-blue-600 mb-1">
                                                                         {adRev.toLocaleString()} ฿
                                                                     </span>
-                                                                    <span className={`px-2 py-1 rounded text-xs font-black ${roas >= 5 ? 'bg-green-100 text-green-700' : roas >= 3 ? 'bg-blue-100 text-blue-700' : roas > 0 ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-400'}`}>
+                                                                    <span className={`px-2 py-1 rounded text-xs font-black ${roas >= 7.1 ? 'bg-green-100 text-green-700' : roas >= 4.1 ? 'bg-yellow-100 text-yellow-700' : roas > 0 ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-400'}`}>
                                                                         {roas.toFixed(2)}x
                                                                     </span>
                                                                     {adCost > 0 && (
