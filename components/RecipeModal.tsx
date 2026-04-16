@@ -122,7 +122,7 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
             manualCost += ing.quantity * manualPrice;
 
             // Smart Cost (JSON)
-            const latestPrice = latestIngredientPrices.find(p => p.name === stockItem?.name);
+            const latestPrice = latestIngredientPrices.find(p => (p.name || '').trim() === (stockItem?.name || '').trim());
             let jsonUnitPrice = ing.smartUnitPrice;
             
             if (jsonUnitPrice === undefined) {
@@ -199,7 +199,7 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
                                     const currentManualPrice = ing.unitPrice ?? stockItem?.unitPrice ?? 0;
                                     
                                     // Check for latest price from JSON
-                                    const latestPrice = latestIngredientPrices.find(p => p.name === stockItem?.name);
+                                    const latestPrice = latestIngredientPrices.find(p => (p.name || '').trim() === (stockItem?.name || '').trim());
                                     let jsonPrice = ing.smartUnitPrice;
                                     
                                     if (jsonPrice === undefined) {
@@ -288,13 +288,13 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
                                             <div className="flex items-center gap-3 sm:ml-auto">
                                                 <div className="text-right">
                                                     <span className="text-[10px] text-gray-400 font-bold block mb-1">ต้นทุน</span>
-                                                    <p className="text-sm font-black text-gray-900">฿{rowManualCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                                                    <p className="text-sm font-black text-gray-900">฿{rowManualCost.toLocaleString(undefined, { minimumFractionDigits: 3 })}</p>
                                                     <div className="mt-1 border-t border-red-200 pt-1">
                                                         <div className="flex items-center justify-end">
                                                             <span className="text-[11px] font-black text-red-600 mr-0.5">฿</span>
                                                             <input 
                                                                 type="number"
-                                                                value={rowSmartCost}
+                                                                value={rowSmartCost.toFixed(3)}
                                                                 onChange={(e) => {
                                                                     const newTotal = parseFloat(e.target.value) || 0;
                                                                     updateSmartUnitPrice(ing.stockItemId, newTotal / ing.quantity);
@@ -464,11 +464,11 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
                     <div className="flex flex-col gap-1">
                         <div className="flex items-baseline gap-2">
                             <p className="text-xs text-gray-500">ต้นทุนเดิม:</p>
-                            <p className="text-lg font-bold text-gray-700">฿{calculateTotalCost().manualTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                            <p className="text-lg font-bold text-gray-700">฿{calculateTotalCost().manualTotal.toLocaleString(undefined, { minimumFractionDigits: 3 })}</p>
                         </div>
                         <div className="flex items-baseline gap-2">
                             <p className="text-xs text-red-500 font-bold">ต้นทุนล่าสุด (JSON):</p>
-                            <p className="text-2xl font-black text-red-600">฿{calculateTotalCost().smartTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                            <p className="text-2xl font-black text-red-600">฿{calculateTotalCost().smartTotal.toLocaleString(undefined, { minimumFractionDigits: 3 })}</p>
                         </div>
                     </div>
                     <div className="flex gap-3">

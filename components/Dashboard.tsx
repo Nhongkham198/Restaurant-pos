@@ -179,7 +179,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
                             
                             if (unitPrice === undefined) {
                                 const stockItem = stockItems.find(s => s.id === ing.stockItemId);
-                                const latestPrice = latestIngredientPrices.find(p => p.name === stockItem?.name);
+                                const latestPrice = latestIngredientPrices.find(p => (p.name || '').trim() === (stockItem?.name || '').trim());
                                 unitPrice = ing.unitPrice || 0;
                                 
                                 if (latestPrice) {

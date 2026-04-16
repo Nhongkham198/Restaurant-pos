@@ -21,15 +21,20 @@ export const IngredientPriceUpload: React.FC<IngredientPriceUploadProps> = ({ on
                     throw new Error('รูปแบบไฟล์ไม่ถูกต้อง (ต้องเป็น Array ของข้อมูล)');
                 }
                 
-                // Basic validation of the first item
-                if (json.length > 0) {
-                    const firstItem = json[0];
+                // Basic validation and trimming
+                const cleanedJson = json.map(item => ({
+                    ...item,
+                    name: typeof item.name === 'string' ? item.name.trim() : item.name
+                }));
+
+                if (cleanedJson.length > 0) {
+                    const firstItem = cleanedJson[0];
                     if (!firstItem.name || firstItem.pricePerUnit === undefined) {
                         throw new Error('รูปแบบข้อมูลไม่ถูกต้อง (ต้องมี name และ pricePerUnit)');
                     }
                 }
 
-                onUpload(json);
+                onUpload(cleanedJson);
                 Swal.fire({
                     icon: 'success',
                     title: 'อัปโหลดไฟล์ราคาสำเร็จ',
