@@ -4,6 +4,59 @@ import type { MenuItem, StockItem, Recipe, RecipeIngredient, User, DeliveryProvi
 import { useData } from '../contexts/DataContext';
 import Swal from 'sweetalert2';
 
+interface SmartCostInputProps {
+    value: number;
+    onChange: (value: number) => void;
+    className?: string;
+}
+
+const SmartCostInput: React.FC<SmartCostInputProps> = ({ value, onChange, className }) => {
+    const [tempValue, setTempValue] = useState(value === 0 ? '' : value.toFixed(3));
+    const [isFocused, setIsFocused] = useState(false);
+
+    useEffect(() => {
+        if (!isFocused) {
+            // Check if the current numeric value is effectively the same as tempValue to avoid flashing
+            const currentNum = parseFloat(tempValue) || 0;
+            if (Math.abs(currentNum - value) > 0.0001 || (value === 0 && tempValue !== '')) {
+                setTempValue(value === 0 ? '' : value.toFixed(3));
+            }
+        }
+    }, [value, isFocused, tempValue]);
+
+    return (
+        <input
+            type="text"
+            inputMode="decimal"
+            value={tempValue}
+            onFocus={() => {
+                setIsFocused(true);
+                // When focusing, show more precision or the raw number to make editing easier
+                if (value !== 0) {
+                    setTempValue(value.toString());
+                }
+            }}
+            onBlur={() => {
+                setIsFocused(false);
+                const num = parseFloat(tempValue) || 0;
+                onChange(num);
+                setTempValue(num === 0 ? '' : num.toFixed(3));
+            }}
+            onChange={(e) => {
+                const val = e.target.value;
+                if (val === '' || /^\d*\.?\d*$/.test(val)) {
+                    setTempValue(val);
+                    const num = parseFloat(val);
+                    if (!isNaN(num)) {
+                        onChange(num);
+                    }
+                }
+            }}
+            className={className}
+        />
+    );
+};
+
 interface RecipeModalProps {
     isOpen: boolean;
     onClose: () => void;
@@ -292,15 +345,12 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
                                                     <div className="mt-1 border-t border-red-200 pt-1">
                                                         <div className="flex items-center justify-end">
                                                             <span className="text-[11px] font-black text-red-600 mr-0.5">฿</span>
-                                                            <input 
-                                                                type="number"
-                                                                value={rowSmartCost === 0 ? '' : rowSmartCost}
-                                                                onChange={(e) => {
-                                                                    const newTotal = parseFloat(e.target.value) || 0;
+                                                            <SmartCostInput 
+                                                                value={rowSmartCost}
+                                                                onChange={(newTotal) => {
                                                                     updateSmartUnitPrice(ing.stockItemId, newTotal / ing.quantity);
                                                                 }}
-                                                                className="text-[11px] font-black text-red-600 bg-transparent border-none text-right w-16 focus:outline-none p-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                                                                step="0.001"
+                                                                className="text-[11px] font-black text-red-600 bg-transparent border-none text-right w-16 focus:outline-none p-0"
                                                             />
                                                         </div>
                                                     </div>
