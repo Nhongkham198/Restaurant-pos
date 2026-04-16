@@ -42,7 +42,7 @@ const getProviderColor = (name: string, deliveryProviders: DeliveryProvider[]) =
 };
 
 export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelledOrders, openingTime, closingTime, currentUser, recipes, deliveryProviders, taxRate }) => {
-    const { manualAdCosts, setManualAdCosts } = useData();
+    const { manualAdCosts, setManualAdCosts, latestIngredientPrices, stockItems } = useData();
     // Local state for ad cost inputs to allow smooth typing (especially decimals)
     const [localAdCosts, setLocalAdCosts] = useState<Record<string, string>>({});
 
@@ -141,7 +141,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
 
             let totalRevenue = 0;
             let totalAdRevenue = 0;
-            let totalCost = 0;
+            let totalManualCost = 0;
+            let totalSmartCost = 0;
             let totalGP = 0;
             let totalTaxOnGP = 0;
             const adOrderCounts: Record<string, number> = {};
@@ -168,8 +169,45 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
 
                     // Find recipe for cost
                     const recipe = recipes.find(r => r.menuItemId === item.id);
-                    const costPerUnit = recipe ? (recipe.ingredients.reduce((sum, ing) => sum + (ing.quantity * (ing.unitPrice || 0)), 0) + recipe.additionalCost) : (sellingPrice * 0.6);
-                    totalCost += costPerUnit * itemQty;
+                    const costs = recipe ? (() => {
+                        const manualIngredientCost = recipe.ingredients.reduce((sum, ing) => {
+                            return sum + (ing.quantity * (ing.unitPrice || 0));
+                        }, 0);
+
+                        const smartIngredientCost = recipe.ingredients.reduce((sum, ing) => {
+                            let unitPrice = ing.smartUnitPrice;
+                            
+                            if (unitPrice === undefined) {
+                                const stockItem = stockItems.find(s => s.id === ing.stockItemId);
+                                const latestPrice = latestIngredientPrices.find(p => p.name === stockItem?.name);
+                                unitPrice = ing.unitPrice || 0;
+                                
+                                if (latestPrice) {
+                                    if (latestPrice.unit === 'กก.' && ing.unit === 'กรัม') {
+                                        unitPrice = latestPrice.pricePerUnit / 1000;
+                                    } else {
+                                        unitPrice = latestPrice.pricePerUnit;
+                                    }
+                                }
+                            }
+                            
+                            return sum + (ing.quantity * unitPrice);
+                        }, 0);
+                        
+                        const calcTotal = (ingCost: number) => {
+                            const subtotal = ingCost + recipe.additionalCost;
+                            const hiddenCost = subtotal * ((recipe.hiddenCostPercentage || 0) / 100);
+                            return subtotal + hiddenCost;
+                        };
+
+                        return {
+                            manual: calcTotal(manualIngredientCost),
+                            smart: calcTotal(smartIngredientCost)
+                        };
+                    })() : { manual: sellingPrice * 0.6, smart: sellingPrice * 0.6 };
+
+                    totalManualCost += costs.manual * itemQty;
+                    totalSmartCost += costs.smart * itemQty;
 
                     if (isDelivery) {
                         const gp = item.deliveryGPs?.[provider?.id || ''] || 0;
@@ -223,7 +261,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
                 roasByProvider[p] = cost > 0 ? rev / cost : 0;
             });
 
-            const netProfit = totalRevenue - totalCost - totalGP - totalTaxOnGP - totalManualAdCostWithTax;
+            const netProfitManual = totalRevenue - totalManualCost - totalGP - totalTaxOnGP - totalManualAdCostWithTax;
+            const netProfitSmart = totalRevenue - totalSmartCost - totalGP - totalTaxOnGP - totalManualAdCostWithTax;
 
             return {
                 date: day.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' }),
@@ -231,14 +270,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
                 revenue: totalRevenue,
                 adRevenue: totalAdRevenue,
                 adRevenueByProvider,
-                cost: totalCost,
+                manualCost: totalManualCost,
+                smartCost: totalSmartCost,
                 gp: totalGP + totalTaxOnGP,
                 gpByProvider,
                 adCost: totalManualAdCostWithTax,
                 manualAdCostsByProvider,
                 adOrderCounts,
                 roasByProvider,
-                netProfit
+                netProfitManual,
+                netProfitSmart
             };
         });
     }, [completedOrders, startDate, endDate, recipes, deliveryProviders, taxRate, manualAdCosts]);
@@ -1227,18 +1268,31 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
                             </div>
                             <div className="bg-green-50 px-4 py-2 rounded-lg border border-green-100">
                                 <p className="text-xs text-green-700 font-bold uppercase tracking-wider">กำไรสุทธิรวมช่วงนี้</p>
-                                <p className="text-2xl font-black text-green-600">
-                                    {dailyProfitData.reduce((sum, d) => sum + d.netProfit, 0).toLocaleString('th-TH', { style: 'currency', currency: 'THB', minimumFractionDigits: 0 })}
-                                </p>
+                                <div className="flex flex-col items-end">
+                                    <p className="text-2xl font-black text-green-600">
+                                        {dailyProfitData.reduce((sum, d) => sum + d.netProfitManual, 0).toLocaleString('th-TH', { style: 'currency', currency: 'THB', minimumFractionDigits: 0 })}
+                                    </p>
+                                    <p className="text-sm font-bold text-green-500">
+                                        {dailyProfitData.reduce((sum, d) => sum + d.netProfitSmart, 0).toLocaleString('th-TH', { style: 'currency', currency: 'THB', minimumFractionDigits: 0 })}
+                                    </p>
+                                </div>
                             </div>
                         </div>
                         
                         <div className="h-80 w-full">
                             <SalesChart
                                 title="แนวโน้มกำไรสุทธิรายวัน"
-                                data={dailyProfitData.map(d => d.netProfit)}
+                                data={[
+                                    dailyProfitData.map(d => d.netProfitManual),
+                                    dailyProfitData.map(d => d.netProfitSmart)
+                                ]}
+                                seriesLabels={['กำไรเดิม', 'กำไรล่าสุด JSON']}
                                 labels={dailyProfitData.map(d => d.date)}
-                                maxValue={Math.max(...dailyProfitData.map(d => d.netProfit), 1000)}
+                                maxValue={Math.max(
+                                    ...dailyProfitData.map(d => Math.abs(d.netProfitManual)),
+                                    ...dailyProfitData.map(d => Math.abs(d.netProfitSmart)),
+                                    1000
+                                )}
                             />
                         </div>
                     </div>
@@ -1279,13 +1333,19 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
                                 </thead>
                                 <tbody>
                                     {dailyProfitData.slice().reverse().map((day, idx) => {
-                                        const margin = day.revenue > 0 ? (day.netProfit / day.revenue) * 100 : 0;
+                                        const marginManual = day.revenue > 0 ? (day.netProfitManual / day.revenue) * 100 : 0;
+                                        const marginSmart = day.revenue > 0 ? (day.netProfitSmart / day.revenue) * 100 : 0;
                                         return (
                                             <tr key={idx} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
                                                 <td className="px-6 py-4 text-sm font-bold text-gray-800">{day.date}</td>
                                                 <td className="px-6 py-4 text-sm text-gray-700 text-right">{day.revenue.toLocaleString()}</td>
                                                 <td className="px-6 py-4 text-sm text-blue-600 font-bold text-right">{day.adRevenue.toLocaleString()}</td>
-                                                <td className="px-6 py-4 text-sm text-gray-500 text-right">{day.cost.toLocaleString()}</td>
+                                                <td className="px-6 py-4 text-sm text-right">
+                                                    <div className="flex flex-col items-end">
+                                                        <span className="text-gray-800 font-medium">{day.manualCost.toLocaleString()}</span>
+                                                        <span className="text-red-500 text-xs">{day.smartCost.toLocaleString()}</span>
+                                                    </div>
+                                                </td>
                                                 <td className="px-6 py-4 text-sm text-red-400 text-right">
                                                     {day.gp > 0 ? (
                                                         <div className="flex flex-col items-end">
@@ -1377,13 +1437,25 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
                                                         })}
                                                     </div>
                                                 </td>
-                                                <td className={`px-6 py-4 text-sm font-black text-right ${day.netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                                    {day.netProfit.toLocaleString()}
+                                                <td className="px-6 py-4 text-right">
+                                                    <div className="flex flex-col items-end">
+                                                        <span className={`text-sm font-black ${day.netProfitManual >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                            {day.netProfitManual.toLocaleString()}
+                                                        </span>
+                                                        <span className={`text-xs font-bold ${day.netProfitSmart >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                                            {day.netProfitSmart.toLocaleString()}
+                                                        </span>
+                                                    </div>
                                                 </td>
                                                 <td className="px-6 py-4 text-right">
-                                                    <span className={`px-2 py-1 rounded text-xs font-bold ${margin >= 30 ? 'bg-green-100 text-green-700' : margin >= 15 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
-                                                        {margin.toFixed(1)}%
-                                                    </span>
+                                                    <div className="flex flex-col items-end">
+                                                        <span className={`px-2 py-1 rounded text-[10px] font-bold ${marginManual >= 30 ? 'bg-green-100 text-green-700' : marginManual >= 15 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
+                                                            {marginManual.toFixed(1)}%
+                                                        </span>
+                                                        <span className={`px-2 py-1 rounded text-[10px] font-bold mt-1 ${marginSmart >= 30 ? 'bg-green-50 text-green-600' : marginSmart >= 15 ? 'bg-yellow-50 text-yellow-600' : 'bg-red-50 text-red-600'}`}>
+                                                            {marginSmart.toFixed(1)}%
+                                                        </span>
+                                                    </div>
                                                 </td>
                                             </tr>
                                         );

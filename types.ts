@@ -1,6 +1,18 @@
 
 import type { ReactNode } from 'react';
 
+export interface IngredientPrice {
+    date: string;
+    id: string;
+    name: string;
+    priceDiffPercent: number;
+    pricePerUnit: number;
+    quantity: number;
+    status: 'expensive' | 'cheap' | 'normal';
+    totalPrice: number;
+    unit: string;
+}
+
 export interface Branch {
     id: number;
     name: string;
@@ -440,6 +452,7 @@ export interface RecipeIngredient {
     quantity: number; // Quantity used per 1 unit of menu item
     unit: string;
     unitPrice?: number; // Added: Custom unit price for this recipe
+    smartUnitPrice?: number; // Added: Override for JSON/Smart price
 }
 
 export interface Recipe {

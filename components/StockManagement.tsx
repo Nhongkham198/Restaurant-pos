@@ -9,6 +9,8 @@ import { functionsService } from '../services/firebaseFunctionsService';
 import { CollectionActions } from '../hooks/useFirestoreSync';
 
 import { ThaiVirtualKeyboard } from './ThaiVirtualKeyboard';
+import { IngredientPriceUpload } from './IngredientPriceUpload';
+import { useData } from '../contexts/DataContext';
 
 // Declare XLSX to inform TypeScript that it's available globally from the script tag
 declare var XLSX: any;
@@ -80,6 +82,8 @@ export const StockManagement: React.FC<StockManagementProps> = ({
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
+
+    const { latestIngredientPrices, setLatestIngredientPrices } = useData();
 
     const filteredItems = useMemo(() => {
         // Safety check: Ensure stockItems is an array
@@ -905,8 +909,8 @@ export const StockManagement: React.FC<StockManagementProps> = ({
             <div className="h-full w-full flex flex-col bg-gray-50">
                 <header className="p-4 sm:p-6 border-b border-gray-200 bg-white flex-shrink-0 shadow-sm z-10">
                     <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
-                        <div className="flex justify-between items-center w-full md:w-auto">
-                            <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">จัดการสต็อกสินค้า</h1>
+                        <div className="flex justify-between items-center w-full md:w-auto flex-shrink-0">
+                            <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 whitespace-nowrap">จัดการสต็อกสินค้า</h1>
                             {/* Mobile Action Button - Moved here */}
                             <button onClick={handleMobilePO} className="lg:hidden px-3 py-2 bg-orange-500 text-white font-semibold rounded-lg hover:bg-orange-600 text-sm flex items-center gap-2 shadow-sm transition-all active:scale-95 ml-2">
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
@@ -914,7 +918,7 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                             </button>
                         </div>
                         {/* Hidden on mobile and tablet vertical (< 1024px), shown on desktop */}
-                        <div className="hidden lg:flex items-center gap-2">
+                        <div className="hidden lg:flex flex-wrap items-center justify-end gap-2 flex-1">
                             <input
                                 type="file"
                                 ref={fileInputRef}
@@ -947,6 +951,7 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                             <button onClick={() => handleOpenItemModal(null)} className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 whitespace-nowrap text-sm shadow transition-all hover:shadow-md">
                                 + เพิ่มรายการ
                             </button>
+                            <IngredientPriceUpload onUpload={setLatestIngredientPrices} />
                             <button onClick={onOpenTagModal} className="px-4 py-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 whitespace-nowrap text-sm shadow transition-all hover:shadow-md flex items-center gap-2">
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>
                                 🏷️ ลงทะเบียน Tag

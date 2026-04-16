@@ -5,7 +5,7 @@ import {
     StockItem, StockTag, StockLog, PrintHistoryEntry, MaintenanceItem, MaintenanceLog, 
     OrderCounter, StaffCall, LeaveRequest, PrinterConfig, DeliveryProvider,
     User, Branch, JobApplication, EmploymentContract, TimeRecord, PayrollRecord,
-    Recipe
+    Recipe, IngredientPrice
 } from '../types';
 import { 
     DEFAULT_USERS, DEFAULT_BRANCHES,
@@ -155,6 +155,8 @@ interface DataContextType {
     setTelegramChatId: React.Dispatch<React.SetStateAction<string>>;
     manualAdCosts: Record<string, number>;
     setManualAdCosts: (newValue: React.SetStateAction<Record<string, number>>) => void;
+    latestIngredientPrices: IngredientPrice[];
+    setLatestIngredientPrices: React.Dispatch<React.SetStateAction<IngredientPrice[]>>;
     isDataLoading: boolean;
 }
 
@@ -545,6 +547,15 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     const [telegramChatId, setTelegramChatId] = useFirestoreSync<string>(branchId, 'telegramChatId', '');
     const [manualAdCosts, setManualAdCosts] = useFirestoreSync<Record<string, number>>(branchId, 'manualAdCosts', {});
 
+    const [latestIngredientPrices, setLatestIngredientPrices] = useState<IngredientPrice[]>(() => {
+        const saved = localStorage.getItem('latestIngredientPrices');
+        return saved ? JSON.parse(saved) : [];
+    });
+
+    useEffect(() => {
+        localStorage.setItem('latestIngredientPrices', JSON.stringify(latestIngredientPrices));
+    }, [latestIngredientPrices]);
+
     const isDataLoading = isMenuItemsLoading || isCategoriesLoading || isTablesLoading || isFloorsLoading || isDeliveryProvidersLoading;
 
     return (
@@ -582,6 +593,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             telegramBotToken, setTelegramBotToken,
             telegramChatId, setTelegramChatId,
             manualAdCosts, setManualAdCosts,
+            latestIngredientPrices, setLatestIngredientPrices,
             isDataLoading
         }}>
             {/* Non-blocking Top Progress Bar */}
