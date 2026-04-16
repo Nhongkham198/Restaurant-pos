@@ -294,7 +294,7 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
                                                             <span className="text-[11px] font-black text-red-600 mr-0.5">฿</span>
                                                             <input 
                                                                 type="number"
-                                                                value={rowSmartCost.toFixed(3)}
+                                                                value={rowSmartCost === 0 ? '' : rowSmartCost}
                                                                 onChange={(e) => {
                                                                     const newTotal = parseFloat(e.target.value) || 0;
                                                                     updateSmartUnitPrice(ing.stockItemId, newTotal / ing.quantity);
