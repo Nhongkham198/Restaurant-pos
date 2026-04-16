@@ -97,6 +97,7 @@ export interface OrderItem extends MenuItem {
     takeawayCutlery?: TakeawayCutleryOption[];
     takeawayCutleryNotes?: string;
     originalOrderNumber?: number;
+    isManuallyAdded?: boolean; // NEW: Flag for items added after completion
 }
 
 export interface PaymentDetails {
@@ -170,6 +171,8 @@ export interface CompletedOrder extends BaseOrder {
     completedBy?: string; // Name of the staff who received the payment
     recordedAdCost?: number; // Snapshot of ad cost at completion
     recordedAdCostTax?: number; // Snapshot of ad cost tax at completion
+    lastEditedBy?: string; // NEW: Admin who last edited the order
+    lastEditedTime?: number; // NEW: Timestamp of the last edit
 }
 
 export interface CancelledOrder extends BaseOrder {

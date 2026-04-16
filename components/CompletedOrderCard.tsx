@@ -1,7 +1,10 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import type { CompletedOrder, Recipe, DeliveryProvider } from '../types';
+import type { CompletedOrder, Recipe, DeliveryProvider, OrderItem, MenuItem } from '../types';
 import Swal from 'sweetalert2';
+import { useData } from '../contexts/DataContext';
+import { MenuSearchModal } from './MenuSearchModal';
+import { ItemCustomizationModal } from './ItemCustomizationModal';
 
 interface CompletedOrderCardProps {
     order: CompletedOrder;
@@ -32,7 +35,13 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({
     taxRate,
     onUpdateOrder
 }) => {
+    const { currentUser, menuItems } = useData();
     const [isExpanded, setIsExpanded] = useState(false);
+    
+    // --- Add Item State ---
+    const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
+    const [isCustomizationModalOpen, setIsCustomizationModalOpen] = useState(false);
+    const [selectedMenuItem, setSelectedMenuItem] = useState<MenuItem | null>(null);
     
     // --- Image Viewer State ---
     const [isViewingSlip, setIsViewingSlip] = useState(false);
@@ -248,6 +257,61 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({
 
     const displayOrderNumber = order.manualOrderNumber ? `#${order.manualOrderNumber}` : `#${String(order.orderNumber).padStart(3, '0')}`;
 
+    const handleAddItem = () => {
+        setIsSearchModalOpen(true);
+    };
+
+    const handleSelectItem = (item: MenuItem) => {
+        if (item.optionGroups && item.optionGroups.length > 0) {
+            setSelectedMenuItem(item);
+            setIsSearchModalOpen(false);
+            setIsCustomizationModalOpen(true);
+        } else {
+            // Add directly if no options
+            addOrderItemToCompletedOrder({
+                ...item,
+                quantity: 1,
+                isTakeaway: order.orderType === 'takeaway',
+                cartItemId: `manual-${Date.now()}`,
+                finalPrice: item.price,
+                selectedOptions: [],
+                isManuallyAdded: true
+            } as OrderItem);
+            setIsSearchModalOpen(false);
+        }
+    };
+
+    const addOrderItemToCompletedOrder = async (newItem: OrderItem) => {
+        if (!onUpdateOrder || !currentUser) return;
+
+        const updatedItems = [...order.items, { ...newItem, isManuallyAdded: true }];
+        
+        // Recalculate tax
+        const subtotal = updatedItems.reduce((sum, item) => sum + item.finalPrice * item.quantity, 0);
+        const taxAmount = order.taxRate > 0 ? subtotal * (order.taxRate / 100) : 0;
+
+        try {
+            await onUpdateOrder(order.id, {
+                items: updatedItems,
+                taxAmount,
+                lastEditedBy: currentUser.username,
+                lastEditedTime: Date.now()
+            });
+
+            Swal.fire({
+                icon: 'success',
+                title: 'เพิ่มรายการสำเร็จ',
+                toast: true,
+                position: 'top-end',
+                showConfirmButton: false,
+                timer: 2000
+            });
+        } catch (error) {
+            console.error('Failed to add item:', error);
+            Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถเพิ่มรายการอาหารได้', 'error');
+        }
+    };
+
     return (
         <>
             <div className={cardClasses} style={order.isFromAd ? { borderColor: providerColor } : {}}>
@@ -293,6 +357,11 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({
                                 {order.completedBy && (
                                     <span className="whitespace-nowrap">
                                         <span className="text-gray-400">|</span> ผู้รับเงิน: {order.completedBy}
+                                    </span>
+                                )}
+                                {order.lastEditedBy && (
+                                    <span className="text-orange-600 font-bold">
+                                        <span className="text-gray-400">|</span> แก้ไขล่าสุดโดย: {order.lastEditedBy} ({new Date(order.lastEditedTime || 0).toLocaleString('th-TH')})
                                     </span>
                                 )}
                             </div>
@@ -413,11 +482,27 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({
                         )}
 
                         <div className="space-y-2 border-t pt-3">
-                            <h4 className="font-semibold text-gray-700 mb-2">รายการอาหาร</h4>
+                            <div className="flex justify-between items-center mb-2">
+                                <h4 className="font-semibold text-gray-700">รายการอาหาร</h4>
+                                {isEditMode && currentUser?.role === 'admin' && !order.isDeleted && (
+                                    <button 
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleAddItem();
+                                        }}
+                                        className="text-xs px-2 py-1 bg-teal-600 text-white rounded hover:bg-teal-700 flex items-center gap-1 shadow-sm"
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+                                            <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+                                        </svg>
+                                        เพิ่มรายการอาหาร
+                                    </button>
+                                )}
+                            </div>
                             {order.items.map(item => (
-                                <div key={item.cartItemId} className="text-base text-gray-700 py-1">
+                                <div key={item.cartItemId} className={`text-base py-1 ${item.isManuallyAdded ? 'text-red-600 font-bold' : 'text-gray-700'}`}>
                                     <div className="flex justify-between">
-                                        <span>{item.quantity} x {item.name} {item.isTakeaway && '(กลับบ้าน)'}</span>
+                                        <span>{item.quantity} x {item.name} {item.isTakeaway && '(กลับบ้าน)'} {item.isManuallyAdded && '(เพิ่มใหม่)'}</span>
                                         <span>{(item.finalPrice * item.quantity).toLocaleString()} ฿</span>
                                     </div>
                                     { (item.selectedOptions.length > 0 || item.notes) &&
@@ -540,6 +625,24 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({
                     </div>
                 </div>
             )}
+            {/* ADD ITEM MODALS */}
+            <MenuSearchModal
+                isOpen={isSearchModalOpen}
+                onClose={() => setIsSearchModalOpen(false)}
+                menuItems={menuItems}
+                onSelectItem={handleSelectItem}
+                onToggleAvailability={() => {}} // Not needed here
+            />
+
+            <ItemCustomizationModal
+                isOpen={isCustomizationModalOpen}
+                onClose={() => setIsCustomizationModalOpen(false)}
+                item={selectedMenuItem}
+                onConfirm={(itemToAdd) => {
+                    addOrderItemToCompletedOrder(itemToAdd);
+                    setIsCustomizationModalOpen(false);
+                }}
+            />
         </>
     );
 };
