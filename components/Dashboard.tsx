@@ -107,7 +107,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
         return days.map(day => {
             const dayStart = day.getTime();
             const dayEnd = dayStart + (24 * 3600 * 1000);
-            const dayKey = day.toISOString().split('T')[0];
+            
+            // Use local date string (YYYY-MM-DD) to avoid timezone shifts
+            const year = day.getFullYear();
+            const month = String(day.getMonth() + 1).padStart(2, '0');
+            const dateStr = String(day.getDate()).padStart(2, '0');
+            const dayKey = `${year}-${month}-${dateStr}`;
+            
             const manualAdCost = manualAdCosts[dayKey] || 0;
 
             const dayOrders = completedOrders.filter(order => 
@@ -126,15 +132,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
             dayOrders.forEach(order => {
                 const isDelivery = order.orderType === 'lineman' || order.tableName === 'Delivery' || order.customerName?.includes('#');
                 
-                // Identify provider name consistently
-                let providerName = 'LineMan';
-                if (isDelivery) {
-                    if (order.tableName && order.tableName !== 'Delivery' && order.tableName !== 'Unknown') {
-                        providerName = order.tableName;
-                    } else if (order.customerName) {
-                        providerName = order.customerName.split('#')[0].trim();
-                    }
-                }
+                // Identify provider name consistently using the helper
+                const providerName = getDeliveryProviderName(order) || 'LineMan';
 
                 const provider = deliveryProviders.find(p => p.name.toLowerCase() === providerName.toLowerCase());
                 
@@ -1245,7 +1244,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
                                                         </div>
                                                     ) : '0'}
                                                 </td>
-                                                <td className="px-6 py-4 text-sm text-orange-400 text-right">
+                                                <td className="px-6 py-4 text-sm text-orange-400 text-right align-top">
                                                     <div className="flex flex-col items-end gap-3">
                                                         {deliveryProviders.filter(p => p.isEnabled).map(provider => {
                                                             const cost = day.manualAdCostsByProvider[provider.name] || 0;
@@ -1256,13 +1255,22 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
                                                                         <span className="text-[10px] font-bold px-1.5 py-0.5 rounded text-white" style={{ backgroundColor: getProviderColor(provider.name, deliveryProviders) }}>
                                                                             {provider.name}
                                                                         </span>
-                                                                        <button 
-                                                                            onClick={() => openNumpad(day.fullDate, provider.name, cost)}
-                                                                            className="w-24 px-2 py-1.5 text-right border border-orange-200 rounded bg-orange-50 hover:bg-orange-100 transition-colors focus:outline-none focus:ring-1 focus:ring-orange-400 text-orange-700 font-bold flex items-center justify-end gap-1"
-                                                                        >
-                                                                            {cost.toLocaleString()}
-                                                                            <svg className="w-3 h-3 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
-                                                                        </button>
+                                                                        <div className="relative flex items-center">
+                                                                            <input 
+                                                                                type="number"
+                                                                                value={cost || ''}
+                                                                                onChange={(e) => handleManualAdCostChange(day.fullDate, provider.name, e.target.value)}
+                                                                                className="w-24 px-2 py-1.5 text-right border border-orange-200 rounded bg-orange-50 hover:bg-orange-100 transition-colors focus:outline-none focus:ring-1 focus:ring-orange-400 text-orange-700 font-bold pr-8 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                                                                placeholder="0"
+                                                                            />
+                                                                            <button 
+                                                                                onClick={() => openNumpad(day.fullDate, provider.name, cost)}
+                                                                                className="absolute right-1 p-1 text-orange-400 hover:text-orange-600 transition-colors"
+                                                                                title="เปิดแป้นพิมพ์ตัวเลข"
+                                                                            >
+                                                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
+                                                                            </button>
+                                                                        </div>
                                                                     </div>
                                                                     {cost > 0 && (
                                                                         <div className="flex flex-col items-end">
@@ -1280,11 +1288,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
                                                         })}
                                                     </div>
                                                 </td>
-                                                <td className="px-6 py-4 text-right">
+                                                <td className="px-6 py-4 text-right align-top">
                                                     <div className="flex flex-col items-end gap-3">
                                                         {Object.entries(day.roasByProvider).map(([providerName, roas]) => {
                                                             const adRev = day.adRevenueByProvider[providerName] || 0;
-                                                            if (adRev === 0 && (day.manualAdCostsByProvider[providerName] || 0) === 0) return null;
+                                                            const adCost = day.manualAdCostsByProvider[providerName] || 0;
+                                                            const adOrderCount = day.adOrderCounts[providerName] || 0;
+                                                            const avgAdCostPerBill = adOrderCount > 0 ? adCost / adOrderCount : 0;
+
+                                                            if (adRev === 0 && adCost === 0) return null;
                                                             return (
                                                                 <div key={providerName} className="flex flex-col items-end border-b border-gray-100 pb-2 last:border-0 last:pb-0">
                                                                     <span className="text-[10px] font-bold uppercase tracking-wider mb-0.5" style={{ color: getProviderColor(providerName, deliveryProviders) }}>{providerName}</span>
@@ -1294,6 +1306,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
                                                                     <span className={`px-2 py-1 rounded text-xs font-black ${roas >= 5 ? 'bg-green-100 text-green-700' : roas >= 3 ? 'bg-blue-100 text-blue-700' : roas > 0 ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-400'}`}>
                                                                         {roas.toFixed(2)}x
                                                                     </span>
+                                                                    {adCost > 0 && (
+                                                                        <span className="text-[10px] text-gray-500 mt-1 font-medium">
+                                                                            เฉลี่ยบิลละ {avgAdCostPerBill.toLocaleString(undefined, { maximumFractionDigits: 2 })} ฿
+                                                                        </span>
+                                                                    )}
                                                                 </div>
                                                             );
                                                         })}

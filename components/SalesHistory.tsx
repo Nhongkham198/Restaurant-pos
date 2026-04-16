@@ -5,6 +5,7 @@ import { CompletedOrderCard } from './CompletedOrderCard';
 import { CancelledOrderCard } from './CancelledOrderCard';
 import { PrintHistoryCard } from './PrintHistoryCard';
 import Swal from 'sweetalert2';
+import { useData } from '../contexts/DataContext';
 
 import { ThaiVirtualKeyboard } from './ThaiVirtualKeyboard';
 
@@ -45,6 +46,7 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({
     taxRate,
     onUpdateCompletedOrder
 }) => {
+    const { manualAdCosts } = useData();
     const [activeTab, setActiveTab] = useState<'completed' | 'cancelled' | 'print'>('completed');
     const [filterType, setFilterType] = useState<'daily' | 'monthly' | 'year' | 'all'>('daily');
     const [selectedDate, setSelectedDate] = useState(new Date());
@@ -191,62 +193,120 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({
         // Expand orders to item level rows
         const data: any[] = [];
         
+        // Pre-calculate daily stats for RoAS and Average Ad Cost
+        const dailyStats = new Map<string, { 
+            adOrderCounts: Record<string, number>, 
+            adRevenueByProvider: Record<string, number>,
+            totalBillsByProvider: Record<string, number>
+        }>();
+
         filteredCompleted.forEach(order => {
-            const orderTotal = order.items.reduce((s, i) => s + i.finalPrice * i.quantity, 0) + order.taxAmount;
-            
-            // Calculate Ad Cost
-            const providerName = order.orderType === 'lineman' ? 'LineMan' : (order.tableName || order.customerName || 'Delivery');
-            const provider = deliveryProviders.find(p => p.name.toLowerCase() === providerName.toLowerCase());
-            
-            let totalAdExpense = 0;
-            if (order.orderType === 'lineman' && order.isFromAd) {
-                if (order.recordedAdCost !== undefined) {
-                    totalAdExpense = order.recordedAdCost + (order.recordedAdCostTax || 0);
-                } else {
-                    const adCost = provider?.fixedAdCost || 0;
-                    const adCostTax = adCost * (taxRate / 100);
-                    totalAdExpense = adCost + adCostTax;
+            const date = new Date(order.completionTime);
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const dayStr = String(date.getDate()).padStart(2, '0');
+            const dateKey = `${year}-${month}-${dayStr}`;
+
+            if (!dailyStats.has(dateKey)) {
+                dailyStats.set(dateKey, { adOrderCounts: {}, adRevenueByProvider: {}, totalBillsByProvider: {} });
+            }
+            const stats = dailyStats.get(dateKey)!;
+
+            const providerName = order.orderType === 'lineman' ? (
+                (order.tableName && order.tableName !== 'Delivery' && order.tableName !== 'Unknown') ? order.tableName :
+                (order.customerName && order.customerName.includes('#')) ? order.customerName.split('#')[0].trim() :
+                (order.customerName && isNaN(Number(order.customerName))) ? order.customerName : 'Delivery'
+            ) : null;
+
+            if (providerName) {
+                stats.totalBillsByProvider[providerName] = (stats.totalBillsByProvider[providerName] || 0) + 1;
+                if (order.isFromAd) {
+                    stats.adOrderCounts[providerName] = (stats.adOrderCounts[providerName] || 0) + 1;
+                    const orderTotal = order.items.reduce((s, i) => s + i.finalPrice * i.quantity, 0) + order.taxAmount;
+                    stats.adRevenueByProvider[providerName] = (stats.adRevenueByProvider[providerName] || 0) + orderTotal;
                 }
             }
+        });
+
+        // Overall summary for the bottom
+        const overallProviderBills: Record<string, number> = {};
+
+        filteredCompleted.forEach(order => {
+            const date = new Date(order.completionTime);
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const dayStr = String(date.getDate()).padStart(2, '0');
+            const dateKey = `${year}-${month}-${dayStr}`;
+
+            const stats = dailyStats.get(dateKey)!;
+            const orderTotal = order.items.reduce((s, i) => s + i.finalPrice * i.quantity, 0) + order.taxAmount;
+            
+            // Identify Provider
+            const providerName = order.orderType === 'lineman' ? (
+                (order.tableName && order.tableName !== 'Delivery' && order.tableName !== 'Unknown') ? order.tableName :
+                (order.customerName && order.customerName.includes('#')) ? order.customerName.split('#')[0].trim() :
+                (order.customerName && isNaN(Number(order.customerName))) ? order.customerName : 'Delivery'
+            ) : null;
+            
+            let avgAdCostPerBill = 0;
+            let dailyRoas = 0;
+
+            if (providerName && order.isFromAd) {
+                overallProviderBills[providerName] = (overallProviderBills[providerName] || 0) + 1;
+                
+                const compositeKey = `${dateKey}|${providerName}`;
+                const totalManualCost = manualAdCosts[compositeKey] || 0;
+                const adOrderCount = stats.adOrderCounts[providerName] || 0;
+                const dailyAdRevenue = stats.adRevenueByProvider[providerName] || 0;
+
+                avgAdCostPerBill = adOrderCount > 0 ? totalManualCost / adOrderCount : 0;
+                dailyRoas = totalManualCost > 0 ? dailyAdRevenue / totalManualCost : 0;
+            }
+
+            const rowBase = {
+                'Order #': order.orderNumber,
+                'Date': new Date(order.completionTime).toLocaleDateString('th-TH'),
+                'Time': new Date(order.completionTime).toLocaleTimeString('th-TH'),
+                'Table': order.tableName,
+                'Customer': order.customerName || '-',
+                'Order Subtotal': orderTotal,
+                'Is Ad': order.isFromAd ? (providerName || 'ใช่') : 'ไม่ใช่',
+                'ยอดขายจากโฆษณา': order.isFromAd ? orderTotal : 0,
+                'ค่าโฆษณา': order.isFromAd ? avgAdCostPerBill : 0,
+                'RoAS': order.isFromAd ? dailyRoas : 0,
+                'Payment': order.paymentDetails.method,
+                'Cashier': order.completedBy || '-'
+            };
 
             if (order.items && order.items.length > 0) {
                 order.items.forEach(item => {
                     data.push({
-                        'Order #': order.orderNumber,
-                        'Date': new Date(order.completionTime).toLocaleDateString('th-TH'),
-                        'Time': new Date(order.completionTime).toLocaleTimeString('th-TH'),
-                        'Table': order.tableName,
-                        'Customer': order.customerName || '-',
+                        ...rowBase,
                         'Menu Item': item.name + (item.isTakeaway ? ' (กลับบ้าน)' : ''),
                         'Quantity': item.quantity,
                         'Unit Price': item.finalPrice,
                         'Item Total': item.finalPrice * item.quantity,
-                        'Order Subtotal': orderTotal,
-                        'Is Ad': order.isFromAd ? 'ใช่' : 'ไม่ใช่',
-                        'Ad Cost': totalAdExpense,
-                        'Payment': order.paymentDetails.method,
-                        'Cashier': order.completedBy || '-'
                     });
                 });
             } else {
-                // Fallback for empty orders
                 data.push({
-                    'Order #': order.orderNumber,
-                    'Date': new Date(order.completionTime).toLocaleDateString('th-TH'),
-                    'Time': new Date(order.completionTime).toLocaleTimeString('th-TH'),
-                    'Table': order.tableName,
-                    'Customer': order.customerName || '-',
+                    ...rowBase,
                     'Menu Item': '(No Items)',
                     'Quantity': 0,
                     'Unit Price': 0,
                     'Item Total': 0,
-                    'Order Subtotal': orderTotal,
-                    'Is Ad': order.isFromAd ? 'ใช่' : 'ไม่ใช่',
-                    'Ad Cost': totalAdExpense,
-                    'Payment': order.paymentDetails.method,
-                    'Cashier': order.completedBy || '-'
                 });
             }
+        });
+
+        // Add Summary Section at the bottom
+        data.push({}); // Empty row
+        data.push({ 'Order #': 'สรุปจำนวนบิลแยกตาม Delivery' });
+        Object.entries(overallProviderBills).forEach(([name, count]) => {
+            data.push({
+                'Order #': name,
+                'Date': `${count} บิล`
+            });
         });
 
         const ws = XLSX.utils.json_to_sheet(data);
