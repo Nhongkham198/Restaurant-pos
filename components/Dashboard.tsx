@@ -43,6 +43,25 @@ const getProviderColor = (name: string, deliveryProviders: DeliveryProvider[]) =
 
 export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelledOrders, openingTime, closingTime, currentUser, recipes, deliveryProviders, taxRate }) => {
     const { manualAdCosts, setManualAdCosts } = useData();
+    // Local state for ad cost inputs to allow smooth typing (especially decimals)
+    const [localAdCosts, setLocalAdCosts] = useState<Record<string, string>>({});
+
+    // Sync local state with global manualAdCosts
+    React.useEffect(() => {
+        setLocalAdCosts(prev => {
+            const next = { ...prev };
+            let hasChanges = false;
+            Object.entries(manualAdCosts).forEach(([key, val]) => {
+                // Only update local if the numeric value is different
+                if (parseFloat(prev[key] || '0') !== val) {
+                    next[key] = val.toString();
+                    hasChanges = true;
+                }
+            });
+            return hasChanges ? next : prev;
+        });
+    }, [manualAdCosts]);
+
     // Initialize with today's date
     const [viewMode, setViewMode] = useState<'daily' | 'monthly'>('daily');
     const [dateRange, setDateRange] = useState<[Date | null, Date | null]>([new Date(), new Date()]);
@@ -186,9 +205,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
             let totalManualAdCostWithTax = 0;
             
             Object.entries(manualAdCosts).forEach(([key, cost]) => {
-                if (key.startsWith(dayKey)) {
-                    // Extract provider from key "date|provider" or default to LineMan if not present
-                    const provider = key.includes('|') ? key.split('|')[1] : 'LineMan';
+                // ONLY include keys that match the current day AND have the new composite format "date|provider"
+                // This ignores legacy keys that were just "date" which caused incorrect totals.
+                if (key.startsWith(dayKey) && key.includes('|')) {
+                    const provider = key.split('|')[1];
                     manualAdCostsByProvider[provider] = (manualAdCostsByProvider[provider] || 0) + cost;
                     totalManualAdCostWithTax += cost * 1.07;
                 }
@@ -793,8 +813,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
     };
 
     const handleManualAdCostChange = (dateKey: string, providerName: string, value: string) => {
-        const amount = parseFloat(value) || 0;
+        // Allow only numbers and one decimal point
+        if (value !== '' && !/^\d*\.?\d*$/.test(value)) return;
+
         const compositeKey = `${dateKey}|${providerName}`;
+        // Update local string state immediately for smooth typing
+        setLocalAdCosts(prev => ({ ...prev, [compositeKey]: value }));
+
+        const amount = parseFloat(value) || 0;
         setManualAdCosts(prev => ({
             ...prev,
             [compositeKey]: amount
@@ -1257,10 +1283,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
                                                                         </span>
                                                                         <div className="relative flex items-center">
                                                                             <input 
-                                                                                type="number"
-                                                                                value={cost || ''}
+                                                                                type="text"
+                                                                                inputMode="decimal"
+                                                                                value={localAdCosts[`${day.fullDate}|${provider.name}`] ?? (cost || '')}
                                                                                 onChange={(e) => handleManualAdCostChange(day.fullDate, provider.name, e.target.value)}
-                                                                                className="w-24 px-2 py-1.5 text-right border border-orange-200 rounded bg-orange-50 hover:bg-orange-100 transition-colors focus:outline-none focus:ring-1 focus:ring-orange-400 text-orange-700 font-bold pr-8 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                                                                className="w-24 px-2 py-1.5 text-right border border-orange-200 rounded bg-orange-50 hover:bg-orange-100 transition-colors focus:outline-none focus:ring-1 focus:ring-orange-400 text-orange-700 font-bold pr-8"
                                                                                 placeholder="0"
                                                                             />
                                                                             <button 
@@ -1274,10 +1301,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
                                                                     </div>
                                                                     {cost > 0 && (
                                                                         <div className="flex flex-col items-end">
-                                                                            <span className="text-[10px] text-gray-400">ภาษี 7%: +{(cost * 0.07).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                                                                            <span className="text-xs font-bold text-orange-600">รวม: -{costWithTax.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                                                            <span className="text-xs text-gray-400">ภาษี 7%: +{(cost * 0.07).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                                                            <span className="text-sm font-bold text-orange-600">รวม: -{costWithTax.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                                                                             {day.adOrderCounts[provider.name] > 0 && (
-                                                                                <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-green-100 text-green-800 mt-1">
+                                                                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 mt-1">
                                                                                     {provider.name}: {day.adOrderCounts[provider.name]}
                                                                                 </span>
                                                                             )}
@@ -1299,15 +1326,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
                                                             if (adRev === 0 && adCost === 0) return null;
                                                             return (
                                                                 <div key={providerName} className="flex flex-col items-end border-b border-gray-100 pb-2 last:border-0 last:pb-0">
-                                                                    <span className="text-[10px] font-bold uppercase tracking-wider mb-0.5" style={{ color: getProviderColor(providerName, deliveryProviders) }}>{providerName}</span>
-                                                                    <span className="text-xs font-bold text-blue-600 mb-1">
+                                                                    <span className="text-xs font-bold uppercase tracking-wider mb-0.5" style={{ color: getProviderColor(providerName, deliveryProviders) }}>{providerName}</span>
+                                                                    <span className="text-sm font-bold text-blue-600 mb-1">
                                                                         {adRev.toLocaleString()} ฿
                                                                     </span>
                                                                     <span className={`px-2 py-1 rounded text-xs font-black ${roas >= 5 ? 'bg-green-100 text-green-700' : roas >= 3 ? 'bg-blue-100 text-blue-700' : roas > 0 ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-400'}`}>
                                                                         {roas.toFixed(2)}x
                                                                     </span>
                                                                     {adCost > 0 && (
-                                                                        <span className="text-[10px] text-gray-500 mt-1 font-medium">
+                                                                        <span className="text-xs text-gray-500 mt-1 font-medium">
                                                                             เฉลี่ยบิลละ {avgAdCostPerBill.toLocaleString(undefined, { maximumFractionDigits: 2 })} ฿
                                                                         </span>
                                                                     )}
