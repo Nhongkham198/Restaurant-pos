@@ -29,7 +29,126 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedMenuItem, setSelectedMenuItem] = useState<MenuItem | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const { deliveryProviders, taxRate } = useData();
+    const { deliveryProviders, taxRate, latestIngredientPrices } = useData();
+
+    const handleBulkRefreshCosts = async () => {
+        const result = await Swal.fire({
+            title: 'อัปเดตต้นทุนทั้งหมด?',
+            text: 'ระบบจะคำนวณต้นทุนทุกเมนูใหม่ตามราคาวัตถุดิบในสต็อกและไฟล์ JSON ล่าสุด คุณต้องการดำเนินการต่อหรือไม่?',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'ยืนยันอัปเดต',
+            cancelButtonText: 'ยกเลิก',
+            confirmButtonColor: '#3b82f6'
+        });
+
+        if (!result.isConfirmed) return;
+
+        Swal.fire({
+            title: 'กำลังอัปเดต...',
+            allowOutsideClick: false,
+            didOpen: () => {
+                Swal.showLoading();
+            }
+        });
+
+        try {
+            // Speed up calculations by using Maps for O(1) lookups
+            const priceMap = new Map();
+            latestIngredientPrices.forEach(p => {
+                const key = (p.name || '').trim();
+                if (key) priceMap.set(key, p);
+            });
+            
+            const stockMap = new Map();
+            stockItems.forEach(s => stockMap.set(s.id, s));
+
+            const updatedRecipes = recipes.map(recipe => {
+                const calculateListCost = (list: RecipeIngredient[]) => {
+                    let mCost = 0;
+                    let sCost = 0;
+
+                    const updatedIngredients = list.map(ing => {
+                        const stockItem = stockMap.get(ing.stockItemId);
+                        
+                        // Manual Cost calculation
+                        const manualPrice = ing.unitPrice ?? stockItem?.unitPrice ?? 0;
+                        mCost += ing.quantity * manualPrice;
+
+                        // Smart Cost (JSON) calculation matching RecipeModal logic
+                        const itemName = (stockItem?.name || '').trim();
+                        const latestPrice = itemName ? priceMap.get(itemName) : undefined;
+                        let jsonUnitPrice = undefined;
+                        
+                        if (latestPrice) {
+                            // pricePerUnit logic from RecipeModal
+                            if (latestPrice.unit === 'กก.' && ing.unit === 'กรัม') {
+                                jsonUnitPrice = latestPrice.pricePerUnit / 1000;
+                            } else {
+                                jsonUnitPrice = latestPrice.pricePerUnit;
+                            }
+                        } else {
+                            jsonUnitPrice = manualPrice;
+                        }
+
+                        sCost += ing.quantity * (jsonUnitPrice || 0);
+                        
+                        return {
+                            ...ing,
+                            smartUnitPrice: jsonUnitPrice
+                        };
+                    });
+
+                    return { mCost, sCost, updatedIngredients };
+                };
+
+                const ingResults = calculateListCost(recipe.ingredients);
+                const addIngResults = calculateListCost(recipe.additionalIngredients || []);
+
+                // Determine miscCost
+                const currentAdditionalManualPackagingSubtotal = recipe.additionalIngredients?.reduce((sum, ing) => {
+                    const sItem = stockMap.get(ing.stockItemId);
+                    return sum + (ing.quantity * (ing.unitPrice ?? sItem?.unitPrice ?? 0));
+                }, 0) || 0;
+                
+                const miscCost = Math.max(0, (recipe.additionalCost || 0) - currentAdditionalManualPackagingSubtotal);
+
+                const manualSubtotal = ingResults.mCost + (addIngResults.mCost + miscCost);
+                const smartSubtotal = ingResults.sCost + (addIngResults.sCost + miscCost);
+                const hiddenFactor = 1 + (recipe.hiddenCostPercentage || 0) / 100;
+
+                return {
+                    ...recipe,
+                    ingredients: ingResults.updatedIngredients,
+                    additionalIngredients: addIngResults.updatedIngredients,
+                    additionalCost: addIngResults.mCost + miscCost,
+                    manualTotalCost: manualSubtotal * hiddenFactor,
+                    smartTotalCost: smartSubtotal * hiddenFactor,
+                    lastUpdated: Date.now(),
+                    lastUpdatedBy: currentUser?.username || 'System Bulk Refresh'
+                };
+            });
+
+            // Save to Firestore
+            setRecipes(updatedRecipes);
+            
+            // Fix UI Glitch: Ensure loading is hidden before showing success
+            Swal.hideLoading();
+            setTimeout(() => {
+                Swal.fire({
+                    icon: 'success',
+                    title: 'สำเร็จ',
+                    text: `อัปเดตต้นทุนเมนูทั้งหมด ${updatedRecipes.length} รายการเรียบร้อยแล้ว`,
+                    confirmButtonColor: '#3b82f6',
+                    timer: 3000
+                });
+            }, 100);
+
+        } catch (error) {
+            console.error('Bulk refresh failed:', error);
+            Swal.fire('ผิดพลาด', 'ไม่สามารถอัปเดตต้นทุนได้ กรุณาลองใหม่อีกครั้ง', 'error');
+        }
+    };
 
     const lastUpdateInfo = useMemo(() => {
         if (recipes.length === 0) return null;
@@ -278,6 +397,16 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
                             accept=".xlsx, .xls"
                             className="hidden"
                         />
+                        <button 
+                            onClick={handleBulkRefreshCosts}
+                            className="flex px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold items-center gap-2 hover:bg-blue-700 transition-all shadow-md shadow-blue-100"
+                            title="อัปเดตต้นทุนทุกเมนูตามราคา JSON/สต็อก ล่าสุด"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                            อัปเดตต้นทุนทั้งหมด
+                        </button>
                         <button 
                             onClick={() => fileInputRef.current?.click()}
                             className="hidden md:flex px-4 py-2 bg-white text-gray-700 border border-gray-200 rounded-xl text-sm font-bold items-center gap-2 hover:bg-gray-50 transition-all shadow-sm"

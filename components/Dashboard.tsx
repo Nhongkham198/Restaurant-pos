@@ -167,15 +167,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
                         adRevenueByProvider[providerName] = (adRevenueByProvider[providerName] || 0) + (sellingPrice * itemQty);
                     }
 
-                    // Find recipe for cost - only use finalized/saved records from database
+                    // Find recipe for cost - Directly use confirmed values from the database
                     const recipe = recipes.find(r => r.menuItemId === item.id);
-                    const costs = recipe ? {
-                        manual: recipe.manualTotalCost || 0,
-                        smart: recipe.smartTotalCost || 0
-                    } : { manual: 0, smart: 0 };
+                    const manualIngredientCost = recipe?.manualTotalCost || 0;
+                    const smartIngredientCost = recipe?.smartTotalCost || 0;
 
-                    totalManualCost += costs.manual * itemQty;
-                    totalSmartCost += costs.smart * itemQty;
+                    totalManualCost += manualIngredientCost * itemQty;
+                    totalSmartCost += smartIngredientCost * itemQty;
 
                     if (isDelivery) {
                         const gp = item.deliveryGPs?.[provider?.id || ''] || 0;
