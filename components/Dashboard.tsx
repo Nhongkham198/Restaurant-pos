@@ -170,6 +170,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
                     // Find recipe for cost
                     const recipe = recipes.find(r => r.menuItemId === item.id);
                     const costs = recipe ? (() => {
+                        // Use saved totals if available (from confirmed RecipeModal saves)
+                        if (recipe.manualTotalCost !== undefined && recipe.smartTotalCost !== undefined) {
+                            return {
+                                manual: recipe.manualTotalCost,
+                                smart: recipe.smartTotalCost
+                            };
+                        }
+
+                        // Fallback logic for legacy recipes without saved totals
                         const manualIngredientCost = recipe.ingredients.reduce((sum, ing) => {
                             return sum + (ing.quantity * (ing.unitPrice || 0));
                         }, 0);

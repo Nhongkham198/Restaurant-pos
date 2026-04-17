@@ -461,6 +461,8 @@ export interface Recipe {
     ingredients: RecipeIngredient[];
     additionalCost: number; // e.g. packaging
     hiddenCostPercentage?: number; // Added: Hidden cost percentage (e.g. 10)
+    manualTotalCost?: number; // Added: Total original cost sum
+    smartTotalCost?: number; // Added: Total latest cost sum (JSON)
     lastUpdated: number;
     lastUpdatedBy: string;
 }

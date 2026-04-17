@@ -205,12 +205,16 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
     };
 
     const handleSave = () => {
+        const { manualTotal, smartTotal } = calculateTotalCost();
+        
         const newRecipe: Recipe = {
             id: recipe?.id || menuItem.id.toString(),
             menuItemId: menuItem.id,
             ingredients,
             additionalCost,
             hiddenCostPercentage,
+            manualTotalCost: manualTotal,
+            smartTotalCost: smartTotal,
             lastUpdated: Date.now(),
             lastUpdatedBy: currentUser?.username || 'Unknown'
         };
