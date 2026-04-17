@@ -78,9 +78,11 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
 }) => {
     const { stockUnits, setStockUnits, deliveryProviders, latestIngredientPrices } = useData();
     const [ingredients, setIngredients] = useState<RecipeIngredient[]>([]);
-    const [additionalCost, setAdditionalCost] = useState(0);
+    const [additionalIngredients, setAdditionalIngredients] = useState<RecipeIngredient[]>([]);
+    const [miscCost, setMiscCost] = useState(0); // For manual gas/ice costs
     const [hiddenCostPercentage, setHiddenCostPercentage] = useState(0);
     const [searchTerm, setSearchTerm] = useState('');
+    const [additionalSearchTerm, setAdditionalSearchTerm] = useState('');
     const [deliveryPrices, setDeliveryPrices] = useState<{ [providerId: string]: number }>(menuItem.deliveryPrices || {});
     const [deliveryGPs, setDeliveryGPs] = useState<{ [providerId: string]: number }>(menuItem.deliveryGPs || {});
     const [deliveryTaxes, setDeliveryTaxes] = useState<{ [providerId: string]: number }>(menuItem.deliveryTaxes || {});
@@ -88,21 +90,38 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
     useEffect(() => {
         if (recipe) {
             setIngredients(recipe.ingredients);
-            setAdditionalCost(recipe.additionalCost || 0);
+            setAdditionalIngredients(recipe.additionalIngredients || []);
+            
+            // Calculate what portion of additionalCost was manual vs packaging
+            const packagingSum = (recipe.additionalIngredients || []).reduce((sum, ing) => {
+                const stockItem = stockItems.find(s => s.id === ing.stockItemId);
+                const price = ing.unitPrice ?? stockItem?.unitPrice ?? 0;
+                return sum + (ing.quantity * price);
+            }, 0);
+            
+            setMiscCost((recipe.additionalCost || 0) - packagingSum);
             setHiddenCostPercentage(recipe.hiddenCostPercentage || 0);
         } else {
             setIngredients([]);
-            setAdditionalCost(0);
+            setAdditionalIngredients([]);
+            setMiscCost(0);
             setHiddenCostPercentage(0);
         }
         setDeliveryPrices(menuItem.deliveryPrices || {});
         setDeliveryGPs(menuItem.deliveryGPs || {});
         setDeliveryTaxes(menuItem.deliveryTaxes || {});
-    }, [recipe, menuItem]);
+    }, [recipe, menuItem, stockItems]);
 
     const filteredStock = stockItems.filter(item => 
         item.name.toLowerCase().includes(searchTerm.toLowerCase()) &&
-        !ingredients.some(ing => ing.stockItemId === item.id)
+        !ingredients.some(ing => ing.stockItemId === item.id) &&
+        !additionalIngredients.some(ing => ing.stockItemId === item.id)
+    );
+
+    const filteredAdditionalStock = stockItems.filter(item =>
+        item.name.toLowerCase().includes(additionalSearchTerm.toLowerCase()) &&
+        !ingredients.some(ing => ing.stockItemId === item.id) &&
+        !additionalIngredients.some(ing => ing.stockItemId === item.id)
     );
 
     const addIngredient = (stockItem: StockItem) => {
@@ -114,30 +133,51 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
         setSearchTerm('');
     };
 
+    const addAdditionalIngredient = (stockItem: StockItem) => {
+        setAdditionalIngredients([...additionalIngredients, {
+            stockItemId: stockItem.id,
+            quantity: 1,
+            unit: stockItem.unit
+        }]);
+        setAdditionalSearchTerm('');
+    };
+
     const removeIngredient = (stockItemId: number) => {
         setIngredients(ingredients.filter(ing => ing.stockItemId !== stockItemId));
     };
 
-    const updateQuantity = (stockItemId: number, quantity: number) => {
-        setIngredients(ingredients.map(ing => 
+    const removeAdditionalIngredient = (stockItemId: number) => {
+        setAdditionalIngredients(additionalIngredients.filter(ing => ing.stockItemId !== stockItemId));
+    };
+
+    const updateQuantity = (stockItemId: number, quantity: number, isAdditional = false) => {
+        const updater = isAdditional ? setAdditionalIngredients : setIngredients;
+        const list = isAdditional ? additionalIngredients : ingredients;
+        updater(list.map(ing => 
             ing.stockItemId === stockItemId ? { ...ing, quantity } : ing
         ));
     };
 
-    const updateUnit = (stockItemId: number, unit: string) => {
-        setIngredients(ingredients.map(ing => 
+    const updateUnit = (stockItemId: number, unit: string, isAdditional = false) => {
+        const updater = isAdditional ? setAdditionalIngredients : setIngredients;
+        const list = isAdditional ? additionalIngredients : ingredients;
+        updater(list.map(ing => 
             ing.stockItemId === stockItemId ? { ...ing, unit } : ing
         ));
     };
 
-    const updateUnitPrice = (stockItemId: number, unitPrice: number) => {
-        setIngredients(ingredients.map(ing => 
+    const updateUnitPrice = (stockItemId: number, unitPrice: number, isAdditional = false) => {
+        const updater = isAdditional ? setAdditionalIngredients : setIngredients;
+        const list = isAdditional ? additionalIngredients : ingredients;
+        updater(list.map(ing => 
             ing.stockItemId === stockItemId ? { ...ing, unitPrice } : ing
         ));
     };
 
-    const updateSmartUnitPrice = (stockItemId: number, smartUnitPrice: number) => {
-        setIngredients(ingredients.map(ing => 
+    const updateSmartUnitPrice = (stockItemId: number, smartUnitPrice: number, isAdditional = false) => {
+        const updater = isAdditional ? setAdditionalIngredients : setIngredients;
+        const list = isAdditional ? additionalIngredients : ingredients;
+        updater(list.map(ing => 
             ing.stockItemId === stockItemId ? { ...ing, smartUnitPrice } : ing
         ));
     };
@@ -164,54 +204,68 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
     };
 
     const calculateTotalCost = () => {
-        let manualCost = 0;
-        let smartCost = 0;
+        const calculateListCost = (list: RecipeIngredient[]) => {
+            let mCost = 0;
+            let sCost = 0;
 
-        ingredients.forEach(ing => {
-            const stockItem = stockItems.find(s => s.id === ing.stockItemId);
-            
-            // Manual Cost
-            const manualPrice = ing.unitPrice ?? stockItem?.unitPrice ?? 0;
-            manualCost += ing.quantity * manualPrice;
+            list.forEach(ing => {
+                const stockItem = stockItems.find(s => s.id === ing.stockItemId);
+                
+                // Manual Cost
+                const manualPrice = ing.unitPrice ?? stockItem?.unitPrice ?? 0;
+                mCost += ing.quantity * manualPrice;
 
-            // Smart Cost (JSON)
-            const latestPrice = latestIngredientPrices.find(p => (p.name || '').trim() === (stockItem?.name || '').trim());
-            let jsonUnitPrice = ing.smartUnitPrice;
-            
-            if (jsonUnitPrice === undefined) {
-                if (latestPrice) {
-                    if (latestPrice.unit === 'กก.' && ing.unit === 'กรัม') {
-                        jsonUnitPrice = latestPrice.pricePerUnit / 1000;
+                // Smart Cost (JSON)
+                const latestPrice = latestIngredientPrices.find(p => (p.name || '').trim() === (stockItem?.name || '').trim());
+                let jsonUnitPrice = ing.smartUnitPrice;
+                
+                if (jsonUnitPrice === undefined) {
+                    if (latestPrice) {
+                        if (latestPrice.unit === 'กก.' && ing.unit === 'กรัม') {
+                            jsonUnitPrice = latestPrice.pricePerUnit / 1000;
+                        } else {
+                            jsonUnitPrice = latestPrice.pricePerUnit;
+                        }
                     } else {
-                        jsonUnitPrice = latestPrice.pricePerUnit;
+                        jsonUnitPrice = manualPrice;
                     }
-                } else {
-                    jsonUnitPrice = manualPrice;
                 }
-            }
-            smartCost += ing.quantity * jsonUnitPrice;
-        });
+                sCost += ing.quantity * jsonUnitPrice;
+            });
+            return { mCost, sCost };
+        };
 
-        const manualSubtotal = manualCost + additionalCost;
+        const ingTotals = calculateListCost(ingredients);
+        const addIngTotals = calculateListCost(additionalIngredients);
+
+        // Final total additional cost is Packaging Sum + Misc/Manual Cost
+        const totalAdditionalManual = addIngTotals.mCost + miscCost;
+        const manualSubtotal = ingTotals.mCost + totalAdditionalManual;
         const manualHidden = manualSubtotal * (hiddenCostPercentage / 100);
         
-        const smartSubtotal = smartCost + additionalCost;
+        const totalAdditionalSmart = addIngTotals.sCost + miscCost;
+        const smartSubtotal = ingTotals.sCost + totalAdditionalSmart;
         const smartHidden = smartSubtotal * (hiddenCostPercentage / 100);
 
         return {
             manualTotal: manualSubtotal + manualHidden,
-            smartTotal: smartSubtotal + smartHidden
+            smartTotal: smartSubtotal + smartHidden,
+            calculatedAdditionalManual: addIngTotals.mCost,
+            calculatedAdditionalSmart: addIngTotals.sCost,
+            totalAdditionalManual,
+            totalAdditionalSmart
         };
     };
 
     const handleSave = () => {
-        const { manualTotal, smartTotal } = calculateTotalCost();
+        const { manualTotal, smartTotal, totalAdditionalManual } = calculateTotalCost();
         
         const newRecipe: Recipe = {
             id: recipe?.id || menuItem.id.toString(),
             menuItemId: menuItem.id,
             ingredients,
-            additionalCost,
+            additionalIngredients,
+            additionalCost: totalAdditionalManual,
             hiddenCostPercentage,
             manualTotalCost: manualTotal,
             smartTotalCost: smartTotal,
@@ -414,40 +468,195 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
                         )}
                     </div>
 
-                    {/* Additional Costs & Hidden Costs */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="bg-blue-50 rounded-2xl p-4 border border-blue-100">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <h4 className="font-bold text-blue-900">ค่าใช้จ่ายเพิ่มเติม</h4>
-                                    <p className="text-[10px] text-blue-600 uppercase font-bold">เช่น ค่าแก๊ส, ค่าบรรจุภัณฑ์</p>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <span className="text-blue-900 font-bold">฿</span>
-                                    <input
-                                        type="number"
-                                        value={additionalCost}
-                                        onChange={(e) => setAdditionalCost(parseFloat(e.target.value) || 0)}
-                                        className="w-24 px-3 py-2 bg-white border border-blue-200 rounded-xl text-right font-bold text-blue-900 focus:ring-2 focus:ring-blue-500 outline-none"
-                                    />
-                                </div>
+                    {/* Additional Costs Section */}
+                    <div className="pt-4 border-t border-gray-100">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-sm font-semibold text-blue-900 uppercase tracking-wider">ค่าใช้จ่ายเพิ่มเติม (บรรจุภัณฑ์/อื่นๆ)</h3>
+                            <div className="flex items-center gap-2 bg-blue-50 px-3 py-1.5 rounded-xl border border-blue-100">
+                                <span className="text-blue-900 font-bold italic text-xs">รวม: </span>
+                                <span className="text-blue-900 font-black text-sm">฿{calculateTotalCost().calculatedAdditionalManual.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                             </div>
                         </div>
 
-                        <div className="bg-red-50 rounded-2xl p-4 border border-red-100">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <h4 className="font-bold text-red-900">ต้นทุนแฝง</h4>
-                                    <p className="text-[10px] text-red-600 uppercase font-bold">เผื่อเหลือเผื่อขาด (%)</p>
+                        {/* Selected Additional Items */}
+                        <div className="space-y-2 mb-4">
+                            {additionalIngredients.map(ing => {
+                                const stockItem = stockItems.find(s => s.id === ing.stockItemId);
+                                const currentManualPrice = ing.unitPrice ?? stockItem?.unitPrice ?? 0;
+                                const rowManualCost = ing.quantity * currentManualPrice;
+
+                                // Check latest price for additional items (JSON/Smart)
+                                const latestPrice = latestIngredientPrices.find(p => (p.name || '').trim() === (stockItem?.name || '').trim());
+                                let jsonPrice = ing.smartUnitPrice;
+                                if (jsonPrice === undefined) {
+                                    if (latestPrice) {
+                                        if (latestPrice.unit === 'กก.' && ing.unit === 'กรัม') {
+                                            jsonPrice = latestPrice.pricePerUnit / 1000;
+                                        } else {
+                                            jsonPrice = latestPrice.pricePerUnit;
+                                        }
+                                    } else {
+                                        jsonPrice = currentManualPrice;
+                                    }
+                                }
+                                const rowSmartCost = ing.quantity * jsonPrice;
+                                
+                                return (
+                                    <div key={ing.stockItemId} className="flex flex-col gap-2 p-3 bg-blue-50/50 rounded-2xl border border-blue-100/50">
+                                        <div className="flex items-center justify-between">
+                                            <p className="text-sm font-bold text-gray-800 truncate">{stockItem?.name}</p>
+                                            <button 
+                                                onClick={() => removeAdditionalIngredient(ing.stockItemId)}
+                                                className="p-1 px-2 text-red-500 hover:bg-red-50 rounded-lg text-[10px] font-black uppercase tracking-tighter transition-colors"
+                                            >
+                                                ลบทิ้ง
+                                            </button>
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                            <div className="flex flex-col">
+                                                <span className="text-[9px] text-gray-400 font-bold mb-1 ml-0.5">ปริมาณ</span>
+                                                <input
+                                                    type="number"
+                                                    value={ing.quantity}
+                                                    onChange={(e) => updateQuantity(ing.stockItemId, parseFloat(e.target.value) || 0, true)}
+                                                    className="w-14 px-1.5 py-1 border border-blue-200 rounded-lg text-center font-bold text-xs focus:ring-1 focus:ring-blue-500 outline-none bg-white"
+                                                    step="0.01"
+                                                />
+                                            </div>
+                                            <div className="flex flex-col">
+                                                <span className="text-[9px] text-gray-400 font-bold mb-1 ml-0.5">หน่วย</span>
+                                                <div className="flex items-center gap-1">
+                                                    <select
+                                                        value={ing.unit}
+                                                        onChange={(e) => updateUnit(ing.stockItemId, e.target.value, true)}
+                                                        className="px-2 py-1 border border-blue-200 rounded-lg text-center font-black text-[10px] focus:ring-1 focus:ring-blue-500 outline-none bg-white min-w-[60px]"
+                                                    >
+                                                        {stockUnits.map(u => (
+                                                            <option key={u} value={u}>{u}</option>
+                                                        ))}
+                                                    </select>
+                                                    <button 
+                                                        onClick={handleAddUnit}
+                                                        className="p-1.5 bg-white border border-blue-100 hover:bg-blue-50 text-blue-400 rounded-lg transition-colors flex-shrink-0"
+                                                        title="เพิ่มหน่วยใหม่"
+                                                    >
+                                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={4} d="M12 4v16m8-8H4" />
+                                                        </svg>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <div className="flex flex-col">
+                                                <span className="text-[9px] text-gray-400 font-bold mb-1 ml-0.5">ราคา/หน่วย</span>
+                                                <div className="relative">
+                                                    <span className="absolute left-1.5 top-1 text-[9px] text-gray-400">฿</span>
+                                                    <input
+                                                        type="number"
+                                                        value={currentManualPrice}
+                                                        onChange={(e) => updateUnitPrice(ing.stockItemId, parseFloat(e.target.value) || 0, true)}
+                                                        className="w-16 pl-4 pr-1 py-1 border border-blue-200 rounded-lg text-right font-bold text-xs focus:ring-1 focus:ring-blue-500 outline-none bg-white"
+                                                        step="0.01"
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div className="flex-1 text-right">
+                                                <span className="text-[9px] text-gray-400 font-bold block mb-1">ต้นทุนสุทธิ</span>
+                                                <p className="text-sm font-black text-blue-900 leading-none">฿{rowManualCost.toLocaleString(undefined, { minimumFractionDigits: 3 })}</p>
+                                                <div className="flex items-center justify-end mt-1 border-t border-red-100 pt-1">
+                                                    <span className="text-[10px] font-black text-red-600 mr-0.5">฿</span>
+                                                    <SmartCostInput 
+                                                        value={rowSmartCost}
+                                                        onChange={(newTotal) => {
+                                                            updateSmartUnitPrice(ing.stockItemId, newTotal / ing.quantity, true);
+                                                        }}
+                                                        className="text-[10px] font-black text-red-600 bg-transparent border-none text-right w-14 focus:outline-none p-0"
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+
+                        {/* Search for Additional Items */}
+                        <div className="relative mb-6">
+                            <div className="relative">
+                                <input
+                                    type="text"
+                                    placeholder="ค้นหา ถ้วย, ถุง, ฝาปิด ในสต็อก..."
+                                    className="w-full pl-9 pr-4 py-2 text-sm border border-blue-100 rounded-xl bg-blue-50/30 focus:ring-2 focus:ring-blue-500 outline-none placeholder:text-blue-300"
+                                    value={additionalSearchTerm}
+                                    onChange={(e) => setAdditionalSearchTerm(e.target.value)}
+                                />
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 absolute left-3 top-2.5 text-blue-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                </svg>
+                            </div>
+                            
+                            {additionalSearchTerm && (
+                                <div className="absolute z-20 left-0 right-0 mt-1 bg-white rounded-xl shadow-xl border border-blue-50 max-h-48 overflow-y-auto">
+                                    {filteredAdditionalStock.length === 0 ? (
+                                        <p className="p-3 text-center text-gray-500 text-sm">ไม่พบรายการ</p>
+                                    ) : (
+                                        filteredAdditionalStock.map(item => (
+                                            <button
+                                                key={item.id}
+                                                onClick={() => addAdditionalIngredient(item)}
+                                                className="w-full flex items-center justify-between p-2.5 hover:bg-blue-50 transition-colors border-b border-gray-50 last:border-0"
+                                            >
+                                                <div className="text-left">
+                                                    <p className="font-bold text-gray-800 text-sm">{item.name}</p>
+                                                    <p className="text-[10px] text-gray-500">ต้นทุน: ฿{item.unitPrice}/{item.unit}</p>
+                                                </div>
+                                                <span className="text-blue-600 text-xs font-bold">+ เพิ่ม</span>
+                                            </button>
+                                        ))
+                                    )}
                                 </div>
-                                <div className="flex items-center gap-2">
-                                    <input
-                                        type="number"
-                                        value={hiddenCostPercentage}
-                                        onChange={(e) => setHiddenCostPercentage(parseFloat(e.target.value) || 0)}
-                                        className="w-16 px-3 py-2 bg-white border border-red-200 rounded-xl text-right font-bold text-red-900 focus:ring-2 focus:ring-blue-500 outline-none"
-                                    />
-                                    <span className="text-red-900 font-bold">%</span>
+                            )}
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="bg-blue-50/50 rounded-2xl p-4 border border-blue-100/50">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <h4 className="font-bold text-blue-900 text-sm">ส่วนบวกเพิ่มเอง</h4>
+                                        <p className="text-[10px] text-blue-600 uppercase font-black tracking-tight">กรอกเฉพาะส่วนที่เพิ่มจากสต็อก (เช่น ค่าแก๊ส)</p>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-blue-900 font-bold">฿</span>
+                                        <input
+                                            type="number"
+                                            value={miscCost}
+                                            onChange={(e) => setMiscCost(parseFloat(e.target.value) || 0)}
+                                            className="w-24 px-3 py-2 bg-white border border-blue-200 rounded-xl text-right font-bold text-blue-900 focus:ring-2 focus:ring-blue-500 outline-none shadow-sm"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="mt-2 pt-2 border-t border-blue-100 flex justify-between items-center">
+                                    <span className="text-[10px] font-bold text-blue-400 italic">รวมค่าใช้จ่ายส่วนที่สอง:</span>
+                                    <span className="text-xs font-black text-blue-900 bg-white px-2 py-0.5 rounded-lg border border-blue-100 shadow-sm">
+                                        ฿{calculateTotalCost().totalAdditionalManual.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div className="bg-red-50/50 rounded-2xl p-4 border border-red-100/50">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <h4 className="font-bold text-red-900 text-sm">ต้นทุนแฝง</h4>
+                                        <p className="text-[10px] text-red-600 uppercase font-bold">เผื่อเหลือเผื่อขาด (%)</p>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <input
+                                            type="number"
+                                            value={hiddenCostPercentage}
+                                            onChange={(e) => setHiddenCostPercentage(parseFloat(e.target.value) || 0)}
+                                            className="w-16 px-3 py-2 bg-white border border-red-200 rounded-xl text-right font-bold text-red-900 focus:ring-2 focus:ring-blue-500 outline-none"
+                                        />
+                                        <span className="text-red-900 font-bold">%</span>
+                                    </div>
                                 </div>
                             </div>
                         </div>

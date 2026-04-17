@@ -459,6 +459,7 @@ export interface Recipe {
     id: string; // Usually menu item ID as string
     menuItemId: number;
     ingredients: RecipeIngredient[];
+    additionalIngredients?: RecipeIngredient[]; // Added: Packaging, bags, etc.
     additionalCost: number; // e.g. packaging
     hiddenCostPercentage?: number; // Added: Hidden cost percentage (e.g. 10)
     manualTotalCost?: number; // Added: Total original cost sum
