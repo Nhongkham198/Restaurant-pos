@@ -167,53 +167,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
                         adRevenueByProvider[providerName] = (adRevenueByProvider[providerName] || 0) + (sellingPrice * itemQty);
                     }
 
-                    // Find recipe for cost
+                    // Find recipe for cost - only use finalized/saved records from database
                     const recipe = recipes.find(r => r.menuItemId === item.id);
-                    const costs = recipe ? (() => {
-                        // Use saved totals if available (from confirmed RecipeModal saves)
-                        if (recipe.manualTotalCost !== undefined && recipe.smartTotalCost !== undefined) {
-                            return {
-                                manual: recipe.manualTotalCost,
-                                smart: recipe.smartTotalCost
-                            };
-                        }
-
-                        // Fallback logic for legacy recipes without saved totals
-                        const manualIngredientCost = recipe.ingredients.reduce((sum, ing) => {
-                            return sum + (ing.quantity * (ing.unitPrice || 0));
-                        }, 0);
-
-                        const smartIngredientCost = recipe.ingredients.reduce((sum, ing) => {
-                            let unitPrice = ing.smartUnitPrice;
-                            
-                            if (unitPrice === undefined) {
-                                const stockItem = stockItems.find(s => s.id === ing.stockItemId);
-                                const latestPrice = latestIngredientPrices.find(p => (p.name || '').trim() === (stockItem?.name || '').trim());
-                                unitPrice = ing.unitPrice || 0;
-                                
-                                if (latestPrice) {
-                                    if (latestPrice.unit === 'กก.' && ing.unit === 'กรัม') {
-                                        unitPrice = latestPrice.pricePerUnit / 1000;
-                                    } else {
-                                        unitPrice = latestPrice.pricePerUnit;
-                                    }
-                                }
-                            }
-                            
-                            return sum + (ing.quantity * unitPrice);
-                        }, 0);
-                        
-                        const calcTotal = (ingCost: number) => {
-                            const subtotal = ingCost + recipe.additionalCost;
-                            const hiddenCost = subtotal * ((recipe.hiddenCostPercentage || 0) / 100);
-                            return subtotal + hiddenCost;
-                        };
-
-                        return {
-                            manual: calcTotal(manualIngredientCost),
-                            smart: calcTotal(smartIngredientCost)
-                        };
-                    })() : { manual: sellingPrice * 0.6, smart: sellingPrice * 0.6 };
+                    const costs = recipe ? {
+                        manual: recipe.manualTotalCost || 0,
+                        smart: recipe.smartTotalCost || 0
+                    } : { manual: 0, smart: 0 };
 
                     totalManualCost += costs.manual * itemQty;
                     totalSmartCost += costs.smart * itemQty;
