@@ -1312,6 +1312,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
                                                     <div className="flex flex-col items-end">
                                                         <span className="text-gray-800 font-medium">{day.manualCost.toLocaleString()}</span>
                                                         <span className="text-red-500 text-xs">{day.smartCost.toLocaleString()}</span>
+                                                        <span className={`text-[10px] font-bold border-t border-gray-100 mt-1 pt-0.5 ${day.smartCost > day.manualCost ? 'text-red-600' : 'text-green-600'}`}>
+                                                            {day.smartCost - day.manualCost > 0 ? '+' : ''}{(day.smartCost - day.manualCost).toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
+                                                        </span>
                                                     </div>
                                                 </td>
                                                 <td className="px-6 py-4 text-sm text-red-400 text-right">
@@ -1408,10 +1411,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
                                                 <td className="px-6 py-4 text-right">
                                                     <div className="flex flex-col items-end">
                                                         <span className={`text-sm font-black ${day.netProfitManual >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                                            {day.netProfitManual.toLocaleString()}
+                                                            {day.netProfitManual.toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
                                                         </span>
                                                         <span className={`text-xs font-bold ${day.netProfitSmart >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                                                            {day.netProfitSmart.toLocaleString()}
+                                                            {day.netProfitSmart.toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
+                                                        </span>
+                                                        <span className={`text-[10px] font-bold border-t border-gray-100 mt-1 pt-0.5 ${day.netProfitSmart < day.netProfitManual ? 'text-red-600' : 'text-green-600'}`}>
+                                                            {day.netProfitSmart - day.netProfitManual > 0 ? '+' : ''}{(day.netProfitSmart - day.netProfitManual).toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
                                                         </span>
                                                     </div>
                                                 </td>
