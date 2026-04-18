@@ -550,6 +550,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
         let takeawayItems = 0;
         const deliveryItemsMap: Record<string, number> = {};
         
+        // Detailed breakdown tracking for the drill-down view
+        const providerItemsBreakdown: Record<string, Record<string, number>> = {};
+        const takeawayItemsBreakdown: Record<string, number> = {};
+        const dineInItemsBreakdown: Record<string, number> = {};
+        
         ordersForCharts.forEach(order => {
             const isDelivery = order.orderType === 'lineman';
             const providerName = isDelivery ? getDeliveryProviderName(order) : null;
@@ -562,10 +567,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
 
                 if (isDelivery && providerName) {
                     deliveryItemsMap[providerName] = (deliveryItemsMap[providerName] || 0) + item.quantity;
+                    
+                    if (!providerItemsBreakdown[providerName]) providerItemsBreakdown[providerName] = {};
+                    providerItemsBreakdown[providerName][item.name] = (providerItemsBreakdown[providerName][item.name] || 0) + item.quantity;
+
                 } else if (item.isTakeaway) {
                     takeawayItems += item.quantity;
+                    takeawayItemsBreakdown[item.name] = (takeawayItemsBreakdown[item.name] || 0) + item.quantity;
                 } else {
                     dineInItems += item.quantity;
+                    dineInItemsBreakdown[item.name] = (dineInItemsBreakdown[item.name] || 0) + item.quantity;
                 }
             });
         });
@@ -595,7 +606,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
             title: selectedCategoryFilter ? `ประเภทรายการ: ${selectedCategoryFilter}` : 'ประเภทรายการ (แยกตามผู้ให้บริการ)',
             labels,
             data,
-            colors
+            colors,
+            providerItemsBreakdown,
+            takeawayItemsBreakdown,
+            dineInItemsBreakdown
         };
     }, [ordersForCharts, selectedCategoryFilter]);
 
@@ -1213,14 +1227,51 @@ export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelled
                         onSliceClick={handleCategoryClick}
                         selectedLabel={selectedCategoryFilter}
                     />
-                     <PieChart
-                        title={orderItemTypeData.title}
-                        data={orderItemTypeData.data}
-                        labels={orderItemTypeData.labels}
-                        colors={orderItemTypeData.colors}
-                        onSliceClick={handleOrderTypeClick}
-                        selectedLabel={selectedOrderTypeFilter}
-                    />
+                    
+                    {selectedOrderTypeFilter && selectedOrderTypeFilter !== 'ทานที่ร้าน' && selectedOrderTypeFilter !== 'กลับบ้าน' && orderItemTypeData.providerItemsBreakdown[selectedOrderTypeFilter] ? (
+                        <div className="bg-white p-4 sm:p-6 rounded-xl shadow-md h-full flex flex-col animate-in fade-in zoom-in duration-300">
+                            <div className="flex items-center justify-between mb-4 border-b pb-3">
+                                <h3 className="text-lg font-bold text-gray-800">
+                                    เมนูยอดฮิต: <span className="text-indigo-600">{selectedOrderTypeFilter}</span>
+                                </h3>
+                                <button 
+                                    onClick={() => handleOrderTypeClick(selectedOrderTypeFilter)}
+                                    className="p-1 px-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition-colors flex items-center gap-1"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                                    </svg>
+                                    ย้อนกลับ
+                                </button>
+                            </div>
+                            <div className="flex-1 overflow-y-auto pr-2">
+                                <ul className="space-y-2">
+                                    {Object.entries(orderItemTypeData.providerItemsBreakdown[selectedOrderTypeFilter])
+                                        .sort(([, a], [, b]) => b - a)
+                                        .map(([itemName, count], idx) => (
+                                            <li key={idx} className="flex justify-between items-center p-2 rounded text-sm hover:bg-gray-50 border border-transparent hover:border-gray-100 transition-colors">
+                                                <span className="flex items-center gap-2">
+                                                    <span className="w-5 h-5 flex items-center justify-center rounded-full bg-indigo-100 text-indigo-700 font-bold text-xs">
+                                                        {idx + 1}
+                                                    </span>
+                                                    <span className="font-medium text-gray-700">{itemName}</span>
+                                                </span>
+                                                <span className="font-bold text-gray-900">{count} จาน</span>
+                                            </li>
+                                        ))}
+                                </ul>
+                            </div>
+                        </div>
+                    ) : (
+                         <PieChart
+                            title={orderItemTypeData.title}
+                            data={orderItemTypeData.data}
+                            labels={orderItemTypeData.labels}
+                            colors={orderItemTypeData.colors}
+                            onSliceClick={handleOrderTypeClick}
+                            selectedLabel={selectedOrderTypeFilter}
+                        />
+                    )}
                 </div>
             </div>
                 </>

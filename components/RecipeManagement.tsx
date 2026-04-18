@@ -84,6 +84,12 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
                             // pricePerUnit logic from RecipeModal
                             if (latestPrice.unit === 'กก.' && ing.unit === 'กรัม') {
                                 jsonUnitPrice = latestPrice.pricePerUnit / 1000;
+                            } else if (latestPrice.unit === 'แผง' && ing.unit === 'ฟอง') {
+                                jsonUnitPrice = latestPrice.pricePerUnit / 30;
+                            } else if ((latestPrice.unit === 'กก.' || latestPrice.unit === 'กิโลกรัม') && ing.unit === 'ช้อนตวง') {
+                                jsonUnitPrice = (latestPrice.pricePerUnit / 1000) * 20;
+                            } else if (latestPrice.unit === 'กรัม' && ing.unit === 'ช้อนตวง') {
+                                jsonUnitPrice = latestPrice.pricePerUnit * 20;
                             } else {
                                 jsonUnitPrice = latestPrice.pricePerUnit;
                             }
