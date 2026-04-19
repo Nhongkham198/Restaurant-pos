@@ -82,11 +82,16 @@ export const calculateBagsForOrder = (
     let totalBags8x16 = 0;
     let totalBags12x20 = 0;
 
+    // Special handling for 6x12 requested bags: consolidating by 2 (Soup/Rice items)
+    let count6x12Items = 0;
     for (const b of explicitBags) {
-        if (b.type === '6x12') totalBags6x12 += b.quantity;
+        if (b.type === '6x12') count6x12Items += b.quantity;
         if (b.type === '8x16') totalBags8x16 += b.quantity;
         if (b.type === '12x20') totalBags12x20 += b.quantity;
     }
+    
+    // Rule: 6x12 bags can stack up to 2 soup/rice cups in one bag
+    totalBags6x12 = Math.ceil(count6x12Items / 2);
 
     // Apply Upgrade Rule: Every 2x 8x16 bags become 1x 12x20 bag
     const upgrades = Math.floor(totalBags8x16 / 2);
