@@ -22,6 +22,7 @@ export const calculateBagsForOrder = (
                     const ingQty = (ing.quantity || 1) * q;
 
                     if (sName.includes('ถุง')) {
+                        hasPackagingInRecipe = true; // Fix: Mark as having packaging if bag is found
                         if (sName.includes('6x12') || sName.includes('6*12') || sName.replace(/\s+/g, '').includes('6x12')) {
                             explicitBags.push({ type: '6x12', quantity: ingQty });
                         } else if (sName.includes('8x16') || sName.includes('8*16') || sName.replace(/\s+/g, '').includes('8x16')) {
@@ -115,7 +116,7 @@ export const calculateBagsForOrder = (
     const getBagLimits = (type: '6x12' | '8x16' | '12x20', isPorkNoRice: boolean) => {
         if (type === '6x12') return { boxLimit: 2, sideLimit: 0 };
         if (type === '8x16') return { boxLimit: 2, sideLimit: isPorkNoRice ? 4 : 2 };
-        return { boxLimit: 4, sideLimit: isPorkNoRice ? 4 : 3 }; // 12x20
+        return { boxLimit: 3, sideLimit: isPorkNoRice ? 4 : 3 }; // 12x20: Rule: Max 3 partitioned boxes
     };
 
     // Initialize active bags from optimized counts
@@ -123,14 +124,18 @@ export const calculateBagsForOrder = (
         const limits = getBagLimits('6x12', hasPorkNoRice);
         activeBags.push({ ...limits, type: '6x12', boxes: 0, sides: 0, allowedBoxTypes: ['rice', 'soup'], isPorkNoRiceBag: hasPorkNoRice });
     }
-    for (let i = 0; i < Math.floor(totalBags8x16); i++) {
-        const limits = getBagLimits('8x16', hasPorkNoRice);
-        activeBags.push({ ...limits, type: '8x16', boxes: 0, sides: 0, allowedBoxTypes: ['box1', 'box2', 'rice', 'soup'], isPorkNoRiceBag: hasPorkNoRice });
-    }
     for (let i = 0; i < Math.floor(totalBags12x20); i++) {
         const limits = getBagLimits('12x20', hasPorkNoRice);
         activeBags.push({ ...limits, type: '12x20', boxes: 0, sides: 0, allowedBoxTypes: ['box1', 'box2', 'box3', 'rice', 'soup'], isPorkNoRiceBag: hasPorkNoRice });
     }
+    for (let i = 0; i < Math.floor(totalBags8x16); i++) {
+        const limits = getBagLimits('8x16', hasPorkNoRice);
+        activeBags.push({ ...limits, type: '8x16', boxes: 0, sides: 0, allowedBoxTypes: ['box1', 'box2', 'rice', 'soup'], isPorkNoRiceBag: hasPorkNoRice });
+    }
+
+    // Sort bags by volume/size descending (12x20 > 8x16 > 6x12) to ensure maximum consolidation
+    const bagSizePriority = { '12x20': 0, '8x16': 1, '6x12': 2 };
+    activeBags.sort((a, b) => bagSizePriority[a.type] - bagSizePriority[b.type]);
 
     // 5. Fill bags with packaging items
     const flattenedPackaging: ('box1' | 'box2' | 'box3' | 'rice' | 'soup' | 'side')[] = [];
