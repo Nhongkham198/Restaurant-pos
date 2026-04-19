@@ -455,6 +455,12 @@ export interface RecipeIngredient {
     smartUnitPrice?: number; // Added: Override for JSON/Smart price
 }
 
+export interface BagCounts {
+    '6x12': number;
+    '8x16': number;
+    '12x20': number;
+}
+
 export interface Recipe {
     id: string; // Usually menu item ID as string
     menuItemId: number;

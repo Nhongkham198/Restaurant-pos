@@ -2,6 +2,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import type { ActiveOrder } from '../types';
 import Swal from 'sweetalert2';
+import { calculateBagsForOrder } from '../utils/bagCalculator';
+import { useData } from '../contexts/DataContext';
 
 interface KitchenOrderCardProps {
     order: ActiveOrder;
@@ -24,6 +26,8 @@ export const KitchenOrderCard: React.FC<KitchenOrderCardProps> = ({
     onPrintOrder,
     onCancelOrder
 }) => {
+    const { recipes, stockItems } = useData();
+
     const [elapsedSeconds, setElapsedSeconds] = useState(0);
     
     // Checklist state: Persist to localStorage to survive page refreshes
@@ -35,6 +39,20 @@ export const KitchenOrderCard: React.FC<KitchenOrderCardProps> = ({
             return new Set();
         }
     });
+
+    const isCooking = order.status === 'cooking';
+    const isPendingPayment = order.status === 'pending_payment';
+    const isOverdue = order.isOverdue ?? false;
+    const isLineMan = order.orderType === 'lineman';
+    const isTakeaway = order.orderType === 'takeaway' || order.items.some(i => i.isTakeaway);
+    const requiresBag = isLineMan || isTakeaway;
+
+    const bagUsage = useMemo(() => {
+        if (!requiresBag) return null;
+        const bags = calculateBagsForOrder(order.items, recipes, stockItems);
+        if (bags['6x12'] === 0 && bags['8x16'] === 0 && bags['12x20'] === 0) return null;
+        return bags;
+    }, [order.items, requiresBag, recipes, stockItems]);
 
     useEffect(() => {
         const calculateElapsedTime = () => {
@@ -75,12 +93,6 @@ export const KitchenOrderCard: React.FC<KitchenOrderCardProps> = ({
     const handleStart = () => {
         onStartCooking(order.id);
     };
-
-    const isCooking = order.status === 'cooking';
-    const isPendingPayment = order.status === 'pending_payment';
-    const isOverdue = order.isOverdue ?? false;
-    const isLineMan = order.orderType === 'lineman';
-    const isTakeaway = order.orderType === 'takeaway' || order.items.some(i => i.isTakeaway);
 
     const totalAmount = order.items.reduce((sum, item) => sum + (item.finalPrice * item.quantity), 0);
 
@@ -196,6 +208,23 @@ export const KitchenOrderCard: React.FC<KitchenOrderCardProps> = ({
                             ดูสลิป
                         </button>
                     )}
+                </div>
+            )}
+
+            {/* Smart Bag Suggestion for Kitchen */}
+            {bagUsage && (
+                <div className="bg-blue-900/40 px-3 py-2 border-b border-blue-700/50 flex flex-col gap-1">
+                    <span className="text-blue-300 font-bold text-xs uppercase tracking-wider flex items-center gap-1">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                        </svg>
+                        แนะนำจำนวนถุง
+                    </span>
+                    <div className="flex flex-wrap gap-2">
+                        {bagUsage['12x20'] > 0 && <span className="bg-blue-800 text-blue-100 text-xs px-2 py-0.5 rounded font-bold border border-blue-600">ใหญ่ 12*20: {bagUsage['12x20']} ใบ</span>}
+                        {bagUsage['8x16'] > 0 && <span className="bg-blue-800 text-blue-100 text-xs px-2 py-0.5 rounded font-bold border border-blue-600">กลาง 8*16: {bagUsage['8x16']} ใบ</span>}
+                        {bagUsage['6x12'] > 0 && <span className="bg-blue-800 text-blue-100 text-xs px-2 py-0.5 rounded font-bold border border-blue-600">เล็ก 6*12: {bagUsage['6x12']} ใบ</span>}
+                    </div>
                 </div>
             )}
 
