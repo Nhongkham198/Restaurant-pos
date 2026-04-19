@@ -344,6 +344,8 @@ export interface MaintenanceLog {
     notes?: string;
     beforeImage?: string; // Base64
     afterImage?: string; // Base64
+    acknowledgedBy?: string; // NEW: Username of manager who acknowledged
+    acknowledgedAt?: number; // NEW: Timestamp when acknowledged
 }
 
 export type View = 'pos' | 'kitchen' | 'tables' | 'dashboard' | 'history' | 'stock' | 'stock-analytics' | 'recipes' | 'leave' | 'leave-analytics' | 'maintenance' | 'hr' | 'hr-payroll' | 'expense-analysis';

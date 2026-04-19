@@ -74,7 +74,7 @@ interface DataContextType {
     maintenanceItems: MaintenanceItem[];
     setMaintenanceItems: React.Dispatch<React.SetStateAction<MaintenanceItem[]>>;
     maintenanceLogs: MaintenanceLog[];
-    setMaintenanceLogs: React.Dispatch<React.SetStateAction<MaintenanceLog[]>>;
+    maintenanceLogsActions: CollectionActions<MaintenanceLog>;
     orderCounter: OrderCounter;
     setOrderCounter: React.Dispatch<React.SetStateAction<OrderCounter>>;
     
@@ -446,7 +446,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     
     const [printHistory, setPrintHistory, isPrintHistoryLoading] = useFirestoreSync<PrintHistoryEntry[]>(heavyDataBranchId, 'printHistory', []);
     const [maintenanceItems, setMaintenanceItems, isMaintenanceItemsLoading] = useFirestoreSync<MaintenanceItem[]>(heavyDataBranchId, 'maintenanceItems', []);
-    const [maintenanceLogs, setMaintenanceLogs, isMaintenanceLogsLoading] = useFirestoreSync<MaintenanceLog[]>(heavyDataBranchId, 'maintenanceLogs', []);
+    const [maintenanceLogs, maintenanceLogsActions] = useFirestoreCollection<MaintenanceLog>(heavyDataBranchId, 'maintenanceLogs_v2'); 
     const [orderCounter, setOrderCounter, isOrderCounterLoading] = useFirestoreSync<OrderCounter>(heavyDataBranchId, 'orderCounter', { count: 0, lastResetDate: new Date().toISOString().split('T')[0] });
     
     const [stockLogs, stockLogsActions] = useFirestoreCollection<StockLog>(heavyDataBranchId, 'stockLogs');
@@ -572,7 +572,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         
         stockItems, setStockItems, stockTags, setStockTags, stockCategories, setStockCategories, stockUnits, setStockUnits,
         stockLogs, stockLogsActions,
-        printHistory, setPrintHistory, maintenanceItems, setMaintenanceItems, maintenanceLogs, setMaintenanceLogs,
+        printHistory, setPrintHistory, maintenanceItems, setMaintenanceItems, maintenanceLogs, maintenanceLogsActions,
         orderCounter, setOrderCounter, staffCalls, setStaffCalls, leaveRequests, setLeaveRequests,
         lastSalesCleanupDate, setLastSalesCleanupDate,
         
@@ -602,7 +602,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         legacyCompletedOrders, legacyCancelledOrders, newCompletedOrders, 
         newCompletedOrdersActions, newCancelledOrders, newCancelledOrdersActions,
         completedOrders, cancelledOrders, stockItems, stockTags, stockCategories, stockUnits,
-        stockLogs, stockLogsActions, printHistory, maintenanceItems, maintenanceLogs,
+        stockLogs, stockLogsActions, printHistory, maintenanceItems, maintenanceLogs, maintenanceLogsActions,
         orderCounter, staffCalls, leaveRequests, lastSalesCleanupDate,
         jobApplications, jobApplicationsActions, employmentContracts, 
         employmentContractsActions, timeRecords, payrollRecords, jobPositions,

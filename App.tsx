@@ -154,7 +154,7 @@ export const App: React.FC = () => {
         stockLogs, stockLogsActions,
         printHistory, setPrintHistory,
         maintenanceItems, setMaintenanceItems,
-        maintenanceLogs, setMaintenanceLogs,
+        maintenanceLogs, maintenanceLogsActions,
         orderCounter, setOrderCounter,
         staffCalls, setStaffCalls,
         leaveRequests, setLeaveRequests,
@@ -1792,7 +1792,7 @@ export const App: React.FC = () => {
                                                     maintenanceItems={maintenanceItems}
                                                     setMaintenanceItems={setMaintenanceItems}
                                                     maintenanceLogs={maintenanceLogs}
-                                                    setMaintenanceLogs={setMaintenanceLogs}
+                                                    maintenanceLogsActions={maintenanceLogsActions}
                                                     currentUser={currentUser}
                                                     isEditMode={isEditMode}
                                                 />
@@ -1861,7 +1861,7 @@ export const App: React.FC = () => {
                                     maintenanceItems={maintenanceItems}
                                     setMaintenanceItems={setMaintenanceItems}
                                     maintenanceLogs={maintenanceLogs}
-                                    setMaintenanceLogs={setMaintenanceLogs}
+                                    maintenanceLogsActions={maintenanceLogsActions}
                                     currentUser={currentUser}
                                     isEditMode={isEditMode}
                                 />

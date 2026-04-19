@@ -57,9 +57,12 @@ export const calculateBagsForOrder = (
                 packagingItems.push({ type: 'soup', quantity: q });
                 packagingItems.push({ type: 'box1', quantity: q });
                 explicitBags.push({ type: '6x12', quantity: q });
-            } else if (name.includes('ซุป') || name.includes('จิเก') || name.includes('ซอลลองทัง') || name.includes('ตุ๊กบูล') || name.includes('ดุ๊กบูล') || name.includes('ต้ม') || name.includes('ต๊อกบกกี') || name.includes('ข้าวญี่ปุ่น') || name.includes('ข้าวสวย')) {
+            } else if (name.includes('ซุป') || name.includes('จิเก') || name.includes('ซอลลองทัง') || name.includes('ตุ๊กบูล') || name.includes('ดุ๊กบูล') || name.includes('ต้ม') || name.includes('ต๊อกบกกี')) {
                 packagingItems.push({ type: 'soup', quantity: q });
                 explicitBags.push({ type: '6x12', quantity: q });
+            } else if (name.includes('ข้าวญี่ปุ่น') || name.includes('ข้าวสวย')) {
+                // Treated as a 1-compartment box as requested before
+                packagingItems.push({ type: 'box1', quantity: q });
             } else if (name.includes('ข้าว') && !name.includes('ยำ') && !name.includes('หมู') && !name.includes('ไก่') && !name.includes('เนื้อ')) {
                 packagingItems.push({ type: 'rice', quantity: q });
             } else if (name.includes('เซ็ต') || name.includes('เซต') || name.includes('อิ่มจุใจ')) {
@@ -124,11 +127,8 @@ export const calculateBagsForOrder = (
         return { boxLimit: 3, sideLimit: isPorkNoRice ? 4 : 3 }; // 12x20: Rule: Max 3 partitioned boxes
     };
 
-    // Initialize active bags from optimized counts
-    for (let i = 0; i < Math.floor(totalBags6x12); i++) {
-        const limits = getBagLimits('6x12', hasPorkNoRice);
-        activeBags.push({ ...limits, type: '6x12', boxes: 0, sides: 0, allowedBoxTypes: ['rice', 'soup'], isPorkNoRiceBag: hasPorkNoRice });
-    }
+    // Initialize active bags from optimized counts (ONLY for handle bags: 8x16, 12x20)
+    // 6x12 handle bags are NOT initialized here as they are treated as mandatory inner bags or standalone if needed
     for (let i = 0; i < Math.floor(totalBags12x20); i++) {
         const limits = getBagLimits('12x20', hasPorkNoRice);
         activeBags.push({ ...limits, type: '12x20', boxes: 0, sides: 0, allowedBoxTypes: ['box1', 'box2', 'box3', 'rice', 'soup'], isPorkNoRiceBag: hasPorkNoRice });
@@ -186,10 +186,11 @@ export const calculateBagsForOrder = (
                 const limits = getBagLimits('8x16', hasPorkNoRice);
                 newBag = { ...limits, type: '8x16', boxes: 0, sides: 1, allowedBoxTypes: ['box1', 'box2', 'rice', 'soup'], isPorkNoRiceBag: hasPorkNoRice };
                 totalBags8x16++;
-            } else if (itemType === 'soup' || itemType === 'rice') {
-                const limits = getBagLimits('6x12', hasPorkNoRice);
-                newBag = { ...limits, type: '6x12', boxes: 1, sides: 0, allowedBoxTypes: ['rice', 'soup'], isPorkNoRiceBag: hasPorkNoRice };
-                totalBags6x12++;
+            } else if (itemType === 'soup') {
+                // Soup always needs a 6x12 inner bag, but for carrying it needs a handle bag (8x16 default)
+                const limits = getBagLimits('8x16', hasPorkNoRice);
+                newBag = { ...limits, type: '8x16', boxes: 1, sides: 0, allowedBoxTypes: ['box1', 'box2', 'rice', 'soup'], isPorkNoRiceBag: hasPorkNoRice };
+                totalBags8x16++;
             } else {
                 const limits = getBagLimits('8x16', hasPorkNoRice);
                 newBag = { ...limits, type: '8x16', boxes: 1, sides: 0, allowedBoxTypes: ['box1', 'box2', 'rice', 'soup'], isPorkNoRiceBag: hasPorkNoRice };
@@ -226,7 +227,7 @@ export const calculateBagsForOrder = (
     final8x16 = final8x16 % 2;
 
     return {
-        '6x12': final6x12,
+        '6x12': totalBags6x12,
         '8x16': final8x16,
         '12x20': final12x20,
     };

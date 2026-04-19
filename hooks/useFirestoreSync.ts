@@ -184,7 +184,14 @@ export function useFirestoreSync<T>(
 
         setValue((prevValue) => {
             const resolvedValue = newValue instanceof Function ? newValue(prevValue) : newValue;
-            docRef.set({ value: resolvedValue })
+            
+            // SANITIZATION: Firestore fails on 'undefined' values. 
+            // We use JSON stringify/parse to strip undefineds recursively.
+            const sanitizedValue = JSON.parse(JSON.stringify({ value: resolvedValue }, (key, val) => {
+                return val === undefined ? null : val;
+            }));
+
+            docRef.set(sanitizedValue)
                 .catch(err => {
                     console.error(`Failed to write ${collectionKey} to Firestore:`, err);
                 });

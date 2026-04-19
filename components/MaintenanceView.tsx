@@ -1,6 +1,7 @@
 
 import React, { useState, useRef, useMemo } from 'react';
 import type { MaintenanceItem, MaintenanceLog, User, MaintenanceStatus } from '../types';
+import type { CollectionActions } from '../hooks/useFirestoreSync';
 import Swal from 'sweetalert2';
 
 // Declare XLSX for Excel operations
@@ -10,7 +11,7 @@ interface MaintenanceViewProps {
     maintenanceItems: MaintenanceItem[];
     setMaintenanceItems: React.Dispatch<React.SetStateAction<MaintenanceItem[]>>;
     maintenanceLogs: MaintenanceLog[];
-    setMaintenanceLogs: React.Dispatch<React.SetStateAction<MaintenanceLog[]>>;
+    maintenanceLogsActions: CollectionActions<MaintenanceLog>;
     currentUser: User | null;
     isEditMode: boolean;
 }
@@ -29,7 +30,7 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
     maintenanceItems,
     setMaintenanceItems,
     maintenanceLogs,
-    setMaintenanceLogs,
+    maintenanceLogsActions,
     currentUser,
     isEditMode
 }) => {
@@ -427,7 +428,7 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
             afterImage: afterImage
         };
 
-        setMaintenanceLogs(prev => [newLog, ...prev]);
+        maintenanceLogsActions.add(newLog);
 
         setMaintenanceItems(prev => prev.map(i => i.id === performingItem.id ? {
             ...i,
@@ -463,7 +464,7 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
             afterImage: editAfterImage || undefined
         };
 
-        setMaintenanceLogs(prev => prev.map(l => l.id === editingLog.id ? updatedLog : l));
+        maintenanceLogsActions.update(editingLog.id, updatedLog);
         
         setIsEditLogModalOpen(false);
         Swal.fire('บันทึกสำเร็จ', 'แก้ไขประวัติการบำรุงรักษาเรียบร้อย', 'success');
@@ -479,8 +480,31 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
             confirmButtonText: 'ลบเลย'
         }).then((result) => {
             if (result.isConfirmed) {
-                setMaintenanceLogs(prev => prev.filter(l => l.id !== id));
+                maintenanceLogsActions.remove(id);
                 Swal.fire('ลบแล้ว', 'ลบประวัติสำเร็จ', 'success');
+            }
+        });
+    };
+
+    const handleAcknowledgeLog = (log: MaintenanceLog) => {
+        if (!currentUser || log.acknowledgedBy) return;
+
+        Swal.fire({
+            title: 'ยืนยันการรับทราบ?',
+            text: `คุณได้รับทราบการบำรุงรักษาของ ${maintenanceItems.find(i => i.id === log.itemId)?.name || 'อุปกรณ์'} เรียบร้อยแล้ว`,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'รับทราบแล้ว',
+            cancelButtonText: 'ยกเลิก'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                const updatedLog: MaintenanceLog = {
+                    ...log,
+                    acknowledgedBy: currentUser.username,
+                    acknowledgedAt: Date.now()
+                };
+                maintenanceLogsActions.update(log.id, updatedLog);
+                Swal.fire('รับทราบแล้ว', 'บันทึกการรับทราบสำเร็จ', 'success');
             }
         });
     };
@@ -745,6 +769,42 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
                                             </p>
                                             <p className="text-sm text-gray-500">โดย: {log.performedBy}</p>
                                             {log.notes && <p className="text-sm text-gray-600 mt-2 bg-gray-50 p-3 rounded border whitespace-pre-wrap">{log.notes}</p>}
+                                            
+                                            {/* Acknowledgment Section */}
+                                            <div className="mt-3 pt-3 border-t flex items-center justify-between">
+                                                <div className="flex items-center gap-2">
+                                                    {log.acknowledgedBy ? (
+                                                        <div className="flex items-center gap-2 text-green-600">
+                                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                                            </svg>
+                                                            <div className="text-xs">
+                                                                <span className="font-bold">รับทราบแล้ว:</span> {log.acknowledgedBy}
+                                                                <br />
+                                                                <span className="text-[10px] opacity-75">
+                                                                    {new Date(log.acknowledgedAt || 0).toLocaleString('th-TH')}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="flex items-center gap-2 text-gray-400">
+                                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                            </svg>
+                                                            <span className="text-xs font-semibold italic">รอกดรับทราบ...</span>
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                {canManage && !log.acknowledgedBy && (
+                                                    <button 
+                                                        onClick={() => handleAcknowledgeLog(log)}
+                                                        className="px-3 py-1 bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white rounded-lg text-xs font-bold transition-all border border-blue-200"
+                                                    >
+                                                        กดรับทราบ
+                                                    </button>
+                                                )}
+                                            </div>
                                         </div>
                                         <div className="flex gap-4">
                                             <div className="text-center">
