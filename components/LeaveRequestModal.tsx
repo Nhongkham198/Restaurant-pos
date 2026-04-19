@@ -91,11 +91,26 @@ export const LeaveRequestModal: React.FC<LeaveRequestModalProps> = ({ isOpen, on
 
     // Auto-switch type if current selection is invalid due to quota
     useEffect(() => {
-        if (isOpen) {
-            if (type === 'personal' && remainingPersonal <= 0) {
+        if (!isOpen) return;
+
+        // Prevent infinite loop by only switching if the target type has available quota
+        if (type === 'personal' && remainingPersonal <= 0) {
+            if (remainingSick > 0) {
                 setType('sick');
-            } else if (type === 'sick' && remainingSick <= 0) {
+            } else if (remainingVacation > 0) {
+                setType('vacation');
+            }
+        } else if (type === 'sick' && remainingSick <= 0) {
+            if (remainingPersonal > 0) {
                 setType('personal');
+            } else if (remainingVacation > 0) {
+                setType('vacation');
+            }
+        } else if (type === 'vacation' && remainingVacation <= 0) {
+            if (remainingPersonal > 0) {
+                setType('personal');
+            } else if (remainingSick > 0) {
+                setType('sick');
             }
         }
     }, [isOpen, type, remainingPersonal, remainingSick, remainingVacation]);

@@ -231,7 +231,7 @@ export function useFirestoreCollection<T extends { id: number | string }>(
         return () => unsubscribe();
     }, [branchId, collectionName]);
 
-    const actions: CollectionActions<T> = {
+    const actions: CollectionActions<T> = React.useMemo(() => ({
         add: async (item: T) => {
             if (!db || !branchId) return;
             const docId = item.id.toString();
@@ -251,7 +251,7 @@ export function useFirestoreCollection<T extends { id: number | string }>(
             if (!db || !branchId) return;
             await db.collection(`branches/${branchId}/${collectionName}`).doc(id.toString()).delete();
         }
-    };
+    }), [branchId, collectionName]);
 
     return [data, actions];
 }

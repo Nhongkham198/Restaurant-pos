@@ -558,44 +558,65 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
     const isDataLoading = isMenuItemsLoading || isCategoriesLoading || isTablesLoading || isFloorsLoading || isDeliveryProvidersLoading;
 
-    return (
-        <DataContext.Provider value={{
-            currentUser, setCurrentUser, users, setUsers, branches, setBranches,
-            selectedBranch, setSelectedBranch, isCustomerMode, setIsCustomerMode,
-            customerTableId, setCustomerTableId, branchId, heavyDataBranchId, shouldLoadHeavyData,
-            
-            menuItems, setMenuItems, recipes, setRecipes, categories, setCategories, tables, setTables, floors, setFloors,
-            recommendedMenuItemIds, setRecommendedMenuItemIds, activeOrders, rawActiveOrders, activeOrdersActions,
-            
-            legacyCompletedOrders, setLegacyCompletedOrders, legacyCancelledOrders, setLegacyCancelledOrders,
-            newCompletedOrders, newCompletedOrdersActions, newCancelledOrders, newCancelledOrdersActions,
-            completedOrders, cancelledOrders,
-            
-            stockItems, setStockItems, stockTags, setStockTags, stockCategories, setStockCategories, stockUnits, setStockUnits,
-            stockLogs, stockLogsActions,
-            printHistory, setPrintHistory, maintenanceItems, setMaintenanceItems, maintenanceLogs, setMaintenanceLogs,
-            orderCounter, setOrderCounter, staffCalls, setStaffCalls, leaveRequests, setLeaveRequests,
-            lastSalesCleanupDate, setLastSalesCleanupDate,
-            
-            jobApplications, jobApplicationsActions, employmentContracts, employmentContractsActions,
-            timeRecords, setTimeRecords, payrollRecords, setPayrollRecords, jobPositions, setJobPositions,
+    const value = useMemo(() => ({
+        currentUser, setCurrentUser, users, setUsers, branches, setBranches,
+        selectedBranch, setSelectedBranch, isCustomerMode, setIsCustomerMode,
+        customerTableId, setCustomerTableId, branchId, heavyDataBranchId, shouldLoadHeavyData,
+        
+        menuItems, setMenuItems, recipes, setRecipes, categories, setCategories, tables, setTables, floors, setFloors,
+        recommendedMenuItemIds, setRecommendedMenuItemIds, activeOrders, rawActiveOrders, activeOrdersActions,
+        
+        legacyCompletedOrders, setLegacyCompletedOrders, legacyCancelledOrders, setLegacyCancelledOrders,
+        newCompletedOrders, newCompletedOrdersActions, newCancelledOrders, newCancelledOrdersActions,
+        completedOrders, cancelledOrders,
+        
+        stockItems, setStockItems, stockTags, setStockTags, stockCategories, setStockCategories, stockUnits, setStockUnits,
+        stockLogs, stockLogsActions,
+        printHistory, setPrintHistory, maintenanceItems, setMaintenanceItems, maintenanceLogs, setMaintenanceLogs,
+        orderCounter, setOrderCounter, staffCalls, setStaffCalls, leaveRequests, setLeaveRequests,
+        lastSalesCleanupDate, setLastSalesCleanupDate,
+        
+        jobApplications, jobApplicationsActions, employmentContracts, employmentContractsActions,
+        timeRecords, setTimeRecords, payrollRecords, setPayrollRecords, jobPositions, setJobPositions,
 
-            logoUrl, setLogoUrl, appLogoUrl, setAppLogoUrl, restaurantName, setRestaurantName,
-            restaurantAddress, setRestaurantAddress, restaurantPhone, setRestaurantPhone, taxId, setTaxId,
-            signatureUrl, setSignatureUrl, qrCodeUrl, setQrCodeUrl, notificationSoundUrl, setNotificationSoundUrl,
-            staffCallSoundUrl, setStaffCallSoundUrl, printerConfig, setPrinterConfig, openingTime, setOpeningTime,
-            closingTime, setClosingTime, isTaxEnabled, setIsTaxEnabled, taxRate, setTaxRate, sendToKitchen, setSendToKitchen,
-            deliveryProviders, setDeliveryProviders, facebookAppId, setFacebookAppId, facebookAppSecret, setFacebookAppSecret,
-            lineOaUrl, setLineOaUrl, facebookPageUrl, setFacebookPageUrl,
-            lineNotifyToken, setLineNotifyToken,
-            lineMessagingToken, setLineMessagingToken,
-            lineUserId, setLineUserId,
-            telegramBotToken, setTelegramBotToken,
-            telegramChatId, setTelegramChatId,
-            manualAdCosts, setManualAdCosts,
-            latestIngredientPrices, setLatestIngredientPrices,
-            isDataLoading
-        }}>
+        logoUrl, setLogoUrl, appLogoUrl, setAppLogoUrl, restaurantName, setRestaurantName,
+        restaurantAddress, setRestaurantAddress, restaurantPhone, setRestaurantPhone, taxId, setTaxId,
+        signatureUrl, setSignatureUrl, qrCodeUrl, setQrCodeUrl, notificationSoundUrl, setNotificationSoundUrl,
+        staffCallSoundUrl, setStaffCallSoundUrl, printerConfig, setPrinterConfig, openingTime, setOpeningTime,
+        closingTime, setClosingTime, isTaxEnabled, setIsTaxEnabled, taxRate, setTaxRate, sendToKitchen, setSendToKitchen,
+        deliveryProviders, setDeliveryProviders, facebookAppId, setFacebookAppId, facebookAppSecret, setFacebookAppSecret,
+        lineOaUrl, setLineOaUrl, facebookPageUrl, setFacebookPageUrl,
+        lineNotifyToken, setLineNotifyToken,
+        lineMessagingToken, setLineMessagingToken,
+        lineUserId, setLineUserId,
+        telegramBotToken, setTelegramBotToken,
+        telegramChatId, setTelegramChatId,
+        manualAdCosts, setManualAdCosts,
+        latestIngredientPrices, setLatestIngredientPrices,
+        isDataLoading
+    }), [
+        currentUser, users, branches, selectedBranch, isCustomerMode, customerTableId, 
+        branchId, heavyDataBranchId, shouldLoadHeavyData,
+        menuItems, recipes, categories, tables, floors, recommendedMenuItemIds, 
+        activeOrders, rawActiveOrders, activeOrdersActions,
+        legacyCompletedOrders, legacyCancelledOrders, newCompletedOrders, 
+        newCompletedOrdersActions, newCancelledOrders, newCancelledOrdersActions,
+        completedOrders, cancelledOrders, stockItems, stockTags, stockCategories, stockUnits,
+        stockLogs, stockLogsActions, printHistory, maintenanceItems, maintenanceLogs,
+        orderCounter, staffCalls, leaveRequests, lastSalesCleanupDate,
+        jobApplications, jobApplicationsActions, employmentContracts, 
+        employmentContractsActions, timeRecords, payrollRecords, jobPositions,
+        logoUrl, appLogoUrl, restaurantName, restaurantAddress, restaurantPhone, 
+        taxId, signatureUrl, qrCodeUrl, notificationSoundUrl, staffCallSoundUrl,
+        printerConfig, openingTime, closingTime, isTaxEnabled, taxRate, 
+        sendToKitchen, deliveryProviders, facebookAppId, facebookAppSecret,
+        lineOaUrl, facebookPageUrl, lineNotifyToken, lineMessagingToken, 
+        lineUserId, telegramBotToken, telegramChatId, manualAdCosts, 
+        latestIngredientPrices, isDataLoading
+    ]);
+
+    return (
+        <DataContext.Provider value={value}>
             {/* Non-blocking Top Progress Bar */}
             {isDataLoading && (
                 <div className="fixed top-0 left-0 right-0 z-[10000] h-1 bg-orange-100 overflow-hidden">

@@ -135,15 +135,15 @@ export const UIProvider = ({ children }: { children: React.ReactNode }) => {
     const [leaveRequestInitialDate, setLeaveRequestInitialDate] = React.useState<Date | null>(null);
     const [preselectedTable, setPreselectedTable] = React.useState<{ tableId: number, floor: string } | null>(null);
 
-    const openModal = (modalName: keyof ModalState) => {
+    const openModal = React.useCallback((modalName: keyof ModalState) => {
         setModalState(prev => ({ ...prev, [modalName]: true }));
-    };
+    }, []);
 
-    const closeModal = (modalName: keyof ModalState) => {
+    const closeModal = React.useCallback((modalName: keyof ModalState) => {
         setModalState(prev => ({ ...prev, [modalName]: false }));
-    };
+    }, []);
 
-    const closeAllModals = () => {
+    const closeAllModals = React.useCallback(() => {
         setModalState({
             isMenuItem: false, isOrderSuccess: false, isSplitBill: false, isTableBill: false,
             isPayment: false, isPaymentSuccess: false, isSettings: false, isEditCompleted: false,
@@ -151,25 +151,32 @@ export const UIProvider = ({ children }: { children: React.ReactNode }) => {
             isCashBill: false, isSplitCompleted: false, isCustomization: false, isLeaveRequest: false,
             isMenuSearch: false, isMergeBill: false, isTagRegistration: false
         });
-    };
+    }, []);
+
+    const value = React.useMemo(() => ({
+        currentView, setCurrentView,
+        isEditMode, setIsEditMode,
+        isAdminSidebarCollapsed, setIsAdminSidebarCollapsed,
+        isOrderSidebarVisible, setIsOrderSidebarVisible,
+        selectedSidebarFloor, setSelectedSidebarFloor,
+        modalState, setModalState,
+        itemToEdit, setItemToEdit,
+        itemToCustomize, setItemToCustomize,
+        orderItemToEdit, setOrderItemToEdit,
+        orderForModal, setOrderForModal,
+        selectedOrderIdForModal, setSelectedOrderIdForModal,
+        leaveRequestInitialDate, setLeaveRequestInitialDate,
+        preselectedTable, setPreselectedTable,
+        openModal, closeModal, closeAllModals
+    }), [
+        currentView, isEditMode, isAdminSidebarCollapsed, isOrderSidebarVisible,
+        selectedSidebarFloor, modalState, itemToEdit, itemToCustomize,
+        orderItemToEdit, orderForModal, selectedOrderIdForModal,
+        leaveRequestInitialDate, preselectedTable, openModal, closeModal, closeAllModals
+    ]);
 
     return (
-        <UIContext.Provider value={{
-            currentView, setCurrentView,
-            isEditMode, setIsEditMode,
-            isAdminSidebarCollapsed, setIsAdminSidebarCollapsed,
-            isOrderSidebarVisible, setIsOrderSidebarVisible,
-            selectedSidebarFloor, setSelectedSidebarFloor,
-            modalState, setModalState,
-            itemToEdit, setItemToEdit,
-            itemToCustomize, setItemToCustomize,
-            orderItemToEdit, setOrderItemToEdit,
-            orderForModal, setOrderForModal,
-            selectedOrderIdForModal, setSelectedOrderIdForModal,
-            leaveRequestInitialDate, setLeaveRequestInitialDate,
-            preselectedTable, setPreselectedTable,
-            openModal, closeModal, closeAllModals
-        }}>
+        <UIContext.Provider value={value}>
             {children}
         </UIContext.Provider>
     );
