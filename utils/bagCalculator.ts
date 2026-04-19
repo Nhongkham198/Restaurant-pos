@@ -57,7 +57,7 @@ export const calculateBagsForOrder = (
                 packagingItems.push({ type: 'soup', quantity: q });
                 packagingItems.push({ type: 'box1', quantity: q });
                 explicitBags.push({ type: '6x12', quantity: q });
-            } else if (name.includes('ซุป') || name.includes('จิเก') || name.includes('ซอลลองทัง') || name.includes('ตุ๊กบูล') || name.includes('ดุ๊กบูล') || name.includes('ต้ม') || name.includes('ต๊อกบกกี')) {
+            } else if (name.includes('ซุป') || name.includes('จิเก') || name.includes('ซอลลองทัง') || name.includes('ตุ๊กบูล') || name.includes('ดุ๊กบูล') || name.includes('ต้ม') || name.includes('ต๊อกบกกี') || name.includes('ข้าวญี่ปุ่น') || name.includes('ข้าวสวย')) {
                 packagingItems.push({ type: 'soup', quantity: q });
                 explicitBags.push({ type: '6x12', quantity: q });
             } else if (name.includes('ข้าว') && !name.includes('ยำ') && !name.includes('หมู') && !name.includes('ไก่') && !name.includes('เนื้อ')) {
@@ -212,6 +212,9 @@ export const calculateBagsForOrder = (
     let final12x20 = 0;
 
     for (const b of activeBags) {
+        // Optimization: Only count bags that are actually used to consolidate/share space
+        if (b.boxes === 0 && b.sides === 0) continue;
+        
         if (b.type === '6x12') final6x12++;
         if (b.type === '8x16') final8x16++;
         if (b.type === '12x20') final12x20++;
