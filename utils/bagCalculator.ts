@@ -53,15 +53,22 @@ export const calculateBagsForOrder = (
         // 2. Fallback to name-based classification if no packaging in recipe
         if (!hasPackagingInRecipe) {
             const name = item.name.toLowerCase();
-            if (name.includes('บูเดจิเก') || name.includes('จาจังมยอน') || name.includes('จาจังบับ')) {
+            if (name.includes('ต๊อกบกกี')) {
+                // Tteokbokki specifically requested to use 6x12 only and always
+                packagingItems.push({ type: 'soup', quantity: q });
+                explicitBags.push({ type: '6x12', quantity: q });
+            } else if (name.includes('บูเดจิเก') || name.includes('จาจังมยอน') || name.includes('จาจังบับ')) {
                 packagingItems.push({ type: 'soup', quantity: q });
                 packagingItems.push({ type: 'box1', quantity: q });
                 explicitBags.push({ type: '6x12', quantity: q });
-            } else if (name.includes('ซุป') || name.includes('จิเก') || name.includes('ซอลลองทัง') || name.includes('ตุ๊กบูล') || name.includes('ดุ๊กบูล') || name.includes('ต้ม') || name.includes('ต๊อกบกกี')) {
+            } else if (name.includes('ซุป') || name.includes('จิเก') || name.includes('ซอลลองทัง') || name.includes('ตุ๊กบูล') || name.includes('ดุ๊กบูล') || name.includes('ต้ม')) {
                 packagingItems.push({ type: 'soup', quantity: q });
                 explicitBags.push({ type: '6x12', quantity: q });
             } else if (name.includes('ข้าวญี่ปุ่น') || name.includes('ข้าวสวย')) {
                 // Treated as a 1-compartment box as requested before
+                packagingItems.push({ type: 'box1', quantity: q });
+            } else if (name.includes('ข้าวผัด') || name.includes('ยังนยอม')) {
+                // Fried rice and Yangnyeom chicken go in boxes
                 packagingItems.push({ type: 'box1', quantity: q });
             } else if (name.includes('ข้าว') && !name.includes('ยำ') && !name.includes('หมู') && !name.includes('ไก่') && !name.includes('เนื้อ')) {
                 packagingItems.push({ type: 'rice', quantity: q });
@@ -72,7 +79,7 @@ export const calculateBagsForOrder = (
             } else if (name.includes('ชุดผัก')) {
                 // Veggie usually treated like a main box in logic or a side? Let's treat it as a box1 for space
                 packagingItems.push({ type: 'box1', quantity: q });
-            } else if (name.includes('กิมจิ') || name.includes('ดันมูจิ') || name.includes('ชิกเก้นมู') || name.includes('หัวไชเท้า') || name.includes('ซอส')) {
+            } else if (name.includes('กิมจิ') || name.includes('ดันมูจิ') || name.includes('ชิกเก้นมู') || name.includes('หัวไชเท้า') || name.includes('ไชเท้าดอง') || name.includes('ซอส')) {
                 packagingItems.push({ type: 'side', quantity: q });
             } else {
                 packagingItems.push({ type: 'box1', quantity: q });
@@ -85,6 +92,17 @@ export const calculateBagsForOrder = (
     let totalBags8x16 = 0;
     let totalBags12x20 = 0;
 
+    // Identify status for Japanese Rice extra bag logic
+    const japaneseRiceQuantity = items
+        .filter(i => i.name.toLowerCase().includes('ข้าวญี่ปุ่น') || i.name.toLowerCase().includes('ข้าวสวย'))
+        .reduce((acc, i) => acc + i.quantity, 0);
+
+    const hasSoup = packagingItems.some(p => p.type === 'soup');
+    const hasSet = packagingItems.some(p => p.type === 'box3');
+    const totalMainBoxes = packagingItems
+        .filter(p => p.type === 'box1' || p.type === 'box2' || p.type === 'box3')
+        .reduce((acc, p) => acc + p.quantity, 0);
+
     // Special handling for 6x12 requested bags: consolidating by 2 (Soup/Rice items)
     let count6x12Items = 0;
     for (const b of explicitBags) {
@@ -93,8 +111,19 @@ export const calculateBagsForOrder = (
         if (b.type === '12x20') totalBags12x20 += b.quantity;
     }
     
-    // Rule: 6x12 bags can stack up to 2 soup/rice cups in one bag
-    totalBags6x12 = Math.ceil(count6x12Items / 2);
+    // Rule: 6x12 bags are usually for single soup cups/portions (e.g. ซุปไข่ in the Kimchi Rice combo),
+    // so we provide one per item instead of consolidating.
+    // For the specific combo (Kimchi Fried Rice + Yangnyeom + Soup + Side),
+    // it will use a 12x20 as the outer bag and this 6x12 as a nested protective bag.
+    totalBags6x12 = count6x12Items;
+
+    // Check if Japanese Rice needs its own extra 6x12 bag (Turn 4 & 5 Logic)
+    // Status: multiple menu = has set OR total main boxes (including rice boxes) > 1
+    const isMultipleMenu = hasSet || totalMainBoxes > 1;
+    if (japaneseRiceQuantity > 0 && hasSoup && !isMultipleMenu) {
+        // Simple order (Rice + Soup only) -> Use extra 6x12 for the rice box
+        totalBags6x12 += japaneseRiceQuantity;
+    }
 
     // Apply Upgrade Rule: Every 2x 8x16 bags become 1x 12x20 bag
     const upgrades = Math.floor(totalBags8x16 / 2);
@@ -127,8 +156,7 @@ export const calculateBagsForOrder = (
         return { boxLimit: 3, sideLimit: isPorkNoRice ? 4 : 3 }; // 12x20: Rule: Max 3 partitioned boxes
     };
 
-    // Initialize active bags from optimized counts (ONLY for handle bags: 8x16, 12x20)
-    // 6x12 handle bags are NOT initialized here as they are treated as mandatory inner bags or standalone if needed
+    // Initialize active bags from optimized counts, including 6x12 as a potential carrier
     for (let i = 0; i < Math.floor(totalBags12x20); i++) {
         const limits = getBagLimits('12x20', hasPorkNoRice);
         activeBags.push({ ...limits, type: '12x20', boxes: 0, sides: 0, allowedBoxTypes: ['box1', 'box2', 'box3', 'rice', 'soup'], isPorkNoRiceBag: hasPorkNoRice });
@@ -136,6 +164,10 @@ export const calculateBagsForOrder = (
     for (let i = 0; i < Math.floor(totalBags8x16); i++) {
         const limits = getBagLimits('8x16', hasPorkNoRice);
         activeBags.push({ ...limits, type: '8x16', boxes: 0, sides: 0, allowedBoxTypes: ['box1', 'box2', 'rice', 'soup'], isPorkNoRiceBag: hasPorkNoRice });
+    }
+    for (let i = 0; i < Math.floor(totalBags6x12); i++) {
+        const limits = getBagLimits('6x12', hasPorkNoRice);
+        activeBags.push({ ...limits, type: '6x12', boxes: 0, sides: 0, allowedBoxTypes: ['box1', 'rice', 'soup'], isPorkNoRiceBag: hasPorkNoRice });
     }
 
     // Sort bags by volume/size descending (12x20 > 8x16 > 6x12) to ensure maximum consolidation
@@ -182,27 +214,22 @@ export const calculateBagsForOrder = (
                 newBag = { ...limits, type: '12x20', boxes: 1, sides: 0, allowedBoxTypes: ['box1', 'box2', 'box3', 'rice', 'soup'], isPorkNoRiceBag: hasPorkNoRice };
                 totalBags12x20++;
             } else if (itemType === 'side') {
-                // Sides usually don't trigger a new large bag, use 8x16 as default container for loose sides
-                const limits = getBagLimits('8x16', hasPorkNoRice);
-                newBag = { ...limits, type: '8x16', boxes: 0, sides: 1, allowedBoxTypes: ['box1', 'box2', 'rice', 'soup'], isPorkNoRiceBag: hasPorkNoRice };
-                totalBags8x16++;
+                // Sides usually don't trigger a new large bag, use 6x12 as default container for loose sides
+                const limits = getBagLimits('6x12', hasPorkNoRice);
+                newBag = { ...limits, type: '6x12', boxes: 0, sides: 1, allowedBoxTypes: ['box1', 'rice', 'soup'], isPorkNoRiceBag: hasPorkNoRice };
+                totalBags6x12++;
             } else if (itemType === 'soup') {
-                // Soup always needs a 6x12 inner bag, but for carrying it needs a handle bag (8x16 default)
-                const limits = getBagLimits('8x16', hasPorkNoRice);
-                newBag = { ...limits, type: '8x16', boxes: 1, sides: 0, allowedBoxTypes: ['box1', 'box2', 'rice', 'soup'], isPorkNoRiceBag: hasPorkNoRice };
-                totalBags8x16++;
+                // Determine if this soup should use a small or medium carrier
+                // Rule: If it's the only item or small order, small bag is fine
+                const limits = getBagLimits('6x12', hasPorkNoRice);
+                newBag = { ...limits, type: '6x12', boxes: 1, sides: 0, allowedBoxTypes: ['box1', 'rice', 'soup'], isPorkNoRiceBag: hasPorkNoRice };
+                totalBags6x12++;
             } else {
                 const limits = getBagLimits('8x16', hasPorkNoRice);
                 newBag = { ...limits, type: '8x16', boxes: 1, sides: 0, allowedBoxTypes: ['box1', 'box2', 'rice', 'soup'], isPorkNoRiceBag: hasPorkNoRice };
                 totalBags8x16++;
             }
 
-            // After opening a new bag, check if we need to optimize again (only if it's 8x16)
-            if (newBag.type === '8x16') {
-                // Find another 8x16 that is empty or barely used? 
-                // For simplicity, we optimize AFTER all placement or just leave it. 
-                // The user said "if 2 bags of 8x16 -> 12x20".
-            }
             activeBags.push(newBag);
         }
     }
@@ -227,7 +254,7 @@ export const calculateBagsForOrder = (
     final8x16 = final8x16 % 2;
 
     return {
-        '6x12': totalBags6x12,
+        '6x12': final6x12,
         '8x16': final8x16,
         '12x20': final12x20,
     };

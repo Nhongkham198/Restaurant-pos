@@ -58,7 +58,7 @@ import { Menu } from './components/Menu';
 // Lazy load heavy components
 const KitchenView = lazy(() => import('./components/KitchenView').then(module => ({ default: module.KitchenView })));
 const TableLayout = lazy(() => import('./components/TableLayout').then(module => ({ default: module.TableLayout })));
-const Dashboard = lazy(() => import('./components/Dashboard').then(module => ({ default: module.Dashboard })));
+const Dashboard = lazy(() => import('./components/Dashboard'));
 const SalesHistory = lazy(() => import('./components/SalesHistory').then(module => ({ default: module.SalesHistory })));
 const StockManagement = lazy(() => import('./components/StockManagement').then(module => ({ default: module.StockManagement })));
 const StockAnalytics = lazy(() => import('./components/StockAnalytics').then(module => ({ default: module.StockAnalytics })));

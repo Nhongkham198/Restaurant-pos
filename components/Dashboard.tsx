@@ -1,5 +1,4 @@
-
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import DatePicker from 'react-datepicker';
 import { useData } from '../contexts/DataContext';
 import type { CompletedOrder, CancelledOrder, User, Recipe, DeliveryProvider } from '../types';
@@ -41,13 +40,13 @@ const getProviderColor = (name: string, deliveryProviders: DeliveryProvider[]) =
     return '#f97316';
 };
 
-export const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelledOrders, openingTime, closingTime, currentUser, recipes, deliveryProviders, taxRate }) => {
+const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelledOrders, openingTime, closingTime, currentUser, recipes, deliveryProviders, taxRate }) => {
     const { manualAdCosts, setManualAdCosts, latestIngredientPrices, stockItems } = useData();
     // Local state for ad cost inputs to allow smooth typing (especially decimals)
     const [localAdCosts, setLocalAdCosts] = useState<Record<string, string>>({});
 
     // Sync local state with global manualAdCosts
-    React.useEffect(() => {
+    useEffect(() => {
         setLocalAdCosts(prev => {
             const next = { ...prev };
             let hasChanges = false;
