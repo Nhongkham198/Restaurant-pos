@@ -29,7 +29,7 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedMenuItem, setSelectedMenuItem] = useState<MenuItem | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const { deliveryProviders, taxRate, latestIngredientPrices } = useData();
+    const { deliveryProviders, taxRate, latestIngredientPrices, latestImportFilename } = useData();
 
     const handleBulkRefreshCosts = async () => {
         const result = await Swal.fire({
@@ -101,6 +101,7 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
                         
                         return {
                             ...ing,
+                            unitPrice: ing.unitPrice ?? stockItem?.unitPrice,
                             smartUnitPrice: jsonUnitPrice
                         };
                     });
@@ -171,7 +172,8 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
         
         return {
             time: timeStr,
-            user: latestRecipe.lastUpdatedBy
+            user: latestRecipe.lastUpdatedBy,
+            filename: latestRecipe.lastImportedFilename
         };
     }, [recipes]);
 
@@ -253,7 +255,8 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
                             unitPrice: ing.unitPrice ? Number(ing.unitPrice) : undefined
                         })),
                         lastUpdated: Date.now(),
-                        lastUpdatedBy: currentUser?.username || 'System'
+                        lastUpdatedBy: currentUser?.username || 'System',
+                        lastImportedFilename: file.name
                     });
 
                     // Parse delivery prices, GPs, and Taxes
@@ -391,6 +394,8 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
                                 </svg>
                                 <span className="text-sm font-medium text-blue-700">
                                     แก้ไขล่าสุด: {lastUpdateInfo.time} โดย {lastUpdateInfo.user}
+                                    {lastUpdateInfo.filename ? ` [ไฟล์ Excel: ${lastUpdateInfo.filename}]` : 
+                                     latestImportFilename ? ` [ไฟล์ JSON: ${latestImportFilename}]` : ''}
                                 </span>
                             </div>
                         )}

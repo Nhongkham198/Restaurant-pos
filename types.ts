@@ -474,6 +474,7 @@ export interface Recipe {
     smartTotalCost?: number; // Added: Total latest cost sum (JSON)
     lastUpdated: number;
     lastUpdatedBy: string;
+    lastImportedFilename?: string; // Added: Filename of the latest JSON/Excel import
 }
 
 export interface PayrollRecord {

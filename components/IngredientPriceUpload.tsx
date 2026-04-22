@@ -3,7 +3,7 @@ import React, { useRef } from 'react';
 import Swal from 'sweetalert2';
 
 interface IngredientPriceUploadProps {
-    onUpload: (data: any[]) => void;
+    onUpload: (data: any[], filename: string) => void;
 }
 
 export const IngredientPriceUpload: React.FC<IngredientPriceUploadProps> = ({ onUpload }) => {
@@ -34,7 +34,7 @@ export const IngredientPriceUpload: React.FC<IngredientPriceUploadProps> = ({ on
                     }
                 }
 
-                onUpload(cleanedJson);
+                onUpload(cleanedJson, file.name);
                 Swal.fire({
                     icon: 'success',
                     title: 'อัปโหลดไฟล์ราคาสำเร็จ',

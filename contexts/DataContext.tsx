@@ -157,6 +157,8 @@ interface DataContextType {
     setManualAdCosts: (newValue: React.SetStateAction<Record<string, number>>) => void;
     latestIngredientPrices: IngredientPrice[];
     setLatestIngredientPrices: React.Dispatch<React.SetStateAction<IngredientPrice[]>>;
+    latestImportFilename: string | null;
+    setLatestImportFilename: React.Dispatch<React.SetStateAction<string | null>>;
     isDataLoading: boolean;
 }
 
@@ -552,9 +554,21 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         return saved ? JSON.parse(saved) : [];
     });
 
+    const [latestImportFilename, setLatestImportFilename] = useState<string | null>(() => {
+        return localStorage.getItem('latestImportFilename');
+    });
+
     useEffect(() => {
         localStorage.setItem('latestIngredientPrices', JSON.stringify(latestIngredientPrices));
     }, [latestIngredientPrices]);
+
+    useEffect(() => {
+        if (latestImportFilename) {
+            localStorage.setItem('latestImportFilename', latestImportFilename);
+        } else {
+            localStorage.removeItem('latestImportFilename');
+        }
+    }, [latestImportFilename]);
 
     const isDataLoading = isMenuItemsLoading || isCategoriesLoading || isTablesLoading || isFloorsLoading || isDeliveryProvidersLoading;
 
@@ -593,6 +607,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         telegramChatId, setTelegramChatId,
         manualAdCosts, setManualAdCosts,
         latestIngredientPrices, setLatestIngredientPrices,
+        latestImportFilename, setLatestImportFilename,
         isDataLoading
     }), [
         currentUser, users, branches, selectedBranch, isCustomerMode, customerTableId, 
@@ -612,7 +627,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         sendToKitchen, deliveryProviders, facebookAppId, facebookAppSecret,
         lineOaUrl, facebookPageUrl, lineNotifyToken, lineMessagingToken, 
         lineUserId, telegramBotToken, telegramChatId, manualAdCosts, 
-        latestIngredientPrices, isDataLoading
+        latestIngredientPrices, latestImportFilename, isDataLoading
     ]);
 
     return (

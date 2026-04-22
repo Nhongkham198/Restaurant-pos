@@ -128,7 +128,8 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
         setIngredients([...ingredients, {
             stockItemId: stockItem.id,
             quantity: 1,
-            unit: stockItem.unit
+            unit: stockItem.unit,
+            unitPrice: stockItem.unitPrice || 0
         }]);
         setSearchTerm('');
     };
@@ -137,7 +138,8 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
         setAdditionalIngredients([...additionalIngredients, {
             stockItemId: stockItem.id,
             quantity: 1,
-            unit: stockItem.unit
+            unit: stockItem.unit,
+            unitPrice: stockItem.unitPrice || 0
         }]);
         setAdditionalSearchTerm('');
     };
