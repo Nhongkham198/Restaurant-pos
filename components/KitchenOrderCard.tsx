@@ -50,9 +50,26 @@ export const KitchenOrderCard: React.FC<KitchenOrderCardProps> = ({
     const bagUsage = useMemo(() => {
         if (!requiresBag) return null;
         const bags = calculateBagsForOrder(order.items, recipes, stockItems);
-        if (bags['6x12'] === 0 && bags['8x16'] === 0 && bags['12x20'] === 0) return null;
+        if (bags['6x14'] === 0 && bags['8x16'] === 0 && bags['12x20'] === 0) return null;
         return bags;
     }, [order.items, requiresBag, recipes, stockItems]);
+
+    const getBagName = useMemo(() => (type: '6x14' | '8x16' | '12x20') => {
+        const sizeStr = type.replace('x', '*'); // Match both 6x14 and 6*14
+        const altSizeStr = type; // original 6x14
+        
+        const stockItem = stockItems.find(s => {
+            const name = s.name.toLowerCase();
+            return (name.includes('ถุง') && (name.includes(sizeStr) || name.includes(altSizeStr)));
+        });
+
+        if (stockItem) return stockItem.name;
+
+        // Fallback names
+        if (type === '12x20') return 'ใหญ่ 12*20';
+        if (type === '8x16') return 'กลาง 8*16';
+        return 'เล็ก 6*14';
+    }, [stockItems]);
 
     useEffect(() => {
         const calculateElapsedTime = () => {
@@ -221,9 +238,9 @@ export const KitchenOrderCard: React.FC<KitchenOrderCardProps> = ({
                         แนะนำจำนวนถุง
                     </span>
                     <div className="flex flex-wrap gap-2">
-                        {bagUsage['12x20'] > 0 && <span className="bg-blue-800 text-blue-100 text-xs px-2 py-0.5 rounded font-bold border border-blue-600">ใหญ่ 12*20: {bagUsage['12x20']} ใบ</span>}
-                        {bagUsage['8x16'] > 0 && <span className="bg-blue-800 text-blue-100 text-xs px-2 py-0.5 rounded font-bold border border-blue-600">กลาง 8*16: {bagUsage['8x16']} ใบ</span>}
-                        {bagUsage['6x12'] > 0 && <span className="bg-blue-800 text-blue-100 text-xs px-2 py-0.5 rounded font-bold border border-blue-600">เล็ก 6*12: {bagUsage['6x12']} ใบ</span>}
+                        {bagUsage['12x20'] > 0 && <span className="bg-blue-800 text-blue-100 text-xs px-2 py-0.5 rounded font-bold border border-blue-600">{getBagName('12x20')}: {bagUsage['12x20']} ใบ</span>}
+                        {bagUsage['8x16'] > 0 && <span className="bg-blue-800 text-blue-100 text-xs px-2 py-0.5 rounded font-bold border border-blue-600">{getBagName('8x16')}: {bagUsage['8x16']} ใบ</span>}
+                        {bagUsage['6x14'] > 0 && <span className="bg-blue-800 text-blue-100 text-xs px-2 py-0.5 rounded font-bold border border-blue-600">{getBagName('6x14')}: {bagUsage['6x14']} ใบ</span>}
                     </div>
                 </div>
             )}

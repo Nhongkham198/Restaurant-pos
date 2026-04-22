@@ -458,7 +458,7 @@ export interface RecipeIngredient {
 }
 
 export interface BagCounts {
-    '6x12': number;
+    '6x14': number;
     '8x16': number;
     '12x20': number;
 }
