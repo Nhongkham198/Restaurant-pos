@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import type { MenuItem, StockItem, Recipe, RecipeIngredient, User, DeliveryProvider } from '../types';
 import { useData } from '../contexts/DataContext';
 import Swal from 'sweetalert2';
+import { calculateSmartUnitPrice } from '../utils/recipeUtils';
 
 interface SmartCostInputProps {
     value: number;
@@ -222,21 +223,7 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
                 let jsonUnitPrice = ing.smartUnitPrice;
                 
                 if (jsonUnitPrice === undefined) {
-                    if (latestPrice) {
-                        if (latestPrice.unit === 'กก.' && ing.unit === 'กรัม') {
-                            jsonUnitPrice = latestPrice.pricePerUnit / 1000;
-                        } else if (latestPrice.unit === 'แผง' && ing.unit === 'ฟอง') {
-                            jsonUnitPrice = latestPrice.pricePerUnit / 30;
-                        } else if ((latestPrice.unit === 'กก.' || latestPrice.unit === 'กิโลกรัม') && ing.unit === 'ช้อนตวง') {
-                            jsonUnitPrice = (latestPrice.pricePerUnit / 1000) * 20;
-                        } else if (latestPrice.unit === 'กรัม' && ing.unit === 'ช้อนตวง') {
-                            jsonUnitPrice = latestPrice.pricePerUnit * 20;
-                        } else {
-                            jsonUnitPrice = latestPrice.pricePerUnit;
-                        }
-                    } else {
-                        jsonUnitPrice = manualPrice;
-                    }
+                    jsonUnitPrice = calculateSmartUnitPrice(ing, latestPrice, manualPrice);
                 }
                 sCost += ing.quantity * jsonUnitPrice;
             });
@@ -322,15 +309,7 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
                                     let jsonPrice = ing.smartUnitPrice;
                                     
                                     if (jsonPrice === undefined) {
-                                        if (latestPrice) {
-                                            if (latestPrice.unit === 'กก.' && ing.unit === 'กรัม') {
-                                                jsonPrice = latestPrice.pricePerUnit / 1000;
-                                            } else {
-                                                jsonPrice = latestPrice.pricePerUnit;
-                                            }
-                                        } else {
-                                            jsonPrice = currentManualPrice;
-                                        }
+                                        jsonPrice = calculateSmartUnitPrice(ing, latestPrice, currentManualPrice);
                                     }
 
                                     const rowManualCost = ing.quantity * currentManualPrice;

@@ -27,19 +27,48 @@ export const IngredientPriceUpload: React.FC<IngredientPriceUploadProps> = ({ on
                     name: typeof item.name === 'string' ? item.name.trim() : item.name
                 }));
 
-                if (cleanedJson.length > 0) {
-                    const firstItem = cleanedJson[0];
+                // De-duplication Logic: Keep only the latest entry per ingredient name
+                const uniquePricesMap = new Map<string, any>();
+                cleanedJson.forEach(item => {
+                    const name = item.name;
+                    if (!name) return;
+
+                    const existing = uniquePricesMap.get(name);
+                    if (!existing) {
+                        uniquePricesMap.set(name, item);
+                    } else {
+                        // Compare dates if available
+                        const existingTime = existing.date ? new Date(existing.date).getTime() : 0;
+                        const newTime = item.date ? new Date(item.date).getTime() : 0;
+
+                        if (!isNaN(newTime) && !isNaN(existingTime)) {
+                            // If dates are valid, take the newer one. 
+                            // If same date, the later one in the array usually represents the most recent update in that batch.
+                            if (newTime >= existingTime) {
+                                uniquePricesMap.set(name, item);
+                            }
+                        } else {
+                            // Fallback: If no valid dates, assume the one appearing later in the JSON file is newer
+                            uniquePricesMap.set(name, item);
+                        }
+                    }
+                });
+
+                const finalData = Array.from(uniquePricesMap.values());
+
+                if (finalData.length > 0) {
+                    const firstItem = finalData[0];
                     if (!firstItem.name || firstItem.pricePerUnit === undefined) {
                         throw new Error('รูปแบบข้อมูลไม่ถูกต้อง (ต้องมี name และ pricePerUnit)');
                     }
                 }
 
-                onUpload(cleanedJson, file.name);
+                onUpload(finalData, file.name);
                 Swal.fire({
                     icon: 'success',
                     title: 'อัปโหลดไฟล์ราคาสำเร็จ',
-                    text: `พบข้อมูลทั้งหมด ${json.length} รายการ`,
-                    timer: 2000,
+                    text: `พบข้อมูลทั้งหมด ${json.length} รายการ (ยุบรวมรายการซ้ำเหลือ ${finalData.length} รายการ)`,
+                    timer: 3000,
                     showConfirmButton: false
                 });
             } catch (error) {

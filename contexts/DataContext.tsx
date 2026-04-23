@@ -549,26 +549,8 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     const [telegramChatId, setTelegramChatId] = useFirestoreSync<string>(branchId, 'telegramChatId', '');
     const [manualAdCosts, setManualAdCosts] = useFirestoreSync<Record<string, number>>(branchId, 'manualAdCosts', {});
 
-    const [latestIngredientPrices, setLatestIngredientPrices] = useState<IngredientPrice[]>(() => {
-        const saved = localStorage.getItem('latestIngredientPrices');
-        return saved ? JSON.parse(saved) : [];
-    });
-
-    const [latestImportFilename, setLatestImportFilename] = useState<string | null>(() => {
-        return localStorage.getItem('latestImportFilename');
-    });
-
-    useEffect(() => {
-        localStorage.setItem('latestIngredientPrices', JSON.stringify(latestIngredientPrices));
-    }, [latestIngredientPrices]);
-
-    useEffect(() => {
-        if (latestImportFilename) {
-            localStorage.setItem('latestImportFilename', latestImportFilename);
-        } else {
-            localStorage.removeItem('latestImportFilename');
-        }
-    }, [latestImportFilename]);
+    const [latestIngredientPrices, setLatestIngredientPrices] = useFirestoreSync<IngredientPrice[]>(branchId, 'latestIngredientPrices', []);
+    const [latestImportFilename, setLatestImportFilename] = useFirestoreSync<string | null>(branchId, 'latestImportFilename', null);
 
     const isDataLoading = isMenuItemsLoading || isCategoriesLoading || isTablesLoading || isFloorsLoading || isDeliveryProvidersLoading;
 
