@@ -166,13 +166,69 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
     const handleExport = () => {
         const exportData = recipes.map(recipe => {
             const menuItem = menuItems.find(m => m.id === recipe.menuItemId);
+            
+            // Build Maps for efficient lookup (matching bulk refresh logic)
+            const priceMap = new Map();
+            latestIngredientPrices.forEach(p => {
+                const key = (p.name || '').trim();
+                if (key) priceMap.set(key, p);
+            });
+            const stockMap = new Map();
+            stockItems.forEach(s => stockMap.set(String(s.id), s));
+
+            // Detailed Ingredient Stats
+            const ingredientDetails = recipe.ingredients.map(ing => {
+                const stockItem = stockMap.get(String(ing.stockItemId));
+                const manualPrice = ing.unitPrice ?? stockItem?.unitPrice ?? 0;
+                const latestPrice = stockItem ? priceMap.get(stockItem.name.trim()) : undefined;
+                const smartPrice = calculateSmartUnitPrice(ing, latestPrice, manualPrice);
+
+                return {
+                    name: stockItem?.name || 'Unknown',
+                    quantity: ing.quantity,
+                    unit: ing.unit,
+                    manualUnitPrice: manualPrice,
+                    smartUnitPrice: smartPrice,
+                    manualSubtotal: ing.quantity * manualPrice,
+                    smartSubtotal: ing.quantity * smartPrice
+                };
+            });
+
+            const packagingDetails = (recipe.additionalIngredients || []).map(ing => {
+                const stockItem = stockMap.get(String(ing.stockItemId));
+                const manualPrice = ing.unitPrice ?? stockItem?.unitPrice ?? 0;
+                const latestPrice = stockItem ? priceMap.get(stockItem.name.trim()) : undefined;
+                const smartPrice = calculateSmartUnitPrice(ing, latestPrice, manualPrice);
+
+                return {
+                    name: stockItem?.name || 'Unknown',
+                    quantity: ing.quantity,
+                    unit: ing.unit,
+                    manualUnitPrice: manualPrice,
+                    smartUnitPrice: smartPrice,
+                    manualSubtotal: ing.quantity * manualPrice,
+                    smartSubtotal: ing.quantity * smartPrice
+                };
+            });
+
+            // Calculate Misc Cost (Gas/Ice)
+            const currentPackagingManualSubtotal = (recipe.additionalIngredients || []).reduce((sum, ing) => {
+                const sItem = stockMap.get(String(ing.stockItemId));
+                return sum + (ing.quantity * (ing.unitPrice ?? sItem?.unitPrice ?? 0));
+            }, 0);
+            const miscCost = Math.max(0, (recipe.additionalCost || 0) - currentPackagingManualSubtotal);
+
             const row: any = {
                 'Menu Item ID': recipe.menuItemId,
                 'Menu Name': menuItem?.name || 'Unknown',
-                'Additional Cost': recipe.additionalCost,
-                'Hidden Cost %': recipe.hiddenCostPercentage || 0,
-                'Ingredients': JSON.stringify(recipe.ingredients.map(ing => {
-                    const stockItem = stockItems.find(s => s.id === ing.stockItemId);
+                'Manual Total Cost (รวม)': recipe.manualTotalCost || 0,
+                'Smart Total Cost (JSON รวม)': recipe.smartTotalCost || 0,
+                'Packaging Cost (Manual)': (packagingDetails.reduce((sum, p) => sum + p.manualSubtotal, 0)),
+                'Packaging Cost (Smart)': (packagingDetails.reduce((sum, p) => sum + p.smartSubtotal, 0)),
+                'Misc Cost (ส่วนบวกเพิ่มเอง)': miscCost,
+                'Hidden Cost % (ต้นทุนแฝง)': recipe.hiddenCostPercentage || 0,
+                'Ingredients (JSON for Import)': JSON.stringify(recipe.ingredients.map(ing => {
+                    const stockItem = stockMap.get(String(ing.stockItemId));
                     return {
                         stockItemId: ing.stockItemId,
                         name: stockItem?.name || 'Unknown',
@@ -180,7 +236,14 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
                         unit: ing.unit,
                         unitPrice: ing.unitPrice
                     };
-                }))
+                })),
+                'Packaging (JSON for Import)': JSON.stringify(recipe.additionalIngredients || []),
+                'Detailed Ingredients (Text)': ingredientDetails.map(d => 
+                    `${d.name}: ${d.quantity} ${d.unit} [Manual: ฿${d.manualSubtotal.toFixed(2)}, Smart: ฿${d.smartSubtotal.toFixed(2)}]`
+                ).join(' | '),
+                'Detailed Packaging (Text)': packagingDetails.map(d => 
+                    `${d.name}: ${d.quantity} ${d.unit} [Manual: ฿${d.manualSubtotal.toFixed(2)}, Smart: ฿${d.smartSubtotal.toFixed(2)}]`
+                ).join(' | ')
             };
 
             // Add delivery prices, GPs, and Taxes
@@ -373,18 +436,42 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
                             <h1 className="text-2xl font-bold text-gray-900">จัดการสูตรอาหารและต้นทุน</h1>
                             <p className="text-gray-500 text-sm">คำนวณต้นทุนและกำไรของแต่ละเมนู (เฉพาะผู้ดูแลระบบ)</p>
                         </div>
-                        {lastUpdateInfo && (
-                            <div className="bg-blue-50 border border-blue-100 px-4 py-2 rounded-xl flex items-center gap-2">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                                <span className="text-sm font-medium text-blue-700">
-                                    แก้ไขล่าสุด: {lastUpdateInfo.time} โดย {lastUpdateInfo.user}
-                                    {lastUpdateInfo.filename ? ` [ไฟล์ Excel: ${lastUpdateInfo.filename}]` : 
-                                     latestImportFilename ? ` [ไฟล์ JSON: ${latestImportFilename}]` : ''}
-                                </span>
+                        <div className="flex flex-col gap-1.5 mt-1">
+                            {lastUpdateInfo && (
+                                <div className="flex items-center gap-2">
+                                    <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse"></div>
+                                    <span className="text-[11px] md:text-xs font-medium text-blue-700">
+                                        อัปเดตสูตรล่าสุด: {lastUpdateInfo.time} โดย {lastUpdateInfo.user}
+                                        {lastUpdateInfo.filename && (
+                                            <span className="ml-1 opacity-60 text-[10px]">(Excel: {lastUpdateInfo.filename})</span>
+                                        )}
+                                    </span>
+                                </div>
+                            )}
+                            <div className="flex flex-wrap items-center gap-2">
+                                {latestImportFilename ? (
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></div>
+                                        <div className="flex items-center gap-1.5 px-2 py-1 bg-green-50 border border-green-200 rounded-lg text-[10px] text-green-700 font-bold shadow-sm whitespace-nowrap">
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                            </svg>
+                                            <span className="opacity-70">ซิงค์ราคาล่าสุด:</span> {latestImportFilename}
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-1.5 h-1.5 bg-gray-300 rounded-full"></div>
+                                        <div className="flex items-center gap-1.5 px-2 py-1 bg-gray-50 border border-gray-200 rounded-lg text-[10px] text-gray-400 font-bold italic whitespace-nowrap">
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                            </svg>
+                                            ยังไม่มีการนำเข้าไฟล์ราคา JSON
+                                        </div>
+                                    </div>
+                                )}
                             </div>
-                        )}
+                        </div>
                     </div>
                     <div className="flex flex-wrap gap-2">
                         <input

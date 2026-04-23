@@ -83,43 +83,34 @@ export const calculateBagsForOrder = (
         }
     }
 
-    // 2. Carrier Logic (Double Layer Rule)
-    let totalBags6x14 = innerBags6x14;
+    // 2. Carrier Logic (Unified Stream Rule)
+    let totalBags6x14 = 0;
     let totalBags8x16 = 0;
     let totalBags12x20 = 0;
 
-    // Separate items into buckets to respect the "Separate Carrier Streams" rule
+    // Separate items into buckets
     let remB3 = itemsToCarry.filter(i => i.type === 'box3').length;
     let remB12 = itemsToCarry.filter(i => i.type === 'box1' || i.type === 'box2').length;
-    let remCups = itemsToCarry.filter(i => i.type === 'cup').length;
-    let remSides = itemsToCarry.filter(i => i.type === 'side').length;
+    let remSmall = itemsToCarry.filter(i => i.type === 'cup' || i.type === 'side').length;
 
     // Rule 1: Large items (Box 3) or Large volume of Medium items
-    // Requirement: "if the program sees two 8*16 bags, use one 12*20 bag instead"
-    // Each 8x16 fits 2 boxes. So 2 bags = 3 or 4 boxes.
+    // Each 12x20 can fit 2 Box3 or 4 Box12
     if (remB3 > 0 || remB12 > 2) {
-        totalBags12x20 = 1;
+        totalBags12x20 = Math.max(Math.ceil(remB3 / 2), Math.ceil(remB12 / 4));
         remB3 = 0;
         remB12 = 0;
     } 
-    // Rule 2: Moderate volume of Medium items (1 or 2 boxes)
+    // Rule 2: Moderate volume of Medium items
     else if (remB12 > 0) {
-        totalBags8x16 = 1;
+        totalBags8x16 = Math.ceil(remB12 / 2);
         remB12 = 0;
     }
 
-    // Rule 3: Small items (Cups, Sides) - 6x14
-    // Requirement: "Can stack 2 in 1 bag"
-    let itemsNeedingSmallCarrier = remCups + remSides;
-    
-    if (itemsNeedingSmallCarrier > 0) {
-        // Exception: 1 wrapped cup alone doesn't need a carrier
-        if (itemsNeedingSmallCarrier === 1 && innerBags6x14 >= 1) {
-            // Already has its own bag
-        } else {
-            // Stack 2 per bag
-            totalBags6x14 += Math.ceil(itemsNeedingSmallCarrier / 2);
-        }
+    // Rule 3: Small items (Cups, Soups, Rice, Sides) - 6x14
+    // Requirement (User): "Can stack 2 in 1 bag" (e.g. Soup + Rice = 1 bag)
+    // We count all small items and divide by 2.
+    if (remSmall > 0) {
+        totalBags6x14 = Math.ceil(remSmall / 2);
     }
 
     return {

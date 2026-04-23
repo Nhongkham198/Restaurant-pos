@@ -23,7 +23,7 @@ const SmartCostInput: React.FC<SmartCostInputProps> = ({ value, onChange, classN
                 setTempValue(value === 0 ? '' : value.toFixed(3));
             }
         }
-    }, [value, isFocused, tempValue]);
+    }, [value, isFocused]); // Removed tempValue from dependencies to prevent infinite loop
 
     return (
         <input
