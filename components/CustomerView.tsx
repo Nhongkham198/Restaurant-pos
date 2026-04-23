@@ -280,11 +280,23 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     const [nearbyLocations, setNearbyLocations] = useState('');
     const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
     const [isLocating, setIsLocating] = useState(false);
+    const [isManualLocation, setIsManualLocation] = useState(false);
     const slipInputRef = useRef<HTMLInputElement>(null);
+
+    // NEW: Check for In-App Browser (Facebook/Line)
+    const isInAppBrowser = useMemo(() => {
+        const ua = navigator.userAgent || navigator.vendor || (window as any).opera;
+        return (ua.indexOf('FBAN') > -1) || (ua.indexOf('FBAV') > -1) || (ua.indexOf('Line') > -1);
+    }, []);
 
     const getCurrentLocation = () => {
         if (!navigator.geolocation) {
-            Swal.fire(t('เกิดข้อผิดพลาด'), 'เบราว์เซอร์ของคุณไม่รองรับการระบุตำแหน่ง', 'error');
+            Swal.fire({
+                title: t('เกิดข้อผิดพลาด'),
+                text: 'เบราว์เซอร์ของคุณไม่รองรับการระบุตำแหน่ง',
+                icon: 'error',
+                footer: '<a href="https://support.google.com/chrome/answer/142065" target="_blank" style="color: #2563eb; font-size: 12px;">วิธีเปิดสิทธิ์ระบุตำแหน่ง</a>'
+            });
             return;
         }
 
@@ -296,14 +308,56 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                     lng: position.coords.longitude
                 });
                 setIsLocating(false);
+                setIsManualLocation(false);
             },
             (error) => {
                 console.error("Error getting location:", error);
                 setIsLocating(false);
-                Swal.fire(t('เกิดข้อผิดพลาด'), 'ไม่สามารถระบุตำแหน่งได้ กรุณาตรวจสอบสิทธิ์การเข้าถึงตำแหน่ง', 'error');
+                
+                let errorMsg = 'ไม่สามารถระบุตำแหน่งได้ กรุณาตรวจสอบสิทธิ์การเข้าถึงตำแหน่ง';
+                if (error.code === error.PERMISSION_DENIED) {
+                    errorMsg = 'คุณได้ปฏิเสธการเข้าถึงตำแหน่ง กรุณาเปิดสิทธิ์ในหน้าตั้งค่าของเบราว์เซอร์';
+                } else if (error.code === error.POSITION_UNAVAILABLE) {
+                    errorMsg = 'ข้อมูลตำแหน่งไม่พร้อมใช้งานในขณะนี้';
+                } else if (error.code === error.TIMEOUT) {
+                    errorMsg = 'ขอข้อมูลตำแหน่งหมดเวลา กรุณาลองใหม่อีกครั้ง';
+                }
+
+                Swal.fire({
+                    title: t('เกิดข้อผิดพลาด'),
+                    html: `
+                        <div class="text-left text-sm space-y-2">
+                            <p class="text-red-600 font-bold">${errorMsg}</p>
+                            <hr class="my-2" />
+                            <p class="font-bold">วิธีแก้ไข:</p>
+                            <ol class="list-decimal pl-4 space-y-1">
+                                <li>กดที่ไอคอนแม่กุญแจ 🔒 ข้างชื่อเว็บ (ด้านบน)</li>
+                                <li>เลือก <b>"การตั้งค่าไซต์"</b> (Site Settings)</li>
+                                <li>เปลี่ยน <b>"ตำแหน่ง"</b> เป็น <b>"อนุญาต"</b></li>
+                                <li>รีเฟรชหน้าแล้วลองใหม่อีกครั้ง</li>
+                            </ol>
+                            ${isInAppBrowser ? `
+                                <div class="mt-3 p-2 bg-yellow-50 border border-yellow-200 rounded text-yellow-800 text-xs">
+                                    <b>คำแนะนำ:</b> เนื่องจากคุณเปิดผ่าน Facebook/Line แนะนำให้กดปุ่ม <b>"..."</b> หรือเมนู แล้วเลือก <b>"เปิดด้วย Chrome/Safari"</b> จะเสถียรกว่าครับ
+                                </div>
+                            ` : ''}
+                        </div>
+                    `,
+                    icon: 'error',
+                    confirmButtonText: 'รับทราบ',
+                    footer: '<a href="https://support.google.com/chrome/answer/142065" target="_blank" style="color: #2563eb; font-size: 12px;">ดูวิธีกูเกิลสอนเปิด GPS</a>'
+                });
             },
             { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
         );
+    };
+
+    const handleManualLocationToggle = () => {
+        setIsManualLocation(prev => !prev);
+        if (!isManualLocation && !location) {
+            // Default center if no location
+            setLocation({ lat: 13.7563, lng: 100.5018 }); // Bangkok
+        }
     };
 
     const prevMyItemsCountRef = useRef<number>(0);
@@ -1171,44 +1225,102 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
 
                             {/* NEW: GPS Location Section */}
                             <div className="w-full bg-gray-50 p-4 rounded-xl border border-gray-200">
-                                <div className="flex justify-between items-center mb-3">
-                                    <label className="text-sm font-bold text-gray-700 flex items-center gap-2">
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                                {isInAppBrowser && (
+                                    <div className="mb-4 p-3 bg-yellow-50 border border-yellow-100 rounded-lg flex items-start gap-2 animate-pulse">
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-yellow-600 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                                         </svg>
-                                        {t('ระบุตำแหน่ง GPS')}
-                                    </label>
-                                    <button 
-                                        onClick={getCurrentLocation}
-                                        disabled={isLocating}
-                                        className="text-xs bg-white border border-gray-300 px-3 py-1.5 rounded-lg text-blue-600 font-bold hover:bg-blue-50 transition-colors flex items-center gap-1 shadow-sm"
-                                    >
-                                        {isLocating ? (
-                                            <div className="w-3 h-3 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-                                        ) : (
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                        <div className="text-[10px] text-yellow-800 leading-tight">
+                                            <p className="font-bold mb-1">คุณกำลังเปิดผ่านแอป Facebook/Line</p>
+                                            <p>แนะนำให้กดเปิดด้วยเบราว์เซอร์หลัก (Chrome/Safari) เพื่อให้ระบุตำแหน่งพิกัดได้แม่นยำและเสถียรที่สุดครับ</p>
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div className="flex flex-col gap-3 mb-3">
+                                    <div className="flex justify-between items-center">
+                                        <label className="text-sm font-bold text-gray-700 flex items-center gap-2">
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                                             </svg>
-                                        )}
-                                        {isLocating ? t('กำลังระบุตำแหน่ง...') : t('เช็คตำแหน่งปัจจุบัน')}
-                                    </button>
+                                            {t('ระบุตำแหน่งพิกัด')}
+                                        </label>
+                                        <div className="flex gap-2">
+                                            <button 
+                                                onClick={handleManualLocationToggle}
+                                                className={`text-[10px] px-2 py-1 rounded border transition-colors flex items-center gap-1 ${isManualLocation ? 'bg-orange-500 text-white border-orange-600' : 'bg-white text-gray-600 border-gray-300'}`}
+                                            >
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+                                                </svg>
+                                                {isManualLocation ? t('ยกเลิกปักหมุดเอง') : t('ปักหมุดเอง')}
+                                            </button>
+                                            <button 
+                                                onClick={getCurrentLocation}
+                                                disabled={isLocating}
+                                                className="text-[10px] bg-blue-600 border border-blue-700 px-3 py-1 rounded text-white font-bold hover:bg-blue-700 transition-colors flex items-center gap-1 shadow-sm"
+                                            >
+                                                {isLocating ? (
+                                                    <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                                ) : (
+                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                                    </svg>
+                                                )}
+                                                {isLocating ? t('กำลังระบุ...') : t('ใช้ตำแหน่งปัจจุบัน')}
+                                            </button>
+                                        </div>
+                                    </div>
+                                    
+                                    {isManualLocation && (
+                                        <div className="p-2 bg-orange-50 border border-orange-100 rounded text-[10px] text-orange-700">
+                                            💡 <b>ปักหมุดเอง:</b> คุณสามารถพิมพ์พิกัดละติจูด/ลองจิจูด หรือคลิก "ขยายแผนที่" เพื่อหาจุดที่แน่นอนได้ครับ
+                                        </div>
+                                    )}
                                 </div>
+
                                 {location ? (
                                     <div className="space-y-3">
-                                        <div className="bg-green-50 border border-green-200 p-3 rounded-lg flex items-center gap-3">
-                                            <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
-                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                                </svg>
+                                        {isManualLocation ? (
+                                            <div className="flex gap-2">
+                                                <div className="flex-1">
+                                                    <label className="text-[10px] font-bold text-gray-500">Latitude</label>
+                                                    <input 
+                                                        type="number" 
+                                                        step="0.000001"
+                                                        value={location.lat}
+                                                        onChange={(e) => setLocation({ ...location, lat: parseFloat(e.target.value) || 0 })}
+                                                        className="w-full p-2 border rounded bg-white text-xs font-mono"
+                                                    />
+                                                </div>
+                                                <div className="flex-1">
+                                                    <label className="text-[10px] font-bold text-gray-500">Longitude</label>
+                                                    <input 
+                                                        type="number" 
+                                                        step="0.000001"
+                                                        value={location.lng}
+                                                        onChange={(e) => setLocation({ ...location, lng: parseFloat(e.target.value) || 0 })}
+                                                        className="w-full p-2 border rounded bg-white text-xs font-mono"
+                                                    />
+                                                </div>
                                             </div>
-                                            <div>
-                                                <p className="text-xs font-bold text-green-800">ระบุตำแหน่งสำเร็จ</p>
-                                                <p className="text-[10px] text-green-600 font-mono">{location.lat.toFixed(6)}, {location.lng.toFixed(6)}</p>
+                                        ) : (
+                                            <div className="bg-green-50 border border-green-200 p-3 rounded-lg flex items-center gap-3">
+                                                <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                                    </svg>
+                                                </div>
+                                                <div>
+                                                    <p className="text-xs font-bold text-green-800">ระบุตำแหน่งสำเร็จ</p>
+                                                    <p className="text-[10px] text-green-600 font-mono">{location.lat.toFixed(6)}, {location.lng.toFixed(6)}</p>
+                                                </div>
                                             </div>
-                                        </div>
+                                        )}
+
                                         {/* NEW: Mini Map Display */}
-                                        <div className="w-full h-48 rounded-xl overflow-hidden border border-gray-300 shadow-inner bg-gray-200">
+                                        <div className="w-full h-48 rounded-xl overflow-hidden border border-gray-300 shadow-inner bg-gray-200 relative group">
                                             <iframe 
                                                 width="100%" 
                                                 height="100%" 
@@ -1218,16 +1330,31 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                                                 referrerPolicy="no-referrer-when-downgrade"
                                                 src={`https://maps.google.com/maps?q=${location.lat},${location.lng}&z=16&output=embed`}
                                             ></iframe>
+                                            <a 
+                                                href={`https://www.google.com/maps/search/?api=1&query=${location.lat},${location.lng}`} 
+                                                target="_blank" 
+                                                className="absolute bottom-2 right-2 bg-white/90 px-3 py-1.5 rounded-lg text-xs font-bold shadow-md hover:bg-white transition-colors flex items-center gap-1 border border-gray-200"
+                                            >
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-red-500" viewBox="0 0 20 20" fill="currentColor">
+                                                    <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
+                                                </svg>
+                                                ขยายแผนที่ / ค้นหาพิกัด
+                                            </a>
                                         </div>
                                     </div>
                                 ) : (
-                                    <div className="bg-orange-50 border border-orange-200 p-3 rounded-lg flex items-center gap-3">
-                                        <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center flex-shrink-0">
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                            </svg>
+                                    <div className="bg-orange-50 border border-orange-200 p-3 rounded-lg flex flex-col gap-3">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center flex-shrink-0">
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                                </svg>
+                                            </div>
+                                            <div className="flex-1 text-xs text-orange-800 font-medium">
+                                                <p>ยังไม่ได้ระบุตำแหน่งพิกัด</p>
+                                                <p className="text-[10px] opacity-70">กรุณากดปุ่ม <b>"ใช้ตำแหน่งปัจจุบัน"</b> หรือ <b>"ปักหมุดเอง"</b></p>
+                                            </div>
                                         </div>
-                                        <p className="text-xs text-orange-800 font-medium">ยังไม่ได้ระบุตำแหน่ง กรุณากดปุ่มเช็คตำแหน่ง</p>
                                     </div>
                                 )}
 

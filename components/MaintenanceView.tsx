@@ -16,6 +16,37 @@ interface MaintenanceViewProps {
     isEditMode: boolean;
 }
 
+// Helper to compress image to prevent Firestore 1MB limit
+const compressImage = (base64Str: string, maxWidth = 800, maxHeight = 800, quality = 0.7): Promise<string> => {
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.src = base64Str;
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            let width = img.width;
+            let height = img.height;
+
+            if (width > height) {
+                if (width > maxWidth) {
+                    height *= maxWidth / width;
+                    width = maxWidth;
+                }
+            } else {
+                if (height > maxHeight) {
+                    width *= maxHeight / height;
+                    height = maxHeight;
+                }
+            }
+
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx?.drawImage(img, 0, 0, width, height);
+            resolve(canvas.toDataURL('image/jpeg', quality));
+        };
+    });
+};
+
 // Helper to convert File to Base64
 const fileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -36,6 +67,7 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
 }) => {
     // --- State ---
     const [selectedTab, setSelectedTab] = useState<'status' | 'all' | 'history' | 'breakdown'>('status');
+    const [isSaving, setIsSaving] = useState(false); // New state for loading indicator
     const fileInputRef = useRef<HTMLInputElement>(null);
     
     // Manage Item Modal
@@ -401,20 +433,31 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
         if (file) {
             try {
                 const base64 = await fileToBase64(file);
-                if (type === 'before') setBeforeImage(base64);
-                else setAfterImage(base64);
+                // NEW: Compress image to ensure it fits in Firestore (1MB limit)
+                const compressed = await compressImage(base64);
+                if (type === 'before') setBeforeImage(compressed);
+                else setAfterImage(compressed);
             } catch (error) {
                 console.error("Image error", error);
             }
         }
     };
 
-    const handleSaveLog = () => {
+    const handleSaveLog = async () => {
         if (!performingItem) return;
         if (!beforeImage || !afterImage) {
             Swal.fire('รูปภาพไม่ครบ', 'กรุณาถ่ายรูป Before และ After', 'warning');
             return;
         }
+
+        setIsSaving(true);
+        Swal.fire({
+            title: 'กำลังบันทึกข้อมูล...',
+            allowOutsideClick: false,
+            didOpen: () => {
+                Swal.showLoading();
+            }
+        });
 
         const logDate = new Date(performDate).getTime();
 
@@ -428,17 +471,25 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
             afterImage: afterImage
         };
 
-        maintenanceLogsActions.add(newLog);
+        try {
+            await maintenanceLogsActions.add(newLog);
 
-        setMaintenanceItems(prev => prev.map(i => i.id === performingItem.id ? {
-            ...i,
-            lastMaintenanceDate: logDate,
-            status: 'active', // If maintenance performed, assume it's active again
-            pendingMaintenance: undefined // Clear pending state
-        } : i));
+            setMaintenanceItems(prev => prev.map(i => i.id === performingItem.id ? {
+                ...i,
+                lastMaintenanceDate: logDate,
+                status: 'active', // If maintenance performed, assume it's active again
+                pendingMaintenance: undefined // Clear pending state
+            } : i));
 
-        setIsPerformModalOpen(false);
-        Swal.fire('บันทึกสำเร็จ', 'บันทึกการบำรุงรักษาแล้ว', 'success');
+            setIsPerformModalOpen(false);
+            setSelectedTab('history'); // NEW: Switch to history to see the result
+            Swal.fire('บันทึกสำเร็จ', 'บันทึกการบำรุงรักษาแล้ว', 'success');
+        } catch (error) {
+            console.error('Error saving log:', error);
+            Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถบันทึกข้อมูลได้ กรุณาลองใหม่อีกครั้ง', 'error');
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     // 3. Edit History Log (Admin Only)
@@ -452,22 +503,30 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
         setIsEditLogModalOpen(true);
     };
 
-    const handleUpdateLog = () => {
+    const handleUpdateLog = async () => {
         if (!editingLog) return;
 
-        const updatedLog: MaintenanceLog = {
-            ...editingLog,
-            maintenanceDate: new Date(editLogDate).getTime(),
-            performedBy: editLogPerformedBy,
-            notes: editLogNotes,
-            beforeImage: editBeforeImage || undefined,
-            afterImage: editAfterImage || undefined
-        };
+        setIsSaving(true);
+        try {
+            const updatedLog: MaintenanceLog = {
+                ...editingLog,
+                maintenanceDate: new Date(editLogDate).getTime(),
+                performedBy: editLogPerformedBy,
+                notes: editLogNotes,
+                beforeImage: editBeforeImage || undefined,
+                afterImage: editAfterImage || undefined
+            };
 
-        maintenanceLogsActions.update(editingLog.id, updatedLog);
-        
-        setIsEditLogModalOpen(false);
-        Swal.fire('บันทึกสำเร็จ', 'แก้ไขประวัติการบำรุงรักษาเรียบร้อย', 'success');
+            await maintenanceLogsActions.update(editingLog.id, updatedLog);
+            
+            setIsEditLogModalOpen(false);
+            Swal.fire('บันทึกสำเร็จ', 'แก้ไขประวัติการบำรุงรักษาเรียบร้อย', 'success');
+        } catch (error) {
+            console.error('Update Log error:', error);
+            Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถบันทึกการแก้ไขได้', 'error');
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     const handleDeleteLog = (id: number) => {
@@ -514,8 +573,10 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
         if (file) {
             try {
                 const base64 = await fileToBase64(file);
-                if (type === 'before') setEditBeforeImage(base64);
-                else setEditAfterImage(base64);
+                // NEW: Compress image
+                const compressed = await compressImage(base64);
+                if (type === 'before') setEditBeforeImage(compressed);
+                else setEditAfterImage(compressed);
             } catch (error) {
                 console.error("Image error", error);
             }
@@ -594,6 +655,31 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
                     </div>
                 )}
             </div>
+
+            {/* Status bar for admins */}
+            {canManage && maintenanceLogs.filter(l => !l.acknowledgedBy).length > 0 && (
+                <div 
+                    onClick={() => setSelectedTab('history')}
+                    className="mx-4 mt-4 p-2 bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 rounded-lg flex items-center justify-between text-orange-700 cursor-pointer hover:shadow-md transition-all group"
+                >
+                    <div className="flex items-center gap-3">
+                        <div className="relative flex h-3 w-3">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-3 w-3 bg-orange-500"></span>
+                        </div>
+                        <div className="flex flex-col">
+                            <span className="text-xs font-black">มีรายการที่รอกดรับทราบ!</span>
+                            <span className="text-[10px] text-orange-600">พนักงานได้ทำการบันทึกประวัติใหม่ {maintenanceLogs.filter(l => !l.acknowledgedBy).length} รายการ</span>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-1 group-hover:translate-x-1 transition-transform">
+                        <span className="text-[10px] font-bold">ดูประวัติ</span>
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                        </svg>
+                    </div>
+                </div>
+            )}
 
             {/* Tabs */}
             <div className="px-4 pt-4 flex gap-2 border-b bg-gray-50 flex-shrink-0 overflow-x-auto">
@@ -770,6 +856,16 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
                                             <p className="text-sm text-gray-500">โดย: {log.performedBy}</p>
                                             {log.notes && <p className="text-sm text-gray-600 mt-2 bg-gray-50 p-3 rounded border whitespace-pre-wrap">{log.notes}</p>}
                                             
+                                            {/* Instructions reference */}
+                                            {item?.description && (
+                                                <details className="mt-2 text-[10px] text-gray-500 cursor-pointer">
+                                                    <summary className="hover:text-blue-600">ดูรายละเอียดงานที่กำหนดไว้...</summary>
+                                                    <div className="p-2 bg-gray-50 rounded border mt-1 italic whitespace-pre-wrap font-mono">
+                                                        {item.description}
+                                                    </div>
+                                                </details>
+                                            )}
+
                                             {/* Acknowledgment Section */}
                                             <div className="mt-3 pt-3 border-t flex items-center justify-between">
                                                 <div className="flex items-center gap-2">
@@ -787,11 +883,11 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
                                                             </div>
                                                         </div>
                                                     ) : (
-                                                        <div className="flex items-center gap-2 text-gray-400">
-                                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <div className="flex items-center gap-2 text-orange-500 bg-orange-50 px-2 py-1 rounded-full animate-pulse border border-orange-200">
+                                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                                                             </svg>
-                                                            <span className="text-xs font-semibold italic">รอกดรับทราบ...</span>
+                                                            <span className="text-[10px] font-bold italic">รอกดรับทราบ...</span>
                                                         </div>
                                                     )}
                                                 </div>
@@ -810,7 +906,15 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
                                             <div className="text-center">
                                                 <span className="text-xs font-bold text-gray-500 mb-1 block">Before</span>
                                                 {log.beforeImage ? (
-                                                    <img src={log.beforeImage} alt="Before" className="w-24 h-24 object-cover rounded border bg-gray-100" />
+                                                    <button 
+                                                        onClick={() => Swal.fire({ imageUrl: log.beforeImage, imageAlt: 'Before Image', confirmButtonText: 'ปิด', customClass: { image: 'rounded-lg max-h-[80vh] w-auto' } })}
+                                                        className="relative group block"
+                                                    >
+                                                        <img src={log.beforeImage} alt="Before" className="w-24 h-24 object-cover rounded border bg-gray-100 group-hover:opacity-75 transition-opacity shadow-sm" />
+                                                        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white drop-shadow-md" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" /></svg>
+                                                        </div>
+                                                    </button>
                                                 ) : (
                                                     <div className="w-24 h-24 rounded border bg-gray-100 flex items-center justify-center text-xs text-gray-400">No Image</div>
                                                 )}
@@ -818,7 +922,15 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
                                             <div className="text-center">
                                                 <span className="text-xs font-bold text-gray-500 mb-1 block">After</span>
                                                 {log.afterImage ? (
-                                                    <img src={log.afterImage} alt="After" className="w-24 h-24 object-cover rounded border bg-gray-100" />
+                                                    <button 
+                                                        onClick={() => Swal.fire({ imageUrl: log.afterImage, imageAlt: 'After Image', confirmButtonText: 'ปิด', customClass: { image: 'rounded-lg max-h-[80vh] w-auto' } })}
+                                                        className="relative group block"
+                                                    >
+                                                        <img src={log.afterImage} alt="After" className="w-24 h-24 object-cover rounded border bg-gray-100 group-hover:opacity-75 transition-opacity shadow-sm" />
+                                                        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white drop-shadow-md" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" /></svg>
+                                                        </div>
+                                                    </button>
                                                 ) : (
                                                     <div className="w-24 h-24 rounded border bg-gray-100 flex items-center justify-center text-xs text-gray-400">No Image</div>
                                                 )}
@@ -885,6 +997,16 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
                 </div>
             )}
 
+            {/* Loading Overlay */}
+            {isSaving && (
+                <div className="fixed inset-0 bg-black/20 backdrop-blur-[2px] flex items-center justify-center z-[60]">
+                    <div className="bg-white p-6 rounded-2xl shadow-xl flex flex-col items-center">
+                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
+                        <p className="text-gray-600 font-bold">กำลังบันทึกข้อมูลและบีบอัดรูปภาพ...</p>
+                    </div>
+                </div>
+            )}
+
             {/* Perform Maintenance Modal */}
             {isPerformModalOpen && performingItem && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -946,11 +1068,11 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
                         </div>
 
                         <div className="flex justify-end gap-2 mt-6">
-                            <button onClick={() => setIsPerformModalOpen(false)} className="px-4 py-2 bg-gray-200 rounded text-gray-700">ยกเลิก</button>
+                            <button onClick={() => setIsPerformModalOpen(false)} disabled={isSaving} className="px-4 py-2 bg-gray-200 rounded text-gray-700 disabled:opacity-50">ยกเลิก</button>
                             {!performingItem.pendingMaintenance && (
-                                <button onClick={handleSaveBeforeOnly} className="px-4 py-2 bg-blue-600 text-white rounded font-bold hover:bg-blue-700">บันทึกรูป Before เท่านั้น</button>
+                                <button onClick={handleSaveBeforeOnly} disabled={isSaving} className="px-4 py-2 bg-blue-600 text-white rounded font-bold hover:bg-blue-700 disabled:opacity-50">บันทึกรูป Before เท่านั้น</button>
                             )}
-                            <button onClick={handleSaveLog} className="px-4 py-2 bg-green-600 text-white rounded font-bold hover:bg-green-700">บันทึกงานเสร็จสิ้น</button>
+                            <button onClick={handleSaveLog} disabled={isSaving} className="px-4 py-2 bg-green-600 text-white rounded font-bold hover:bg-green-700 disabled:opacity-50">บันทึกงานเสร็จสิ้น</button>
                         </div>
                     </div>
                 </div>
@@ -1008,8 +1130,8 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
                         </div>
 
                         <div className="flex justify-end gap-2 mt-6">
-                            <button onClick={() => setIsEditLogModalOpen(false)} className="px-4 py-2 bg-gray-200 rounded text-gray-700">ยกเลิก</button>
-                            <button onClick={handleUpdateLog} className="px-4 py-2 bg-blue-600 text-white rounded font-bold hover:bg-blue-700">บันทึกการแก้ไข</button>
+                            <button onClick={() => setIsEditLogModalOpen(false)} disabled={isSaving} className="px-4 py-2 bg-gray-200 rounded text-gray-700 disabled:opacity-50">ยกเลิก</button>
+                            <button onClick={handleUpdateLog} disabled={isSaving} className="px-4 py-2 bg-blue-600 text-white rounded font-bold hover:bg-blue-700 disabled:opacity-50">บันทึกการแก้ไข</button>
                         </div>
                     </div>
                 </div>
