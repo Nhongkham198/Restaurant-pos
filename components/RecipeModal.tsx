@@ -211,8 +211,8 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
                 
                 return {
                     ...ing,
-                    unitPrice: newPrice, // Update manual price to match latest JSON
-                    smartUnitPrice: newPrice // Update smart price as well
+                    // unitPrice remains unchanged (manual price)
+                    smartUnitPrice: newPrice // Update only the JSON-derived price (red text logic)
                 };
             }
             return ing;
@@ -363,15 +363,22 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
                                                 <div className="flex items-center gap-1.5 min-w-0">
                                                     <p className="font-bold text-gray-900 truncate">{stockItem?.name}</p>
                                                     {latestPrice && (
-                                                        <button 
-                                                            onClick={() => handleSyncPrice(ing.stockItemId)}
-                                                            className="flex-shrink-0 text-blue-500 hover:text-blue-700 transition-colors" 
-                                                            title="ซิงค์ราคาล่าสุดจากไฟล์ JSON"
-                                                        >
-                                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                                            </svg>
-                                                        </button>
+                                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 text-green-500 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                                                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                                        </svg>
+                                                    )}
+                                                    {latestPrice && (
+                                                        <div className="flex items-center gap-1">
+                                                            <button 
+                                                                onClick={() => handleSyncPrice(ing.stockItemId)}
+                                                                className="flex-shrink-0 text-blue-500 hover:text-blue-700 transition-colors" 
+                                                                title="ซิงค์ราคาล่าสุดจากไฟล์ JSON"
+                                                            >
+                                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                                                </svg>
+                                                            </button>
+                                                        </div>
                                                     )}
                                                 </div>
                                                 <div className="flex flex-col gap-0.5">
@@ -382,9 +389,14 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
                                                                 {latestPrice.status === 'expensive' && ' ⚠️'}
                                                             </div>
                                                             {latestPrice.date && (
-                                                                <span className="text-[11px] text-gray-500 font-medium italic">
-                                                                    ข้อมูลเมื่อ: {latestPrice.date}
-                                                                </span>
+                                                                <div className="flex items-center gap-1">
+                                                                    <span className="text-[11px] text-gray-500 font-medium italic">
+                                                                        ข้อมูลเมื่อ: {latestPrice.date}
+                                                                    </span>
+                                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-green-500" viewBox="0 0 20 20" fill="currentColor">
+                                                                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                                                    </svg>
+                                                                </div>
                                                             )}
                                                         </div>
                                                     )}
@@ -553,6 +565,11 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
                                             <div className="flex items-center gap-1.5 min-w-0">
                                                 <p className="text-sm font-bold text-gray-800 truncate">{stockItem?.name}</p>
                                                 {latestPrice && (
+                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-green-500 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                                                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                                    </svg>
+                                                )}
+                                                {latestPrice && (
                                                     <div className="flex flex-col items-start">
                                                         <div className="flex items-center gap-1">
                                                             <button 
@@ -565,9 +582,14 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
                                                                 </svg>
                                                             </button>
                                                             {latestPrice.date && (
-                                                                <span className="text-[10px] text-blue-600 font-bold italic">
-                                                                    {latestPrice.date}
-                                                                </span>
+                                                                <div className="flex items-center gap-1">
+                                                                    <span className="text-[10px] text-blue-600 font-bold italic">
+                                                                        {latestPrice.date}
+                                                                    </span>
+                                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-2.5 w-2.5 text-green-500" viewBox="0 0 20 20" fill="currentColor">
+                                                                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                                                    </svg>
+                                                                </div>
                                                             )}
                                                         </div>
                                                     </div>

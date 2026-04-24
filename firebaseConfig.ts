@@ -28,6 +28,11 @@ if (isFirebaseConfigured) {
     console.log("[Firebase] Initializing with Database ID:", firebaseConfig.firestoreDatabaseId);
     db = (firebase.app() as any).firestore(firebaseConfig.firestoreDatabaseId);
     
+    // Use settings that work best in this environment
+    db.settings({
+      experimentalForceLongPolling: true
+    });
+    
     auth = firebase.auth();
     functions = firebase.app().functions('asia-southeast1');
     
@@ -39,27 +44,25 @@ if (isFirebaseConfigured) {
     
     storage = getStorage(app);
     
-    db.enablePersistence({ synchronizeTabs: true })
-      .catch((err: any) => {
-          if (err.code == 'failed-precondition') {
-              console.warn('Persistence failed: Multiple tabs open');
-          } else if (err.code == 'unimplemented') {
-              console.warn('Persistence failed: Browser not supported.');
-          }
-      });
+    // Persistence disabled temporarily to fix connectivity issues
+    // db.enablePersistence({ synchronizeTabs: true }) ... removed for stability
 
-    // Test connection as required by constraints
-    const testConnection = async () => {
+    // Test connection with retry logic
+    const testConnection = async (retries = 3) => {
       try {
         if (!db) return;
+        console.log("[Firebase] Testing connection... attempt", 4 - retries);
+        // source: 'server' forces a network request
         await db.collection('test').doc('connection').get({ source: 'server' });
         console.log("Firebase connection verified");
       } catch (error: any) {
         if (error?.code === 'permission-denied' || error?.message?.includes('permission')) {
-            // Permission denied is actually a good sign - it means we reached the server
-            console.log("Firebase connected (permission denied/missing expected)");
+            console.log("Firebase connected (reachable but permission restricted)");
+        } else if (retries > 0) {
+            console.warn(`Connection attempt failed, retrying... (${retries} left)`);
+            setTimeout(() => testConnection(retries - 1), 2000);
         } else {
-            console.error("Firebase connection failed details:", {
+            console.error("Firebase connection failed final:", {
                 code: error?.code,
                 message: error?.message,
                 projectId: firebaseConfig.projectId,
