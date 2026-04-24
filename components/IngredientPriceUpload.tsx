@@ -22,9 +22,16 @@ export const IngredientPriceUpload: React.FC<IngredientPriceUploadProps> = ({ on
                 }
                 
                 // Basic validation and trimming
+                const uploadDate = new Date().toLocaleDateString('th-TH', { 
+                    year: 'numeric', 
+                    month: 'short', 
+                    day: 'numeric' 
+                });
+
                 const cleanedJson = json.map(item => ({
                     ...item,
-                    name: typeof item.name === 'string' ? item.name.trim() : item.name
+                    name: typeof item.name === 'string' ? item.name.trim() : item.name,
+                    date: item.date || uploadDate // Use current date if missing in JSON
                 }));
 
                 // De-duplication Logic: Keep only the latest entry per ingredient name

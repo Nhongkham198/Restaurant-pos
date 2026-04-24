@@ -318,16 +318,29 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
                                     return (
                                         <div key={ing.stockItemId} className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 bg-gray-50 rounded-2xl border border-gray-100">
                                             <div className="flex-1 min-w-0">
-                                                <p className="font-bold text-gray-900 truncate">{stockItem?.name}</p>
-                                                <div className="flex flex-col gap-0.5">
-                                                    <p className="text-[10px] text-gray-400 uppercase tracking-tight">
-                                                        ต้นทุนเดิม: ฿{stockItem?.unitPrice?.toLocaleString() || 0} / {stockItem?.unit}
-                                                    </p>
+                                                <div className="flex items-center gap-1.5 min-w-0">
+                                                    <p className="font-bold text-gray-900 truncate">{stockItem?.name}</p>
                                                     {latestPrice && (
-                                                        <p className={`text-[10px] font-bold uppercase tracking-tight ${latestPrice.status === 'expensive' ? 'text-red-500' : latestPrice.status === 'cheap' ? 'text-green-500' : 'text-blue-500'}`}>
-                                                            ราคาล่าสุด (JSON): ฿{latestPrice.pricePerUnit.toLocaleString()} / {latestPrice.unit}
-                                                            {latestPrice.status === 'expensive' && ' ⚠️'}
-                                                        </p>
+                                                        <div className="flex-shrink-0 text-blue-500" title="อ้างอิงราคาจากไฟล์ JSON">
+                                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                                            </svg>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <div className="flex flex-col gap-0.5">
+                                                    {latestPrice && (
+                                                        <div className={`text-[10px] font-bold uppercase tracking-tight ${latestPrice.status === 'expensive' ? 'text-red-500' : latestPrice.status === 'cheap' ? 'text-green-500' : 'text-blue-500'}`}>
+                                                            <div className="flex items-center gap-1">
+                                                                ราคาล่าสุด (JSON): ฿{latestPrice.pricePerUnit.toLocaleString()} / {latestPrice.unit}
+                                                                {latestPrice.status === 'expensive' && ' ⚠️'}
+                                                            </div>
+                                                            {latestPrice.date && (
+                                                                <span className="text-[11px] text-gray-500 font-medium italic">
+                                                                    ข้อมูลเมื่อ: {latestPrice.date}
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                     )}
                                                 </div>
                                             </div>
@@ -491,7 +504,25 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
                                 return (
                                     <div key={ing.stockItemId} className="flex flex-col gap-2 p-3 bg-blue-50/50 rounded-2xl border border-blue-100/50">
                                         <div className="flex items-center justify-between">
-                                            <p className="text-sm font-bold text-gray-800 truncate">{stockItem?.name}</p>
+                                            <div className="flex items-center gap-1.5 min-w-0">
+                                                <p className="text-sm font-bold text-gray-800 truncate">{stockItem?.name}</p>
+                                                {latestPrice && (
+                                                    <div className="flex flex-col items-start">
+                                                        <div className="flex items-center gap-1">
+                                                            <div className="flex-shrink-0 text-blue-500" title="อ้างอิงราคาจากไฟล์ JSON">
+                                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                                                </svg>
+                                                            </div>
+                                                            {latestPrice.date && (
+                                                                <span className="text-[10px] text-blue-600 font-bold italic">
+                                                                    {latestPrice.date}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
                                             <button 
                                                 onClick={() => removeAdditionalIngredient(ing.stockItemId)}
                                                 className="p-1 px-2 text-red-500 hover:bg-red-50 rounded-lg text-[10px] font-black uppercase tracking-tighter transition-colors"

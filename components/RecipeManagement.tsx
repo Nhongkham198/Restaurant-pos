@@ -27,6 +27,8 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedCategory, setSelectedCategory] = useState('ทั้งหมด');
     const [sortOrder, setSortOrder] = useState<'none' | 'profit-asc' | 'profit-desc'>('none');
+    const [filterChangedOnly, setFilterChangedOnly] = useState(false);
+    const [changedRecipeIds, setChangedRecipeIds] = useState<Set<string>>(new Set());
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedMenuItem, setSelectedMenuItem] = useState<MenuItem | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -63,6 +65,8 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
             
             const stockMap = new Map();
             stockItems.forEach(s => stockMap.set(s.id, s));
+
+            const newlyChangedIds = new Set<string>();
 
             const updatedRecipes = recipes.map(recipe => {
                 const calculateListCost = (list: RecipeIngredient[]) => {
@@ -110,13 +114,21 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
                 const smartSubtotal = ingResults.sCost + (addIngResults.sCost + miscCost);
                 const hiddenFactor = 1 + (recipe.hiddenCostPercentage || 0) / 100;
 
+                const manualTotalCost = manualSubtotal * hiddenFactor;
+                const smartTotalCost = smartSubtotal * hiddenFactor;
+
+                // Check if cost actually changed significantly (more than 0.01 THB)
+                if (Math.abs(manualTotalCost - smartTotalCost) > 0.01) {
+                    newlyChangedIds.add(recipe.id);
+                }
+
                 return {
                     ...recipe,
                     ingredients: ingResults.updatedIngredients,
                     additionalIngredients: addIngResults.updatedIngredients,
                     additionalCost: addIngResults.mCost + miscCost,
-                    manualTotalCost: manualSubtotal * hiddenFactor,
-                    smartTotalCost: smartSubtotal * hiddenFactor,
+                    manualTotalCost: manualTotalCost,
+                    smartTotalCost: smartTotalCost,
                     lastUpdated: Date.now(),
                     lastUpdatedBy: currentUser?.username || 'System Bulk Refresh'
                 };
@@ -124,6 +136,10 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
 
             // Save to Firestore
             setRecipes(updatedRecipes);
+            setChangedRecipeIds(newlyChangedIds);
+            if (newlyChangedIds.size > 0) {
+                setFilterChangedOnly(true);
+            }
             
             // Fix UI Glitch: Ensure loading is hidden before showing success
             Swal.hideLoading();
@@ -131,7 +147,7 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
                 Swal.fire({
                     icon: 'success',
                     title: 'สำเร็จ',
-                    text: `อัปเดตต้นทุนเมนูทั้งหมด ${updatedRecipes.length} รายการเรียบร้อยแล้ว`,
+                    text: `อัปเดตต้นทุนเมนูทั้งหมด ${updatedRecipes.length} รายการเรียบร้อยแล้ว (พบการเปลี่ยนแปลง ${newlyChangedIds.size} รายการ)`,
                     confirmButtonColor: '#3b82f6',
                     timer: 3000
                 });
@@ -399,7 +415,11 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
         let items = menuItems.filter(item => {
             const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase());
             const matchesCategory = selectedCategory === 'ทั้งหมด' || item.category === selectedCategory;
-            return matchesSearch && matchesCategory;
+            
+            const recipe = recipeMap.get(item.id);
+            const matchesChangedFilter = !filterChangedOnly || (recipe && changedRecipeIds.has(recipe.id));
+            
+            return matchesSearch && matchesCategory && matchesChangedFilter;
         });
 
         if (sortOrder !== 'none') {
@@ -561,12 +581,43 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
                                     selectedCategory === cat
                                         ? 'bg-blue-600 text-white shadow-sm'
                                         : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                                }`}
+                                    }`}
                             >
                                 {cat}
                             </button>
                         ))}
                     </div>
+                    {changedRecipeIds.size > 0 && (
+                        <div className="flex items-center gap-2 border-l border-gray-100 pl-4">
+                            <button
+                                onClick={() => setFilterChangedOnly(!filterChangedOnly)}
+                                className={`px-4 py-2 rounded-lg text-sm font-bold whitespace-nowrap transition-all flex items-center gap-2 ${
+                                    filterChangedOnly
+                                        ? 'bg-orange-500 text-white shadow-md shadow-orange-100'
+                                        : 'bg-orange-50 text-orange-600 hover:bg-orange-100'
+                                }`}
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                </svg>
+                                ดูเฉพาะที่เปลี่ยน ({changedRecipeIds.size})
+                            </button>
+                            {filterChangedOnly && (
+                                <button 
+                                    onClick={() => {
+                                        setFilterChangedOnly(false);
+                                        setChangedRecipeIds(new Set());
+                                    }}
+                                    className="p-2 text-gray-400 hover:text-gray-600"
+                                    title="ล้างตัวกรอง"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                </button>
+                            )}
+                        </div>
+                    )}
                 </div>
 
                 {/* Menu Items Grid */}
@@ -576,6 +627,11 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
                         const cost = recipe ? calculateCost(recipe) : 0;
                         const profit = item.price - cost;
                         const profitMargin = item.price > 0 ? (profit / item.price) * 100 : 0;
+
+                        // Logic for indicators
+                        const isUpToDate = recipe && recipe.smartTotalCost !== undefined && Math.abs((recipe.manualTotalCost || 0) - recipe.smartTotalCost) < 0.01;
+                        const hasNoSmartCost = !recipe || recipe.smartTotalCost === undefined || recipe.smartTotalCost === 0;
+                        const isOutdated = recipe && recipe.smartTotalCost !== undefined && Math.abs((recipe.manualTotalCost || 0) - recipe.smartTotalCost) >= 0.01;
 
                         // Calculate delivery profits
                         const deliveryProfits = item.deliveryPrices ? Object.entries(item.deliveryPrices).map(([providerId, price]) => {
@@ -615,7 +671,23 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
                                         className="w-20 h-20 rounded-xl object-cover bg-gray-100"
                                     />
                                     <div className="flex-1 min-w-0">
-                                        <h3 className="font-bold text-gray-900 truncate">{item.name}</h3>
+                                        <div className="flex items-center gap-1.5 min-w-0">
+                                            <h3 className="font-bold text-gray-900 truncate">{item.name}</h3>
+                                            {isUpToDate && (
+                                                <div className="flex-shrink-0 bg-green-100 text-green-700 p-0.5 rounded-full" title="ราคาวันนี้ซิงค์กับ JSON แล้ว">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+                                                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                                    </svg>
+                                                </div>
+                                            )}
+                                            {isOutdated && (
+                                                <div className="flex-shrink-0 animate-pulse text-orange-500" title="ราคายังไม่อัปเดตตาม JSON">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                                        <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                                                    </svg>
+                                                </div>
+                                            )}
+                                        </div>
                                         <p className="text-sm text-gray-500">{item.category}</p>
                                         <div className="flex items-center justify-between mt-1">
                                             <p className="text-lg font-bold text-blue-600">฿{item.price.toLocaleString()}</p>
