@@ -1,0 +1,126 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Represents a staff member or admin in the system.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "number" },
+        "username": { "type": "string" },
+        "password": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "branch-admin", "pos", "kitchen", "auditor", "table", "staff"] },
+        "allowedBranchIds": { "type": "array", "items": { "type": "number" } },
+        "assignedTableId": { "type": "number" },
+        "profilePictureUrl": { "type": "string" },
+        "fcmTokens": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["id", "username", "role"]
+    },
+    "Branch": {
+      "title": "Branch",
+      "description": "Represents a restaurant location.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "number" },
+        "name": { "type": "string" },
+        "location": { "type": "string" },
+        "lineMessagingToken": { "type": "string" },
+        "lineUserId": { "type": "string" },
+        "telegramBotToken": { "type": "string" },
+        "telegramChatId": { "type": "string" },
+        "geminiApiKey": { "type": "string" }
+      },
+      "required": ["id", "name"]
+    },
+    "MenuItem": {
+      "title": "Menu Item",
+      "description": "A food or drink item on the menu.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "number" },
+        "name": { "type": "string" },
+        "nameEn": { "type": "string" },
+        "price": { "type": "number" },
+        "category": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "isAvailable": { "type": "boolean" },
+        "isVisible": { "type": "boolean" }
+      },
+      "required": ["id", "name", "price", "category"]
+    },
+    "ActiveOrder": {
+      "title": "Active Order",
+      "description": "An order currently being processed (waiting, cooking, served).",
+      "type": "object",
+      "properties": {
+        "id": { "type": "number" },
+        "orderNumber": { "type": "number" },
+        "status": { "type": "string", "enum": ["pending_payment", "waiting", "cooking", "served", "completed", "cancelled"] },
+        "tableId": { "type": "number" },
+        "tableName": { "type": "string" },
+        "items": { "type": "array" },
+        "orderTime": { "type": "number" },
+        "branchId": { "type": "number" }
+      },
+      "required": ["id", "orderNumber", "status", "tableId", "items", "orderTime"]
+    },
+    "StockItem": {
+      "title": "Stock Item",
+      "description": "An ingredient or supply item in the inventory.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "number" },
+        "name": { "type": "string" },
+        "quantity": { "type": "number" },
+        "unit": { "type": "string" },
+        "reorderPoint": { "type": "number" },
+        "lastUpdated": { "type": "number" }
+      },
+      "required": ["id", "name", "quantity", "unit"]
+    },
+    "StockLog": {
+      "title": "Stock Log",
+      "description": "A record of an inventory transaction.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "stockItemId": { "type": "number" },
+        "action": { "type": "string" },
+        "changeDetails": { "type": "string" },
+        "performedBy": { "type": "string" },
+        "timestamp": { "type": "number" }
+      },
+      "required": ["id", "stockItemId", "action", "timestamp"]
+    }
+  },
+  "firestore": {
+    "users/data": {
+      "schema": "object",
+      "description": "Global user data stored in a single document."
+    },
+    "branches/data": {
+      "schema": "object",
+      "description": "Global branches data stored in a single document."
+    },
+    "leaveRequests/data": {
+      "schema": "object",
+      "description": "Global leave requests stored in a single document."
+    },
+    "branches/{branchId}/menuItems/data": {
+      "schema": "object",
+      "description": "Branch-specific menu items."
+    },
+    "branches/{branchId}/activeOrders/{orderId}": {
+      "schema": "ActiveOrder",
+      "description": "Active orders for a branch."
+    },
+    "branches/{branchId}/stockItems/data": {
+      "schema": "object",
+      "description": "Branch-specific stock items."
+    },
+    "branches/{branchId}/stockLogs/{logId}": {
+      "schema": "StockLog",
+      "description": "Inventory change logs."
+    }
+  }
+}

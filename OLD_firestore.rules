@@ -1,0 +1,134 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // 1. GLOBAL SAFETY NET
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // 2. PRIMITIVE HELPERS
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isAdmin() {
+      return isVerified() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        request.auth.token.email == "zowamarketing@gmail.com"
+      );
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Validation Helpers
+    function isValidActiveOrder(data) {
+      return data.keys().hasAll(['id', 'orderNumber', 'status', 'tableId', 'items', 'orderTime'])
+             && data.id is number
+             && data.orderNumber is number
+             && data.status in ['pending_payment', 'waiting', 'cooking', 'served', 'completed', 'cancelled']
+             && data.tableId is number
+             && data.items is list
+             && data.orderTime is number;
+    }
+
+    // 3. GLOBAL COLLECTIONS
+    
+    // Users are public for the app's internal authentication (fetching and local filtering)
+    // NOTE: In production, moving to individual documents with Auth is highly recommended.
+    match /users/data {
+      allow read: if true; 
+      allow write: if isAdmin();
+    }
+
+    match /branches/data {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /leaveRequests/data {
+      allow read: if true;
+      allow write: if isVerified() || isAdmin();
+    }
+
+    match /admins/{userId} {
+      allow read: if isVerified();
+      allow write: if isAdmin();
+    }
+
+    // 4. BRANCH-SPECIFIC COLLECTIONS
+    match /branches/{branchId} {
+      
+      // Multi-document collections
+      
+      match /activeOrders/{orderId} {
+        allow read: if isValidId(branchId) && isValidId(orderId);
+        allow create: if isValidId(branchId) && isValidId(orderId) && isValidActiveOrder(incoming());
+        allow update: if isValidId(branchId) && isValidId(orderId) && (
+          // Broad allow for now to support both table pins and staff updates
+          // Validating shape ensures basic integrity
+          isValidActiveOrder(incoming())
+        );
+        allow delete: if isAdmin();
+      }
+
+      match /completedOrders_v2/{orderId} {
+        allow read: if isVerified();
+        allow create: if isVerified() && isValidActiveOrder(incoming());
+        allow update: if isAdmin();
+        allow delete: if isAdmin();
+      }
+
+      match /cancelledOrders_v2/{orderId} {
+        allow read: if isVerified();
+        allow create: if isVerified() && isValidActiveOrder(incoming());
+        allow update: if isAdmin();
+        allow delete: if isAdmin();
+      }
+
+      match /stockLogs/{logId} {
+        allow read: if isVerified();
+        allow create: if isVerified();
+        allow update, delete: if isAdmin();
+      }
+
+      match /maintenanceLogs_v2/{logId} {
+        allow read: if isVerified();
+        allow create: if isVerified();
+        allow update, delete: if isAdmin();
+      }
+
+      match /jobApplications/{applicationId} {
+        allow read: if isVerified();
+        allow create: if true; // Public for applicants
+        allow update: if isVerified();
+        allow delete: if isAdmin();
+      }
+
+      match /employmentContracts/{contractId} {
+        allow read: if isVerified();
+        allow write: if isAdmin();
+      }
+
+      // Single-document collections (mostly settings and lists stored in 'data' documents)
+      match /{collectionKey}/data {
+        allow read: if true; // Mostly public reading for POS functionality
+        allow write: if isVerified() || isAdmin(); 
+      }
+    }
+  }
+}

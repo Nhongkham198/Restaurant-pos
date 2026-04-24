@@ -1,10 +1,10 @@
 {
-  "projectId": "petdata-72204",
-  "appId": "1:576864434091:web:a9f718cdffe30886ff44ee",
-  "apiKey": "AIzaSyC5Ky6VoOM2ezh00ilst4i1bSdl2ai_Xko",
-  "authDomain": "petdata-72204.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-f246d003-6e93-4e55-aa26-77b84e1183cf",
-  "storageBucket": "petdata-72204.firebasestorage.app",
-  "messagingSenderId": "576864434091",
+  "projectId": "restaurant-pos-f8bd4",
+  "appId": "1:822986056017:web:ea43b3205483fed6da3370",
+  "apiKey": "AIzaSyAtWZDTWhTr-uWG0C6nKIUdKFguoZbh4tU",
+  "authDomain": "restaurant-pos-f8bd4.firebaseapp.com",
+  "firestoreDatabaseId": "ai-studio-934e78cb-0479-4be2-9c6d-54d978d5ba80",
+  "storageBucket": "restaurant-pos-f8bd4.firebasestorage.app",
+  "messagingSenderId": "822986056017",
   "measurementId": ""
 }

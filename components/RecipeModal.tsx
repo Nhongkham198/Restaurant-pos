@@ -185,6 +185,48 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
         ));
     };
 
+    const handleSyncPrice = (stockItemId: number, isAdditional = false) => {
+        const stockItem = stockItems.find(s => s.id === stockItemId);
+        if (!stockItem) return;
+
+        const latestPrice = latestIngredientPrices.find(p => (p.name || '').trim() === (stockItem.name || '').trim());
+        if (!latestPrice) {
+            Swal.fire({
+                icon: 'info',
+                title: 'ไม่พบข้อมูลราคาล่าสุด',
+                text: `ยังไม่มีข้อมูลราคาล่าสุดในระบบสำหรับ ${stockItem.name}`,
+                timer: 2000,
+                showConfirmButton: false
+            });
+            return;
+        }
+
+        const updater = isAdditional ? setAdditionalIngredients : setIngredients;
+        const list = isAdditional ? additionalIngredients : ingredients;
+
+        updater(list.map(ing => {
+            if (ing.stockItemId === stockItemId) {
+                // Calculate new unit price based on JSON
+                const newPrice = calculateSmartUnitPrice(ing, latestPrice, ing.unitPrice || stockItem.unitPrice || 0);
+                
+                return {
+                    ...ing,
+                    unitPrice: newPrice, // Update manual price to match latest JSON
+                    smartUnitPrice: newPrice // Update smart price as well
+                };
+            }
+            return ing;
+        }));
+
+        Swal.fire({
+            icon: 'success',
+            title: 'ซิงค์ราคาสำเร็จ',
+            text: `อัปเดตราคา ${stockItem.name} เป็น ฿${latestPrice.pricePerUnit}/${latestPrice.unit} เรียบร้อยแล้ว`,
+            timer: 1500,
+            showConfirmButton: false
+        });
+    };
+
     const handleAddUnit = async () => {
         const { value: unitName } = await Swal.fire({
             title: 'เพิ่มหน่วยใหม่',
@@ -321,11 +363,15 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
                                                 <div className="flex items-center gap-1.5 min-w-0">
                                                     <p className="font-bold text-gray-900 truncate">{stockItem?.name}</p>
                                                     {latestPrice && (
-                                                        <div className="flex-shrink-0 text-blue-500" title="อ้างอิงราคาจากไฟล์ JSON">
-                                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                                        <button 
+                                                            onClick={() => handleSyncPrice(ing.stockItemId)}
+                                                            className="flex-shrink-0 text-blue-500 hover:text-blue-700 transition-colors" 
+                                                            title="ซิงค์ราคาล่าสุดจากไฟล์ JSON"
+                                                        >
+                                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                                                             </svg>
-                                                        </div>
+                                                        </button>
                                                     )}
                                                 </div>
                                                 <div className="flex flex-col gap-0.5">
@@ -509,11 +555,15 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
                                                 {latestPrice && (
                                                     <div className="flex flex-col items-start">
                                                         <div className="flex items-center gap-1">
-                                                            <div className="flex-shrink-0 text-blue-500" title="อ้างอิงราคาจากไฟล์ JSON">
-                                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                                            <button 
+                                                                onClick={() => handleSyncPrice(ing.stockItemId, true)}
+                                                                className="flex-shrink-0 text-blue-500 hover:text-blue-700 transition-colors" 
+                                                                title="ซิงค์ราคาล่าสุดจากไฟล์ JSON"
+                                                            >
+                                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                                                                 </svg>
-                                                            </div>
+                                                            </button>
                                                             {latestPrice.date && (
                                                                 <span className="text-[10px] text-blue-600 font-bold italic">
                                                                     {latestPrice.date}

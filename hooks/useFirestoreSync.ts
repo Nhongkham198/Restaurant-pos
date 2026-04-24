@@ -4,6 +4,44 @@ import { db } from '@/firebaseConfig';
 import type { Table } from '@/types';
 import firebase from 'firebase/compat/app';
 import 'firebase/compat/firestore';
+import { auth } from '@/firebaseConfig';
+
+interface FirestoreErrorInfo {
+  error: string;
+  operationType: 'create' | 'update' | 'delete' | 'list' | 'get' | 'write';
+  path: string | null;
+  authInfo: {
+    userId: string;
+    email: string;
+    emailVerified: boolean;
+    isAnonymous: boolean;
+    providerInfo: { providerId: string; displayName: string; email: string; }[];
+  }
+}
+
+const handleFirestoreError = (err: any, operationType: FirestoreErrorInfo['operationType'], path: string | null = null) => {
+    if (err.code === 'permission-denied') {
+        const user = auth?.currentUser;
+        const info: FirestoreErrorInfo = {
+            error: err.message,
+            operationType,
+            path,
+            authInfo: {
+                userId: user?.uid || 'unauthenticated',
+                email: user?.email || '',
+                emailVerified: user?.emailVerified || false,
+                isAnonymous: user?.isAnonymous || false,
+                providerInfo: user?.providerData.map(p => ({
+                    providerId: p.providerId,
+                    displayName: p.displayName || '',
+                    email: p.email || ''
+                })) || []
+            }
+        };
+        throw new Error(JSON.stringify(info));
+    }
+    throw err;
+};
 
 // Hook for Single Document Sync (Legacy/Config/Arrays)
 export function useFirestoreSync<T>(
@@ -156,6 +194,12 @@ export function useFirestoreSync<T>(
             (error) => {
                 console.error(`Firestore sync error for ${collectionKey}:`, error);
                 setIsLoading(false);
+                if (error.code === 'permission-denied') {
+                    const path = isBranchSpecific && branchId
+                        ? `branches/${branchId}/${collectionKey}/data`
+                        : `${collectionKey}/data`;
+                    handleFirestoreError(error, 'get', path);
+                }
             }
         );
 
@@ -194,6 +238,7 @@ export function useFirestoreSync<T>(
             docRef.set(sanitizedValue)
                 .catch(err => {
                     console.error(`Failed to write ${collectionKey} to Firestore:`, err);
+                    handleFirestoreError(err, 'write', pathSegments.join('/'));
                 });
             return resolvedValue;
         });
@@ -233,6 +278,9 @@ export function useFirestoreCollection<T extends { id: number | string }>(
             setData(items);
         }, error => {
             console.error(`Error syncing collection ${collectionName}:`, error);
+            if (error.code === 'permission-denied') {
+                handleFirestoreError(error, 'list', `branches/${branchId}/${collectionName}`);
+            }
         });
 
         return () => unsubscribe();
@@ -242,21 +290,36 @@ export function useFirestoreCollection<T extends { id: number | string }>(
         add: async (item: T) => {
             if (!db || !branchId) return;
             const docId = item.id.toString();
-            await db.collection(`branches/${branchId}/${collectionName}`).doc(docId).set({
-                ...item,
-                lastUpdated: firebase.firestore.FieldValue.serverTimestamp() // Timestamp Guard
-            });
+            const path = `branches/${branchId}/${collectionName}/${docId}`;
+            try {
+                await db.collection(`branches/${branchId}/${collectionName}`).doc(docId).set({
+                    ...item,
+                    lastUpdated: firebase.firestore.FieldValue.serverTimestamp() // Timestamp Guard
+                });
+            } catch (err) {
+                handleFirestoreError(err, 'create', path);
+            }
         },
         update: async (id: number | string, updates: Partial<T>) => {
             if (!db || !branchId) return;
-            await db.collection(`branches/${branchId}/${collectionName}`).doc(id.toString()).update({
-                ...updates,
-                lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
-            });
+            const path = `branches/${branchId}/${collectionName}/${id}`;
+            try {
+                await db.collection(`branches/${branchId}/${collectionName}`).doc(id.toString()).update({
+                    ...updates,
+                    lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
+                });
+            } catch (err) {
+                handleFirestoreError(err, 'update', path);
+            }
         },
         remove: async (id: number | string) => {
             if (!db || !branchId) return;
-            await db.collection(`branches/${branchId}/${collectionName}`).doc(id.toString()).delete();
+            const path = `branches/${branchId}/${collectionName}/${id}`;
+            try {
+                await db.collection(`branches/${branchId}/${collectionName}`).doc(id.toString()).delete();
+            } catch (err) {
+                handleFirestoreError(err, 'delete', path);
+            }
         }
     }), [branchId, collectionName]);
 

@@ -5,16 +5,7 @@ import "firebase/compat/functions";
 import "firebase/compat/auth";
 import { getStorage } from "firebase/storage";
 import { getMessaging, isSupported } from "firebase/messaging";
-
-const firebaseConfig = {
-  apiKey: "AIzaSyCVLo7EeWsDSR1tWmucYuZq7uOuV8zvqXI",
-  authDomain: "restaurant-pos-f8bd4.firebaseapp.com",
-  projectId: "restaurant-pos-f8bd4",
-  storageBucket: "restaurant-pos-f8bd4.appspot.com",
-  messagingSenderId: "822986056017",
-  appId: "1:822986056017:web:a1955349d8d94adcda3370",
-  measurementId: "G-2B6ZS4VYMF"
-};
+import firebaseConfig from './firebase-applet-config.json';
 
 export const isFirebaseConfigured = Boolean(firebaseConfig.apiKey);
 
@@ -33,7 +24,10 @@ if (isFirebaseConfigured) {
       app = firebase.app();
     }
     
-    db = firebase.firestore();
+    // Use the specific firestoreDatabaseId from config
+    console.log("[Firebase] Initializing with Database ID:", firebaseConfig.firestoreDatabaseId);
+    db = (firebase.app() as any).firestore(firebaseConfig.firestoreDatabaseId);
+    
     auth = firebase.auth();
     functions = firebase.app().functions('asia-southeast1');
     
@@ -43,7 +37,6 @@ if (isFirebaseConfigured) {
       }
     });
     
-    // Use modular storage directly to avoid compat issues
     storage = getStorage(app);
     
     db.enablePersistence({ synchronizeTabs: true })
@@ -54,6 +47,28 @@ if (isFirebaseConfigured) {
               console.warn('Persistence failed: Browser not supported.');
           }
       });
+
+    // Test connection as required by constraints
+    const testConnection = async () => {
+      try {
+        if (!db) return;
+        await db.collection('test').doc('connection').get({ source: 'server' });
+        console.log("Firebase connection verified");
+      } catch (error: any) {
+        if (error?.code === 'permission-denied' || error?.message?.includes('permission')) {
+            // Permission denied is actually a good sign - it means we reached the server
+            console.log("Firebase connected (permission denied/missing expected)");
+        } else {
+            console.error("Firebase connection failed details:", {
+                code: error?.code,
+                message: error?.message,
+                projectId: firebaseConfig.projectId,
+                databaseId: firebaseConfig.firestoreDatabaseId
+            });
+        }
+      }
+    };
+    testConnection();
 
     console.log("Firebase initialized successfully");
   } catch (e) {
