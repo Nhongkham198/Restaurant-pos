@@ -44,8 +44,15 @@ if (isFirebaseConfigured) {
     
     storage = getStorage(app);
     
-    // Persistence disabled temporarily to fix connectivity issues
-    // db.enablePersistence({ synchronizeTabs: true }) ... removed for stability
+    // Enable persistence for faster loads after the first visit
+    db.enablePersistence({ synchronizeTabs: true })
+      .catch((err: any) => {
+          if (err.code == 'failed-precondition') {
+              console.warn('Persistence failed: Multiple tabs open');
+          } else if (err.code == 'unimplemented') {
+              console.warn('Persistence failed: Browser not supported.');
+          }
+      });
 
     // Test connection with retry logic
     const testConnection = async (retries = 3) => {

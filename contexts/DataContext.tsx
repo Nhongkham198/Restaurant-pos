@@ -399,12 +399,27 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         }
     }, [urlBranchId]);
 
+    // --- HEAVY DATA TRIGGER ---
+    const [allowHeavyData, setAllowHeavyData] = useState(false);
+
+    useEffect(() => {
+        if (shouldLoadHeavyData) {
+            // Lazy load heavy data after a brief delay to let POS/Menu render first
+            const timer = setTimeout(() => setAllowHeavyData(true), 1500);
+            return () => clearTimeout(timer);
+        } else {
+            setAllowHeavyData(false);
+        }
+    }, [shouldLoadHeavyData]);
+
+    const heavyDataEffectiveId = allowHeavyData ? heavyDataBranchId : null;
+
     // --- ESSENTIAL DATA ---
     const [menuItems, setMenuItems, isMenuItemsLoading] = useFirestoreSync<MenuItem[]>(branchId, 'menuItems', []);
-    const [recipes, setRecipes, isRecipesLoading] = useFirestoreSync<Recipe[]>(heavyDataBranchId, 'recipes', []);
+    const [recipes, setRecipes, isRecipesLoading] = useFirestoreSync<Recipe[]>(heavyDataEffectiveId, 'recipes', []);
     const [categories, setCategories, isCategoriesLoading] = useFirestoreSync<string[]>(branchId, 'categories', []);
     const [tables, setTables, isTablesLoading] = useFirestoreSync<Table[]>(branchId, 'tables', []);
-    const [floors, setFloors, isFloorsLoading] = useFirestoreSync<string[]>(heavyDataBranchId, 'floors', []);
+    const [floors, setFloors, isFloorsLoading] = useFirestoreSync<string[]>(heavyDataEffectiveId, 'floors', []);
     const [recommendedMenuItemIds, setRecommendedMenuItemIds, isRecommendedLoading] = useFirestoreSync<number[]>(branchId, 'recommendedMenuItemIds', []);
     
     // Active Orders
@@ -422,10 +437,10 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     }, [rawActiveOrders]);
 
     // --- HEAVY DATA ---
-    const [legacyCompletedOrders, setLegacyCompletedOrders, isLegacyCompletedLoading] = useFirestoreSync<CompletedOrder[]>(heavyDataBranchId, 'completedOrders', []);
-    const [legacyCancelledOrders, setLegacyCancelledOrders, isLegacyCancelledLoading] = useFirestoreSync<CancelledOrder[]>(heavyDataBranchId, 'cancelledOrders', []);
-    const [newCompletedOrders, newCompletedOrdersActions] = useFirestoreCollection<CompletedOrder>(heavyDataBranchId, 'completedOrders_v2');
-    const [newCancelledOrders, newCancelledOrdersActions] = useFirestoreCollection<CancelledOrder>(heavyDataBranchId, 'cancelledOrders_v2');
+    const [legacyCompletedOrders, setLegacyCompletedOrders, isLegacyCompletedLoading] = useFirestoreSync<CompletedOrder[]>(heavyDataEffectiveId, 'completedOrders', []);
+    const [legacyCancelledOrders, setLegacyCancelledOrders, isLegacyCancelledLoading] = useFirestoreSync<CancelledOrder[]>(heavyDataEffectiveId, 'cancelledOrders', []);
+    const [newCompletedOrders, newCompletedOrdersActions] = useFirestoreCollection<CompletedOrder>(heavyDataEffectiveId, 'completedOrders_v2');
+    const [newCancelledOrders, newCancelledOrdersActions] = useFirestoreCollection<CancelledOrder>(heavyDataEffectiveId, 'cancelledOrders_v2');
 
     const completedOrders = useMemo(() => {
         const combined = [...newCompletedOrders, ...legacyCompletedOrders];
@@ -441,17 +456,17 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         return Array.from(unique.values()).sort((a, b) => b.cancellationTime - a.cancellationTime);
     }, [legacyCancelledOrders, newCancelledOrders]);
 
-    const [stockItems, setStockItems, isStockItemsLoading] = useFirestoreSync<StockItem[]>(heavyDataBranchId, 'stockItems', []);
-    const [stockTags, setStockTags, isStockTagsLoading] = useFirestoreSync<StockTag[]>(heavyDataBranchId, 'stockTags', []);
-    const [stockCategories, setStockCategories, isStockCategoriesLoading] = useFirestoreSync<string[]>(heavyDataBranchId, 'stockCategories', []);
-    const [stockUnits, setStockUnits, isStockUnitsLoading] = useFirestoreSync<string[]>(heavyDataBranchId, 'stockUnits', []);
+    const [stockItems, setStockItems, isStockItemsLoading] = useFirestoreSync<StockItem[]>(heavyDataEffectiveId, 'stockItems', []);
+    const [stockTags, setStockTags, isStockTagsLoading] = useFirestoreSync<StockTag[]>(heavyDataEffectiveId, 'stockTags', []);
+    const [stockCategories, setStockCategories, isStockCategoriesLoading] = useFirestoreSync<string[]>(heavyDataEffectiveId, 'stockCategories', []);
+    const [stockUnits, setStockUnits, isStockUnitsLoading] = useFirestoreSync<string[]>(heavyDataEffectiveId, 'stockUnits', []);
     
-    const [printHistory, setPrintHistory, isPrintHistoryLoading] = useFirestoreSync<PrintHistoryEntry[]>(heavyDataBranchId, 'printHistory', []);
-    const [maintenanceItems, setMaintenanceItems, isMaintenanceItemsLoading] = useFirestoreSync<MaintenanceItem[]>(heavyDataBranchId, 'maintenanceItems', []);
-    const [maintenanceLogs, maintenanceLogsActions] = useFirestoreCollection<MaintenanceLog>(heavyDataBranchId, 'maintenanceLogs_v2'); 
-    const [orderCounter, setOrderCounter, isOrderCounterLoading] = useFirestoreSync<OrderCounter>(heavyDataBranchId, 'orderCounter', { count: 0, lastResetDate: new Date().toISOString().split('T')[0] });
+    const [printHistory, setPrintHistory, isPrintHistoryLoading] = useFirestoreSync<PrintHistoryEntry[]>(heavyDataEffectiveId, 'printHistory', []);
+    const [maintenanceItems, setMaintenanceItems, isMaintenanceItemsLoading] = useFirestoreSync<MaintenanceItem[]>(heavyDataEffectiveId, 'maintenanceItems', []);
+    const [maintenanceLogs, maintenanceLogsActions] = useFirestoreCollection<MaintenanceLog>(heavyDataEffectiveId, 'maintenanceLogs_v2'); 
+    const [orderCounter, setOrderCounter, isOrderCounterLoading] = useFirestoreSync<OrderCounter>(heavyDataEffectiveId, 'orderCounter', { count: 0, lastResetDate: new Date().toISOString().split('T')[0] });
     
-    const [stockLogs, stockLogsActions] = useFirestoreCollection<StockLog>(heavyDataBranchId, 'stockLogs');
+    const [stockLogs, stockLogsActions] = useFirestoreCollection<StockLog>(heavyDataEffectiveId, 'stockLogs');
 
     // --- AUTO-CLEANUP STOCK LOGS (Aug 10 & Feb 10) ---
     useEffect(() => {
