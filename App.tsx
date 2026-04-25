@@ -8,6 +8,47 @@ import {
     DEFAULT_BRANCHES, 
     DEFAULT_USERS, 
 } from './constants';
+
+// --- ERROR BOUNDARY COMPONENT ---
+class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean }> {
+    constructor(props: { children: React.ReactNode }) {
+        super(props);
+        this.state = { hasError: false };
+    }
+
+    static getDerivedStateFromError(error: any) {
+        return { hasError: true };
+    }
+
+    componentDidCatch(error: any, errorInfo: any) {
+        console.error("[CATCH] Error Boundary caught an error:", error, errorInfo);
+    }
+
+    render() {
+        if (this.state.hasError) {
+            return (
+                <div className="h-screen w-screen flex flex-col items-center justify-center bg-gray-50 p-6 text-center">
+                    <div className="bg-white p-8 rounded-2xl shadow-xl max-w-md">
+                        <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            </svg>
+                        </div>
+                        <h2 className="text-2xl font-bold text-gray-900 mb-2">หน้าจอเกิดข้อผิดพลาด</h2>
+                        <p className="text-gray-600 mb-6">ระบบขัดข้องชั่วคราวขณะสลับข้อมูลหรือประมวลผล กรุณากดปุ่มด้านล่างเพื่อรีโหลดระบบใหม่</p>
+                        <button 
+                            onClick={() => window.location.reload()}
+                            className="w-full bg-red-600 text-white font-bold py-3 rounded-xl hover:bg-red-700 transition-colors shadow-lg shadow-red-200"
+                        >
+                            รีโหลดแอปพลิเคชัน
+                        </button>
+                    </div>
+                </div>
+            );
+        }
+        return this.props.children;
+    }
+}
 // ... types import
 import type { 
     MenuItem, 
@@ -327,6 +368,28 @@ export const App: React.FC = () => {
     const [pendingPlatform, setPendingPlatform] = useState<string | undefined>(undefined);
     const [currentDeliveryProvider, setCurrentDeliveryProvider] = useState<DeliveryProvider | null>(null);
     const [pendingOrderNumber, setPendingOrderNumber] = useState<string | undefined>(undefined);
+
+    // --- SECURITY & STABILITY: Reset stale state when branch changes ---
+    useEffect(() => {
+        if (branchId) {
+            console.log("[App] Branch changed to:", branchId, "Resetting local states.");
+            setCurrentOrderItems([]);
+            setSelectedTableId(null);
+            setCustomerName('');
+            setCustomerCount(1);
+            setPendingPlatform(undefined);
+            setCurrentDeliveryProvider(null);
+            setPendingOrderNumber(undefined);
+            setNotSentToKitchenDetails(null);
+            
+            // If in non-customer mode and changing branch, ensure we are on POS or Dashboard
+            if (!isCustomerMode && currentUser) {
+                if (currentView !== 'pos' && currentView !== 'dashboard' && currentView !== 'history') {
+                    // Stay on current view might be fine, but some views are branch-specific
+                }
+            }
+        }
+    }, [branchId]);
 
     // Update cart item prices when delivery provider changes
     useEffect(() => {
@@ -1630,7 +1693,7 @@ export const App: React.FC = () => {
                     <AdminSidebar 
                         isCollapsed={isAdminSidebarCollapsed} onToggleCollapse={() => setIsAdminSidebarCollapsed(!isAdminSidebarCollapsed)}
                         logoUrl={appLogoUrl || logoUrl} // Prioritize App Logo (Red)
-                        restaurantName={restaurantName} branchName={selectedBranch.name} currentUser={currentUser}
+                        restaurantName={restaurantName} branchName={selectedBranch?.name || ''} currentUser={currentUser}
                         onViewChange={handleViewChange} currentView={currentView} onToggleEditMode={() => setIsEditMode(!isEditMode)} isEditMode={isEditMode}
                         onOpenSettings={() => setModalState(prev => ({...prev, isSettings: true}))} onOpenUserManager={() => setModalState(prev => ({...prev, isUserManager: true}))}
                         onManageBranches={() => setModalState(prev => ({...prev, isBranchManager: true}))} onChangeBranch={handleChangeBranch} onLogout={handleLogout}
@@ -1657,7 +1720,7 @@ export const App: React.FC = () => {
                         onOpenUserManager={() => setModalState(prev => ({ ...prev, isUserManager: true }))} 
                         logoUrl={appLogoUrl || logoUrl} // Prioritize App Logo (Red)
                         onLogoChangeClick={() => {}}
-                        restaurantName={restaurantName} onRestaurantNameChange={setRestaurantName} branchName={selectedBranch.name}
+                        restaurantName={restaurantName} onRestaurantNameChange={setRestaurantName} branchName={selectedBranch?.name || ''}
                         onChangeBranch={handleChangeBranch} onManageBranches={() => setModalState(prev => ({ ...prev, isBranchManager: true }))}
                         printerConfig={printerConfig}
                         isAutoPrintEnabled={isAutoPrintEnabled}

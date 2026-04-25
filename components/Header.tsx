@@ -300,13 +300,13 @@ export const Header: React.FC<HeaderProps> = ({
                         onClick={handleProfileClick}
                         title="คลิกเพื่อออกจากระบบ"
                     >
-                        <img src={currentUser.profilePictureUrl || "https://img.icons8.com/fluency/48/user-male-circle.png"} alt={currentUser.username} className="h-10 w-10 rounded-full object-cover" />
+                        <img src={currentUser?.profilePictureUrl || "https://img.icons8.com/fluency/48/user-male-circle.png"} alt={currentUser?.username || "Guest"} className="h-10 w-10 rounded-full object-cover" />
                         <div>
-                            <p className={`font-semibold transition-colors ${isKitchenView ? 'text-white' : 'text-gray-800'}`}>{currentUser.username}</p>
+                            <p className={`font-semibold transition-colors ${isKitchenView ? 'text-white' : 'text-gray-800'}`}>{currentUser?.username || "Guest"}</p>
                             <p className={`text-xs font-semibold transition-colors ${
-                                currentUser.role === 'admin' ? (isKitchenView ? 'text-red-400' : 'text-red-600') :
-                                currentUser.role === 'branch-admin' ? (isKitchenView ? 'text-purple-400' : 'text-purple-600') :
-                                currentUser.role === 'kitchen' ? (isKitchenView ? 'text-orange-400' : 'text-orange-600') :
+                                currentUser?.role === 'admin' ? (isKitchenView ? 'text-red-400' : 'text-red-600') :
+                                currentUser?.role === 'branch-admin' ? (isKitchenView ? 'text-purple-400' : 'text-purple-600') :
+                                currentUser?.role === 'kitchen' ? (isKitchenView ? 'text-orange-400' : 'text-orange-600') :
                                 (isKitchenView ? 'text-blue-400' : 'text-blue-600')
                             }`}>{roleText}</p>
                         </div>

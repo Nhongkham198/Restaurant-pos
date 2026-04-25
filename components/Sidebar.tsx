@@ -381,13 +381,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <header className="p-3 flex justify-between items-center flex-shrink-0 z-30 shadow-lg border-b border-gray-800 relative">
                     <div className="flex items-center gap-3 cursor-pointer" onClick={handleProfileClick}>
                         <img 
-                            src={currentUser.profilePictureUrl || "https://img.icons8.com/fluency/48/user-male-circle.png"} 
-                            alt={currentUser.username} 
+                            src={currentUser?.profilePictureUrl || "https://img.icons8.com/fluency/48/user-male-circle.png"} 
+                            alt={currentUser?.username || "Guest"} 
                             className="h-10 w-10 rounded-full object-cover border-2 border-gray-700"
                         />
                         <div>
-                            <p className="font-semibold text-white leading-none">{currentUser.username}</p>
-                            <span className="text-xs bg-gray-700 text-gray-300 px-1.5 py-0.5 rounded font-mono">{currentUser.role}</span>
+                            <p className="font-semibold text-white leading-none">{currentUser?.username || "Guest"}</p>
+                            <span className="text-xs bg-gray-700 text-gray-300 px-1.5 py-0.5 rounded font-mono">{currentUser?.role || "guest"}</span>
                         </div>
                     </div>
                     {/* Centered Title */}
