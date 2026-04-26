@@ -22,6 +22,7 @@ export const LeaveCalendarView: React.FC<LeaveCalendarViewProps> = ({ leaveReque
     const [currentDate, setCurrentDate] = useState(new Date());
     const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
     const [selectedDayDetails, setSelectedDayDetails] = useState<{ date: Date, leaves: LeaveRequest[] } | null>(null);
+    const [searchTerm, setSearchTerm] = useState('');
 
     const daysInMonth = useMemo(() => {
         const year = currentDate.getFullYear();
@@ -46,25 +47,32 @@ export const LeaveCalendarView: React.FC<LeaveCalendarViewProps> = ({ leaveReque
     const visibleRequests = useMemo(() => {
         if (!currentUser) return [];
 
+        let filtered = leaveRequests;
+
         // Admin sees all requests.
         if (currentUser.role === 'admin') {
-            return leaveRequests;
+            filtered = leaveRequests;
+        } else if (currentUser.role === 'branch-admin' || currentUser.role === 'auditor') {
+            // Branch Admin and Auditors see requests for their assigned branches.
+            filtered = leaveRequests.filter(req => currentUser.allowedBranchIds?.includes(req.branchId));
+        } else if (selectedBranch) {
+            // Staff (POS/Kitchen) see all requests for the currently selected branch.
+            filtered = leaveRequests.filter(req => req.branchId === selectedBranch.id);
+        } else {
+            // Fallback for staff
+            filtered = leaveRequests.filter(req => req.userId === currentUser.id);
         }
 
-        // Branch Admin and Auditors see requests for their assigned branches.
-        if (currentUser.role === 'branch-admin' || currentUser.role === 'auditor') {
-            return leaveRequests.filter(req => currentUser.allowedBranchIds?.includes(req.branchId));
+        if (searchTerm) {
+            const lowerSearch = searchTerm.toLowerCase();
+            filtered = filtered.filter(req => 
+                req.username.toLowerCase().includes(lowerSearch)
+            );
         }
 
-        // Staff (POS/Kitchen) see all requests for the currently selected branch.
-        if (selectedBranch) {
-            return leaveRequests.filter(req => req.branchId === selectedBranch.id);
-        }
+        return filtered;
 
-        // Fallback for staff if no branch is selected (should not happen in normal flow)
-        return leaveRequests.filter(req => req.userId === currentUser.id);
-
-    }, [leaveRequests, currentUser, selectedBranch]);
+    }, [leaveRequests, currentUser, selectedBranch, searchTerm]);
 
     const getLeavesForDay = (day: number) => {
         const currentYear = currentDate.getFullYear();
@@ -323,7 +331,23 @@ export const LeaveCalendarView: React.FC<LeaveCalendarViewProps> = ({ leaveReque
 
                 {/* Leave History List & Approval Section */}
                 <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 w-full">
-                    <h3 className="text-xl font-bold text-gray-800 mb-4 border-b pb-2">ประวัติการลา & การอนุมัติ</h3>
+                    <div className="flex flex-col md:flex-row md:items-center justify-between mb-4 border-b pb-2 gap-4">
+                        <h3 className="text-xl font-bold text-gray-800">ประวัติการลา & การอนุมัติ</h3>
+                        <div className="relative">
+                            <input 
+                                type="text"
+                                placeholder="ค้นหาชื่อพนักงาน..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="pl-9 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none w-full md:w-64 text-sm"
+                            />
+                            <div className="absolute left-3 top-2.5 text-gray-400">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
                     
                     {visibleRequests.length === 0 ? (
                         <p className="text-gray-500 text-center py-4">ไม่มีข้อมูลการลา</p>
