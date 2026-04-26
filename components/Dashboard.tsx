@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import DatePicker from 'react-datepicker';
 import { useData } from '../contexts/DataContext';
-import type { CompletedOrder, CancelledOrder, User, Recipe, DeliveryProvider } from '../types';
+import { CompletedOrder, CancelledOrder, User, Recipe, DeliveryProvider } from '../types';
 import { SalesChart } from './SalesChart';
 import PieChart from './PieChart';
 import { NumpadModal } from './NumpadModal';
@@ -41,7 +41,7 @@ const getProviderColor = (name: string, deliveryProviders: DeliveryProvider[]) =
 };
 
 const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelledOrders, openingTime, closingTime, currentUser, recipes, deliveryProviders, taxRate }) => {
-    const { manualAdCosts, setManualAdCosts, latestIngredientPrices, stockItems } = useData();
+    const { manualAdCosts, setManualAdCosts } = useData();
     // Local state for ad cost inputs to allow smooth typing (especially decimals)
     const [localAdCosts, setLocalAdCosts] = useState<Record<string, string>>({});
 
@@ -86,6 +86,21 @@ const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelledOrders,
         if (!currentUser) return false;
         return ['admin', 'branch-admin', 'auditor'].includes(currentUser.role);
     }, [currentUser]);
+
+    // --- DYNAMIC RECIPE COSTING (USE SAVED VALUES) ---
+    const liveRecipeCosts = useMemo(() => {
+        const costMap = new Map<number, { manual: number, smart: number }>();
+        
+        recipes.forEach(r => {
+            // Use the saved costs from the recipe object - as requested by the user
+            costMap.set(r.menuItemId, { 
+                manual: r.manualTotalCost || 0,
+                smart: r.smartTotalCost || 0 
+            });
+        });
+        
+        return costMap;
+    }, [recipes]);
 
 
 
@@ -166,10 +181,10 @@ const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelledOrders,
                         adRevenueByProvider[providerName] = (adRevenueByProvider[providerName] || 0) + (sellingPrice * itemQty);
                     }
 
-                    // Find recipe for cost - Directly use confirmed values from the database
-                    const recipe = recipes.find(r => r.menuItemId === item.id);
-                    const manualIngredientCost = recipe?.manualTotalCost || 0;
-                    const smartIngredientCost = recipe?.smartTotalCost || 0;
+                    // Find recipe for cost - Dynamically calculated from latest JSON prices
+                    const costs = liveRecipeCosts.get(Number(item.id));
+                    const manualIngredientCost = costs?.manual || 0;
+                    const smartIngredientCost = costs?.smart || 0;
 
                     totalManualCost += manualIngredientCost * itemQty;
                     totalSmartCost += smartIngredientCost * itemQty;
@@ -768,9 +783,9 @@ const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelledOrders,
                     totalItemRevenue += sellingPrice * itemQty;
                     totalItemQty += itemQty;
 
-                    // Find recipe
-                    const recipe = recipes.find(r => r.menuItemId === item.id);
-                    const costPerUnit = recipe ? (recipe.ingredients.reduce((sum, ing) => sum + (ing.quantity * (ing.unitPrice || 0)), 0) + recipe.additionalCost) : (sellingPrice * 0.6);
+                    // Find recipe - Use Dynamic Smart Cost (JSON) for analytics
+                    const costs = liveRecipeCosts.get(Number(item.id));
+                    const costPerUnit = costs?.smart || (sellingPrice * 0.6);
 
                     if (isDelivery) {
                         // Delivery Profit Formula
@@ -1359,7 +1374,10 @@ const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelledOrders,
                                                 <td className="px-6 py-4 text-sm text-right">
                                                     <div className="flex flex-col items-end">
                                                         <span className="text-gray-800 font-medium">{day.manualCost.toLocaleString()}</span>
-                                                        <span className="text-red-500 text-xs">{day.smartCost.toLocaleString()}</span>
+                                                        <div className="flex items-center gap-1 justify-end">
+                                                            <span className="text-red-500 text-xs font-bold">{day.smartCost.toLocaleString()}</span>
+                                                            <span className="text-[9px] text-red-300 font-bold uppercase">(JSON)</span>
+                                                        </div>
                                                         <span className={`text-[10px] font-bold border-t border-gray-100 mt-1 pt-0.5 ${day.smartCost > day.manualCost ? 'text-red-600' : 'text-green-600'}`}>
                                                             {day.smartCost - day.manualCost > 0 ? '+' : ''}{(day.smartCost - day.manualCost).toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
                                                         </span>
