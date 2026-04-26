@@ -56,7 +56,7 @@ export const calculateBagsForOrder = (
         }
 
         // Fallback or Overrides for Soup and Types
-        if (name.includes('ซุป') || name.includes('จิเก') || name.includes('ต๊อกบกกี') || name.includes('ซอลลองทัง') || name.includes('ต้ม')) {
+        if (name.includes('ซุป') || name.includes('จิเก') || name.includes('ต๊อกบกกี') || name.includes('ซอลลองทัง') || name.includes('ต้ม') || name.includes('บูเดจิเก') || name.includes('มาม่าต้มทรงเครื่อง') || name.includes('จาจังบับ') || name.includes('ข้าวหน้าซอสจาจัง') || name.includes('จาจังมยอน') || name.includes('บะหมี่ซอสดำ')) {
             isSoupItem = true;
         }
 
@@ -67,8 +67,11 @@ export const calculateBagsForOrder = (
 
         // Determine final type if not in recipe
         if (!identifiedType) {
-            if (name.includes('ข้าวญี่ปุ่น') || name.includes('ข้าวสวย')) identifiedType = 'cup';
-            else if (name.includes('เซต') || name.includes('เซ็ต')) identifiedType = 'box3';
+            if (name.includes('เซต') || name.includes('เซ็ต') || name.includes('+')) identifiedType = 'box3';
+            else if (name.includes('บุลโกกิ') && name.includes('ยังนยอม')) identifiedType = 'box3';
+            else if (name.includes('เจยุก') && name.includes('ยังนยอม')) identifiedType = 'box3';
+            else if (name.includes('ข้าวผัดกิมจิ') && name.includes('ยังนยอม')) identifiedType = 'box3';
+            else if (name.includes('ข้าวญี่ปุ่น') || name.includes('ข้าวสวย')) identifiedType = 'cup';
             else if (name.includes('ข้าวผัด') || name.includes('ไก่ทอด') || name.includes('ยังนยอม') || name.includes('จาจัง')) identifiedType = 'box1';
             else if (name.includes('ยำ') || name.includes('บิบิมบับ')) identifiedType = 'box2';
             else if (name.includes('กิมจิ') || name.includes('ดันมูจิ') || name.includes('ไชเท้า') || name.includes('ซอส')) identifiedType = 'side';
@@ -114,7 +117,7 @@ export const calculateBagsForOrder = (
     }
 
     return {
-        '6x14': Math.ceil(totalBags6x14),
+        '6x14': Math.ceil(totalBags6x14 + innerBags6x14),
         '8x16': Math.ceil(totalBags8x16),
         '12x20': Math.ceil(totalBags12x20),
     };

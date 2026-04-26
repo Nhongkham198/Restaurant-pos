@@ -547,15 +547,7 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
                                 const latestPrice = latestIngredientPrices.find(p => (p.name || '').trim() === (stockItem?.name || '').trim());
                                 let jsonPrice = ing.smartUnitPrice;
                                 if (jsonPrice === undefined) {
-                                    if (latestPrice) {
-                                        if (latestPrice.unit === 'กก.' && ing.unit === 'กรัม') {
-                                            jsonPrice = latestPrice.pricePerUnit / 1000;
-                                        } else {
-                                            jsonPrice = latestPrice.pricePerUnit;
-                                        }
-                                    } else {
-                                        jsonPrice = currentManualPrice;
-                                    }
+                                    jsonPrice = calculateSmartUnitPrice(ing, latestPrice, currentManualPrice);
                                 }
                                 const rowSmartCost = ing.quantity * jsonPrice;
                                 

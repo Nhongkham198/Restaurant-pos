@@ -5,6 +5,7 @@ import { CompletedOrder, CancelledOrder, User, Recipe, DeliveryProvider } from '
 import { SalesChart } from './SalesChart';
 import PieChart from './PieChart';
 import { NumpadModal } from './NumpadModal';
+import { calculateSmartUnitPrice } from '../utils/recipeUtils';
 
 interface DashboardProps {
     completedOrders: CompletedOrder[];
@@ -41,7 +42,7 @@ const getProviderColor = (name: string, deliveryProviders: DeliveryProvider[]) =
 };
 
 const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelledOrders, openingTime, closingTime, currentUser, recipes, deliveryProviders, taxRate }) => {
-    const { manualAdCosts, setManualAdCosts } = useData();
+    const { manualAdCosts, setManualAdCosts, latestIngredientPrices, stockItems } = useData();
     // Local state for ad cost inputs to allow smooth typing (especially decimals)
     const [localAdCosts, setLocalAdCosts] = useState<Record<string, string>>({});
 
@@ -87,20 +88,67 @@ const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelledOrders,
         return ['admin', 'branch-admin', 'auditor'].includes(currentUser.role);
     }, [currentUser]);
 
-    // --- DYNAMIC RECIPE COSTING (USE SAVED VALUES) ---
+    // --- DYNAMIC RECIPE COSTING (LIVE CALCULATION) ---
     const liveRecipeCosts = useMemo(() => {
         const costMap = new Map<number, { manual: number, smart: number }>();
         
         recipes.forEach(r => {
-            // Use the saved costs from the recipe object - as requested by the user
+            // Calculate manual ingredients sum to find misc cost
+            let ingManualSum = 0;
+            r.ingredients.forEach(ing => {
+                const stockItem = stockItems.find(s => s.id === ing.stockItemId);
+                ingManualSum += ing.quantity * (ing.unitPrice ?? stockItem?.unitPrice ?? 0);
+            });
+            
+            let addManualSum = 0;
+            (r.additionalIngredients || []).forEach(ing => {
+                const stockItem = stockItems.find(s => s.id === ing.stockItemId);
+                addManualSum += ing.quantity * (ing.unitPrice ?? stockItem?.unitPrice ?? 0);
+            });
+
+            // Recalculate smart based on CURRENT latestIngredientPrices or saved smartUnitPrice
+            let ingSmartSum = 0;
+            r.ingredients.forEach(ing => {
+                const stockItem = stockItems.find(s => s.id === ing.stockItemId);
+                const latestPrice = latestIngredientPrices.find(p => (p.name || '').trim() === (stockItem?.name || '').trim());
+                const manualPrice = ing.unitPrice ?? stockItem?.unitPrice ?? 0;
+                
+                let jsonUnitPrice = ing.smartUnitPrice;
+                if (jsonUnitPrice === undefined) {
+                    jsonUnitPrice = calculateSmartUnitPrice(ing, latestPrice, manualPrice);
+                }
+                ingSmartSum += ing.quantity * jsonUnitPrice;
+            });
+
+            let addSmartSum = 0;
+            (r.additionalIngredients || []).forEach(ing => {
+                const stockItem = stockItems.find(s => s.id === ing.stockItemId);
+                const latestPrice = latestIngredientPrices.find(p => (p.name || '').trim() === (stockItem?.name || '').trim());
+                const manualPrice = ing.unitPrice ?? stockItem?.unitPrice ?? 0;
+                
+                let jsonUnitPrice = ing.smartUnitPrice;
+                if (jsonUnitPrice === undefined) {
+                    jsonUnitPrice = calculateSmartUnitPrice(ing, latestPrice, manualPrice);
+                }
+                addSmartSum += ing.quantity * jsonUnitPrice;
+            });
+
+            const miscCost = Math.max(0, r.additionalCost - addManualSum);
+            const manualTotal = ingManualSum + addManualSum + miscCost;
+            const smartSubtotal = ingSmartSum + addSmartSum + miscCost;
+            
+            const hiddenCostPercentage = r.hiddenCostPercentage || 0;
+            const manualTotalWithHidden = manualTotal + (manualTotal * (hiddenCostPercentage / 100));
+            const smartTotalWithHidden = smartSubtotal + (smartSubtotal * (hiddenCostPercentage / 100));
+
             costMap.set(r.menuItemId, { 
-                manual: r.manualTotalCost || 0,
-                smart: r.smartTotalCost || 0 
+                manual: r.manualTotalCost || manualTotalWithHidden,
+                smart: smartTotalWithHidden 
             });
         });
         
         return costMap;
-    }, [recipes]);
+    }, [recipes, stockItems, latestIngredientPrices]);
 
 
 
