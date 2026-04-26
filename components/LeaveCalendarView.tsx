@@ -35,14 +35,6 @@ export const LeaveCalendarView: React.FC<LeaveCalendarViewProps> = ({ leaveReque
         return new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).getDay();
     }, [currentDate]);
 
-    const handlePrevMonth = () => {
-        setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
-    };
-
-    const handleNextMonth = () => {
-        setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
-    };
-
     // --- Filtering Logic ---
     const visibleRequests = useMemo(() => {
         if (!currentUser) return [];
@@ -73,6 +65,14 @@ export const LeaveCalendarView: React.FC<LeaveCalendarViewProps> = ({ leaveReque
         return filtered;
 
     }, [leaveRequests, currentUser, selectedBranch, searchTerm]);
+
+    const handlePrevMonth = () => {
+        setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
+    };
+
+    const handleNextMonth = () => {
+        setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
+    };
 
     const getLeavesForDay = (day: number) => {
         const currentYear = currentDate.getFullYear();
@@ -120,6 +120,25 @@ export const LeaveCalendarView: React.FC<LeaveCalendarViewProps> = ({ leaveReque
             default: return 'อื่นๆ';
         }
     };
+
+    const leaveTypeCounts = useMemo(() => {
+        const counts: Record<string, number> = {
+            'ลาป่วย': 0,
+            'ลากิจ': 0,
+            'ลาไม่รับเงินเดือน': 0,
+            'อบรม': 0,
+            'อื่นๆ': 0
+        };
+        visibleRequests.forEach(req => {
+            const label = getTypeLabel(req.type);
+            if (counts[label] !== undefined) {
+                counts[label]++;
+            } else {
+                counts['อื่นๆ']++;
+            }
+        });
+        return counts;
+    }, [visibleRequests]);
 
     // Check if current user can approve a specific request
     const canApproveRequest = (req: LeaveRequest) => {
@@ -359,7 +378,18 @@ export const LeaveCalendarView: React.FC<LeaveCalendarViewProps> = ({ leaveReque
                                         <th className="py-2 px-4">วันที่ยื่น</th>
                                         <th className="py-2 px-4">พนักงาน</th>
                                         <th className="py-2 px-4">สาขา</th>
-                                        <th className="py-2 px-4">ประเภท</th>
+                                        <th className="py-2 px-4 whitespace-nowrap">
+                                            <div className="flex flex-col">
+                                                <span>ประเภท</span>
+                                                <div className="flex flex-wrap gap-1 mt-1 font-normal text-[10px]">
+                                                    {Object.entries(leaveTypeCounts).map(([type, count]) => count > 0 && (
+                                                        <span key={type} className="bg-blue-50 text-blue-600 px-1 rounded border border-blue-100 flex items-center gap-1 shadow-sm">
+                                                            {type}: <span className="font-bold">{count}</span>
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </th>
                                         <th className="py-2 px-4">วันที่ลา</th>
                                         <th className="py-2 px-4">เหตุผล</th>
                                         <th className="py-2 px-4">สถานะ</th>
