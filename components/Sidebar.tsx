@@ -618,6 +618,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         <span className="font-medium text-gray-300">ส่งไปที่ห้องครัว</span>
                     </label>
                 )}
+                
+                <div className="flex justify-between items-baseline">
+                    <span className="text-gray-400 font-medium">ยอดรวม</span>
+                    <div className="flex items-baseline gap-1 flex-wrap justify-end">
+                        <span className="text-4xl font-bold text-yellow-400 tracking-tight">{total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                        <span className="text-xl text-yellow-600 font-medium">฿</span>
+                    </div>
+                </div>
 
                 <label className="flex items-center gap-3 text-sm cursor-pointer p-2 rounded-lg hover:bg-gray-800 transition-colors">
                     <div className="relative flex items-center">
@@ -631,16 +639,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                             <polyline points="20 6 9 17 4 12"></polyline>
                         </svg>
                     </div>
-                    <span className="font-medium text-orange-400">จองล่วงหน้า (Pre-order)</span>
+                    <span className="font-medium text-orange-400 font-bold">จองล่วงหน้า (Pre-order)</span>
                 </label>
-                
-                <div className="flex justify-between items-baseline">
-                    <span className="text-gray-400 font-medium">ยอดรวม</span>
-                    <div className="flex items-baseline gap-1 flex-wrap justify-end">
-                        <span className="text-4xl font-bold text-yellow-400 tracking-tight">{total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                        <span className="text-xl text-yellow-600 font-medium">฿</span>
-                    </div>
-                </div>
 
                 <div className="grid grid-cols-3 gap-3">
                     {/* Mobile Delivery Button (Simplified) */}
