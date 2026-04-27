@@ -12,7 +12,7 @@ interface SidebarProps {
     onQuantityChange: (cartItemId: string, newQuantity: number) => void;
     onRemoveItem: (cartItemId: string) => void;
     onClearOrder: () => void;
-    onPlaceOrder: (items: OrderItem[], customerName: string, customerCount: number, tableOverride: Table | null, isLineMan: boolean, lineManNumber?: string, deliveryProviderName?: string) => void;
+    onPlaceOrder: (items: OrderItem[], customerName: string, customerCount: number, tableOverride: Table | null, isLineMan: boolean, lineManNumber?: string, deliveryProviderName?: string, isPreOrder?: boolean) => void;
     isPlacingOrder: boolean;
     tables: Table[];
     selectedTable: Table | null;
@@ -98,6 +98,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     // but locally we track which provider is selected.
     const [isDelivery, setIsDelivery] = useState(false);
     const [selectedProvider, setSelectedProvider] = useState<DeliveryProvider | null>(null);
+    const [isPreOrder, setIsPreOrder] = useState(false);
     
     // New state for Numpad & Delivery Selection
     const [isNumpadOpen, setIsNumpadOpen] = useState(false);
@@ -197,10 +198,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
             selectedTable, 
             isDelivery, 
             isDelivery ? deliveryOrderNumber : undefined,
-            isDelivery ? (selectedProvider?.name || 'Delivery') : undefined
+            isDelivery ? (selectedProvider?.name || 'Delivery') : undefined,
+            isPreOrder
         );
         
         // Reset local state after order is placed
+        setIsPreOrder(false);
         if (isDelivery) {
             setIsDelivery(false);
             setDeliveryOrderNumber('');
@@ -615,6 +618,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         <span className="font-medium text-gray-300">ส่งไปที่ห้องครัว</span>
                     </label>
                 )}
+
+                <label className="flex items-center gap-3 text-sm cursor-pointer p-2 rounded-lg hover:bg-gray-800 transition-colors">
+                    <div className="relative flex items-center">
+                        <input
+                            type="checkbox"
+                            checked={isPreOrder}
+                            onChange={(e) => setIsPreOrder(e.target.checked)}
+                            className="peer h-5 w-5 cursor-pointer appearance-none rounded border border-gray-600 bg-gray-800 checked:bg-orange-500 checked:border-orange-500 transition-all"
+                        />
+                        <svg className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white opacity-0 peer-checked:opacity-100 pointer-events-none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="20 6 9 17 4 12"></polyline>
+                        </svg>
+                    </div>
+                    <span className="font-medium text-orange-400">จองล่วงหน้า (Pre-order)</span>
+                </label>
                 
                 <div className="flex justify-between items-baseline">
                     <span className="text-gray-400 font-medium">ยอดรวม</span>

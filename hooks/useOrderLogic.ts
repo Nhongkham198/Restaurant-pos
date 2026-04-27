@@ -68,7 +68,8 @@ export const useOrderLogic = () => {
         customerPhone?: string,
         latitude?: number,
         longitude?: number,
-        nearbyLocations?: string
+        nearbyLocations?: string,
+        isPreOrder: boolean = false
     ): Promise<number | undefined> => {
         if (!isLineMan && !tableOverride) { 
             Swal.fire('กรุณาเลือกโต๊ะ', 'ต้องเลือกโต๊ะสำหรับออเดอร์ หรือเลือก Delivery', 'warning'); 
@@ -142,7 +143,8 @@ export const useOrderLogic = () => {
                             customerPhone: customerPhone || null,
                             latitude: latitude || null,
                             longitude: longitude || null,
-                            nearbyLocations: nearbyLocations || null
+                            nearbyLocations: nearbyLocations || null,
+                            isPreOrder
                         }; 
                         const subtotal = newOrder.items.reduce((sum, item) => sum + item.finalPrice * item.quantity, 0); 
                         newOrder.taxAmount = newOrder.taxRate > 0 ? subtotal * (newOrder.taxRate / 100) : 0; 

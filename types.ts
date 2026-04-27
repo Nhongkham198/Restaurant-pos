@@ -148,6 +148,7 @@ interface BaseOrder {
     longitude?: number; // NEW: GPS Longitude
     nearbyLocations?: string; // NEW: Nearby locations text
     isFromAd?: boolean; // NEW: Track if order came from advertisement
+    isPreOrder?: boolean; // NEW: Flag for orders placed in advance
 }
 
 export const CANCELLATION_REASONS = [

@@ -46,6 +46,7 @@ export const KitchenOrderCard: React.FC<KitchenOrderCardProps> = ({
     const isLineMan = order.orderType === 'lineman';
     const isTakeaway = order.orderType === 'takeaway' || order.items.some(i => i.isTakeaway);
     const requiresBag = isLineMan || isTakeaway;
+    const isPreOrder = order.isPreOrder ?? false;
 
     const bagUsage = useMemo(() => {
         if (!requiresBag) return null;
@@ -192,16 +193,28 @@ export const KitchenOrderCard: React.FC<KitchenOrderCardProps> = ({
     const displayOrderNumber = order.manualOrderNumber ? `#${order.manualOrderNumber}` : `#${String(order.orderNumber).padStart(3, '0')}`;
 
     return (
-        <div className="flex flex-col bg-gray-800 text-white rounded-lg overflow-hidden border-2 border-gray-700 shadow-xl h-full transform transition-all duration-200 hover:scale-[1.02]">
+        <div className={`flex flex-col bg-gray-800 text-white rounded-lg overflow-hidden border-2 ${isPreOrder ? 'border-orange-500 shadow-orange-500/20 shadow-lg' : 'border-gray-700'} shadow-xl h-full transform transition-all duration-200 hover:scale-[1.02]`}>
+            {isPreOrder && (
+                <div className="bg-orange-500 text-white text-[10px] font-black py-1 text-center uppercase tracking-[0.2em] relative overflow-hidden group">
+                    <span className="relative z-10">PRE-ORDER / ออเดอร์จองล่วงหน้า</span>
+                    <div className="absolute inset-x-0 bottom-0 top-0 bg-white/20 animate-pulse"></div>
+                </div>
+            )}
             
             {/* KDS Header */}
-            <div className={`${headerColor} px-3 py-2 flex justify-between items-center`}>
+            <div className={`${isPreOrder ? 'bg-orange-600' : headerColor} px-3 py-2 flex justify-between items-center`}>
                 <div className="flex flex-col overflow-hidden">
                     <span className="text-xs font-bold opacity-80 uppercase tracking-wider truncate block w-full">{typeLabel}</span>
                     <span className="text-3xl font-black leading-none">{displayOrderNumber}</span>
                 </div>
                 <div className="flex flex-col items-end flex-shrink-0 ml-2">
-                    <span className="text-3xl font-mono font-bold">{formatTime(elapsedSeconds)}</span>
+                    {isPreOrder ? (
+                        <div className="bg-white/20 px-2 py-1 rounded-md mb-0.5">
+                            <span className="text-sm font-black text-white whitespace-nowrap">PRE-ORDER</span>
+                        </div>
+                    ) : (
+                        <span className="text-3xl font-mono font-bold">{formatTime(elapsedSeconds)}</span>
+                    )}
                     <span className="text-xs font-bold opacity-90 truncate max-w-[100px]">{isLineMan ? 'Delivery' : `โต๊ะ ${order.tableName} (${order.floor})`}</span>
                 </div>
             </div>

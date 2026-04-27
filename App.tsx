@@ -1451,9 +1451,9 @@ export const App: React.FC = () => {
     const handleQuantityChange = (cartItemId: string, newQuantity: number) => { setCurrentOrderItems(prevItems => { if (newQuantity <= 0) return prevItems.filter(i => i.cartItemId !== cartItemId); return prevItems.map(i => i.cartItemId === cartItemId ? { ...i, quantity: newQuantity } : i); }); };
     const handleRemoveItem = (cartItemId: string) => { setCurrentOrderItems(prevItems => prevItems.filter(i => i.cartItemId !== cartItemId)); };
     
-    const handlePlaceOrder = async (orderItems: OrderItem[] = currentOrderItems, custName: string = customerName, custCount: number = customerCount, tableOverride: Table | null = selectedTable, isLineMan: boolean = false, lineManNumber?: string, deliveryProviderName?: string, paymentSlipUrl?: string, customerPhone?: string, latitude?: number, longitude?: number, nearbyLocations?: string): Promise<number | undefined> => { 
+    const handlePlaceOrder = async (orderItems: OrderItem[] = currentOrderItems, custName: string = customerName, custCount: number = customerCount, tableOverride: Table | null = selectedTable, isLineMan: boolean = false, lineManNumber?: string, deliveryProviderName?: string, paymentSlipUrl?: string, customerPhone?: string, latitude?: number, longitude?: number, nearbyLocations?: string, isPreOrder: boolean = false): Promise<number | undefined> => { 
         try {
-            const orderNumber = await placeOrder(orderItems, custName, custCount, tableOverride, isLineMan, lineManNumber, deliveryProviderName, paymentSlipUrl, customerPhone, latitude, longitude, nearbyLocations);
+            const orderNumber = await placeOrder(orderItems, custName, custCount, tableOverride, isLineMan, lineManNumber, deliveryProviderName, paymentSlipUrl, customerPhone, latitude, longitude, nearbyLocations, isPreOrder);
             
             // Clear local state on success (only if not customer mode)
             if (orderNumber && !isCustomerMode) {
@@ -1770,7 +1770,9 @@ export const App: React.FC = () => {
                                 {isOrderSidebarVisible && (
                                     <Sidebar
                                         currentOrderItems={currentOrderItems} onQuantityChange={handleQuantityChange} onRemoveItem={handleRemoveItem} onClearOrder={handleClearOrder}
-                                        onPlaceOrder={handlePlaceOrder} isPlacingOrder={isPlacingOrder} tables={tables} selectedTable={selectedTable} onSelectTable={setSelectedTableId}
+                                        onPlaceOrder={(items, name, count, table, isLM, lmNum, provName, isPre) => 
+                                            handlePlaceOrder(items, name, count, table, isLM, lmNum, provName, undefined, undefined, undefined, undefined, undefined, isPre)
+                                        } isPlacingOrder={isPlacingOrder} tables={tables} selectedTable={selectedTable} onSelectTable={setSelectedTableId}
                                         customerName={customerName} onCustomerNameChange={setCustomerName} customerCount={customerCount} onCustomerCountChange={setCustomerCount}
                                         isEditMode={isEditMode} onAddNewTable={handleAddTable} onRemoveLastTable={handleRemoveLastTable} floors={floors} selectedFloor={selectedSidebarFloor}
                                         onFloorChange={setSelectedSidebarFloor} onAddFloor={handleAddFloor} onRemoveFloor={handleRemoveFloor} sendToKitchen={sendToKitchen}
@@ -1799,7 +1801,10 @@ export const App: React.FC = () => {
                                 <div className="w-full flex flex-col h-full overflow-hidden">
                                     <Sidebar
                                         isMobilePage={true} currentOrderItems={currentOrderItems} onQuantityChange={handleQuantityChange} onRemoveItem={handleRemoveItem}
-                                        onClearOrder={handleClearOrder} onPlaceOrder={handlePlaceOrder} isPlacingOrder={isPlacingOrder} tables={tables} selectedTable={selectedTable}
+                                        onClearOrder={handleClearOrder} 
+                                        onPlaceOrder={(items, name, count, table, isLM, lmNum, provName, isPre) => 
+                                            handlePlaceOrder(items, name, count, table, isLM, lmNum, provName, undefined, undefined, undefined, undefined, undefined, isPre)
+                                        } isPlacingOrder={isPlacingOrder} tables={tables} selectedTable={selectedTable}
                                         onSelectTable={setSelectedTableId} customerName={customerName} onCustomerNameChange={setCustomerName} customerCount={customerCount}
                                         onCustomerCountChange={setCustomerCount} isEditMode={isEditMode} onAddNewTable={handleAddTable} onRemoveLastTable={handleRemoveLastTable}
                                         floors={floors} selectedFloor={selectedSidebarFloor} onFloorChange={setSelectedSidebarFloor} onAddFloor={handleAddFloor} onRemoveFloor={handleRemoveFloor}

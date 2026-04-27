@@ -345,6 +345,13 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({
                         โฆษณา
                     </div>
                 )}
+                {order.isPreOrder && (
+                    <div 
+                        className="absolute top-0 left-0 px-2 py-0.5 text-[10px] font-bold text-white bg-orange-500 rounded-br-lg z-10 shadow-sm"
+                    >
+                        PRE-ORDER / จอง
+                    </div>
+                )}
                 <header className={`p-4 flex justify-between items-start ${order.isDeleted ? 'bg-red-100/60' : 'bg-gray-50'}`} >
                     <div className="flex items-center gap-4 flex-1 overflow-hidden">
                         {isEditMode && (
