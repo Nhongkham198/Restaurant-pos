@@ -34,7 +34,170 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
     const fileInputRef = useRef<HTMLInputElement>(null);
     const { deliveryProviders, taxRate, latestIngredientPrices, latestImportFilename } = useData();
 
+    const handlePrintAllRecipes = () => {
+        const printWindow = window.open('', '_blank');
+        if (!printWindow) {
+            Swal.fire('Error', 'ไม่สามารถเปิดหน้าต่างพิมพ์ได้ กรุณาปิดตัวบล็อกป๊อปอัป', 'error');
+            return;
+        }
+
+        const priceMap = new Map();
+        latestIngredientPrices.forEach(p => {
+            const key = (p.name || '').trim();
+            if (key) priceMap.set(key, p);
+        });
+
+        const stockMap = new Map();
+        stockItems.forEach(s => stockMap.set(String(s.id), s));
+
+        let content = `
+            <html>
+            <head>
+                <title>สูตรอาหารทั้งหมด - ${new Date().toLocaleDateString('th-TH')}</title>
+                <style>
+                    @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;700&display=swap');
+                    body { font-family: 'Sarabun', sans-serif; padding: 20px; background: #fff; }
+                    .recipe-card { 
+                        border: 1px solid #ccc; 
+                        margin-bottom: 40px; 
+                        padding: 25px; 
+                        page-break-inside: avoid;
+                        border-radius: 12px;
+                        background: #fff;
+                    }
+                    .header { display: flex; gap: 20px; margin-bottom: 20px; border-bottom: 2px solid #eee; padding-bottom: 15px; }
+                    .food-img { width: 140px; height: 140px; object-fit: cover; border-radius: 10px; border: 1px solid #eee; }
+                    .info { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+                    .menu-name { font-size: 28px; font-weight: bold; color: #1a202c; margin-bottom: 5px; }
+                    .category { color: #4a5568; font-size: 16px; font-weight: 500; }
+                    .price-tag { font-size: 18px; color: #2b6cb0; font-weight: bold; margin-top: 5px; }
+                    h3 { font-size: 18px; margin-top: 20px; color: #2d3748; border-left: 4px solid #3182ce; padding-left: 10px; }
+                    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+                    th, td { border: 1px solid #e2e8f0; padding: 10px; text-align: left; font-size: 14px; }
+                    th { background-color: #f8fafc; color: #4a5568; font-weight: bold; }
+                    .total-section { margin-top: 20px; display: flex; flex-direction: column; align-items: flex-end; gap: 5px; }
+                    .cost-line { font-size: 16px; color: #4a5568; }
+                    .total-cost { font-size: 20px; font-weight: bold; color: #2d3748; padding-top: 5px; border-top: 2px solid #3182ce; }
+                    .no-print { text-align: center; margin-bottom: 30px; padding: 20px; background: #ebf8ff; border-radius: 10px; }
+                    .print-btn { padding: 12px 30px; background: #3182ce; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+                    @media print {
+                        .no-print { display: none; }
+                        body { padding: 0; }
+                        .recipe-card { border: none; border-bottom: 1px solid #eee; margin-bottom: 0; border-radius: 0; padding: 20px 0; }
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="no-print">
+                    <h2 style="margin-top:0">พรีวิวพิมพ์สูตรอาหาร (A4)</h2>
+                    <p>ระบบจะจัดรูปแบบให้พอดีกับกระดาษ A4 กรุณาเลือก "Save as PDF" หรือเลือกเครื่องพิมพ์ในหน้าถัดไป</p>
+                    <button class="print-btn" onclick="window.print()">สั่งพิมพ์สูตรอาหารทั่งหมด</button>
+                </div>
+        `;
+
+        filteredItems.forEach(item => {
+            const recipe = recipeMap.get(item.id);
+            if (!recipe) return;
+
+            // Using the component's calculateCost logic
+            const cost = calculateCost(recipe);
+            
+            content += `
+                <div class="recipe-card">
+                    <div class="header">
+                        <img src="${item.imageUrl || "https://placehold.co/140?text=No+Image"}" class="food-img" onerror="this.src='https://placehold.co/140?text=No+Image'" />
+                        <div class="info">
+                            <div class="menu-name">${item.name}</div>
+                            <div class="category">หมวดหมู่: ${item.category}</div>
+                            <div class="price-tag">ราคาขาย: ฿${item.price.toLocaleString()}</div>
+                        </div>
+                    </div>
+                    
+                    <h3>รายการวัตถุดิบสำคัญ</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th style="width: 50px">ลำดับ</th>
+                                <th>ชื่อวัตถุดิบ</th>
+                                <th style="text-align: center">ปริมาณ</th>
+                                <th style="width: 80px">หน่วย</th>
+                                <th style="text-align: right">ราคา/หน่วย</th>
+                                <th style="text-align: right">ต้นทุน</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+
+            recipe.ingredients.forEach((ing, idx) => {
+                const stockItem = stockMap.get(String(ing.stockItemId));
+                const manualPrice = ing.unitPrice ?? stockItem?.unitPrice ?? 0;
+                const itemName = (stockItem?.name || '').trim();
+                const latestPrice = itemName ? priceMap.get(itemName) : undefined;
+                const smartPrice = calculateSmartUnitPrice(ing, latestPrice, manualPrice);
+                const subtotal = ing.quantity * smartPrice;
+
+                content += `
+                    <tr>
+                        <td style="text-align: center">${idx + 1}</td>
+                        <td>${stockItem?.name || 'Unknown Item'}</td>
+                        <td style="text-align: center">${ing.quantity}</td>
+                        <td>${ing.unit}</td>
+                        <td style="text-align: right">฿${smartPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                        <td style="text-align: right">฿${subtotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                    </tr>
+                `;
+            });
+
+            if (recipe.additionalIngredients && recipe.additionalIngredients.length > 0) {
+                content += `
+                    <tr><td colspan="6" style="background:#f1f5f9; font-weight:bold; color: #475569; padding: 8px 10px;">บรรจุภัณฑ์และต้นทุนคงที่</td></tr>
+                `;
+                recipe.additionalIngredients.forEach((ing, idx) => {
+                    const stockItem = stockMap.get(String(ing.stockItemId));
+                    const manualPrice = ing.unitPrice ?? stockItem?.unitPrice ?? 0;
+                    const itemName = (stockItem?.name || '').trim();
+                    const latestPrice = itemName ? priceMap.get(itemName) : undefined;
+                    const smartPrice = calculateSmartUnitPrice(ing, latestPrice, manualPrice);
+                    const subtotal = ing.quantity * smartPrice;
+
+                    content += `
+                        <tr>
+                            <td style="text-align: center">${idx + 1}</td>
+                            <td>${stockItem?.name || 'Unknown Item'}</td>
+                            <td style="text-align: center">${ing.quantity}</td>
+                            <td>${ing.unit}</td>
+                            <td style="text-align: right">฿${smartPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                            <td style="text-align: right">฿${subtotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                        </tr>
+                    `;
+                });
+            }
+
+            content += `
+                        </tbody>
+                    </table>
+                    <div class="total-section">
+                        <div class="cost-line">ต้นทุนวัตถุดิบสุทธิ: ฿${cost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                        <div class="total-cost">สรุปราคาต้นทุนเป้าหมาย: ฿${cost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                    </div>
+                </div>
+            `;
+        });
+
+        content += `
+                <div style="text-align: center; color: #aaa; font-size: 12px; margin-top: 20px;">
+                    ออกเอกสารเมื่อ: ${new Date().toLocaleString('th-TH')} จากระบบ Seoul Good Management
+                </div>
+            </body>
+            </html>
+        `;
+
+        printWindow.document.write(content);
+        printWindow.document.close();
+    };
+
     const handleBulkRefreshCosts = async () => {
+
         const result = await Swal.fire({
             title: 'อัปเดตต้นทุนทั้งหมด?',
             text: 'ระบบจะคำนวณต้นทุนทุกเมนูใหม่ตามราคาวัตถุดิบในสต็อกและไฟล์ JSON ล่าสุด คุณต้องการดำเนินการต่อหรือไม่?',
@@ -502,7 +665,18 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
                             className="hidden"
                         />
                         <button 
+                            onClick={handlePrintAllRecipes}
+                            className="flex px-4 py-2 bg-gray-100 text-gray-700 border border-gray-200 rounded-xl text-sm font-bold items-center gap-2 hover:bg-gray-200 transition-all shadow-sm"
+                            title="พิมพ์สูตรอาหารและรูปภาพลงกระดาษ A4"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                            </svg>
+                            พิมพ์สูตรอาหาร
+                        </button>
+                        <button 
                             onClick={handleBulkRefreshCosts}
+
                             className="flex px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold items-center gap-2 hover:bg-blue-700 transition-all shadow-md shadow-blue-100"
                             title="อัปเดตต้นทุนทุกเมนูตามราคา JSON/สต็อก ล่าสุด"
                         >
