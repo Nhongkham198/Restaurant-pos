@@ -47,11 +47,8 @@ export const LeaveCalendarView: React.FC<LeaveCalendarViewProps> = ({ leaveReque
         } else if (currentUser.role === 'branch-admin' || currentUser.role === 'auditor') {
             // Branch Admin and Auditors see requests for their assigned branches.
             filtered = leaveRequests.filter(req => currentUser.allowedBranchIds?.includes(req.branchId));
-        } else if (selectedBranch) {
-            // Staff (POS/Kitchen) see all requests for the currently selected branch.
-            filtered = leaveRequests.filter(req => req.branchId === selectedBranch.id);
         } else {
-            // Fallback for staff
+            // Staff (POS/Kitchen) ALWAYS see only their own requests.
             filtered = leaveRequests.filter(req => req.userId === currentUser.id);
         }
 
@@ -64,7 +61,7 @@ export const LeaveCalendarView: React.FC<LeaveCalendarViewProps> = ({ leaveReque
 
         return filtered;
 
-    }, [leaveRequests, currentUser, selectedBranch, searchTerm]);
+    }, [leaveRequests, currentUser, searchTerm]);
 
     const handlePrevMonth = () => {
         setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));

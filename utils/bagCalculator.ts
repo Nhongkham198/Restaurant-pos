@@ -56,25 +56,28 @@ export const calculateBagsForOrder = (
         }
 
         // Fallback or Overrides for Soup and Types
-        if (name.includes('ซุป') || name.includes('จิเก') || name.includes('ต๊อกบกกี') || name.includes('ซอลลองทัง') || name.includes('ต้ม') || name.includes('บูเดจิเก') || name.includes('มาม่าต้มทรงเครื่อง') || name.includes('จาจังบับ') || name.includes('ข้าวหน้าซอสจาจัง') || name.includes('จาจังมยอน') || name.includes('บะหมี่ซอสดำ')) {
+        const isSpecialSoup = name.includes('ซุปกิมจิ') || name.includes('ซุปซุนดูบูจิเก') || name.includes('ซุปเต้าหู้อ่อน') || name.includes('ซุปตุ๊กบลู');
+        
+        if (name.includes('ซุป') || name.includes('จิเก') || name.includes('ต๊อกบกกี') || name.includes('ซอลลองทัง') || (name.includes('ต้ม') && !name.includes('ไข่ต้ม')) || name.includes('บูเดจิเก') || name.includes('มาม่าต้มทรงเครื่อง') || name.includes('จาจังบับ') || name.includes('ข้าวหน้าซอสจาจัง') || name.includes('จาจังมยอน') || name.includes('บะหมี่ซอสดำ')) {
             isSoupItem = true;
         }
 
         // Apply Inner Wrap Logic (Always count, but don't always add extra carrier item)
-        if (isSoupItem) {
+        // User requested that specific sets (Kimchi Soup, Sundubu, Ttukbul) use only one small bag (handled by carrier logic, skip inner bag)
+        if (isSoupItem && !isSpecialSoup) {
             innerBags6x14 += q;
         }
 
         // Determine final type if not in recipe
         if (!identifiedType) {
-            if (name.includes('เซต') || name.includes('เซ็ต') || name.includes('+')) identifiedType = 'box3';
+            if (name.includes('เซต') || name.includes('เซ็ต') || name.includes('+') || name.includes('หมูย่าง')) identifiedType = 'box3';
             else if (name.includes('บุลโกกิ') && name.includes('ยังนยอม')) identifiedType = 'box3';
             else if (name.includes('เจยุก') && name.includes('ยังนยอม')) identifiedType = 'box3';
             else if (name.includes('ข้าวผัดกิมจิ') && name.includes('ยังนยอม')) identifiedType = 'box3';
             else if (name.includes('ข้าวญี่ปุ่น') || name.includes('ข้าวสวย')) identifiedType = 'cup';
             else if (name.includes('ข้าวผัด') || name.includes('ไก่ทอด') || name.includes('ยังนยอม') || name.includes('จาจัง')) identifiedType = 'box1';
             else if (name.includes('ยำ') || name.includes('บิบิมบับ')) identifiedType = 'box2';
-            else if (name.includes('กิมจิ') || name.includes('ดันมูจิ') || name.includes('ไชเท้า') || name.includes('ซอส')) identifiedType = 'side';
+            else if (name.includes('กิมจิ') || name.includes('ดันมูจิ') || name.includes('ไชเท้า') || name.includes('ซอส') || name.includes('ไข่')) identifiedType = 'side';
             else if (isSoupItem) identifiedType = 'cup'; // If it's a pure soup without a box
             else identifiedType = 'box1';
         }
@@ -110,10 +113,9 @@ export const calculateBagsForOrder = (
     }
 
     // Rule 3: Small items (Cups, Soups, Rice, Sides) - 6x14
-    // Requirement (User): "Can stack 2 in 1 bag" (e.g. Soup + Rice = 1 bag)
-    // We count all small items and divide by 2.
+    // Requirement (User): "Can stack up to 3 in 1 bag for soup sets" (e.g. Soup + Rice + Side = 1 bag)
     if (remSmall > 0) {
-        totalBags6x14 = Math.ceil(remSmall / 2);
+        totalBags6x14 = Math.ceil(remSmall / 3);
     }
 
     return {
