@@ -312,6 +312,36 @@ const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelledOrders,
         });
     }, [completedOrders, startDate, endDate, recipes, deliveryProviders, taxRate, manualAdCosts]);
     
+    const dailyProfitAverages = useMemo(() => {
+        const activeDays = dailyProfitData.filter(d => d.revenue > 0);
+        if (activeDays.length === 0) return {
+            adRevenue: 0,
+            adCost: 0,
+            roas: 0,
+            netProfit: 0,
+            margin: 0
+        };
+
+        const totals = activeDays.reduce((acc, curr) => {
+            const dayRawAdCost = Object.values(curr.manualAdCostsByProvider).reduce((sum, c) => sum + c, 0);
+            return {
+                adRevenue: acc.adRevenue + curr.adRevenue,
+                adCost: acc.adCost + curr.adCost,
+                rawAdCost: acc.rawAdCost + dayRawAdCost,
+                netProfit: acc.netProfit + curr.netProfitSmart,
+                revenue: acc.revenue + curr.revenue
+            };
+        }, { adRevenue: 0, adCost: 0, rawAdCost: 0, netProfit: 0, revenue: 0 });
+
+        return {
+            adRevenue: totals.adRevenue / activeDays.length,
+            adCost: totals.adCost / activeDays.length,
+            roas: totals.rawAdCost > 0 ? totals.adRevenue / totals.rawAdCost : 0, 
+            netProfit: totals.netProfit / activeDays.length,
+            margin: totals.revenue > 0 ? (totals.netProfit / totals.revenue) * 100 : 0
+        };
+    }, [dailyProfitData]);
+    
     const roasSummary = useMemo(() => {
         let high = 0;   // Green: >= 7.1
         let medium = 0; // Yellow: 4.1 - 7.0
@@ -1401,13 +1431,48 @@ const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelledOrders,
                                     <tr>
                                         <th className="sticky top-[-16px] md:top-[-24px] z-30 px-6 py-4 text-sm font-bold text-gray-600 bg-gray-50 border-b border-gray-100 first:rounded-tl-xl last:rounded-tr-xl">วันที่</th>
                                         <th className="sticky top-[-16px] md:top-[-24px] z-30 px-6 py-4 text-sm font-bold text-gray-600 text-right bg-gray-50 border-b border-gray-100">รายรับรวม</th>
-                                        <th className="sticky top-[-16px] md:top-[-24px] z-30 px-6 py-4 text-sm font-bold text-gray-600 text-right bg-gray-50 border-b border-gray-100">ยอดขายจากโฆษณา</th>
+                                        <th className="sticky top-[-16px] md:top-[-24px] z-30 px-6 py-4 text-sm font-bold text-gray-600 text-right bg-gray-50 border-b border-gray-100">
+                                            <div className="flex flex-col items-end">
+                                                <span>ยอดขายจากโฆษณา</span>
+                                                <span className="text-[11px] text-blue-600 font-bold border border-red-500 px-1 rounded mt-1 bg-white">
+                                                    {dailyProfitAverages.adRevenue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                                </span>
+                                            </div>
+                                        </th>
                                         <th className="sticky top-[-16px] md:top-[-24px] z-30 px-6 py-4 text-sm font-bold text-gray-600 text-right bg-gray-50 border-b border-gray-100">ต้นทุนวัตถุดิบ</th>
                                         <th className="sticky top-[-16px] md:top-[-24px] z-20 px-6 py-4 text-sm font-bold text-gray-600 text-right bg-gray-50 border-b border-gray-100">ค่า GP + ภาษี</th>
-                                        <th className="sticky top-[-16px] md:top-[-24px] z-20 px-6 py-4 text-sm font-bold text-gray-600 text-right bg-gray-50 border-b border-gray-100">ค่าโฆษณา (รวมที่กรอก)</th>
-                                        <th className="sticky top-[-16px] md:top-[-24px] z-20 px-6 py-4 text-sm font-bold text-gray-600 text-right bg-gray-50 border-b border-gray-100">RoAS</th>
-                                        <th className="sticky top-[-16px] md:top-[-24px] z-20 px-6 py-4 text-sm font-bold text-gray-600 text-right bg-gray-50 border-b border-gray-100">กำไรสุทธิ</th>
-                                        <th className="sticky top-[-16px] md:top-[-24px] z-20 px-6 py-4 text-sm font-bold text-gray-600 text-right bg-gray-50 border-b border-gray-100">Margin %</th>
+                                        <th className="sticky top-[-16px] md:top-[-24px] z-20 px-6 py-4 text-sm font-bold text-gray-600 text-right bg-gray-50 border-b border-gray-100">
+                                            <div className="flex flex-col items-end">
+                                                <span>ค่าโฆษณา (รวมที่กรอก)</span>
+                                                <span className="text-[11px] text-orange-600 font-bold border border-red-500 px-1 rounded mt-1 bg-white">
+                                                    {dailyProfitAverages.adCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                                </span>
+                                            </div>
+                                        </th>
+                                        <th className="sticky top-[-16px] md:top-[-24px] z-20 px-6 py-4 text-sm font-bold text-gray-600 text-right bg-gray-50 border-b border-gray-100">
+                                            <div className="flex flex-col items-end">
+                                                <span>RoAS</span>
+                                                <span className="text-[11px] text-green-600 font-bold border border-red-500 px-1 rounded mt-1 bg-white">
+                                                    {dailyProfitAverages.roas.toFixed(2)}x
+                                                </span>
+                                            </div>
+                                        </th>
+                                        <th className="sticky top-[-16px] md:top-[-24px] z-20 px-6 py-4 text-sm font-bold text-gray-600 text-right bg-gray-50 border-b border-gray-100">
+                                            <div className="flex flex-col items-end">
+                                                <span>กำไรสุทธิ</span>
+                                                <span className="text-[11px] text-green-600 font-bold border border-red-500 px-1 rounded mt-1 bg-white">
+                                                    {dailyProfitAverages.netProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                                </span>
+                                            </div>
+                                        </th>
+                                        <th className="sticky top-[-16px] md:top-[-24px] z-20 px-6 py-4 text-sm font-bold text-gray-600 text-right bg-gray-50 border-b border-gray-100">
+                                            <div className="flex flex-col items-end">
+                                                <span>Margin %</span>
+                                                <span className="text-[11px] text-green-600 font-bold border border-red-500 px-1 rounded mt-1 bg-white">
+                                                    {dailyProfitAverages.margin.toFixed(1)}%
+                                                </span>
+                                            </div>
+                                        </th>
                                     </tr>
                                 </thead>
                                 <tbody>

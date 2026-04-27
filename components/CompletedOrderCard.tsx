@@ -41,7 +41,7 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({
     
     // Calculate Bags Usage
     const bagUsage = useMemo(() => {
-        return calculateBagsForOrder(order.items, recipes, stockItems);
+        return calculateBagsForOrder(order.items, recipes, stockItems, order.orderType);
     }, [order.items, recipes, stockItems]);
 
     const getBagName = useMemo(() => (type: '6x14' | '8x16' | '12x20') => {

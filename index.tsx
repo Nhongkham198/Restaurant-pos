@@ -1,7 +1,7 @@
 
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { App } from './App';
+import App from './App';
 import { UIProvider } from './contexts/UIContext';
 import { DataProvider } from './contexts/DataContext';
 
@@ -72,13 +72,11 @@ if (!rootElement) {
 
 const root = createRoot(rootElement);
 root.render(
-  <React.StrictMode>
-    <ErrorBoundary>
-      <UIProvider>
-        <DataProvider>
-          <App />
-        </DataProvider>
-      </UIProvider>
-    </ErrorBoundary>
-  </React.StrictMode>
+  <ErrorBoundary>
+    <UIProvider>
+      <DataProvider>
+        <App />
+      </DataProvider>
+    </UIProvider>
+  </ErrorBoundary>
 );

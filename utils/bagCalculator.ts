@@ -3,7 +3,8 @@ import { OrderItem, Recipe, StockItem, BagCounts } from '../types';
 export const calculateBagsForOrder = (
     items: OrderItem[],
     recipes: Recipe[] = [],
-    stockItems: StockItem[] = []
+    stockItems: StockItem[] = [],
+    orderType?: 'dine-in' | 'takeaway' | 'lineman'
 ): BagCounts => {
     let innerBags6x14 = 0;
     let itemsToCarry: { 
@@ -70,7 +71,9 @@ export const calculateBagsForOrder = (
 
         // Determine final type if not in recipe
         if (!identifiedType) {
-            if (name.includes('เซต') || name.includes('เซ็ต') || name.includes('+') || name.includes('หมูย่าง')) identifiedType = 'box3';
+            // Specific rule: หมูย่าง + ข้าวญี่ปุ่น (Lineman) -> Box 3 (triggers 12x20)
+            if (name.includes('หมูย่าง') && name.includes('ข้าวญี่ปุ่น') && orderType === 'lineman') identifiedType = 'box3';
+            else if (name.includes('เซต') || name.includes('เซ็ต') || name.includes('+') || name.includes('หมูย่าง')) identifiedType = 'box3';
             else if (name.includes('บุลโกกิ') && name.includes('ยังนยอม')) identifiedType = 'box3';
             else if (name.includes('เจยุก') && name.includes('ยังนยอม')) identifiedType = 'box3';
             else if (name.includes('ข้าวผัดกิมจิ') && name.includes('ยังนยอม')) identifiedType = 'box3';

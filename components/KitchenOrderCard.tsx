@@ -49,7 +49,7 @@ export const KitchenOrderCard: React.FC<KitchenOrderCardProps> = ({
 
     const bagUsage = useMemo(() => {
         if (!requiresBag) return null;
-        const bags = calculateBagsForOrder(order.items, recipes, stockItems);
+        const bags = calculateBagsForOrder(order.items, recipes, stockItems, order.orderType);
         if (bags['6x14'] === 0 && bags['8x16'] === 0 && bags['12x20'] === 0) return null;
         return bags;
     }, [order.items, requiresBag, recipes, stockItems]);

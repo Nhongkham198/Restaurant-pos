@@ -16,14 +16,14 @@ export default defineConfig(({ mode }) => {
       },
       plugins: [react()],
       optimizeDeps: {
-        include: ['react-datepicker'],
+        include: [],
       },
       define: {
         'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
         'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY)
       },
       resolve: {
-        dedupe: ['react', 'react-dom'],
+        dedupe: ['react', 'react-dom', 'react-popper'],
         alias: {
           '@': path.resolve(__dirname, '.'),
         }

@@ -18,24 +18,31 @@ interface LeaveCalendarViewProps {
     selectedBranch?: Branch | null;
 }
 
+// Move helper functions outside the component to avoid re-creation and ensure they are available
+const getStatusBadge = (status: string) => {
+    switch (status) {
+        case 'approved': return <span className="px-2 py-1 rounded-full bg-green-100 text-green-800 text-xs font-bold">อนุมัติแล้ว</span>;
+        case 'rejected': return <span className="px-2 py-1 rounded-full bg-red-100 text-red-800 text-xs font-bold">ไม่อนุมัติ</span>;
+        default: return <span className="px-2 py-1 rounded-full bg-yellow-100 text-yellow-800 text-xs font-bold">รออนุมัติ</span>;
+    }
+};
+
+const getTypeLabel = (type: string) => {
+    switch (type) {
+        case 'sick': return 'ลาป่วย';
+        case 'personal': return 'ลากิจ';
+        case 'vacation': return 'ลาไม่รับเงินเดือน';
+        case 'leave-without-pay': return 'ลาไม่รับเงินเดือน';
+        default: return 'อื่นๆ';
+    }
+};
+
 export const LeaveCalendarView: React.FC<LeaveCalendarViewProps> = ({ leaveRequests, currentUser, onOpenRequestModal, branches, onUpdateStatus, onDeleteRequest, selectedBranch }) => {
     const [currentDate, setCurrentDate] = useState(new Date());
     const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
     const [selectedDayDetails, setSelectedDayDetails] = useState<{ date: Date, leaves: LeaveRequest[] } | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
 
-    const daysInMonth = useMemo(() => {
-        const year = currentDate.getFullYear();
-        const month = currentDate.getMonth();
-        const days = new Date(year, month + 1, 0).getDate();
-        return Array.from({ length: days }, (_, i) => i + 1);
-    }, [currentDate]);
-
-    const firstDayOfMonth = useMemo(() => {
-        return new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).getDay();
-    }, [currentDate]);
-
-    // --- Filtering Logic ---
     const visibleRequests = useMemo(() => {
         if (!currentUser) return [];
 
@@ -62,6 +69,17 @@ export const LeaveCalendarView: React.FC<LeaveCalendarViewProps> = ({ leaveReque
         return filtered;
 
     }, [leaveRequests, currentUser, searchTerm]);
+
+    const daysInMonth = useMemo(() => {
+        const year = currentDate.getFullYear();
+        const month = currentDate.getMonth();
+        const days = new Date(year, month + 1, 0).getDate();
+        return Array.from({ length: days }, (_, i) => i + 1);
+    }, [currentDate]);
+
+    const firstDayOfMonth = useMemo(() => {
+        return new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).getDay();
+    }, [currentDate]);
 
     const handlePrevMonth = () => {
         setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
@@ -98,24 +116,6 @@ export const LeaveCalendarView: React.FC<LeaveCalendarViewProps> = ({ leaveReque
 
     const getBranchName = (branchId: number) => {
         return branches?.find(b => b.id === branchId)?.name || `สาขา #${branchId}`;
-    };
-
-    const getStatusBadge = (status: string) => {
-        switch (status) {
-            case 'approved': return <span className="px-2 py-1 rounded-full bg-green-100 text-green-800 text-xs font-bold">อนุมัติแล้ว</span>;
-            case 'rejected': return <span className="px-2 py-1 rounded-full bg-red-100 text-red-800 text-xs font-bold">ไม่อนุมัติ</span>;
-            default: return <span className="px-2 py-1 rounded-full bg-yellow-100 text-yellow-800 text-xs font-bold">รออนุมัติ</span>;
-        }
-    };
-
-    const getTypeLabel = (type: string) => {
-        switch (type) {
-            case 'sick': return 'ลาป่วย';
-            case 'personal': return 'ลากิจ';
-            case 'vacation': return 'ลาไม่รับเงินเดือน';
-            case 'leave-without-pay': return 'ลาไม่รับเงินเดือน';
-            default: return 'อื่นๆ';
-        }
     };
 
     const leaveTypeCounts = useMemo(() => {

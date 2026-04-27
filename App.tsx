@@ -229,6 +229,25 @@ export const App: React.FC = () => {
         facebookPageUrl, setFacebookPageUrl
     } = useData();
 
+    // 2. COMPUTED STATE (LEAVE MANAGEMENT)
+    const visibleLeaveRequests = useMemo(() => {
+        if (!currentUser) return [];
+        
+        let filtered = leaveRequests;
+        
+        if (currentUser.role === 'admin') {
+            filtered = leaveRequests;
+        } else if (currentUser.role === 'branch-admin' || currentUser.role === 'auditor') {
+            // Branch Admin and Auditors see requests for their assigned branches.
+            filtered = leaveRequests.filter(req => currentUser.allowedBranchIds?.includes(req.branchId));
+        } else {
+            // Staff (POS/Kitchen) ALWAYS see only their own requests.
+            filtered = leaveRequests.filter(req => req.userId === currentUser.id);
+        }
+        
+        return filtered;
+    }, [leaveRequests, currentUser]);
+
     // Reactive URL Branch ID
     const [urlBranchId, setUrlBranchId] = useState(() => new URLSearchParams(window.location.search).get('branchId'));
 
@@ -1837,7 +1856,7 @@ export const App: React.FC = () => {
                                             {currentView === 'stock-analytics' && <StockAnalytics stockItems={stockItems} />}
                                             {currentView === 'leave' && (
                                                 <LeaveCalendarView 
-                                                    leaveRequests={leaveRequests} 
+                                                    leaveRequests={visibleLeaveRequests} 
                                                     currentUser={currentUser} 
                                                     onOpenRequestModal={(date) => { 
                                                         setLeaveRequestInitialDate(date); 
@@ -1849,7 +1868,7 @@ export const App: React.FC = () => {
                                                     selectedBranch={selectedBranch} 
                                                 />
                                             )}
-                                            {currentView === 'leave-analytics' && <LeaveAnalytics leaveRequests={leaveRequests} users={users} />}
+                                            {currentView === 'leave-analytics' && <LeaveAnalytics leaveRequests={visibleLeaveRequests} users={users} />}
                                             {currentView === 'maintenance' && (
                                                 <MaintenanceView 
                                                     maintenanceItems={maintenanceItems}
@@ -1906,7 +1925,7 @@ export const App: React.FC = () => {
                             {currentView === 'stock-analytics' && <StockAnalytics stockItems={stockItems} />}
                             {currentView === 'leave' && (
                                 <LeaveCalendarView 
-                                    leaveRequests={leaveRequests} 
+                                    leaveRequests={visibleLeaveRequests} 
                                     currentUser={currentUser} 
                                     onOpenRequestModal={(date) => { 
                                         setLeaveRequestInitialDate(date); 
@@ -1918,7 +1937,7 @@ export const App: React.FC = () => {
                                     selectedBranch={selectedBranch} 
                                 />
                             )}
-                            {currentView === 'leave-analytics' && <LeaveAnalytics leaveRequests={leaveRequests} users={users} />}
+                            {currentView === 'leave-analytics' && <LeaveAnalytics leaveRequests={visibleLeaveRequests} users={users} />}
                             {currentView === 'maintenance' && (
                                 <MaintenanceView 
                                     maintenanceItems={maintenanceItems}
