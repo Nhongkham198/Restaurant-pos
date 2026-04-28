@@ -8,10 +8,11 @@ import { calculateSmartUnitPrice } from '../utils/recipeUtils';
 interface SmartCostInputProps {
     value: number;
     onChange: (value: number) => void;
+    onComplete?: () => void;
     className?: string;
 }
 
-const SmartCostInput: React.FC<SmartCostInputProps> = ({ value, onChange, className }) => {
+const SmartCostInput: React.FC<SmartCostInputProps> = ({ value, onChange, onComplete, className }) => {
     const [tempValue, setTempValue] = useState(value === 0 ? '' : value.toFixed(3));
     const [isFocused, setIsFocused] = useState(false);
 
@@ -24,6 +25,13 @@ const SmartCostInput: React.FC<SmartCostInputProps> = ({ value, onChange, classN
             }
         }
     }, [value, isFocused]); // Removed tempValue from dependencies to prevent infinite loop
+
+    const handleConfirm = () => {
+        const num = parseFloat(tempValue) || 0;
+        onChange(num);
+        setTempValue(num === 0 ? '' : num.toFixed(3));
+        if (onComplete) onComplete();
+    };
 
     return (
         <input
@@ -39,18 +47,18 @@ const SmartCostInput: React.FC<SmartCostInputProps> = ({ value, onChange, classN
             }}
             onBlur={() => {
                 setIsFocused(false);
-                const num = parseFloat(tempValue) || 0;
-                onChange(num);
-                setTempValue(num === 0 ? '' : num.toFixed(3));
+                handleConfirm();
+            }}
+            onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                    handleConfirm();
+                    (e.target as HTMLInputElement).blur();
+                }
             }}
             onChange={(e) => {
                 const val = e.target.value;
                 if (val === '' || /^\d*\.?\d*$/.test(val)) {
                     setTempValue(val);
-                    const num = parseFloat(val);
-                    if (!isNaN(num)) {
-                        onChange(num);
-                    }
                 }
             }}
             className={className}
@@ -78,8 +86,34 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
     currentUser
 }) => {
     const { stockUnits, setStockUnits, deliveryProviders, latestIngredientPrices } = useData();
+    
+    // Memoized map of unique latest prices by date
+    const uniqueLatestPriceMap = React.useMemo(() => {
+        const priceMap = new Map();
+        latestIngredientPrices.forEach(p => {
+            const key = (p.name || '').trim();
+            if (!key) return;
+            
+            const existing = priceMap.get(key);
+            if (!existing) {
+                priceMap.set(key, p);
+            } else {
+                if (p.date && existing.date) {
+                    if (p.date > existing.date) {
+                        priceMap.set(key, p);
+                    }
+                } else if (p.date) {
+                    priceMap.set(key, p);
+                }
+            }
+        });
+        return priceMap;
+    }, [latestIngredientPrices]);
+
     const [ingredients, setIngredients] = useState<RecipeIngredient[]>([]);
     const [additionalIngredients, setAdditionalIngredients] = useState<RecipeIngredient[]>([]);
+    const [touchedIngredients, setTouchedIngredients] = useState<Set<number>>(new Set());
+    const [forcingEdit, setForcingEdit] = useState<Set<number>>(new Set());
     const [miscCost, setMiscCost] = useState(0); // For manual gas/ice costs
     const [hiddenCostPercentage, setHiddenCostPercentage] = useState(0);
     const [searchTerm, setSearchTerm] = useState('');
@@ -172,6 +206,7 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
     const updateUnitPrice = (stockItemId: number, unitPrice: number, isAdditional = false) => {
         const updater = isAdditional ? setAdditionalIngredients : setIngredients;
         const list = isAdditional ? additionalIngredients : ingredients;
+        setTouchedIngredients(prev => new Set(prev).add(stockItemId));
         updater(list.map(ing => 
             ing.stockItemId === stockItemId ? { ...ing, unitPrice } : ing
         ));
@@ -180,6 +215,7 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
     const updateSmartUnitPrice = (stockItemId: number, smartUnitPrice: number, isAdditional = false) => {
         const updater = isAdditional ? setAdditionalIngredients : setIngredients;
         const list = isAdditional ? additionalIngredients : ingredients;
+        setTouchedIngredients(prev => new Set(prev).add(stockItemId));
         updater(list.map(ing => 
             ing.stockItemId === stockItemId ? { ...ing, smartUnitPrice } : ing
         ));
@@ -189,7 +225,7 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
         const stockItem = stockItems.find(s => s.id === stockItemId);
         if (!stockItem) return;
 
-        const latestPrice = latestIngredientPrices.find(p => (p.name || '').trim() === (stockItem.name || '').trim());
+        const latestPrice = uniqueLatestPriceMap.get((stockItem.name || '').trim());
         if (!latestPrice) {
             Swal.fire({
                 icon: 'info',
@@ -203,6 +239,9 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
 
         const updater = isAdditional ? setAdditionalIngredients : setIngredients;
         const list = isAdditional ? additionalIngredients : ingredients;
+
+        // Mark as touched
+        setTouchedIngredients(prev => new Set(prev).add(stockItemId));
 
         updater(list.map(ing => {
             if (ing.stockItemId === stockItemId) {
@@ -261,7 +300,7 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
                 mCost += ing.quantity * manualPrice;
 
                 // Smart Cost (JSON)
-                const latestPrice = latestIngredientPrices.find(p => (p.name || '').trim() === (stockItem?.name || '').trim());
+                const latestPrice = uniqueLatestPriceMap.get((stockItem?.name || '').trim());
                 let jsonUnitPrice = ing.smartUnitPrice;
                 
                 if (jsonUnitPrice === undefined) {
@@ -347,7 +386,7 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
                                     const currentManualPrice = ing.unitPrice ?? stockItem?.unitPrice ?? 0;
                                     
                                     // Check for latest price from JSON
-                                    const latestPrice = latestIngredientPrices.find(p => (p.name || '').trim() === (stockItem?.name || '').trim());
+                                    const latestPrice = uniqueLatestPriceMap.get((stockItem?.name || '').trim());
                                     let jsonPrice = ing.smartUnitPrice;
                                     
                                     if (jsonPrice === undefined) {
@@ -357,12 +396,31 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
                                     const rowManualCost = ing.quantity * currentManualPrice;
                                     const rowSmartCost = ing.quantity * jsonPrice;
                                     
+                                    // Calculate the expected smart price based on latest JSON data
+                                    const expectedSmartPrice = calculateSmartUnitPrice(ing, latestPrice, currentManualPrice);
+                                    
+                                    // Criteria for Red Dot:
+                                    // 1. There is a price in JSON
+                                    // 2. The price in JSON is newer than the recipe's last save time
+                                    // 3. User hasn't touched it in this session
+                                    const latestPriceDate = latestPrice?.date ? new Date(latestPrice.date + 'T00:00:00').getTime() : 0;
+                                    const isNewUpdate = latestPriceDate > (recipe?.lastUpdated || 0);
+                                    
+                                    const holdsNewData = isNewUpdate && !touchedIngredients.has(ing.stockItemId);
+                                    const showInput = holdsNewData || forcingEdit.has(ing.stockItemId);
+                                    
                                     return (
                                         <div key={ing.stockItemId} className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 bg-gray-50 rounded-2xl border border-gray-100">
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-center gap-1.5 min-w-0">
+                                                    {holdsNewData && (
+                                                        <span className="relative flex h-2 w-2 mr-0.5">
+                                                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                                                            <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                                                        </span>
+                                                    )}
                                                     <p className="font-bold text-gray-900 truncate">{stockItem?.name}</p>
-                                                    {latestPrice && (
+                                                    {latestPrice && !holdsNewData && (
                                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 text-green-500 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
                                                             <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                                                         </svg>
@@ -458,18 +516,40 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
                                                 <div className="text-right">
                                                     <span className="text-[10px] text-gray-400 font-bold block mb-1">ต้นทุน</span>
                                                     <p className="text-sm font-black text-gray-900">฿{rowManualCost.toLocaleString(undefined, { minimumFractionDigits: 3 })}</p>
-                                                    <div className="mt-1 border-t border-red-200 pt-1">
-                                                        <div className="flex items-center justify-end">
-                                                            <span className="text-[11px] font-black text-red-600 mr-0.5">฿</span>
-                                                            <SmartCostInput 
-                                                                value={rowSmartCost}
-                                                                onChange={(newTotal) => {
-                                                                    updateSmartUnitPrice(ing.stockItemId, newTotal / ing.quantity);
-                                                                }}
-                                                                className="text-[11px] font-black text-red-600 bg-transparent border-none text-right w-16 focus:outline-none p-0"
-                                                            />
+                                                    {showInput ? (
+                                                        <div className="mt-1 border-t border-red-200 pt-1">
+                                                            <div className="flex items-center justify-end">
+                                                                <span className="text-[11px] font-black text-red-600 mr-0.5">฿</span>
+                                                                <SmartCostInput 
+                                                                    value={rowSmartCost}
+                                                                    onChange={(newTotal) => {
+                                                                        updateSmartUnitPrice(ing.stockItemId, newTotal / ing.quantity);
+                                                                    }}
+                                                                    onComplete={() => {
+                                                                        setForcingEdit(prev => {
+                                                                            const next = new Set(prev);
+                                                                            next.delete(ing.stockItemId);
+                                                                            return next;
+                                                                        });
+                                                                    }}
+                                                                    className="text-[11px] font-black text-red-600 bg-transparent border-none text-right w-16 focus:outline-none p-0"
+                                                                />
+                                                            </div>
                                                         </div>
-                                                    </div>
+                                                    ) : (
+                                                        latestPrice && (
+                                                            <div 
+                                                                className="mt-1 border-t border-green-200 pt-1 flex items-center justify-end cursor-pointer hover:opacity-80 transition-opacity"
+                                                                onClick={() => setForcingEdit(prev => new Set(prev).add(ing.stockItemId))}
+                                                                title="คลิกเพื่อแก้ไขราคา"
+                                                            >
+                                                                <span className="text-[10px] font-bold text-green-500 mr-0.5">✓ ฿</span>
+                                                                <span className="text-[10px] font-bold text-green-500">
+                                                                    {rowSmartCost.toLocaleString(undefined, { minimumFractionDigits: 3 })}
+                                                                </span>
+                                                            </div>
+                                                        )
+                                                    )}
                                                 </div>
                                                 <button 
                                                     onClick={() => removeIngredient(ing.stockItemId)}
@@ -544,19 +624,35 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
                                 const rowManualCost = ing.quantity * currentManualPrice;
 
                                 // Check latest price for additional items (JSON/Smart)
-                                const latestPrice = latestIngredientPrices.find(p => (p.name || '').trim() === (stockItem?.name || '').trim());
+                                const latestPrice = uniqueLatestPriceMap.get((stockItem?.name || '').trim());
                                 let jsonPrice = ing.smartUnitPrice;
                                 if (jsonPrice === undefined) {
                                     jsonPrice = calculateSmartUnitPrice(ing, latestPrice, currentManualPrice);
                                 }
                                 const rowSmartCost = ing.quantity * jsonPrice;
                                 
+                                // Calculate the expected smart price for additional items
+                                const expectedSmartPrice = calculateSmartUnitPrice(ing, latestPrice, currentManualPrice);
+                                
+                                // Criteria for Red Dot (Additional items)
+                                const latestPriceDate = latestPrice?.date ? new Date(latestPrice.date + 'T00:00:00').getTime() : 0;
+                                const isNewUpdate = latestPriceDate > (recipe?.lastUpdated || 0);
+                                
+                                const holdsNewData = isNewUpdate && !touchedIngredients.has(ing.stockItemId);
+                                const showInput = holdsNewData || forcingEdit.has(ing.stockItemId);
+
                                 return (
                                     <div key={ing.stockItemId} className="flex flex-col gap-2 p-3 bg-blue-50/50 rounded-2xl border border-blue-100/50">
                                         <div className="flex items-center justify-between">
                                             <div className="flex items-center gap-1.5 min-w-0">
+                                                {holdsNewData && (
+                                                    <span className="relative flex h-2 w-2 mr-0.5">
+                                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                                                        <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                                                    </span>
+                                                )}
                                                 <p className="text-sm font-bold text-gray-800 truncate">{stockItem?.name}</p>
-                                                {latestPrice && (
+                                                {latestPrice && !holdsNewData && (
                                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-green-500 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
                                                         <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                                                     </svg>
@@ -641,20 +737,42 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
                                                     />
                                                 </div>
                                             </div>
-                                            <div className="flex-1 text-right">
-                                                <span className="text-[9px] text-gray-400 font-bold block mb-1">ต้นทุนสุทธิ</span>
-                                                <p className="text-sm font-black text-blue-900 leading-none">฿{rowManualCost.toLocaleString(undefined, { minimumFractionDigits: 3 })}</p>
-                                                <div className="flex items-center justify-end mt-1 border-t border-red-100 pt-1">
-                                                    <span className="text-[10px] font-black text-red-600 mr-0.5">฿</span>
-                                                    <SmartCostInput 
-                                                        value={rowSmartCost}
-                                                        onChange={(newTotal) => {
-                                                            updateSmartUnitPrice(ing.stockItemId, newTotal / ing.quantity, true);
-                                                        }}
-                                                        className="text-[10px] font-black text-red-600 bg-transparent border-none text-right w-14 focus:outline-none p-0"
-                                                    />
+                                                <div className="flex-1 text-right">
+                                                    <span className="text-[9px] text-gray-400 font-bold block mb-1">ต้นทุนสุทธิ</span>
+                                                    <p className="text-sm font-black text-blue-900 leading-none">฿{rowManualCost.toLocaleString(undefined, { minimumFractionDigits: 3 })}</p>
+                                                    {showInput ? (
+                                                        <div className="flex items-center justify-end mt-1 border-t border-red-100 pt-1">
+                                                            <span className="text-[10px] font-black text-red-600 mr-0.5">฿</span>
+                                                            <SmartCostInput 
+                                                                value={rowSmartCost}
+                                                                onChange={(newTotal) => {
+                                                                    updateSmartUnitPrice(ing.stockItemId, newTotal / ing.quantity, true);
+                                                                }}
+                                                                onComplete={() => {
+                                                                    setForcingEdit(prev => {
+                                                                        const next = new Set(prev);
+                                                                        next.delete(ing.stockItemId);
+                                                                        return next;
+                                                                    });
+                                                                }}
+                                                                className="text-[10px] font-black text-red-600 bg-transparent border-none text-right w-14 focus:outline-none p-0"
+                                                            />
+                                                        </div>
+                                                    ) : (
+                                                        latestPrice && (
+                                                            <div 
+                                                                className="flex items-center justify-end mt-1 border-t border-green-100 pt-1 cursor-pointer hover:opacity-80 transition-opacity"
+                                                                onClick={() => setForcingEdit(prev => new Set(prev).add(ing.stockItemId))}
+                                                                title="คลิกเพื่อแก้ไขราคา"
+                                                            >
+                                                                <span className="text-[9px] font-bold text-green-500 mr-0.5">✓ ฿</span>
+                                                                <span className="text-[9px] font-bold text-green-500">
+                                                                    {rowSmartCost.toLocaleString(undefined, { minimumFractionDigits: 3 })}
+                                                                </span>
+                                                            </div>
+                                                        )
+                                                    )}
                                                 </div>
-                                            </div>
                                         </div>
                                     </div>
                                 );

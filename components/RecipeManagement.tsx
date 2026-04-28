@@ -34,18 +34,26 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
     const fileInputRef = useRef<HTMLInputElement>(null);
     const { deliveryProviders, taxRate, latestIngredientPrices, latestImportFilename } = useData();
 
+    // Generate priceMap for the latest prices by date
+    const priceMap = useMemo(() => {
+        const pMap = new Map();
+        latestIngredientPrices.forEach(p => {
+            const key = (p.name || '').trim();
+            if (!key) return;
+            const existing = pMap.get(key);
+            if (!existing || (p.date && existing.date && p.date > existing.date) || (p.date && !existing.date)) {
+                pMap.set(key, p);
+            }
+        });
+        return pMap;
+    }, [latestIngredientPrices]);
+
     const handlePrintAllRecipes = () => {
         const printWindow = window.open('', '_blank');
         if (!printWindow) {
             Swal.fire('Error', 'ไม่สามารถเปิดหน้าต่างพิมพ์ได้ กรุณาปิดตัวบล็อกป๊อปอัป', 'error');
             return;
         }
-
-        const priceMap = new Map();
-        latestIngredientPrices.forEach(p => {
-            const key = (p.name || '').trim();
-            if (key) priceMap.set(key, p);
-        });
 
         const stockMap = new Map();
         stockItems.forEach(s => stockMap.set(String(s.id), s));
@@ -220,12 +228,6 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
 
         try {
             // Speed up calculations by using Maps for O(1) lookups
-            const priceMap = new Map();
-            latestIngredientPrices.forEach(p => {
-                const key = (p.name || '').trim();
-                if (key) priceMap.set(key, p);
-            });
-            
             const stockMap = new Map();
             stockItems.forEach(s => stockMap.set(s.id, s));
 
@@ -347,11 +349,6 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
             const menuItem = menuItems.find(m => m.id === recipe.menuItemId);
             
             // Build Maps for efficient lookup (matching bulk refresh logic)
-            const priceMap = new Map();
-            latestIngredientPrices.forEach(p => {
-                const key = (p.name || '').trim();
-                if (key) priceMap.set(key, p);
-            });
             const stockMap = new Map();
             stockItems.forEach(s => stockMap.set(String(s.id), s));
 
@@ -805,7 +802,33 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
                         // Logic for indicators
                         const isUpToDate = recipe && recipe.smartTotalCost !== undefined && Math.abs((recipe.manualTotalCost || 0) - recipe.smartTotalCost) < 0.01;
                         const hasNoSmartCost = !recipe || recipe.smartTotalCost === undefined || recipe.smartTotalCost === 0;
-                        const isOutdated = recipe && recipe.smartTotalCost !== undefined && Math.abs((recipe.manualTotalCost || 0) - recipe.smartTotalCost) >= 0.01;
+
+                        // Check if any ingredient has a newer price available
+                        const stockMap = new Map();
+                        stockItems.forEach(s => stockMap.set(String(s.id), s));
+                        
+                        const hasUpdate = recipe ? [...(recipe.ingredients || []), ...(recipe.additionalIngredients || [])].some(ing => {
+                            const stockItem = stockMap.get(String(ing.stockItemId));
+                            if (!stockItem) return false;
+                            const itemName = (stockItem.name || '').trim();
+                            const latestPrice = priceMap.get(itemName);
+                            if (!latestPrice) return false;
+                            
+                            // Check if this price update is newer than the last time the recipe was saved
+                            // latestPrice.date is "YYYY-MM-DD"
+                            const priceDate = new Date(latestPrice.date + 'T00:00:00').getTime();
+                            if (priceDate <= (recipe.lastUpdated || 0)) return false;
+
+                            // Use calculateSmartUnitPrice to get the correctly converted latest price
+                            const expectedSmartPrice = calculateSmartUnitPrice(
+                                ing, 
+                                latestPrice, 
+                                ing.unitPrice ?? stockItem.unitPrice ?? 0
+                            );
+                            return Math.abs(expectedSmartPrice - (ing.smartUnitPrice ?? 0)) > 0.0001;
+                        }) : false;
+
+                        const recipeStatus = { hasUpdate };
 
                         // Calculate delivery profits
                         const deliveryProfits = item.deliveryPrices ? Object.entries(item.deliveryPrices).map(([providerId, price]) => {
@@ -846,18 +869,20 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
                                     />
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-1.5 min-w-0">
-                                            <h3 className="font-bold text-gray-900 truncate">{item.name}</h3>
-                                            {isUpToDate && (
+                                            <div className="flex items-center gap-1.5 flex-wrap min-w-0 flex-1">
+                                                <h3 className="font-bold text-gray-900 truncate">{item.name}</h3>
+                                                {recipeStatus.hasUpdate && (
+                                                    <span className="flex-shrink-0 text-orange-500" title="มีราคาวัตถุดิบใหม่โปรดกดอัปเดตต้นทุน">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                                            <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                                                        </svg>
+                                                    </span>
+                                                )}
+                                            </div>
+                                            {!recipeStatus.hasUpdate && isUpToDate && (
                                                 <div className="flex-shrink-0 bg-green-100 text-green-700 p-0.5 rounded-full" title="ราคาวันนี้ซิงค์กับ JSON แล้ว">
                                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
                                                         <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                                    </svg>
-                                                </div>
-                                            )}
-                                            {isOutdated && (
-                                                <div className="flex-shrink-0 animate-pulse text-orange-500" title="ราคายังไม่อัปเดตตาม JSON">
-                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                                                        <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                                                     </svg>
                                                 </div>
                                             )}
