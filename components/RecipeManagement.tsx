@@ -405,15 +405,34 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
                 'Hidden Cost % (ต้นทุนแฝง)': recipe.hiddenCostPercentage || 0,
                 'Ingredients (JSON for Import)': JSON.stringify(recipe.ingredients.map(ing => {
                     const stockItem = stockMap.get(String(ing.stockItemId));
+                    const manualPrice = ing.unitPrice ?? stockItem?.unitPrice ?? 0;
+                    const latestPrice = stockItem ? priceMap.get(stockItem.name.trim()) : undefined;
+                    const smartPrice = calculateSmartUnitPrice(ing, latestPrice, manualPrice);
+
                     return {
                         stockItemId: ing.stockItemId,
                         name: stockItem?.name || 'Unknown',
                         quantity: ing.quantity,
                         unit: ing.unit,
-                        unitPrice: ing.unitPrice
+                        unitPrice: ing.unitPrice,
+                        smartUnitPrice: smartPrice // Added smart price here
                     };
                 })),
-                'Packaging (JSON for Import)': JSON.stringify(recipe.additionalIngredients || []),
+                'Packaging (JSON for Import)': JSON.stringify((recipe.additionalIngredients || []).map(ing => {
+                    const stockItem = stockMap.get(String(ing.stockItemId));
+                    const manualPrice = ing.unitPrice ?? stockItem?.unitPrice ?? 0;
+                    const latestPrice = stockItem ? priceMap.get(stockItem.name.trim()) : undefined;
+                    const smartPrice = calculateSmartUnitPrice(ing, latestPrice, manualPrice);
+
+                    return {
+                        stockItemId: ing.stockItemId,
+                        name: stockItem?.name || 'Unknown',
+                        quantity: ing.quantity,
+                        unit: ing.unit,
+                        unitPrice: ing.unitPrice,
+                        smartUnitPrice: smartPrice // Added smart price here
+                    };
+                })),
                 'Detailed Ingredients (Text)': ingredientDetails.map(d => 
                     `${d.name}: ${d.quantity} ${d.unit} [Manual: ฿${d.manualSubtotal.toFixed(2)}, Smart: ฿${d.smartSubtotal.toFixed(2)}]`
                 ).join(' | '),
@@ -458,26 +477,58 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
                 const updatedMenuItemsData: { [id: number]: { deliveryPrices: { [p: string]: number }, deliveryGPs: { [p: string]: number }, deliveryTaxes: { [p: string]: number } } } = {};
 
                 data.forEach(row => {
-                    const menuItemId = Number(row['Menu Item ID']);
+                    // Normalize header search
+                    const getVal = (possibleHeaders: string[]) => {
+                        for (const h of possibleHeaders) {
+                            if (row[h] !== undefined) return row[h];
+                        }
+                        return undefined;
+                    };
+
+                    const menuItemId = Number(getVal(['Menu Item ID', 'Menu Item', 'ID']));
                     if (isNaN(menuItemId)) return;
 
                     let ingredients: RecipeIngredient[] = [];
-                    try {
-                        ingredients = JSON.parse(row['Ingredients']);
-                    } catch (err) {
-                        console.error("Error parsing ingredients for row", row);
+                    const ingredientsRaw = getVal(['Ingredients (JSON for Import)', 'Ingredients']);
+                    if (ingredientsRaw) {
+                        try {
+                            ingredients = typeof ingredientsRaw === 'string' ? JSON.parse(ingredientsRaw) : ingredientsRaw;
+                        } catch (err) {
+                            console.error("Error parsing ingredients", err);
+                        }
                     }
+
+                    let additionalIngredients: RecipeIngredient[] = [];
+                    const packagingRaw = getVal(['Packaging (JSON for Import)', 'Packaging']);
+                    if (packagingRaw) {
+                        try {
+                            additionalIngredients = typeof packagingRaw === 'string' ? JSON.parse(packagingRaw) : packagingRaw;
+                        } catch (err) {
+                            console.error("Error parsing packaging", err);
+                        }
+                    }
+
+                    const miscCost = Number(getVal(['Misc Cost (ส่วนบวกเพิ่มเอง)', 'Misc Cost', 'Additional Cost']) || 0);
+                    const hiddenCost = Number(getVal(['Hidden Cost % (ต้นทุนแฝง)', 'Hidden Cost %', 'Hidden Cost']) || 0);
 
                     newRecipes.push({
                         id: menuItemId.toString(),
                         menuItemId: menuItemId,
-                        additionalCost: Number(row['Additional Cost'] || 0),
-                        hiddenCostPercentage: Number(row['Hidden Cost %'] || 0),
+                        additionalCost: miscCost,
+                        hiddenCostPercentage: hiddenCost,
                         ingredients: ingredients.map(ing => ({
                             stockItemId: Number(ing.stockItemId),
                             quantity: Number(ing.quantity),
                             unit: ing.unit,
-                            unitPrice: ing.unitPrice ? Number(ing.unitPrice) : undefined
+                            unitPrice: ing.unitPrice ? Number(ing.unitPrice) : undefined,
+                            smartUnitPrice: ing.smartUnitPrice ? Number(ing.smartUnitPrice) : undefined
+                        })),
+                        additionalIngredients: additionalIngredients.map(ing => ({
+                            stockItemId: Number(ing.stockItemId),
+                            quantity: Number(ing.quantity),
+                            unit: ing.unit,
+                            unitPrice: ing.unitPrice ? Number(ing.unitPrice) : undefined,
+                            smartUnitPrice: ing.smartUnitPrice ? Number(ing.smartUnitPrice) : undefined
                         })),
                         lastUpdated: Date.now(),
                         lastUpdatedBy: currentUser?.username || 'System',
@@ -489,9 +540,9 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
                     const deliveryGPs: { [p: string]: number } = {};
                     const deliveryTaxes: { [p: string]: number } = {};
                     deliveryProviders.filter(p => p.isEnabled).forEach(provider => {
-                        const price = Number(row[`${provider.name} Price`]);
-                        const gp = Number(row[`${provider.name} GP %`]);
-                        const tax = Number(row[`${provider.name} Tax %`]);
+                        const price = Number(getVal([`${provider.name} Price`]));
+                        const gp = Number(getVal([`${provider.name} GP %`]));
+                        const tax = Number(getVal([`${provider.name} Tax %`]));
                         if (!isNaN(price)) deliveryPrices[provider.id] = price;
                         if (!isNaN(gp)) deliveryGPs[provider.id] = gp;
                         if (!isNaN(tax)) deliveryTaxes[provider.id] = tax;
@@ -670,17 +721,6 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
                             </svg>
                             พิมพ์สูตรอาหาร
-                        </button>
-                        <button 
-                            onClick={handleBulkRefreshCosts}
-
-                            className="flex px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold items-center gap-2 hover:bg-blue-700 transition-all shadow-md shadow-blue-100"
-                            title="อัปเดตต้นทุนทุกเมนูตามราคา JSON/สต็อก ล่าสุด"
-                        >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                            </svg>
-                            อัปเดตต้นทุนทั้งหมด
                         </button>
                         <button 
                             onClick={() => fileInputRef.current?.click()}
