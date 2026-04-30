@@ -5,7 +5,6 @@ import Swal from 'sweetalert2';
 import { useData } from '../contexts/DataContext';
 import { MenuSearchModal } from './MenuSearchModal';
 import { ItemCustomizationModal } from './ItemCustomizationModal';
-import { calculateBagsForOrder } from '../utils/bagCalculator'; // <-- NEW IMPORT
 
 interface CompletedOrderCardProps {
     order: CompletedOrder;
@@ -39,27 +38,6 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({
     const { currentUser, menuItems, stockItems } = useData();
     const [isExpanded, setIsExpanded] = useState(false);
     
-    // Calculate Bags Usage
-    const bagUsage = useMemo(() => {
-        return calculateBagsForOrder(order.items, recipes, stockItems, order.orderType);
-    }, [order.items, recipes, stockItems]);
-
-    const getBagName = useMemo(() => (type: '6x14' | '8x16' | '12x20') => {
-        const sizeStr = type.replace('x', '*');
-        const altSizeStr = type;
-        
-        const stockItem = stockItems.find(s => {
-            const name = s.name.toLowerCase();
-            return (name.includes('ถุง') && (name.includes(sizeStr) || name.includes(altSizeStr)));
-        });
-
-        if (stockItem) return stockItem.name;
-
-        if (type === '12x20') return 'ถุง L (12*20)';
-        if (type === '8x16') return 'ถุง M (8*16)';
-        return 'ถุง S (6*14)';
-    }, [stockItems]);
-
     // --- Add Item State ---
     const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
     const [isCustomizationModalOpen, setIsCustomizationModalOpen] = useState(false);
@@ -510,25 +488,7 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({
                             </div>
                         )}
 
-                        {/* Smart Bag Usage Display */}
-                        {(order.orderType === 'takeaway' || order.orderType === 'lineman' || order.items.some(i => i.isTakeaway)) && (bagUsage['6x14'] > 0 || bagUsage['8x16'] > 0 || bagUsage['12x20'] > 0) && (
-                            <div className="mb-4 p-3 bg-blue-50/50 rounded-lg border border-blue-100 flex items-start gap-3">
-                                <div className="text-blue-500 mt-0.5">
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-                                    </svg>
-                                </div>
-                                <div>
-                                    <h4 className="text-sm font-bold text-blue-800 mb-1">แนะนำขนาดถุงสำหรับจัดของ</h4>
-                                    <div className="flex flex-wrap gap-2 text-sm">
-                                        {bagUsage['12x20'] > 0 && <span className="bg-white border border-blue-200 text-blue-700 px-2 py-1 rounded font-medium">{getBagName('12x20')} : {bagUsage['12x20']} ใบ</span>}
-                                        {bagUsage['8x16'] > 0 && <span className="bg-white border border-blue-200 text-blue-700 px-2 py-1 rounded font-medium">{getBagName('8x16')} : {bagUsage['8x16']} ใบ</span>}
-                                        {bagUsage['6x14'] > 0 && <span className="bg-white border border-blue-200 text-blue-700 px-2 py-1 rounded font-medium">{getBagName('6x14')} : {bagUsage['6x14']} ใบ</span>}
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
+                        {/* Items Section */}
                         <div className="space-y-2 border-t pt-3">
                             <div className="flex justify-between items-center mb-2">
                                 <h4 className="font-semibold text-gray-700">รายการอาหาร</h4>

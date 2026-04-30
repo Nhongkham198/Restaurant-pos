@@ -31,7 +31,8 @@ export const IngredientPriceUpload: React.FC<IngredientPriceUploadProps> = ({ on
                 const cleanedJson = json.map(item => ({
                     ...item,
                     name: typeof item.name === 'string' ? item.name.trim() : item.name,
-                    date: item.date || uploadDate // Use current date if missing in JSON
+                    date: item.date || uploadDate, // Use current date if missing in JSON
+                    updatedAt: Date.now() // Precise timestamp for notification logic
                 }));
 
                 // De-duplication Logic: Keep only the latest entry per ingredient name

@@ -780,19 +780,22 @@ export const StockManagement: React.FC<StockManagementProps> = ({
         const dataToExport = stockItems.map(item => ({
             'id': item.id,
             'ชื่อวัตถุดิบ': item.name,
+            'รูปภาพ (URL)': item.imageUrl || '',
+            'จำนวนเริ่มต้น': item.quantity,
             'หมวดหมู่': item.category,
-            'จำนวนคงเหลือ': item.quantity,
             'หน่วยนับ': item.unit,
             'จุดสั่งซื้อขั้นต่ำ': item.reorderPoint,
+            'วันที่สั่งของ': item.orderDate ? new Date(item.orderDate).toISOString().split('T')[0] : '',
+            'วันที่รับของ': item.receivedDate ? new Date(item.receivedDate).toISOString().split('T')[0] : '',
+            'ราคาต่อหน่วย': item.unitPrice || 0,
             'แก้ไขล่าสุดโดย': item.lastUpdatedBy || '-',
             'เวลาแก้ไขล่าสุด': new Date(item.lastUpdated).toLocaleString('th-TH'),
-            'รูปภาพ (URL)': item.imageUrl || ''
         }));
 
         const ws = XLSX.utils.json_to_sheet(dataToExport);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'StockData');
-        XLSX.writeFile(wb, 'stock_template.xlsx');
+        XLSX.writeFile(wb, 'stock_data.xlsx');
     };
 
     const handleExportLogs = () => {
@@ -839,7 +842,7 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                 const worksheet = workbook.Sheets[sheetName];
                 const json: any[] = XLSX.utils.sheet_to_json(worksheet);
 
-                const expectedHeaders = ['id', 'ชื่อวัตถุดิบ', 'หมวดหมู่', 'จำนวนคงเหลือ', 'หน่วยนับ', 'จุดสั่งซื้อขั้นต่ำ'];
+                const expectedHeaders = ['id', 'ชื่อวัตถุดิบ', 'รูปภาพ (URL)', 'จำนวนเริ่มต้น', 'หมวดหมู่', 'หน่วยนับ', 'จุดสั่งซื้อขั้นต่ำ', 'วันที่สั่งของ', 'วันที่รับของ', 'ราคาต่อหน่วย'];
                 if (json.length > 0) {
                     const keys = Object.keys(json[0]);
                     const missing = expectedHeaders.filter(h => !keys.includes(h));
@@ -859,13 +862,21 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                 
                 for (const row of json) {
                     const id = Number(row.id);
-                    const quantity = Number(row['จำนวนคงเหลือ']);
+                    const quantity = Number(row['จำนวนเริ่มต้น']);
                     const reorderPoint = Number(row['จุดสั่งซื้อขั้นต่ำ']);
+                    const unitPrice = Number(row['ราคาต่อหน่วย']);
 
                     if (isNaN(id) || !row['ชื่อวัตถุดิบ'] || !row['หน่วยนับ']) {
                         console.warn('Skipping invalid row:', row);
                         continue;
                     }
+
+                    // Handle dates safely
+                    const parseDate = (val: any) => {
+                        if (!val) return undefined;
+                        const d = new Date(val);
+                        return isNaN(d.getTime()) ? undefined : d.getTime();
+                    };
 
                     newStockItemsMap.set(id, {
                         id: id,
@@ -874,7 +885,10 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                         quantity: isNaN(quantity) ? 0 : quantity,
                         unit: String(row['หน่วยนับ']),
                         reorderPoint: isNaN(reorderPoint) ? 0 : reorderPoint,
-                        withdrawalCount: 0, // Default 0 for imported items
+                        unitPrice: isNaN(unitPrice) ? 0 : unitPrice,
+                        orderDate: parseDate(row['วันที่สั่งของ']),
+                        receivedDate: parseDate(row['วันที่รับของ']),
+                        withdrawalCount: 0, 
                         imageUrl: row['รูปภาพ (URL)'] ? String(row['รูปภาพ (URL)']) : '',
                         lastUpdated: Date.now(),
                         lastUpdatedBy: importUser

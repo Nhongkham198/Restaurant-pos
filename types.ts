@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 
 export interface IngredientPrice {
     date: string;
+    updatedAt?: number; // Added: Precise timestamp of when this was imported
     id: string;
     name: string;
     priceDiffPercent: number;

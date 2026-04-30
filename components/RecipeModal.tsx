@@ -401,12 +401,14 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
                                     
                                     // Criteria for Red Dot:
                                     // 1. There is a price in JSON
-                                    // 2. The price in JSON is newer than the recipe's last save time
-                                    // 3. User hasn't touched it in this session
-                                    const latestPriceDate = latestPrice?.date ? new Date(latestPrice.date + 'T00:00:00').getTime() : 0;
-                                    const isNewUpdate = latestPriceDate > (recipe?.lastUpdated || 0);
+                                    // 2. The price in JSON is different from what's currently marked as smart price in recipe
+                                    // 3. The JSON update is newer than the recipe's last save time (or first time)
+                                    // 4. User hasn't touched it in this session
+                                    const latestPriceTime = latestPrice?.updatedAt || (latestPrice?.date ? new Date(latestPrice.date + 'T00:00:00').getTime() : 0);
+                                    const isNewUpdate = latestPriceTime > (recipe?.lastUpdated || 0);
+                                    const isMismatched = latestPrice && Math.abs(expectedSmartPrice - (ing.smartUnitPrice ?? 0)) > 0.0001;
                                     
-                                    const holdsNewData = isNewUpdate && !touchedIngredients.has(ing.stockItemId);
+                                    const holdsNewData = isNewUpdate && isMismatched && !touchedIngredients.has(ing.stockItemId);
                                     const showInput = holdsNewData || forcingEdit.has(ing.stockItemId);
                                     
                                     return (
@@ -635,10 +637,11 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
                                 const expectedSmartPrice = calculateSmartUnitPrice(ing, latestPrice, currentManualPrice);
                                 
                                 // Criteria for Red Dot (Additional items)
-                                const latestPriceDate = latestPrice?.date ? new Date(latestPrice.date + 'T00:00:00').getTime() : 0;
-                                const isNewUpdate = latestPriceDate > (recipe?.lastUpdated || 0);
+                                const latestPriceTime = latestPrice?.updatedAt || (latestPrice?.date ? new Date(latestPrice.date + 'T00:00:00').getTime() : 0);
+                                const isNewUpdate = latestPriceTime > (recipe?.lastUpdated || 0);
+                                const isMismatched = latestPrice && Math.abs(expectedSmartPrice - (ing.smartUnitPrice ?? 0)) > 0.0001;
                                 
-                                const holdsNewData = isNewUpdate && !touchedIngredients.has(ing.stockItemId);
+                                const holdsNewData = isNewUpdate && isMismatched && !touchedIngredients.has(ing.stockItemId);
                                 const showInput = holdsNewData || forcingEdit.has(ing.stockItemId);
 
                                 return (

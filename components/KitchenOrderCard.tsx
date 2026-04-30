@@ -2,7 +2,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import type { ActiveOrder } from '../types';
 import Swal from 'sweetalert2';
-import { calculateBagsForOrder } from '../utils/bagCalculator';
 import { useData } from '../contexts/DataContext';
 
 interface KitchenOrderCardProps {
@@ -45,32 +44,7 @@ export const KitchenOrderCard: React.FC<KitchenOrderCardProps> = ({
     const isOverdue = order.isOverdue ?? false;
     const isLineMan = order.orderType === 'lineman';
     const isTakeaway = order.orderType === 'takeaway' || order.items.some(i => i.isTakeaway);
-    const requiresBag = isLineMan || isTakeaway;
     const isPreOrder = order.isPreOrder ?? false;
-
-    const bagUsage = useMemo(() => {
-        if (!requiresBag) return null;
-        const bags = calculateBagsForOrder(order.items, recipes, stockItems, order.orderType);
-        if (bags['6x14'] === 0 && bags['8x16'] === 0 && bags['12x20'] === 0) return null;
-        return bags;
-    }, [order.items, requiresBag, recipes, stockItems]);
-
-    const getBagName = useMemo(() => (type: '6x14' | '8x16' | '12x20') => {
-        const sizeStr = type.replace('x', '*'); // Match both 6x14 and 6*14
-        const altSizeStr = type; // original 6x14
-        
-        const stockItem = stockItems.find(s => {
-            const name = s.name.toLowerCase();
-            return (name.includes('ถุง') && (name.includes(sizeStr) || name.includes(altSizeStr)));
-        });
-
-        if (stockItem) return stockItem.name;
-
-        // Fallback names
-        if (type === '12x20') return 'ใหญ่ 12*20';
-        if (type === '8x16') return 'กลาง 8*16';
-        return 'เล็ก 6*14';
-    }, [stockItems]);
 
     useEffect(() => {
         const calculateElapsedTime = () => {
@@ -238,23 +212,6 @@ export const KitchenOrderCard: React.FC<KitchenOrderCardProps> = ({
                             ดูสลิป
                         </button>
                     )}
-                </div>
-            )}
-
-            {/* Smart Bag Suggestion for Kitchen */}
-            {bagUsage && (
-                <div className="bg-blue-900/40 px-3 py-2 border-b border-blue-700/50 flex flex-col gap-1">
-                    <span className="text-blue-300 font-bold text-xs uppercase tracking-wider flex items-center gap-1">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-                        </svg>
-                        แนะนำจำนวนถุง
-                    </span>
-                    <div className="flex flex-wrap gap-2">
-                        {bagUsage['12x20'] > 0 && <span className="bg-blue-800 text-blue-100 text-xs px-2 py-0.5 rounded font-bold border border-blue-600">{getBagName('12x20')}: {bagUsage['12x20']} ใบ</span>}
-                        {bagUsage['8x16'] > 0 && <span className="bg-blue-800 text-blue-100 text-xs px-2 py-0.5 rounded font-bold border border-blue-600">{getBagName('8x16')}: {bagUsage['8x16']} ใบ</span>}
-                        {bagUsage['6x14'] > 0 && <span className="bg-blue-800 text-blue-100 text-xs px-2 py-0.5 rounded font-bold border border-blue-600">{getBagName('6x14')}: {bagUsage['6x14']} ใบ</span>}
-                    </div>
                 </div>
             )}
 
