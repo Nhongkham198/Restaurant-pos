@@ -214,6 +214,7 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                     ...item,
                     orderDate: updatedItem.orderDate,
                     orderedQuantity: updatedItem.orderedQuantity,
+                    quantityBeforeOrder: item.quantity, // Save current quantity before this order
                     orderedBy: updatedItem.orderedBy,
                     lastUpdated: timestamp,
                     lastUpdatedBy: updatedBy
@@ -781,6 +782,7 @@ export const StockManagement: React.FC<StockManagementProps> = ({
             'id': item.id,
             'ชื่อวัตถุดิบ': item.name,
             'รูปภาพ (URL)': item.imageUrl || '',
+            'ก่อนสั่ง': item.quantityBeforeOrder || 0,
             'จำนวนเริ่มต้น': item.quantity,
             'จำนวนสั่ง': item.orderedQuantity || 0,
             'หมวดหมู่': item.category,
@@ -842,7 +844,7 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                 const worksheet = workbook.Sheets[sheetName];
                 const json: any[] = XLSX.utils.sheet_to_json(worksheet);
 
-                const expectedHeaders = ['id', 'ชื่อวัตถุดิบ', 'รูปภาพ (URL)', 'จำนวนเริ่มต้น', 'จำนวนสั่ง', 'หมวดหมู่', 'หน่วยนับ', 'จุดสั่งซื้อขั้นต่ำ', 'วันที่สั่งของ', 'วันที่รับของ'];
+                const expectedHeaders = ['id', 'ชื่อวัตถุดิบ', 'รูปภาพ (URL)', 'ก่อนสั่ง', 'จำนวนเริ่มต้น', 'จำนวนสั่ง', 'หมวดหมู่', 'หน่วยนับ', 'จุดสั่งซื้อขั้นต่ำ', 'วันที่สั่งของ', 'วันที่รับของ'];
                 if (json.length > 0) {
                     const keys = Object.keys(json[0]);
                     const missing = expectedHeaders.filter(h => !keys.includes(h));
@@ -863,6 +865,7 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                 for (const row of json) {
                     const id = Number(row.id);
                     const quantity = Number(row['จำนวนเริ่มต้น']);
+                    const quantityBeforeOrder = Number(row['ก่อนสั่ง']);
                     const orderedQuantity = Number(row['จำนวนสั่ง']);
                     const reorderPoint = Number(row['จุดสั่งซื้อขั้นต่ำ']);
 
@@ -886,6 +889,7 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                         unit: String(row['หน่วยนับ']),
                         reorderPoint: isNaN(reorderPoint) ? 0 : reorderPoint,
                         orderedQuantity: isNaN(orderedQuantity) ? 0 : orderedQuantity,
+                        quantityBeforeOrder: isNaN(quantityBeforeOrder) ? undefined : quantityBeforeOrder,
                         unitPrice: 0, // No longer using unit price from Excel
                         orderDate: parseDate(row['วันที่สั่งของ']),
                         receivedDate: parseDate(row['วันที่รับของ']),
