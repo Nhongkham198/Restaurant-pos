@@ -1598,9 +1598,9 @@ export const StockManagement: React.FC<StockManagementProps> = ({
 
             {/* Bulk Receive Modal */}
             {isBulkReceiveOpen && (
-                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in duration-200">
-                        <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-orange-50">
+                <div className="fixed inset-0 z-[60] flex items-center justify-center sm:p-4 bg-black/60 backdrop-blur-sm">
+                    <div className="bg-white sm:rounded-2xl shadow-2xl w-full max-w-4xl h-full sm:h-auto sm:max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in duration-200">
+                        <div className="p-4 sm:p-6 border-b border-gray-100 flex justify-between items-center bg-orange-50">
                             <h3 className="text-xl font-bold text-orange-800 flex items-center gap-2">
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
