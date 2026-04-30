@@ -4,6 +4,29 @@ import type { MenuItem, StockItem, Recipe, RecipeIngredient, User, DeliveryProvi
 import { useData } from '../contexts/DataContext';
 import Swal from 'sweetalert2';
 import { calculateSmartUnitPrice } from '../utils/recipeUtils';
+import ReactQuill from 'react-quill';
+import 'react-quill/dist/quill.snow.css';
+
+const quillModules = {
+    toolbar: [
+        [{ 'header': [1, 2, 3, false] }],
+        ['bold', 'italic', 'underline', 'strike'],
+        [{ 'color': [] }, { 'background': [] }],
+        [{ 'align': [] }],
+        [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+        [{ 'indent': '-1' }, { 'indent': '+1' }],
+        ['clean']
+    ],
+};
+
+const quillFormats = [
+    'header',
+    'bold', 'italic', 'underline', 'strike',
+    'color', 'background',
+    'align',
+    'list', 'bullet',
+    'indent'
+];
 
 interface SmartCostInputProps {
     value: number;
@@ -116,6 +139,7 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
     const [forcingEdit, setForcingEdit] = useState<Set<number>>(new Set());
     const [miscCost, setMiscCost] = useState(0); // For manual gas/ice costs
     const [hiddenCostPercentage, setHiddenCostPercentage] = useState(0);
+    const [cookingInstructions, setCookingInstructions] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
     const [additionalSearchTerm, setAdditionalSearchTerm] = useState('');
     const [deliveryPrices, setDeliveryPrices] = useState<{ [providerId: string]: number }>(menuItem.deliveryPrices || {});
@@ -136,11 +160,13 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
             
             setMiscCost((recipe.additionalCost || 0) - packagingSum);
             setHiddenCostPercentage(recipe.hiddenCostPercentage || 0);
+            setCookingInstructions(recipe.instructions || '');
         } else {
             setIngredients([]);
             setAdditionalIngredients([]);
             setMiscCost(0);
             setHiddenCostPercentage(0);
+            setCookingInstructions('');
         }
         setDeliveryPrices(menuItem.deliveryPrices || {});
         setDeliveryGPs(menuItem.deliveryGPs || {});
@@ -345,6 +371,7 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
             hiddenCostPercentage,
             manualTotalCost: manualTotal,
             smartTotalCost: smartTotal,
+            instructions: cookingInstructions,
             lastUpdated: Date.now(),
             lastUpdatedBy: currentUser?.username || 'Unknown'
         };
@@ -924,6 +951,22 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
                             </div>
                         </div>
                     )}
+
+                    {/* Cooking Instructions */}
+                    <div className="pt-4 border-t border-gray-100">
+                        <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">วิธีการปรุงอาหาร (Recipe Steps)</h3>
+                        <div className="bg-white rounded-2xl overflow-hidden border border-gray-200 focus-within:ring-2 focus-within:ring-blue-500 transition-all shadow-sm">
+                            <ReactQuill
+                                theme="snow"
+                                value={cookingInstructions}
+                                onChange={setCookingInstructions}
+                                modules={quillModules}
+                                formats={quillFormats}
+                                placeholder="ระบุขั้นตอนการประกอบอาหารอย่างละเอียด..."
+                                className="quill-editor"
+                            />
+                        </div>
+                    </div>
                 </div>
 
                 <div className="p-6 border-t border-gray-100 bg-gray-50 flex items-center justify-between">

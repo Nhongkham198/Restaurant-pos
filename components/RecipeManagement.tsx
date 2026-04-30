@@ -86,6 +86,16 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
                     .total-section { margin-top: 20px; display: flex; flex-direction: column; align-items: flex-end; gap: 5px; }
                     .cost-line { font-size: 16px; color: #4a5568; }
                     .total-cost { font-size: 20px; font-weight: bold; color: #2d3748; padding-top: 5px; border-top: 2px solid #3182ce; }
+                    .instructions-content { 
+                        margin-top: 10px; 
+                        padding: 15px; 
+                        background: #f8fafc; 
+                        border-radius: 8px; 
+                        font-size: 14px; 
+                        line-height: 1.6; 
+                    }
+                    .instructions-content ul, .instructions-content ol { padding-left: 25px; margin: 10px 0; }
+                    .instructions-content p { margin: 8px 0; }
                     .no-print { text-align: center; margin-bottom: 30px; padding: 20px; background: #ebf8ff; border-radius: 10px; }
                     .print-btn { padding: 12px 30px; background: #3182ce; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
                     @media print {
@@ -188,6 +198,13 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
                         <div class="cost-line">ต้นทุนวัตถุดิบสุทธิ: ฿${cost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                         <div class="total-cost">สรุปราคาต้นทุนเป้าหมาย: ฿${cost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                     </div>
+
+                    ${recipe.instructions ? `
+                        <h3>วิธีการปรุงอาหาร</h3>
+                        <div class="instructions-content">
+                            ${recipe.instructions}
+                        </div>
+                    ` : ''}
                 </div>
             `;
         });
@@ -438,7 +455,8 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
                 ).join(' | '),
                 'Detailed Packaging (Text)': packagingDetails.map(d => 
                     `${d.name}: ${d.quantity} ${d.unit} [Manual: ฿${d.manualSubtotal.toFixed(2)}, Smart: ฿${d.smartSubtotal.toFixed(2)}]`
-                ).join(' | ')
+                ).join(' | '),
+                'Instructions': recipe.instructions || ''
             };
 
             // Add delivery prices, GPs, and Taxes
@@ -510,6 +528,7 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
 
                     const miscCost = Number(getVal(['Misc Cost (ส่วนบวกเพิ่มเอง)', 'Misc Cost', 'Additional Cost']) || 0);
                     const hiddenCost = Number(getVal(['Hidden Cost % (ต้นทุนแฝง)', 'Hidden Cost %', 'Hidden Cost']) || 0);
+                    const instructions = getVal(['Instructions', 'Cooking Instructions', 'Steps']) || '';
 
                     newRecipes.push({
                         id: menuItemId.toString(),
@@ -530,6 +549,7 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
                             unitPrice: ing.unitPrice ? Number(ing.unitPrice) : undefined,
                             smartUnitPrice: ing.smartUnitPrice ? Number(ing.smartUnitPrice) : undefined
                         })),
+                        instructions,
                         lastUpdated: Date.now(),
                         lastUpdatedBy: currentUser?.username || 'System',
                         lastImportedFilename: file.name

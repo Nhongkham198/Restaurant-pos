@@ -479,6 +479,7 @@ export interface Recipe {
     lastUpdated: number;
     lastUpdatedBy: string;
     lastImportedFilename?: string; // Added: Filename of the latest JSON/Excel import
+    instructions?: string; // Added: Cooking instructions
 }
 
 export interface PayrollRecord {
