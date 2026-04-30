@@ -4,8 +4,8 @@ import type { MenuItem, StockItem, Recipe, RecipeIngredient, User, DeliveryProvi
 import { useData } from '../contexts/DataContext';
 import Swal from 'sweetalert2';
 import { calculateSmartUnitPrice } from '../utils/recipeUtils';
-import ReactQuill from 'react-quill';
-import 'react-quill/dist/quill.snow.css';
+import ReactQuill from 'react-quill-new';
+import 'react-quill-new/dist/quill.snow.css';
 
 const quillModules = {
     toolbar: [
@@ -18,15 +18,6 @@ const quillModules = {
         ['clean']
     ],
 };
-
-const quillFormats = [
-    'header',
-    'bold', 'italic', 'underline', 'strike',
-    'color', 'background',
-    'align',
-    'list', 'bullet',
-    'indent'
-];
 
 interface SmartCostInputProps {
     value: number;
@@ -961,7 +952,6 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
                                 value={cookingInstructions}
                                 onChange={setCookingInstructions}
                                 modules={quillModules}
-                                formats={quillFormats}
                                 placeholder="ระบุขั้นตอนการประกอบอาหารอย่างละเอียด..."
                                 className="quill-editor"
                             />
