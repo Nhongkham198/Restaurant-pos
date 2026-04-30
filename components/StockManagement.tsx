@@ -1668,12 +1668,13 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                                         )}
                                                     </td>
                                                     <td className="px-4 py-4">
-                                                        <div className="max-w-[120px] mx-auto">
+                                                        <div className="max-w-[140px] mx-auto">
                                                             <input 
                                                                 type="number"
                                                                 id={`bulk-qty-${item.id}`}
-                                                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-center font-bold text-orange-600 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all placeholder:text-gray-300 placeholder:font-normal"
-                                                                placeholder="0"
+                                                                step="0.01"
+                                                                className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-center font-bold text-orange-600 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all placeholder:text-gray-300 placeholder:font-normal text-lg"
+                                                                placeholder="0.00"
                                                                 defaultValue=""
                                                             />
                                                         </div>
