@@ -289,7 +289,9 @@ export interface StockItem {
     lastUpdatedBy?: string; // Username of the person who last updated the item
     orderDate?: number; // timestamp
     receivedDate?: number; // timestamp
+    lastReceivedQuantity?: number; // Added: Quantity received in the latest verify action
     orderedQuantity?: string | number; // Quantity ordered in the last PO
+    lastOrderedQuantity?: number; // Added: Preserved ordered quantity after receipt for history display
     orderedBy?: string; // User who placed the last PO
     quantityBeforeOrder?: number; // Quantity remaining before the last order was placed
 }

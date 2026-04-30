@@ -39,17 +39,19 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, 
     // Load draft from localStorage when modal opens
     useEffect(() => {
         if (isOpen) {
+            // Always start with empty quantities as requested (Clear always)
+            setQuantities({});
+            
             try {
                 const savedDraft = localStorage.getItem('purchaseOrderDraft');
                 if (savedDraft) {
                     const parsed = JSON.parse(savedDraft);
-                    if (parsed.quantities) setQuantities(parsed.quantities);
+                    // We still load notes, logs, and added items, but quantities are now cleared by default
                     if (parsed.notes) setNotes(parsed.notes);
                     if (parsed.log) setDraftLog(parsed.log);
                     if (parsed.addedItemIds) setAddedItemIds(parsed.addedItemIds);
                 } else {
                     // Reset if no draft
-                    setQuantities({});
                     setNotes({});
                     setDraftLog(null);
                     setAddedItemIds([]);

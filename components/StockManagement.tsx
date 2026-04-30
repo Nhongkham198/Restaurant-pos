@@ -422,6 +422,9 @@ export const StockManagement: React.FC<StockManagementProps> = ({
              ...item,
              quantity: shouldMerge ? newTotal : receivedData.qty,
              receivedDate: new Date(receivedData.date).getTime(),
+             lastReceivedQuantity: Number(receivedData.qty),
+             lastOrderedQuantity: Number(item.orderedQuantity) || 0,
+             orderedQuantity: Math.max(0, (Number(item.orderedQuantity) || 0) - Number(receivedData.qty)),
              lastUpdated: timestamp,
              lastUpdatedBy: updatedBy
         };
@@ -489,11 +492,20 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                 if (itemToSave.id) {
                     const oldItem = safePrev.find(i => i.id === itemToSave.id);
                     if (oldItem) {
-                         const changes = [];
+                        const changes = [];
                         if (oldItem.name !== itemToSave.name) changes.push(`ชื่อ: ${oldItem.name} -> ${itemToSave.name}`);
                         if (oldItem.quantity !== Number(itemToSave.quantity)) changes.push(`คงเหลือ: ${oldItem.quantity} -> ${itemToSave.quantity}`);
-                         if (changes.length > 0) {
+                        if (changes.length > 0) {
                             addLog(oldItem, 'update', changes.join(', '));
+                        }
+                        
+                        // Check for PO sync
+                        const diff = Number(itemToSave.quantity) - (Number(oldItem.quantity) || 0);
+                        if (diff > 0 && (Number(oldItem.orderedQuantity) || 0) > 0) {
+                            itemWithTimestamp.lastReceivedQuantity = diff;
+                            itemWithTimestamp.receivedDate = Date.now();
+                            itemWithTimestamp.lastOrderedQuantity = Number(oldItem.orderedQuantity) || 0;
+                            itemWithTimestamp.orderedQuantity = Math.max(0, (Number(oldItem.orderedQuantity) || 0) - diff);
                         }
                     }
                     return safePrev.map(i => i.id === itemToSave.id ? { ...i, ...itemWithTimestamp } as StockItem : i);
@@ -584,13 +596,21 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                 const typeText = adjustment > 0 ? 'รับเข้า' : 'เบิกออก';
                 addLog(i, action, `ปรับสต็อก (${typeText}): ${adjustment} ${i.unit} (คงเหลือ: ${i.quantity} -> ${i.quantity + adjustment})`);
 
+                const isManualReceiptForOrder = adjustment > 0 && (Number(i.orderedQuantity) || 0) > 0;
+
                 return { 
                     ...i, 
                     quantity: (Number(i.quantity) || 0) + adjustment, 
                     withdrawalCount: newWithdrawalCount,
                     monthlyWithdrawals: newMonthlyWithdrawals,
                     lastUpdated: Date.now(),
-                    lastUpdatedBy: updatedBy
+                    lastUpdatedBy: updatedBy,
+                    ...(isManualReceiptForOrder ? {
+                        lastReceivedQuantity: adjustment,
+                        receivedDate: Date.now(),
+                        lastOrderedQuantity: Number(i.orderedQuantity) || 0,
+                        orderedQuantity: Math.max(0, (Number(i.orderedQuantity) || 0) - adjustment)
+                    } : {})
                 };
             }));
             success = true;
@@ -1540,7 +1560,6 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                 <thead className="text-gray-500 bg-gray-50 uppercase text-xs sticky top-0 z-10 shadow-sm">
                                     <tr>
                                         <th className="px-6 py-3">วันที่/เวลา</th>
-                                        <th className="px-6 py-3">ผู้ทำรายการ</th>
                                         <th className="px-6 py-3">การกระทำ</th>
                                         <th className="px-6 py-3">รายละเอียด</th>
                                     </tr>
@@ -1617,82 +1636,162 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                             </button>
                         </div>
 
-                        <div className="flex-1 overflow-y-auto p-6 scrollbar-hide">
-                            {stockItems.filter(item => (Number(item.orderedQuantity) || 0) > 0).length === 0 ? (
-                                <div className="text-center py-12">
-                                    <div className="bg-orange-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-3.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
-                                        </svg>
+                        <div className="flex-1 overflow-y-auto p-4 sm:p-6 scrollbar-hide">
+                            {(() => {
+                                const filtered = stockItems.filter(item => {
+                                    const isReceivedToday = !!(item.receivedDate && new Date(item.receivedDate).toDateString() === new Date().toDateString());
+                                    const isPending = (Number(item.orderedQuantity) || 0) > 0;
+                                    return isReceivedToday || isPending;
+                                });
+
+                                if (filtered.length === 0) {
+                                    return (
+                                        <div className="text-center py-12">
+                                            <div className="bg-orange-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-3.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+                                                </svg>
+                                            </div>
+                                            <p className="text-gray-500 font-medium text-lg">ไม่มีรายการที่กำลังรอรับของ</p>
+                                            <p className="text-gray-400 text-sm mt-1">รายการสินค้าที่คุณออกใบสั่งของ จะปรากฏที่นี่</p>
+                                        </div>
+                                    );
+                                }
+
+                                // Group by Date string
+                                const groups: { [key: string]: typeof filtered } = {};
+                                filtered.forEach(item => {
+                                    const date = item.orderDate || item.receivedDate || 0;
+                                    const dateKey = date ? new Date(date).toLocaleDateString('th-TH') : 'ไม่ระบุวันที่';
+                                    if (!groups[dateKey]) groups[dateKey] = [];
+                                    groups[dateKey].push(item);
+                                });
+
+                                // Sort groups by date descending
+                                const sortedGroupKeys = Object.keys(groups).sort((a, b) => {
+                                    if (a === 'ไม่ระบุวันที่') return 1;
+                                    if (b === 'ไม่ระบุวันที่') return -1;
+                                    const [da, ma, ya] = a.split('/').map(Number);
+                                    const [db, mb, yb] = b.split('/').map(Number);
+                                    const dateA = new Date(ya - 543, ma - 1, da).getTime();
+                                    const dateB = new Date(yb - 543, mb - 1, db).getTime();
+                                    return dateB - dateA;
+                                });
+
+                                return (
+                                    <div className="space-y-6">
+                                        {sortedGroupKeys.map(dateKey => (
+                                            <div key={dateKey} className="bg-white border border-gray-100 rounded-xl overflow-hidden shadow-sm">
+                                                <div className="bg-gray-50 px-4 py-2 border-b border-gray-100 flex justify-between items-center">
+                                                    <span className="text-sm font-bold text-gray-600 flex items-center gap-2">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                                        </svg>
+                                                        รอบวันที่: {dateKey}
+                                                    </span>
+                                                    <span className="text-xs text-gray-400 font-medium">จำนวน {groups[dateKey].length} รายการ</span>
+                                                </div>
+                                                <div className="overflow-x-auto">
+                                                    <table className="w-full text-left border-collapse">
+                                                        <thead className="bg-gray-50/50">
+                                                            <tr>
+                                                                <th className="px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-wider min-w-[180px] sticky left-0 bg-gray-50/90 backdrop-blur-sm z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">สินค้า</th>
+                                                                <th className="px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-wider text-center min-w-[100px]">สั่งโดย</th>
+                                                                <th className="px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-wider text-center min-w-[100px]">จำนวนที่สั่ง</th>
+                                                                <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider text-center min-w-[220px]">ระบุจำนวนที่ได้รับ</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody className="divide-y divide-gray-100">
+                                                            {groups[dateKey]
+                                                                .sort((a, b) => {
+                                                                    const aPending = (Number(a.orderedQuantity) || 0) > 0;
+                                                                    const bPending = (Number(b.orderedQuantity) || 0) > 0;
+                                                                    if (aPending && !bPending) return -1;
+                                                                    if (!aPending && bPending) return 1;
+                                                                    return 0;
+                                                                })
+                                                                .map(item => {
+                                                                    const isVerifiedToday = !!((item.receivedDate && new Date(item.receivedDate).toDateString() === new Date().toDateString()) || (item.orderedQuantity === 0 && item.lastUpdatedBy));
+                                                                    
+                                                                    return (
+                                                                        <tr key={item.id} className={`transition-colors ${isVerifiedToday ? 'bg-gray-50/30' : 'hover:bg-gray-50/50'}`}>
+                                                                            <td className="px-4 py-3 min-w-[180px] sticky left-0 z-10 bg-inherit shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
+                                                                                <div className="flex items-center gap-3">
+                                                                                    <div className="w-10 h-10 rounded-lg bg-gray-100 flex-shrink-0 overflow-hidden ring-1 ring-gray-200">
+                                                                                        {item.imageUrl ? (
+                                                                                            <img src={item.imageUrl} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                                                                        ) : (
+                                                                                            <div className="w-full h-full flex items-center justify-center text-gray-400">
+                                                                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                                                                                            </div>
+                                                                                        )}
+                                                                                    </div>
+                                                                                    <div>
+                                                                                        <div className="font-bold text-sm text-gray-800 line-clamp-1">{item.name}</div>
+                                                                                        <div className="text-[10px] text-gray-500">{item.unit}</div>
+                                                                                    </div>
+                                                                                </div>
+                                                                            </td>
+                                                                            <td className="px-4 py-3 text-center min-w-[100px]">
+                                                                                <span className="text-xs text-gray-600 font-medium">{item.orderedBy || '-'}</span>
+                                                                            </td>
+                                                                            <td className="px-4 py-3 text-center min-w-[100px]">
+                                                                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-blue-700 whitespace-nowrap">
+                                                                                    {item.orderedQuantity || item.lastOrderedQuantity || 0}
+                                                                                </span>
+                                                                            </td>
+                                                                            <td className="px-4 py-2 font-medium min-w-[220px]">
+                                                                                <div className="w-full max-w-[200px] mx-auto relative">
+                                                                                    {isVerifiedToday && (
+                                                                                        <div className="absolute -top-2.5 -left-2.5 z-20">
+                                                                                            <div className="bg-green-500 text-white rounded-full p-1 shadow-lg ring-2 ring-white">
+                                                                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                                                                                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                                                                                </svg>
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    )}
+                                                                                    
+                                                                                    <input 
+                                                                                        type="number"
+                                                                                        id={`bulk-qty-${item.id}`}
+                                                                                        step="0.01"
+                                                                                        className={`w-full px-3 py-2.5 border border-gray-300 rounded-xl text-center font-black outline-none transition-all placeholder:text-gray-300 placeholder:font-normal text-xl [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
+                                                                                            isVerifiedToday
+                                                                                            ? 'bg-green-50 text-green-700 cursor-not-allowed border-green-200' 
+                                                                                            : 'text-orange-600 focus:ring-4 focus:ring-orange-100 focus:border-orange-500 shadow-md bg-white'
+                                                                                        }`}
+                                                                                        placeholder="0.00"
+                                                                                        value={isVerifiedToday ? (item.lastReceivedQuantity ?? 0) : undefined}
+                                                                                        defaultValue={!isVerifiedToday ? "" : undefined}
+                                                                                        disabled={isVerifiedToday}
+                                                                                    />
+                                                                                    
+                                                                                    <input 
+                                                                                        type="hidden"
+                                                                                        id={`bulk-date-${item.id}`}
+                                                                                        defaultValue={new Date().toISOString().split('T')[0]}
+                                                                                    />
+    
+                                                                                    {isVerifiedToday && item.lastUpdatedBy && (
+                                                                                        <div className="mt-1 text-[10px] text-gray-500 font-medium text-center bg-green-50/50 py-1 rounded-lg">
+                                                                                            <span className="text-green-700 font-bold block mb-0.5">บันทึกโดย: {item.lastUpdatedBy}</span>
+                                                                                            <span className="text-gray-400 opacity-80">{new Date(item.lastUpdated || 0).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.</span>
+                                                                                        </div>
+                                                                                    )}
+                                                                                </div>
+                                                                            </td>
+                                                                        </tr>
+                                                                    );
+                                                                })}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        ))}
                                     </div>
-                                    <p className="text-gray-500 font-medium text-lg">ไม่มีรายการที่กำลังรอรับของ</p>
-                                    <p className="text-gray-400 text-sm mt-1">รายการสินค้าที่คุณออกใบสั่งของ จะปรากฏที่นี่</p>
-                                </div>
-                            ) : (
-                                <div className="space-y-4">
-                                    <table className="w-full text-left border-collapse">
-                                        <thead className="bg-gray-50 sticky top-0 z-10">
-                                            <tr>
-                                                <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">สินค้า</th>
-                                                <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">จำนวนที่สั่ง</th>
-                                                <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">ระบุจำนวนที่ได้รับ</th>
-                                                <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">วันที่รับของ</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-gray-100">
-                                            {stockItems.filter(item => (Number(item.orderedQuantity) || 0) > 0).map(item => (
-                                                <tr key={item.id} className="hover:bg-gray-50/50 transition-colors">
-                                                    <td className="px-4 py-4">
-                                                        <div className="flex items-center gap-3">
-                                                            <div className="w-10 h-10 rounded-lg bg-gray-100 flex-shrink-0 overflow-hidden ring-1 ring-gray-200">
-                                                                {item.imageUrl ? (
-                                                                    <img src={item.imageUrl} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                                                                ) : (
-                                                                    <div className="w-full h-full flex items-center justify-center text-gray-400">
-                                                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                            <div>
-                                                                <div className="font-bold text-gray-800">{item.name}</div>
-                                                                <div className="text-xs text-gray-500">{item.category} • {item.unit}</div>
-                                                            </div>
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-4 py-4 text-center">
-                                                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-800 whitespace-nowrap">
-                                                            {item.orderedQuantity} {item.unit}
-                                                        </span>
-                                                        {item.orderDate && (
-                                                            <div className="text-[10px] text-gray-400 mt-1">สั่งเมือ: {new Date(item.orderDate).toLocaleDateString('th-TH')}</div>
-                                                        )}
-                                                    </td>
-                                                    <td className="px-4 py-4">
-                                                        <div className="max-w-[140px] mx-auto">
-                                                            <input 
-                                                                type="number"
-                                                                id={`bulk-qty-${item.id}`}
-                                                                step="0.01"
-                                                                className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-center font-bold text-orange-600 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all placeholder:text-gray-300 placeholder:font-normal text-lg"
-                                                                placeholder="0.00"
-                                                                defaultValue=""
-                                                            />
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-4 py-4">
-                                                        <input 
-                                                            type="date"
-                                                            id={`bulk-date-${item.id}`}
-                                                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 outline-none focus:ring-2 focus:ring-orange-500 transition-all"
-                                                            defaultValue={new Date().toISOString().split('T')[0]}
-                                                        />
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            )}
+                                );
+                            })()}
                         </div>
 
                         <div className="p-6 border-t border-gray-100 bg-gray-50 flex justify-end gap-3 translate-y-0">
@@ -1738,21 +1837,27 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                         });
 
                                         if (confirmed.isConfirmed) {
-                                            const currentUser = auth.currentUser?.displayName || auth.currentUser?.email || 'Unknown Staff';
                                             const now = Date.now();
-
-                                            for (const res of results) {
-                                                const updatedItem = {
-                                                    ...res.item,
-                                                    quantity: res.item.quantity + res.qty,
-                                                    receivedDate: new Date(res.date).getTime(),
-                                                    orderedQuantity: 0,
-                                                    lastUpdated: now,
-                                                    lastUpdatedBy: currentUser
-                                                };
-                                                await updateStockItem(updatedItem);
-                                                addLog(res.item, 'receive', `รับสินค้าเข้าแบบกลุ่ม: ${res.qty} ${res.item.unit} (รวมยอด: ใช่) โดย ${currentUser}`);
-                                            }
+                                            const activeUsername = currentUser?.username || 'Unknown Staff';
+                                            
+                                            setStockItems(prev => {
+                                                let nextItems = [...prev];
+                                                for (const res of results) {
+                                                    const updatedItem = {
+                                                        ...res.item,
+                                                        quantity: res.item.quantity + res.qty,
+                                                        receivedDate: new Date(res.date).getTime(),
+                                                        lastReceivedQuantity: Number(res.qty),
+                                                        lastOrderedQuantity: Number(res.item.orderedQuantity) || 0,
+                                                        orderedQuantity: Math.max(0, (Number(res.item.orderedQuantity) || 0) - res.qty),
+                                                        lastUpdated: now,
+                                                        lastUpdatedBy: activeUsername
+                                                    };
+                                                    nextItems = nextItems.map(i => i.id === res.item.id ? updatedItem : i);
+                                                    addLog(res.item, 'receive', `รับสินค้าเข้าแบบกลุ่ม: ${res.qty} ${res.item.unit} (รวมยอด: ใช่) โดย ${activeUsername}`);
+                                                }
+                                                return nextItems;
+                                            });
 
                                             Swal.fire({
                                                 title: 'สำเร็จ!',
