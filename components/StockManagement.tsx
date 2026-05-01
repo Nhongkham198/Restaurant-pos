@@ -1221,7 +1221,7 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                                     </div>
                                                 </div>
                                                 <div className="min-w-0">
-                                                    <div className="font-black text-gray-900 text-xl leading-tight truncate mb-1" title={item.name}>{item.name}</div>
+                                                    <div className="font-black text-gray-900 text-xl leading-normal mb-1" title={item.name}>{item.name}</div>
                                                     <div className="flex flex-wrap items-center gap-2">
                                                         <span className="px-2 py-0.5 text-[9px] font-black rounded-md bg-gray-50 text-gray-400 border border-gray-100 uppercase tracking-wider">
                                                             {item.category}
