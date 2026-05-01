@@ -980,10 +980,7 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>
                                 ออกรายการสั่งของ
                             </button>
-                            <button onClick={handlePrintKitchen} className="px-4 py-2 bg-gray-600 text-white font-semibold rounded-lg hover:bg-gray-700 whitespace-nowrap text-sm flex items-center gap-2 shadow transition-all hover:shadow-md">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
-                                พิมพ์รายการ
-                            </button>
+
                             <button onClick={() => setIsBulkReceiveOpen(true)} className="px-4 py-2 bg-orange-600 text-white font-semibold rounded-lg hover:bg-orange-700 whitespace-nowrap text-sm shadow transition-all hover:shadow-md flex items-center gap-2">
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
@@ -1132,7 +1129,7 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                 <button
                                     key={category}
                                     onClick={() => setSelectedCategory(category)}
-                                    className={`px-4 py-1.5 rounded-full text-sm font-semibold transition-all ${selectedCategory === category ? 'bg-blue-600 text-white shadow-md' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300'}`}
+                                    className={`px-4 py-1.5 rounded-full text-sm font-semibold transition-all ${selectedCategory === category ? 'bg-blue-600 text-white shadow-md' : 'bg-blue-50 border border-blue-100 text-blue-600 hover:bg-blue-100 hover:border-blue-200'}`}
                                 >
                                     {category}
                                 </button>
@@ -1163,172 +1160,169 @@ export const StockManagement: React.FC<StockManagementProps> = ({
 
                     {activeTab === 'inventory' ? (
                         <>
-                            {/* Desktop Table Layout */}
-                            <div className="hidden md:flex flex-col flex-1 min-h-0 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                        <div className="grid grid-cols-13 gap-4 px-6 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider bg-gray-50 border-b border-gray-200 sticky top-0 z-10 items-center">
-                            <div className="col-span-1">รูปภาพ</div>
-                            <div className="col-span-2">ชื่อวัตถุดิบ</div>
-                            <div className="col-span-1 text-center">ก่อนสั่ง</div>
-                            <div className="col-span-1 text-center">จำนวนสั่ง</div>
-                            <div className="col-span-1 text-center">ผู้สั่งซื้อ</div>
-                            <div className="col-span-1 text-center">หมวดหมู่</div>
-                            
-                            <div className="col-span-2 text-center relative" ref={sortMenuRef}>
-                                <button 
-                                    onClick={() => setIsSortMenuOpen(!isSortMenuOpen)}
-                                    className={`flex items-center justify-center gap-1 transition-colors w-full focus:outline-none ${sortConfig.key !== 'default' && sortConfig.key !== 'lastUpdated' ? 'text-blue-600 font-bold' : 'hover:text-blue-600'}`}
-                                >
-                                    {getSortLabel()}
-                                    <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 transition-transform ${isSortMenuOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                    </svg>
-                                </button>
-                                {isSortMenuOpen && (
-                                    <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-1 w-48 bg-white rounded-lg shadow-xl border border-gray-200 z-50 overflow-hidden text-left">
-                                        <div className="py-1">
-                                            <button onClick={() => handleSort('lastUpdated')} className={`block w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 ${sortConfig.key === 'lastUpdated' ? 'bg-blue-50 text-blue-600 font-semibold' : ''}`}>
-                                                เรียงตามแก้ไขล่าสุด
-                                            </button>
-                                            <button onClick={() => handleSort('orderDate')} className={`block w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 ${sortConfig.key === 'orderDate' ? 'bg-blue-50 text-blue-600 font-semibold' : ''}`}>
-                                                เรียงตามวันที่สั่ง
-                                            </button>
-                                            <button onClick={() => handleSort('receivedDate')} className={`block w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 ${sortConfig.key === 'receivedDate' ? 'bg-blue-50 text-blue-600 font-semibold' : ''}`}>
-                                                เรียงตามวันที่รับ
-                                            </button>
-                                             <button onClick={() => handleSort('default')} className={`block w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 border-t`}>
-                                                รีเซ็ตการเรียง
-                                            </button>
+                            {/* Desktop Header Layout - Simplified as requested */}
+                            <div className="hidden md:grid grid-cols-12 gap-4 px-8 py-3 text-sm font-bold text-gray-500 items-center">
+                                <div className="col-span-8"></div>
+                                <div className="col-span-2 text-center relative" ref={sortMenuRef}>
+                                    <button 
+                                        onClick={() => setIsSortMenuOpen(!isSortMenuOpen)}
+                                        className={`flex items-center justify-center gap-2 w-full transition-colors ${sortConfig.key !== 'default' ? 'text-blue-600' : 'hover:text-blue-600'}`}
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002-2z" /></svg>
+                                        <span className="text-sm font-bold">{getSortLabel()}</span>
+                                        <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 transition-transform ${isSortMenuOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+                                        </svg>
+                                    </button>
+                                    {isSortMenuOpen && (
+                                        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-64 bg-white rounded-2xl shadow-2xl border border-gray-100 z-50 overflow-hidden font-sans">
+                                            <div className="p-2 space-y-1">
+                                                <button onClick={() => handleSort('lastUpdated')} className={`flex items-center w-full px-4 py-3 text-sm font-bold rounded-xl transition-all ${sortConfig.key === 'lastUpdated' ? 'bg-blue-50 text-blue-600' : 'text-gray-700 hover:bg-gray-50'}`}>
+                                                    เรียงตามแก้ไขล่าสุด
+                                                </button>
+                                                <button onClick={() => handleSort('orderDate')} className={`flex items-center w-full px-4 py-3 text-sm font-bold rounded-xl transition-all ${sortConfig.key === 'orderDate' ? 'bg-blue-50 text-blue-600' : 'text-gray-700 hover:bg-gray-50'}`}>
+                                                    เรียงตามวันที่สั่ง
+                                                </button>
+                                                <button onClick={() => handleSort('receivedDate')} className={`flex items-center w-full px-4 py-3 text-sm font-bold rounded-xl transition-all ${sortConfig.key === 'receivedDate' ? 'bg-blue-50 text-blue-600' : 'text-gray-700 hover:bg-gray-50'}`}>
+                                                    เรียงตามวันที่รับ
+                                                </button>
+                                                <div className="h-px bg-gray-100 my-1 mx-2"></div>
+                                                <button onClick={() => handleSort('default')} className="flex items-center w-full px-4 py-3 text-sm font-bold text-red-600 hover:bg-red-50 rounded-xl transition-all">
+                                                    รีเซ็ตการเรียง
+                                                </button>
+                                            </div>
                                         </div>
+                                    )}
+                                </div>
+                                <div className="col-span-2 text-right pr-4 text-sm font-bold">สต็อกคงเหลือ</div>
+                            </div>
+
+                            <div className="hidden md:flex flex-1 flex-col overflow-y-auto space-y-4 pt-1 pb-10 px-1">
+                                {filteredItems.length > 0 ? filteredItems.map((item, index) => {
+                                    if (!item) return null;
+                                    const status = getStatus(item);
+                                    const isLowStock = Number(item.quantity) <= Number(item.reorderPoint);
+                                    
+                                    return (
+                                        <div key={item.id} className={`grid grid-cols-12 gap-4 px-6 py-5 items-center bg-white rounded-[2rem] shadow-sm border border-gray-100 hover:shadow-xl hover:border-blue-300 transition-all duration-500 group relative ${getRowStyle(item)}`}>
+                                            
+                                            {/* Section 1: Identity & Metadata (cols 1-3) */}
+                                            <div className="col-span-3 flex items-center gap-4">
+                                                <div className="relative shrink-0">
+                                                    <img 
+                                                        src={item.imageUrl || "https://placehold.co/100?text=No+Image"} 
+                                                        alt={item.name} 
+                                                        className="w-16 h-16 object-cover rounded-2xl border-2 border-gray-50 shadow-sm cursor-pointer group-hover:scale-110 transition-transform duration-500" 
+                                                        onClick={() => handleViewImage(item)}
+                                                        onError={(e) => e.currentTarget.src = "https://placehold.co/100?text=Error"} 
+                                                    />
+                                                    <div className="absolute -top-2 -left-2 w-7 h-7 bg-white border border-gray-100 text-gray-900 text-xs flex items-center justify-center rounded-xl font-black shadow-md z-10">
+                                                        {index + 1}
+                                                    </div>
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <div className="font-black text-gray-900 text-xl leading-tight truncate mb-1" title={item.name}>{item.name}</div>
+                                                    <div className="flex flex-wrap items-center gap-2">
+                                                        <span className="px-2 py-0.5 text-[9px] font-black rounded-md bg-gray-50 text-gray-400 border border-gray-100 uppercase tracking-wider">
+                                                            {item.category}
+                                                        </span>
+                                                        <span className={`px-2 py-0.5 text-[9px] font-black rounded-md border shadow-xs uppercase tracking-wider ${status.color}`}>
+                                                            {status.text}
+                                                        </span>
+                                                        
+                                                        {/* Floating Inline Actions for quick access */}
+                                                        <div className="flex gap-1 ml-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                            <button onClick={() => handleOpenItemModal(item)} className="p-1 text-blue-500 hover:bg-blue-50 rounded-md transition-colors" title="แก้ไข">
+                                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L15.232 5.232z" /></svg>
+                                                            </button>
+                                                            {canDelete && (
+                                                                <button onClick={() => handleDeleteItem(item.id)} className="p-1 text-red-500 hover:bg-red-50 rounded-md transition-colors" title="ลบ">
+                                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            
+                                            {/* Section 2: Order Metrics Detail (cols 4-8) */}
+                                            <div className="col-span-5 px-4">
+                                                <div className="flex items-center bg-gray-50/50 rounded-2xl p-3 border border-gray-100/50 backdrop-blur-sm">
+                                                    <div className="flex-1 text-center">
+                                                        <div className="text-[10px] text-gray-400 font-black uppercase mb-1 tracking-tighter">ก่อนสั่ง</div>
+                                                        <div className="text-sm font-black text-gray-800">{item.quantityBeforeOrder !== undefined ? formatQty(item.quantityBeforeOrder, item.unit) : '-'}</div>
+                                                    </div>
+                                                    <div className="h-8 w-px bg-gray-200 mx-2"></div>
+                                                    <div className="flex-1 text-center">
+                                                        <div className="text-[10px] text-blue-500 font-black uppercase mb-1 tracking-tighter">จำนวนสั่ง</div>
+                                                        <div className="text-base font-black text-blue-700">{item.orderedQuantity || '-'} <span className="text-[10px] text-blue-400">{item.unit}</span></div>
+                                                    </div>
+                                                    <div className="h-8 w-px bg-gray-200 mx-2"></div>
+                                                    <div className="flex-1 text-center">
+                                                        <div className="text-[10px] text-gray-400 font-black uppercase mb-1 tracking-tighter">ผู้สั่งซื้อ</div>
+                                                        <div className="text-xs font-bold text-gray-600 truncate px-1">{item.orderedBy || '-'}</div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            
+                                            {/* Section 3: Timeline (cols 9-10) */}
+                                            <div className="col-span-2">
+                                                <div className="flex flex-col gap-1.5 bg-blue-50/30 p-2.5 rounded-xl border border-blue-100/30">
+                                                    <div className="flex items-center justify-between">
+                                                        <span className="text-[9px] font-black text-blue-400 uppercase">สั่ง:</span>
+                                                        <span className="text-xs font-black text-gray-700">{formatDate(item.orderDate)}</span>
+                                                    </div>
+                                                    <div className="flex items-center justify-between border-t border-blue-100/50 pt-1.5">
+                                                        <span className="text-[9px] font-black text-blue-400 uppercase">รับ:</span>
+                                                        <span className="text-xs font-black text-blue-600">{formatDate(item.receivedDate)}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            
+                                            {/* Section 4: Inventory & Quick Adjust (cols 11-12) */}
+                                            <div className="col-span-2 flex items-center justify-end gap-4 pl-4">
+                                                <div className="text-right">
+                                                    <div className="flex flex-col items-end">
+                                                        <div className="flex items-baseline gap-1.5">
+                                                            <span className={`text-2xl font-black tracking-tighter ${isLowStock ? 'text-red-600' : 'text-gray-900'}`}>
+                                                                {formatQty(item.quantity, item.unit)}
+                                                            </span>
+                                                            <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{item.unit}</span>
+                                                        </div>
+                                                        <div className="w-24 bg-gray-100 h-2 rounded-full mt-1.5 overflow-hidden flex border border-gray-50 shadow-inner">
+                                                            <div 
+                                                                className={`h-full transition-all duration-1000 ${isLowStock ? 'bg-gradient-to-r from-red-500 to-orange-400 animate-pulse' : 'bg-gradient-to-r from-emerald-500 to-teal-400'}`} 
+                                                                style={{ width: `${Math.min((Number(item.quantity) / (Number(item.reorderPoint) * 2)) * 100, 100)}%` }}
+                                                            ></div>
+                                                        </div>
+                                                        <div className="text-[9px] font-black text-gray-400 mt-1 uppercase tracking-widest opacity-60">
+                                                            Min: {formatQty(item.reorderPoint, item.unit)}
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <button onClick={() => handleOpenAdjustModal(item)} className="p-3 text-white bg-red-500 hover:bg-red-600 rounded-2xl shadow-lg shadow-red-100 active:scale-90 transition-all shrink-0" title="เบิกของ">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M15 12H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    );
+                                }) : (
+                                    <div className="h-full flex flex-col items-center justify-center text-gray-400 py-32 bg-white rounded-[3rem] border-2 border-dashed border-gray-100 shadow-inner">
+                                        <div className="relative mb-6 text-center">
+                                            <div className="absolute inset-0 bg-blue-100 rounded-full scale-150 opacity-20 animate-ping"></div>
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-24 w-24 opacity-20 mx-auto relative z-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                                            </svg>
+                                        </div>
+                                        <p className="text-2xl font-black text-gray-300 tracking-tight">ไม่พบรายการวัตถุดิบ</p>
+                                        <p className="text-gray-400 font-medium max-w-xs text-center mt-2">โปรดตรวจสอบเงื่อนไขการค้นหาอีกครั้ง</p>
                                     </div>
                                 )}
                             </div>
 
-                            <div className="col-span-1 text-center">แก้ไขล่าสุด</div>
-                            <div className="col-span-1 text-right">คงเหลือ/จุดสั่ง</div>
-                            <div className="col-span-1 text-center">สถานะ</div>
-                            <div className="col-span-1 text-center">จัดการ</div>
-                        </div>
-
-                        <div className="flex-1 overflow-y-auto">
-                            {filteredItems.length > 0 ? filteredItems.map((item, index) => {
-                                if (!item) return null;
-                                const status = getStatus(item);
-                                
-                                return (
-                                    <div key={item.id} className={`grid grid-cols-13 gap-4 px-6 py-3 items-center border-b transition-colors last:border-0 group ${getRowStyle(item)}`}>
-                                        <div className="col-span-1">
-                                            <div className="relative w-12 h-12">
-                                                <img 
-                                                    src={item.imageUrl || "https://placehold.co/100?text=No+Image"} 
-                                                    alt={item.name} 
-                                                    className="w-full h-full object-cover rounded-lg border border-gray-200 shadow-sm cursor-pointer hover:opacity-80 transition-opacity" 
-                                                    onClick={() => handleViewImage(item)}
-                                                    onError={(e) => e.currentTarget.src = "https://placehold.co/100?text=Error"} 
-                                                />
-                                                <div className="absolute -top-1.5 -left-1.5 w-5 h-5 bg-gray-800 text-white text-[10px] flex items-center justify-center rounded-full font-bold shadow-sm">
-                                                    {index + 1}
-                                                </div>
-                                            </div>
-                                        </div>
-                                        
-                                        <div className="col-span-2 pr-2">
-                                            <div className="font-semibold text-gray-900 text-base truncate" title={item.name}>{item.name}</div>
-                                            <div className="text-xs text-gray-400">ID: {item.id}</div>
-                                        </div>
-                                        
-                                        <div className="col-span-1 text-center flex items-center justify-center">
-                                            <span className="font-medium text-gray-600">{item.quantityBeforeOrder !== undefined ? formatQty(item.quantityBeforeOrder, item.unit) : '-'}</span>
-                                        </div>
-
-                                        <div className="col-span-1 text-center flex items-center justify-center">
-                                            <span className="font-medium text-gray-700">{item.orderedQuantity || '-'}</span>
-                                        </div>
-
-                                        <div className="col-span-1 text-center flex items-center justify-center">
-                                            <span className="text-xs text-gray-600">{item.orderedBy || '-'}</span>
-                                        </div>
-
-                                        <div className="col-span-1 text-center">
-                                            <span className="px-2 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 border border-gray-200 inline-block truncate max-w-full">
-                                                {item.category}
-                                            </span>
-                                        </div>
-                                        
-                                        <div className="col-span-2 text-center text-xs text-gray-500 space-y-1">
-                                            <div className="flex justify-between px-2">
-                                                <span className="text-gray-400">สั่ง:</span> 
-                                                <span className="font-medium text-gray-700">{formatDate(item.orderDate)}</span>
-                                            </div>
-                                            <div className="flex justify-between px-2 border-t border-gray-100 pt-1">
-                                                <span className="text-gray-400">รับ:</span> 
-                                                <span className="font-medium text-gray-700">{formatDate(item.receivedDate)}</span>
-                                            </div>
-                                        </div>
-                                        
-                                        <div className="col-span-1 text-center">
-                                            <div className="flex flex-col items-center">
-                                                <div className="text-xs font-semibold text-gray-700">{item.lastUpdatedBy || '-'}</div>
-                                                <div className="text-[10px] text-gray-400">
-                                                    {new Date(item.lastUpdated).toLocaleString('th-TH', { 
-                                                        day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' 
-                                                    })}
-                                                </div>
-                                            </div>
-                                        </div>
-                                        
-                                        <div className="col-span-1 text-right">
-                                            <div className="flex flex-col items-end">
-                                                <span className={`text-base font-bold ${Number(item.quantity) <= Number(item.reorderPoint) ? 'text-red-600' : 'text-gray-900'}`}>
-                                                    {formatQty(item.quantity, item.unit)}
-                                                </span>
-                                                <span className="text-[10px] text-gray-400 border-t border-gray-200 pt-0.5 mt-0.5 w-full text-right">
-                                                    จุดสั่ง: {formatQty(item.reorderPoint, item.unit)} {item.unit}
-                                                </span>
-                                            </div>
-                                        </div>
-                                        
-                                        <div className="col-span-1 text-center">
-                                            <span className={`px-2 py-1 text-xs font-bold rounded-full border shadow-sm ${status.color} inline-block w-20 text-center`}>
-                                                {status.text}
-                                            </span>
-                                        </div>
-                                        
-                                        <div className="col-span-1 flex justify-center gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
-                                            <button onClick={() => handleOpenAdjustModal(item)} className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg border border-transparent hover:border-green-200 transition-all" title="เบิกของ">
-                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
-                                            </button>
-                                            <button onClick={() => handleOpenItemModal(item)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg border border-transparent hover:border-blue-200 transition-all" title="แก้ไข">
-                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L15.232 5.232z" /></svg>
-                                            </button>
-                                            {currentUser?.role === 'admin' && (
-                                                <button onClick={() => handleOpenLogModal(item)} className="p-1.5 text-gray-600 hover:bg-gray-50 rounded-lg border border-transparent hover:border-gray-200 transition-all" title="ประวัติการแก้ไข">
-                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                                    </svg>
-                                                </button>
-                                            )}
-                                            {canDelete && (
-                                                <button onClick={() => handleDeleteItem(item.id)} className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg border border-transparent hover:border-red-200 transition-all" title="ลบ">
-                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                                                </button>
-                                            )}
-                                        </div>
-                                    </div>
-                                );
-                            }) : (
-                                <div className="h-full flex flex-col items-center justify-center text-gray-400 py-20">
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mb-4 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                                    </svg>
-                                    <p className="text-lg font-medium">ไม่พบรายการวัตถุดิบ</p>
-                                    <p className="text-sm">ลองค้นหาคำอื่น หรือเปลี่ยนหมวดหมู่</p>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Mobile/Tablet Card Layout */}
-                    <div className="md:hidden space-y-3 pb-24 overflow-y-auto flex-1">
+                            {/* Mobile/Tablet Card Layout */}
+                            <div className="md:hidden space-y-3 pb-24 overflow-y-auto flex-1">
                         {filteredItems.length > 0 ? filteredItems.map((item, index) => {
                             if (!item) return null;
                             const status = getStatus(item);
@@ -1405,7 +1399,7 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                     </div>
                                     <div className="flex justify-end gap-3 pt-3 border-t border-gray-200">
                                         <button onClick={() => handleReceiveStock(item)} className="text-base font-medium text-purple-700 hover:underline">รับของ</button>
-                                        <button onClick={() => handleOpenAdjustModal(item)} className="text-base font-medium text-green-700 hover:underline">เบิกของ</button>
+                                        <button onClick={() => handleOpenAdjustModal(item)} className="text-base font-medium text-red-700 hover:underline">เบิกของ</button>
                                         <button onClick={() => handleOpenItemModal(item)} className="text-base font-medium text-blue-700 hover:underline">แก้ไข</button>
                                         {canDelete && (
                                             <button onClick={() => handleDeleteItem(item.id)} className="text-base font-medium text-red-700 hover:underline">ลบ</button>
