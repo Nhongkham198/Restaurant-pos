@@ -45,3 +45,14 @@
 .ql-indent-1 { padding-left: 3em; }
 .ql-indent-2 { padding-left: 6em; }
 .ql-indent-3 { padding-left: 9em; }
+
+/* Hide number input spinners (up/down arrows) */
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type=number] {
+  -moz-appearance: textfield;
+}

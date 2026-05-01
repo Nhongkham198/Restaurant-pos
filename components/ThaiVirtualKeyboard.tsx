@@ -65,17 +65,17 @@ export const ThaiVirtualKeyboard: React.FC<ThaiVirtualKeyboardProps> = ({ onKeyP
         };
     }, [isDragging]);
 
-    // Standard Kedmanee Layout
+    // Standard Kedmanee Layout (Modified to use Arabic numbers)
     const rows = [
         // Row 1
         [
-            { normal: 'ๅ', shift: '+' }, { normal: '/', shift: '๑' }, { normal: '-', shift: '๒' }, { normal: 'ภ', shift: '๓' },
-            { normal: 'ถ', shift: '๔' }, { normal: 'ุ', shift: 'ู' }, { normal: 'ึ', shift: '฿' }, { normal: 'ค', shift: '๕' },
-            { normal: 'ต', shift: '๖' }, { normal: 'จ', shift: '๗' }, { normal: 'ข', shift: '๘' }, { normal: 'ช', shift: '๙' }
+            { normal: 'ๅ', shift: '+' }, { normal: '/', shift: '1' }, { normal: '-', shift: '2' }, { normal: 'ภ', shift: '3' },
+            { normal: 'ถ', shift: '4' }, { normal: 'ุ', shift: 'ู' }, { normal: 'ึ', shift: '฿' }, { normal: 'ค', shift: '5' },
+            { normal: 'ต', shift: '6' }, { normal: 'จ', shift: '7' }, { normal: 'ข', shift: '8' }, { normal: 'ช', shift: '9' }
         ],
         // Row 2
         [
-            { normal: 'ๆ', shift: '๐' }, { normal: 'ไ', shift: '"' }, { normal: 'ำ', shift: 'ฎ' }, { normal: 'พ', shift: 'ฑ' },
+            { normal: 'ๆ', shift: '0' }, { normal: 'ไ', shift: '"' }, { normal: 'ำ', shift: 'ฎ' }, { normal: 'พ', shift: 'ฑ' },
             { normal: 'ะ', shift: 'ธ' }, { normal: 'ั', shift: 'ํ' }, { normal: 'ี', shift: '๊' }, { normal: 'ร', shift: 'ณ' },
             { normal: 'น', shift: 'ฯ' }, { normal: 'ย', shift: 'ญ' }, { normal: 'บ', shift: 'ฐ' }, { normal: 'ล', shift: ',' },
             { normal: 'ฃ', shift: 'ฅ' }

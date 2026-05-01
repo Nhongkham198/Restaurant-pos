@@ -10,6 +10,7 @@ import { CollectionActions } from '../hooks/useFirestoreSync';
 
 import { ThaiVirtualKeyboard } from './ThaiVirtualKeyboard';
 import { IngredientPriceUpload } from './IngredientPriceUpload';
+import { PriceComparisonWorkspace } from './PriceComparisonWorkspace';
 import { useData } from '../contexts/DataContext';
 
 // Declare XLSX to inform TypeScript that it's available globally from the script tag
@@ -51,6 +52,7 @@ export const StockManagement: React.FC<StockManagementProps> = ({
     onCloseTagModal
 }) => {
     const [selectedCategory, setSelectedCategory] = useState('ทั้งหมด');
+    const [activeTab, setActiveTab] = useState<'inventory' | 'comparison'>('inventory');
     const [isBulkReceiveOpen, setIsBulkReceiveOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
@@ -1139,10 +1141,30 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                     </div>
                 </header>
 
-                {/* ... (Existing table and card code remains unchanged) ... */}
+                {/* Content Area */}
                 <div className="flex-1 flex flex-col min-h-0 p-4 md:p-6">
-                    {/* Desktop Table Layout */}
-                    <div className="hidden md:flex flex-col flex-1 min-h-0 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                    {/* Main Tabs */}
+                    <div className="flex border-b border-gray-100 mb-6 bg-white rounded-xl shadow-sm overflow-hidden p-1 gap-1">
+                        <button 
+                            onClick={() => setActiveTab('inventory')}
+                            className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-lg font-bold text-sm transition-all ${activeTab === 'inventory' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'}`}
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
+                            รายการคลังสินค้า
+                        </button>
+                        <button 
+                            onClick={() => setActiveTab('comparison')}
+                            className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-lg font-bold text-sm transition-all ${activeTab === 'comparison' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'}`}
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+                            เปรียบเทียบราคา (Manual)
+                        </button>
+                    </div>
+
+                    {activeTab === 'inventory' ? (
+                        <>
+                            {/* Desktop Table Layout */}
+                            <div className="hidden md:flex flex-col flex-1 min-h-0 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                         <div className="grid grid-cols-13 gap-4 px-6 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider bg-gray-50 border-b border-gray-200 sticky top-0 z-10 items-center">
                             <div className="col-span-1">รูปภาพ</div>
                             <div className="col-span-2">ชื่อวัตถุดิบ</div>
@@ -1397,6 +1419,10 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                             </div>
                         )}
                     </div>
+                </>
+            ) : (
+                <PriceComparisonWorkspace stockItems={stockItems} />
+            )}
                 </div>
             </div>
             
