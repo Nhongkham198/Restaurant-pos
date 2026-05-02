@@ -78,8 +78,13 @@ export const PreOrderCustomer: React.FC = () => {
     };
 
     const handleSubmitPreOrder = async () => {
-        if (!customerName || cart.length === 0) {
-            Swal.fire('Error', 'กรุณาระบุชื่อและเลือกอาหารอย่างน้อย 1 รายการ', 'error');
+        if (!customerName.trim() || !customerPhone.trim() || cart.length === 0) {
+            Swal.fire({
+                icon: 'error',
+                title: 'ข้อมูลไม่ครบถ้วน',
+                text: 'กรุณาระบุชื่อและเบอร์โทรศัพท์เพื่อให้พนักงานติดต่อกลับได้ครับ',
+                confirmButtonColor: '#3b82f6'
+            });
             return;
         }
 
@@ -421,7 +426,7 @@ export const PreOrderCustomer: React.FC = () => {
                             exit={{ y: "100%" }}
                             className="relative bg-white w-full max-w-lg rounded-t-[3rem] p-8"
                         >
-                            <h2 className="text-2xl font-black text-gray-900 tracking-tight mb-8">ข้อมูลลูกค้า</h2>
+                            <h2 className="text-2xl font-black text-gray-900 tracking-tight mb-8">ข้อมูลสำหรับการติดต่อ</h2>
                             <div className="space-y-6 mb-8">
                                 <div>
                                     <label className="block text-xs font-black text-gray-400 mb-2 uppercase tracking-widest">ชื่อลูกค้า (จำเป็น)</label>
@@ -434,12 +439,12 @@ export const PreOrderCustomer: React.FC = () => {
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-black text-gray-400 mb-2 uppercase tracking-widest">เบอร์โทรศัพท์</label>
+                                    <label className="block text-xs font-black text-gray-400 mb-2 uppercase tracking-widest">เบอร์โทรศัพท์ (จำเป็น)</label>
                                     <input 
                                         type="tel" 
                                         value={customerPhone}
                                         onChange={(e) => setCustomerPhone(e.target.value)}
-                                        placeholder="ระบุเบอร์ติดต่อ (ถ้ามี)"
+                                        placeholder="ระบุเบอร์ติดต่อของคุณ"
                                         className="w-full bg-gray-50 border-2 border-transparent focus:border-blue-600 focus:bg-white rounded-2xl p-4 text-sm font-bold transition-all outline-none"
                                     />
                                 </div>
