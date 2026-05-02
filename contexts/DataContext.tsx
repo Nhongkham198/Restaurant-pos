@@ -83,6 +83,8 @@ interface DataContextType {
     
     staffCalls: StaffCall[];
     setStaffCalls: React.Dispatch<React.SetStateAction<StaffCall[]>>;
+    preOrders: PreOrder[];
+    preOrdersActions: CollectionActions<PreOrder>;
     leaveRequests: LeaveRequest[];
     setLeaveRequests: React.Dispatch<React.SetStateAction<LeaveRequest[]>>;
     lastSalesCleanupDate: string;
@@ -161,6 +163,8 @@ interface DataContextType {
     setLatestImportFilename: React.Dispatch<React.SetStateAction<string | null>>;
     isDataLoading: boolean;
 }
+
+import { PreOrder } from '../types';
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
 
@@ -524,6 +528,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     }, [stockLogs, stockLogsActions]);
     
     const [staffCalls, setStaffCalls] = useFirestoreSync<StaffCall[]>(branchId, 'staffCalls', []);
+    const [preOrders, preOrdersActions] = useFirestoreCollection<PreOrder>(branchId, 'preOrders');
     const [leaveRequests, setLeaveRequests] = useFirestoreSync<LeaveRequest[]>(shouldLoadHeavyData ? null : 'SKIP', 'leaveRequests', []);
     const [lastSalesCleanupDate, setLastSalesCleanupDate] = useFirestoreSync<string>(heavyDataBranchId, 'lastSalesCleanupDate', '');
 
@@ -584,7 +589,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         stockItems, setStockItems, stockTags, setStockTags, stockCategories, setStockCategories, stockUnits, setStockUnits,
         stockLogs, stockLogsActions,
         printHistory, setPrintHistory, maintenanceItems, setMaintenanceItems, maintenanceLogs, maintenanceLogsActions,
-        orderCounter, setOrderCounter, staffCalls, setStaffCalls, leaveRequests, setLeaveRequests,
+        orderCounter, setOrderCounter, staffCalls, setStaffCalls, preOrders, preOrdersActions, leaveRequests, setLeaveRequests,
         lastSalesCleanupDate, setLastSalesCleanupDate,
         
         jobApplications, jobApplicationsActions, employmentContracts, employmentContractsActions,
@@ -615,7 +620,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         newCompletedOrdersActions, newCancelledOrders, newCancelledOrdersActions,
         completedOrders, cancelledOrders, stockItems, stockTags, stockCategories, stockUnits,
         stockLogs, stockLogsActions, printHistory, maintenanceItems, maintenanceLogs, maintenanceLogsActions,
-        orderCounter, staffCalls, leaveRequests, lastSalesCleanupDate,
+        orderCounter, staffCalls, preOrders, preOrdersActions, leaveRequests, lastSalesCleanupDate,
         jobApplications, jobApplicationsActions, employmentContracts, 
         employmentContractsActions, timeRecords, payrollRecords, jobPositions,
         logoUrl, appLogoUrl, restaurantName, restaurantAddress, restaurantPhone, 

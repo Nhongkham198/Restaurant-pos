@@ -352,7 +352,19 @@ export interface MaintenanceLog {
     acknowledgedAt?: number; // NEW: Timestamp when acknowledged
 }
 
-export type View = 'pos' | 'kitchen' | 'tables' | 'dashboard' | 'history' | 'stock' | 'stock-analytics' | 'recipes' | 'leave' | 'leave-analytics' | 'maintenance' | 'hr' | 'hr-payroll' | 'expense-analysis';
+export interface PreOrder {
+    id: string; // Unique ID (e.g. timestamp or auto-gen)
+    customerName: string;
+    customerPhone?: string;
+    items: OrderItem[];
+    status: 'pending' | 'assigned' | 'cancelled';
+    timestamp: number;
+    branchId: number;
+    notes?: string;
+    totalAmount: number;
+}
+
+export type View = 'pos' | 'kitchen' | 'tables' | 'dashboard' | 'history' | 'stock' | 'stock-analytics' | 'recipes' | 'leave' | 'leave-analytics' | 'maintenance' | 'hr' | 'hr-payroll' | 'expense-analysis' | 'pre-order-management' | 'pre-order-customer';
 
 export interface NavItem {
     id: string;

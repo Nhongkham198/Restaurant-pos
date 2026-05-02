@@ -112,6 +112,8 @@ const CustomerView = lazy(() => import('./components/CustomerView').then(module 
 const QueueDisplay = lazy(() => import('./components/QueueDisplay').then(module => ({ default: module.QueueDisplay })));
 const HRManagementView = lazy(() => import('./components/HRManagementView'));
 const PrivacyPolicy = lazy(() => import('./components/PrivacyPolicy').then(module => ({ default: module.PrivacyPolicy })));
+const PreOrderManagement = lazy(() => import('./components/PreOrderManagement').then(module => ({ default: module.PreOrderManagement })));
+const PreOrderCustomer = lazy(() => import('./components/PreOrderCustomer').then(module => ({ default: module.PreOrderCustomer })));
 
 import { BottomNavBar } from './components/BottomNavBar';
 
@@ -322,6 +324,10 @@ export const App: React.FC = () => {
         window.location.hash === '#/privacy-policy' ||
         window.location.hash === '#privacy-policy'
     );
+    const [isPreOrderMode, setIsPreOrderMode] = useState(() => {
+        const params = new URLSearchParams(window.location.search);
+        return params.get('mode') === 'pre-order';
+    });
     const [currentFcmToken, setCurrentFcmToken] = useState<string | null>(null);
 
     // --- VIEW & EDIT MODE STATE ---
@@ -577,6 +583,9 @@ export const App: React.FC = () => {
         }).length;
     }, [maintenanceItems]);
 
+    const { preOrders } = useData();
+    const preOrderBadgeCount = useMemo(() => preOrders.filter(po => po.status === 'pending').length, [preOrders]);
+
     const mobileNavItems = useMemo(() => {
         const items: NavItem[] = [
             {id: 'pos', label: 'POS', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4z" /><path fillRule="evenodd" d="M18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h2a1 1 0 100-2H9z" clipRule="evenodd" /></svg>, view: 'pos'},
@@ -585,6 +594,16 @@ export const App: React.FC = () => {
         // Show Kitchen tab for everyone except auditor (so admin/branch-admin can see it too)
         if (currentUser?.role !== 'auditor') {
              items.push({id: 'kitchen', label: 'ครัว', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M17.707 9.293a1 1 0 010 1.414l-7 7a1 1 0 01-1.414 0l-7-7A.997.997 0 012 10V5a3 3 0 013-3h10a3 3 0 013 3v5a.997.997 0 01-.293.707zM5 6a1 1 0 100 2 1 1 0 000-2zm3 0a1 1 0 100 2 1 1 0 000-2zm3 0a1 1 0 100 2 1 1 0 000-2z" clipRule="evenodd" /></svg>, view: 'kitchen', badge: totalKitchenBadgeCount});
+        }
+
+        if (currentUser?.role !== 'auditor') {
+            items.push({
+                id: 'pre-order-management', 
+                label: 'สั่งล่วงหน้า', 
+                icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>, 
+                view: 'pre-order-management', 
+                badge: preOrderBadgeCount
+            });
         }
 
         items.push({id: 'tables', label: 'ผังโต๊ะ', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M2 5a2 2 0 012-2h12a2 2 0 012 2v10a2 2 0 01-2-2H4a2 2 0 01-2-2V5zm2 1v8h8V6H4z" /></svg>, view: 'tables', badge: tablesBadgeCount});
@@ -1480,6 +1499,22 @@ export const App: React.FC = () => {
     // RENDER LOGIC
     
     // 0. Render Queue Display Mode
+    if (isPreOrderMode) {
+        if (!branchId) {
+            return (
+                <div className="h-screen w-screen flex flex-col items-center justify-center bg-gray-900 text-white p-6 text-center">
+                    <h1 className="text-2xl font-black mb-2">ลิงก์ไม่ถูกต้อง</h1>
+                    <p className="text-gray-400">กรุณาตรวจสอบลิงก์จากทางร้านอีกครั้ง (Missing branchId)</p>
+                </div>
+            );
+        }
+        return (
+            <Suspense fallback={<PageLoading />}>
+                <PreOrderCustomer />
+            </Suspense>
+        );
+    }
+
     if (isPrivacyPolicyMode) {
         return (
             <Suspense fallback={<PageLoading />}>
@@ -1718,6 +1753,7 @@ export const App: React.FC = () => {
                         onManageBranches={() => setModalState(prev => ({...prev, isBranchManager: true}))} onChangeBranch={handleChangeBranch} onLogout={handleLogout}
                         kitchenBadgeCount={totalKitchenBadgeCount} tablesBadgeCount={tablesBadgeCount} leaveBadgeCount={leaveBadgeCount} stockBadgeCount={stockBadgeCount}
                         maintenanceBadgeCount={maintenanceBadgeCount}
+                        preOrderBadgeCount={preOrderBadgeCount}
                         onUpdateCurrentUser={handleUpdateCurrentUser} onUpdateLogoUrl={setLogoUrl} onUpdateRestaurantName={setRestaurantName}
                         isOrderNotificationsEnabled={isOrderNotificationsEnabled} onToggleOrderNotifications={toggleOrderNotifications}
                         printerConfig={printerConfig}
@@ -1735,7 +1771,7 @@ export const App: React.FC = () => {
                         currentView={currentView} onViewChange={handleViewChange} isEditMode={isEditMode} onToggleEditMode={() => setIsEditMode(!isEditMode)}
                         onOpenSettings={() => setModalState(prev => ({ ...prev, isSettings: true }))} cookingBadgeCount={cookingBadgeCount} waitingBadgeCount={waitingBadgeCount}
                         tablesBadgeCount={tablesBadgeCount} vacantTablesBadgeCount={vacantTablesCount} leaveBadgeCount={leaveBadgeCount} stockBadgeCount={stockBadgeCount} 
-                        maintenanceBadgeCount={maintenanceBadgeCount} currentUser={currentUser} onLogout={handleLogout}
+                        maintenanceBadgeCount={maintenanceBadgeCount} preOrderBadgeCount={preOrderBadgeCount} currentUser={currentUser} onLogout={handleLogout}
                         onOpenUserManager={() => setModalState(prev => ({ ...prev, isUserManager: true }))} 
                         logoUrl={appLogoUrl || logoUrl} // Prioritize App Logo (Red)
                         onLogoChangeClick={() => {}}
@@ -1852,6 +1888,9 @@ export const App: React.FC = () => {
                                                     onToggleAutoPrint={toggleAutoPrint}     // Pass handler
                                                 />
                                             )}
+                                            {currentView === 'pre-order-management' && (
+                                                <PreOrderManagement />
+                                            )}
                                             {/* ... Other mobile views ... */}
                                             {currentView === 'tables' && <TableLayout tables={tables} activeOrders={activeOrders} onTableSelect={(id) => { setSelectedTableId(id); handleViewChange('pos'); }} onShowBill={handleShowBill} onGeneratePin={handleGeneratePin} currentUser={currentUser} printerConfig={printerConfig} floors={floors} selectedBranch={selectedBranch} restaurantName={restaurantName} logoUrl={logoUrl} qrCodeUrl={qrCodeUrl} />}
                                             {currentView === 'dashboard' && <Dashboard completedOrders={completedOrders} cancelledOrders={cancelledOrders} openingTime={openingTime || '10:00'} closingTime={closingTime || '22:00'} currentUser={currentUser} recipes={recipes} deliveryProviders={deliveryProviders} taxRate={taxRate} />}
@@ -1921,6 +1960,9 @@ export const App: React.FC = () => {
                                     isAutoPrintEnabled={isAutoPrintEnabled} // Pass prop
                                     onToggleAutoPrint={toggleAutoPrint}     // Pass handler
                                 />
+                            )}
+                            {currentView === 'pre-order-management' && (
+                                <PreOrderManagement />
                             )}
                             {currentView === 'tables' && <TableLayout tables={tables} activeOrders={activeOrders} onTableSelect={(id) => { setSelectedTableId(id); handleViewChange('pos'); }} onShowBill={handleShowBill} onGeneratePin={handleGeneratePin} currentUser={currentUser} printerConfig={printerConfig} floors={floors} selectedBranch={selectedBranch} restaurantName={restaurantName} logoUrl={logoUrl} qrCodeUrl={qrCodeUrl} />}
                             {currentView === 'dashboard' && <Dashboard completedOrders={completedOrders} cancelledOrders={cancelledOrders} openingTime={openingTime || '10:00'} closingTime={closingTime || '22:00'} currentUser={currentUser} recipes={recipes} deliveryProviders={deliveryProviders} taxRate={taxRate} />}

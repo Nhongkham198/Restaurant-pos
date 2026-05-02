@@ -25,6 +25,7 @@ interface AdminSidebarProps {
     leaveBadgeCount: number;
     stockBadgeCount: number; 
     maintenanceBadgeCount: number; // Added maintenance badge
+    preOrderBadgeCount: number; // New: Pre-order badge
     onUpdateCurrentUser: (updates: Partial<User>) => void;
     onUpdateLogoUrl: (newUrl: string) => void;
     onUpdateRestaurantName: (newName: string) => void;
@@ -158,6 +159,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({
     leaveBadgeCount,
     stockBadgeCount,
     maintenanceBadgeCount,
+    preOrderBadgeCount,
     onUpdateCurrentUser,
     onUpdateLogoUrl,
     onUpdateRestaurantName,
@@ -452,6 +454,14 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({
                                     isCollapsed={isCollapsed}
                                     isActive={currentView === 'pos'}
                                     onClick={() => onViewChange('pos')}
+                                />
+                                <NavItem
+                                    icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
+                                    text="ออเดอร์ล่วงหน้า"
+                                    isCollapsed={isCollapsed}
+                                    isActive={currentView === 'pre-order-management'}
+                                    onClick={() => onViewChange('pre-order-management')}
+                                    badge={preOrderBadgeCount}
                                 />
                                 <NavItem
                                     icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path d="M2 5a2 2 0 012-2h12a2 2 0 012 2v10a2 2 0 01-2-2H4a2 2 0 01-2-2V5zm2 1v8h8V6H4z" /></svg>}

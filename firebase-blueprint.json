@@ -91,6 +91,23 @@
         "timestamp": { "type": "number" }
       },
       "required": ["id", "stockItemId", "action", "timestamp"]
+    },
+    "PreOrder": {
+      "title": "Pre Order",
+      "description": "An order submitted by a customer via a link, awaiting staff assignment.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "customerName": { "type": "string" },
+        "customerPhone": { "type": "string" },
+        "items": { "type": "array" },
+        "status": { "type": "string", "enum": ["pending", "assigned", "cancelled"] },
+        "timestamp": { "type": "number" },
+        "branchId": { "type": "number" },
+        "notes": { "type": "string" },
+        "totalAmount": { "type": "number" }
+      },
+      "required": ["id", "customerName", "items", "status", "timestamp", "branchId"]
     }
   },
   "firestore": {
@@ -113,6 +130,10 @@
     "branches/{branchId}/activeOrders/{orderId}": {
       "schema": "ActiveOrder",
       "description": "Active orders for a branch."
+    },
+    "branches/{branchId}/preOrders/{orderId}": {
+      "schema": "PreOrder",
+      "description": "Pre-orders submitted by customers."
     },
     "branches/{branchId}/stockItems/data": {
       "schema": "object",
