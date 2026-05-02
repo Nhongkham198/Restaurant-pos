@@ -600,7 +600,15 @@ export const App: React.FC = () => {
             items.push({
                 id: 'pre-order-management', 
                 label: 'สั่งล่วงหน้า', 
-                icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>, 
+                icon: (
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17" />
+                        <circle cx="7" cy="20" r="2" strokeWidth={2} />
+                        <circle cx="17" cy="20" r="2" strokeWidth={2} />
+                        <rect x="10" y="5" width="7" height="6" rx="1" strokeWidth={1.5} />
+                        <path d="M10 8h7M12 5v1M15 5v1" strokeWidth={1.5} />
+                    </svg>
+                ), 
                 view: 'pre-order-management', 
                 badge: preOrderBadgeCount
             });
