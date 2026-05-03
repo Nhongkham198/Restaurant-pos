@@ -417,30 +417,30 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
                                     // Calculate the expected smart price based on latest JSON data
                                     const expectedSmartPrice = calculateSmartUnitPrice(ing, latestPrice, currentManualPrice);
                                     
-                                    // Criteria for Red Dot:
+                                    // Criteria for Red Warning:
                                     // 1. There is a price in JSON
                                     // 2. The price in JSON is different from what's currently marked as smart price in recipe
-                                    // 3. The JSON update is newer than the recipe's last save time (or first time)
+                                    // 3. The JSON update is newer than the recipe's last save time
                                     // 4. User hasn't touched it in this session
                                     const latestPriceTime = latestPrice?.updatedAt || (latestPrice?.date ? new Date(latestPrice.date + 'T00:00:00').getTime() : 0);
                                     const isNewUpdate = latestPriceTime > (recipe?.lastUpdated || 0);
                                     const isMismatched = latestPrice && Math.abs(expectedSmartPrice - (ing.smartUnitPrice ?? 0)) > 0.0001;
+                                    const needsSync = isNewUpdate && isMismatched && !touchedIngredients.has(ing.stockItemId);
                                     
-                                    const holdsNewData = isNewUpdate && isMismatched && !touchedIngredients.has(ing.stockItemId);
-                                    const showInput = holdsNewData || forcingEdit.has(ing.stockItemId);
+                                    const showInput = needsSync || forcingEdit.has(ing.stockItemId);
                                     
                                     return (
                                         <div key={ing.stockItemId} className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 bg-gray-50 rounded-2xl border border-gray-100">
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-center gap-1.5 min-w-0">
-                                                    {holdsNewData && (
-                                                        <span className="relative flex h-2 w-2 mr-0.5">
+                                                    {needsSync && (
+                                                        <span className="relative flex h-2.5 w-2.5 mr-0.5">
                                                             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                                                            <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                                                            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span>
                                                         </span>
                                                     )}
                                                     <p className="font-bold text-gray-900 truncate">{stockItem?.name}</p>
-                                                    {latestPrice && !holdsNewData && (
+                                                    {latestPrice && !needsSync && (
                                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 text-green-500 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
                                                             <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                                                         </svg>
@@ -449,10 +449,10 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
                                                         <div className="flex items-center gap-1">
                                                             <button 
                                                                 onClick={() => handleSyncPrice(ing.stockItemId)}
-                                                                className="flex-shrink-0 text-blue-500 hover:text-blue-700 transition-colors" 
+                                                                className={`flex-shrink-0 transition-colors ${needsSync ? 'p-1 bg-blue-500 text-white rounded-lg hover:bg-blue-600 shadow-sm animate-bounce' : 'text-blue-500 hover:text-blue-700'}`} 
                                                                 title="ซิงค์ราคาล่าสุดจากไฟล์ JSON"
                                                             >
-                                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                <svg xmlns="http://www.w3.org/2000/svg" className={`${needsSync ? 'h-3.5 w-3.5' : 'h-4 w-4'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                                                                 </svg>
                                                             </button>
@@ -654,26 +654,29 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
                                 // Calculate the expected smart price for additional items
                                 const expectedSmartPrice = calculateSmartUnitPrice(ing, latestPrice, currentManualPrice);
                                 
-                                // Criteria for Red Dot (Additional items)
+                                // Criteria for Red Warning (Additional items)
+                                // 1. There is a price in JSON
+                                // 2. The JSON update is newer than the recipe's last save time
+                                // 3. The price is mismatched
                                 const latestPriceTime = latestPrice?.updatedAt || (latestPrice?.date ? new Date(latestPrice.date + 'T00:00:00').getTime() : 0);
                                 const isNewUpdate = latestPriceTime > (recipe?.lastUpdated || 0);
                                 const isMismatched = latestPrice && Math.abs(expectedSmartPrice - (ing.smartUnitPrice ?? 0)) > 0.0001;
+                                const needsSync = isNewUpdate && isMismatched && !touchedIngredients.has(ing.stockItemId);
                                 
-                                const holdsNewData = isNewUpdate && isMismatched && !touchedIngredients.has(ing.stockItemId);
-                                const showInput = holdsNewData || forcingEdit.has(ing.stockItemId);
+                                const showInput = needsSync || forcingEdit.has(ing.stockItemId);
 
                                 return (
                                     <div key={ing.stockItemId} className="flex flex-col gap-2 p-3 bg-blue-50/50 rounded-2xl border border-blue-100/50">
                                         <div className="flex items-center justify-between">
                                             <div className="flex items-center gap-1.5 min-w-0">
-                                                {holdsNewData && (
-                                                    <span className="relative flex h-2 w-2 mr-0.5">
+                                                {needsSync && (
+                                                    <span className="relative flex h-2.5 w-2.5 mr-0.5">
                                                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                                                        <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                                                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span>
                                                     </span>
                                                 )}
                                                 <p className="text-sm font-bold text-gray-800 truncate">{stockItem?.name}</p>
-                                                {latestPrice && !holdsNewData && (
+                                                {latestPrice && !needsSync && (
                                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-green-500 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
                                                         <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                                                     </svg>
@@ -683,10 +686,10 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
                                                         <div className="flex items-center gap-1">
                                                             <button 
                                                                 onClick={() => handleSyncPrice(ing.stockItemId, true)}
-                                                                className="flex-shrink-0 text-blue-500 hover:text-blue-700 transition-colors" 
+                                                                className={`flex-shrink-0 transition-colors ${needsSync ? 'p-1 bg-blue-500 text-white rounded-lg hover:bg-blue-600 shadow-sm animate-bounce' : 'text-blue-500 hover:text-blue-700'}`} 
                                                                 title="ซิงค์ราคาล่าสุดจากไฟล์ JSON"
                                                             >
-                                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                <svg xmlns="http://www.w3.org/2000/svg" className={`${needsSync ? 'h-3' : 'h-3.5 w-3.5'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                                                                 </svg>
                                                             </button>
