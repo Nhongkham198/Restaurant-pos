@@ -170,14 +170,24 @@ export const PreOrderManagement: React.FC = () => {
                                     exit={{ opacity: 0, scale: 0.95 }}
                                     className="bg-white rounded-3xl shadow-xl shadow-gray-200/50 border border-gray-100 overflow-hidden flex flex-col hover:shadow-2xl transition-all duration-300"
                                 >
-                                    <div className="p-5 border-b border-gray-50 bg-gradient-to-br from-white to-gray-50/50">
+                                    <div className="p-5 border-b border-gray-50 bg-gradient-to-br from-white to-gray-50/50 border-l-4 border-orange-500">
                                         <div className="flex justify-between items-start mb-3">
                                             <div>
                                                 <h3 className="text-lg font-black text-gray-900 leading-tight">{po.customerName}</h3>
                                                 <p className="text-xs font-bold text-gray-400 mt-0.5">{new Date(po.timestamp).toLocaleString('th-TH')}</p>
                                             </div>
-                                            <div className="bg-yellow-100 text-yellow-700 px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider">
-                                                รอStaffจัดการ
+                                            <div className="flex flex-col items-end gap-2">
+                                                <div className="bg-yellow-100 text-yellow-700 px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider">
+                                                    รอStaffจัดการ
+                                                </div>
+                                                {/* Order Summary Badge */}
+                                                <div className="bg-blue-600 text-white px-3 py-1.5 rounded-xl text-[11px] font-black shadow-sm flex items-center gap-1.5 animate-in fade-in zoom-in duration-300">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                                                        <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
+                                                        <path fillRule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clipRule="evenodd" />
+                                                    </svg>
+                                                    {po.items.reduce((sum, item) => sum + item.quantity, 0)} รายการ
+                                                </div>
                                             </div>
                                         </div>
                                         {po.customerPhone && (
@@ -190,27 +200,36 @@ export const PreOrderManagement: React.FC = () => {
                                         )}
                                     </div>
 
-                                    <div className="flex-1 p-5 space-y-3 overflow-y-auto max-h-64 scrollbar-hide">
-                                        {po.items.map((item, idx) => (
-                                            <div key={idx} className="flex justify-between items-start pt-2 border-t border-gray-50 first:border-0 first:pt-0">
-                                                <div className="flex-1 pr-4">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="w-6 h-6 rounded-lg bg-gray-100 flex items-center justify-center text-[10px] font-black text-gray-600">{item.quantity}x</span>
-                                                        <span className="text-sm font-bold text-gray-800 leading-tight">{item.name}</span>
-                                                    </div>
-                                                    {item.selectedOptions && item.selectedOptions.length > 0 && (
-                                                        <div className="ml-8 mt-1 space-y-0.5">
-                                                            {item.selectedOptions.map((opt, oIdx) => (
-                                                                <p key={oIdx} className="text-[10px] font-medium text-gray-400 leading-none">+ {opt.name}</p>
-                                                            ))}
+                                    <div className="flex-1 overflow-hidden">
+                                        <div className="p-2 space-y-1 overflow-y-auto max-h-[320px] scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent">
+                                            {po.items.map((item, idx) => (
+                                                <div 
+                                                    key={idx} 
+                                                    className={`flex justify-between items-start p-3 rounded-2xl transition-colors ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/80 hover:bg-gray-100/80'}`}
+                                                >
+                                                    <div className="flex-1 pr-4">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="shrink-0 text-[10px] font-black text-gray-300 w-4">{idx + 1}.</span>
+                                                            <span className="shrink-0 w-7 h-7 rounded-lg bg-white border border-gray-100 shadow-sm flex items-center justify-center text-[11px] font-black text-blue-600">{item.quantity}x</span>
+                                                            <span className="text-sm font-bold text-gray-800 leading-tight">{item.name}</span>
                                                         </div>
-                                                    )}
+                                                        {item.selectedOptions && item.selectedOptions.length > 0 && (
+                                                            <div className="ml-9 mt-1.5 space-y-1">
+                                                                {item.selectedOptions.map((opt, oIdx) => (
+                                                                    <div key={oIdx} className="flex items-center gap-1.5">
+                                                                        <div className="w-1 h-1 rounded-full bg-gray-300"></div>
+                                                                        <p className="text-[10px] font-medium text-gray-500 leading-none">{opt.name}</p>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <span className="text-sm font-black text-gray-900 pt-1">
+                                                        {(item.finalPrice * item.quantity).toLocaleString()}.-
+                                                    </span>
                                                 </div>
-                                                <span className="text-sm font-black text-gray-900 border-b-2 border-gray-100 pb-0.5">
-                                                    {(item.finalPrice * item.quantity).toLocaleString()}.-
-                                                </span>
-                                            </div>
-                                        ))}
+                                            ))}
+                                        </div>
                                     </div>
 
                                     <div className="p-5 bg-gray-50/50 border-t border-gray-100 mt-auto">
