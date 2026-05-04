@@ -14,8 +14,10 @@ interface LeaveCalendarViewProps {
     onOpenRequestModal: (date?: Date) => void;
     branches?: Branch[];
     onUpdateStatus?: (requestId: number, status: 'approved' | 'rejected') => void;
+    onUpdateType?: (requestId: number, newType: LeaveRequest['type']) => void;
     onDeleteRequest?: (requestId: number) => Promise<boolean>;
     selectedBranch?: Branch | null;
+    isEditMode?: boolean;
 }
 
 // Move helper functions outside the component to avoid re-creation and ensure they are available
@@ -37,7 +39,7 @@ const getTypeLabel = (type: string) => {
     }
 };
 
-export const LeaveCalendarView: React.FC<LeaveCalendarViewProps> = ({ leaveRequests, currentUser, onOpenRequestModal, branches, onUpdateStatus, onDeleteRequest, selectedBranch }) => {
+export const LeaveCalendarView: React.FC<LeaveCalendarViewProps> = ({ leaveRequests, currentUser, onOpenRequestModal, branches, onUpdateStatus, onUpdateType, onDeleteRequest, selectedBranch, isEditMode }) => {
     const [currentDate, setCurrentDate] = useState(new Date());
     const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
     const [selectedDayDetails, setSelectedDayDetails] = useState<{ date: Date, leaves: LeaveRequest[] } | null>(null);
@@ -402,7 +404,22 @@ export const LeaveCalendarView: React.FC<LeaveCalendarViewProps> = ({ leaveReque
                                             </td>
                                             <td className="py-3 px-4 font-medium">{req.username}</td>
                                             <td className="py-3 px-4 text-gray-600">{getBranchName(req.branchId)}</td>
-                                            <td className="py-3 px-4">{getTypeLabel(req.type)}</td>
+                                            <td className="py-3 px-4">
+                                                {isEditMode && onUpdateType ? (
+                                                    <select 
+                                                        value={req.type === 'leave-without-pay' ? 'vacation' : req.type}
+                                                        onChange={(e) => onUpdateType(req.id, e.target.value as LeaveRequest['type'])}
+                                                        className="bg-white border border-gray-300 rounded px-2 py-1 text-xs focus:ring-2 focus:ring-blue-500 outline-none"
+                                                    >
+                                                        <option value="sick">ลาป่วย</option>
+                                                        <option value="personal">ลากิจ</option>
+                                                        <option value="vacation">ลาไม่รับเงินเดือน</option>
+                                                        <option value="other">อื่นๆ</option>
+                                                    </select>
+                                                ) : (
+                                                    getTypeLabel(req.type)
+                                                )}
+                                            </td>
                                             <td className="py-3 px-4">
                                                 {new Date(req.startDate).toLocaleDateString('th-TH', { timeZone: 'Asia/Bangkok' })} - {new Date(req.endDate).toLocaleDateString('th-TH', { timeZone: 'Asia/Bangkok' })}
                                             </td>
