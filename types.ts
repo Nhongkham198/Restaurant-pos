@@ -507,6 +507,8 @@ export interface PayrollRecord {
     paymentDate?: number; // timestamp
     status: 'pending' | 'paid';
     slipUrl?: string; // Added: Payment slip URL
+    nextPaymentDate?: number; // Added: Timestamp for next scheduled payment
+    paymentCycle?: 7 | 14 | 30; // Added: Cycle in days (7, 14, or 30)
 }
 
 export interface DeliveryPriceHistoryEntry {

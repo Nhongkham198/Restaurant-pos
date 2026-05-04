@@ -780,6 +780,14 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                     <input id="swal-pay-slip" class="swal2-input m-0 flex-grow" placeholder="ลิงก์รูปภาพสลิป (URL)">
                     <input id="swal-pay-date" type="date" class="swal2-input m-0 w-1/3" placeholder="เลือกวันที่จ่าย">
                 </div>
+                <div class="flex gap-2 mb-3">
+                    <select id="swal-pay-cycle" class="swal2-input m-0 flex-grow">
+                        <option value="7">รอบถัดไป 7 วัน</option>
+                        <option value="14">รอบถัดไป 14 วัน</option>
+                        <option value="30">รอบถัดไป 30 วัน</option>
+                    </select>
+                    <input id="swal-pay-next-date" class="swal2-input m-0 w-1/2 bg-gray-100" placeholder="วันจ่ายครั้งถัดไป" readonly>
+                </div>
                 <input id="swal-pay-base" type="text" class="swal2-input" placeholder="ยอดจ่ายสุทธิ" readonly>
                 <div id="swal-pay-calc-info" class="text-left text-sm text-gray-500 mt-2 p-3 bg-gray-700 rounded-lg hidden"></div>
             `,
@@ -788,13 +796,33 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                  const usernameInput = document.getElementById('swal-pay-username') as HTMLInputElement;
                  const baseInput = document.getElementById('swal-pay-base') as HTMLInputElement;
                  const dateInput = document.getElementById('swal-pay-date') as HTMLInputElement;
+                 const cycleSelect = document.getElementById('swal-pay-cycle') as HTMLSelectElement;
+                 const nextDateInput = document.getElementById('swal-pay-next-date') as HTMLInputElement;
                  const infoDiv = document.getElementById('swal-pay-calc-info') as HTMLDivElement;
                  
                  const formatNumber = (num: number) => {
                      return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
                  };
 
+                 const updateNextPaymentDate = () => {
+                     const payDateVal = dateInput.value;
+                     const cycle = parseInt(cycleSelect.value);
+                     if (payDateVal && !isNaN(cycle)) {
+                         const payDate = new Date(payDateVal);
+                         const nextDate = new Date(payDate);
+                         nextDate.setDate(payDate.getDate() + cycle);
+                         
+                         const day = nextDate.getDate().toString().padStart(2, '0');
+                         const month = (nextDate.getMonth() + 1).toString().padStart(2, '0');
+                         const year = nextDate.getFullYear() + 543;
+                         nextDateInput.value = `จ่ายครั้งถัดไป: ${day}/${month}/${year}`;
+                     } else {
+                         nextDateInput.value = '';
+                     }
+                 };
+
                  const calculateDeductions = () => {
+                     updateNextPaymentDate();
                      const option = select.options[select.selectedIndex];
                      const salary = Number(option.getAttribute('data-salary'));
                      let userId = Number(option.getAttribute('data-userid'));
@@ -943,6 +971,7 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
 
                  select.addEventListener('change', calculateDeductions);
                  dateInput.addEventListener('change', calculateDeductions);
+                 cycleSelect.addEventListener('change', updateNextPaymentDate);
                  
                  select.addEventListener('change', () => {
                     const option = select.options[select.selectedIndex];
@@ -960,6 +989,7 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                 const select = document.getElementById('swal-pay-emp-select') as HTMLSelectElement;
                 const employeeName = select.options[select.selectedIndex]?.text;
                 const date = (document.getElementById('swal-pay-date') as HTMLInputElement).value;
+                const cycle = parseInt((document.getElementById('swal-pay-cycle') as HTMLSelectElement).value);
                 const netSalaryStr = (document.getElementById('swal-pay-base') as HTMLInputElement).value;
                 const netSalary = Number(netSalaryStr.replace(/,/g, '')); // Remove commas
                 const slipUrl = (document.getElementById('swal-pay-slip') as HTMLInputElement).value;
@@ -999,13 +1029,20 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                     return false;
                 }
 
+                // Calculate next payment date for saving
+                const payDate = new Date(date);
+                const nextPaymentDate = new Date(payDate);
+                nextPaymentDate.setDate(payDate.getDate() + cycle);
+
                 return {
                     employeeName: employeeName,
                     month: date,
                     baseSalary: baseSalary,
                     deductions: deductions > 0 ? deductions : 0,
                     totalNetSalary: netSalary,
-                    slipUrl: slipUrl
+                    slipUrl: slipUrl,
+                    nextPaymentDate: nextPaymentDate.getTime(),
+                    paymentCycle: cycle as 7 | 14 | 30
                 };
             }
         }).then((result) => {
@@ -1022,7 +1059,9 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                     bonuses: 0,
                     totalNetSalary: val.totalNetSalary,
                     status: val.slipUrl ? 'paid' : 'pending',
-                    slipUrl: val.slipUrl
+                    slipUrl: val.slipUrl,
+                    nextPaymentDate: val.nextPaymentDate,
+                    paymentCycle: val.paymentCycle
                 };
                 setPayrollRecords(prev => [...prev, newPayroll]);
                 Swal.fire('สำเร็จ', 'บันทึกเงินเดือนเรียบร้อย', 'success');
@@ -1418,9 +1457,10 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                         <th className="p-3">เงินเดือนฐาน</th>
                                         <th className="p-3">สุทธิ</th>
                                         <th className="p-3">สถานะ</th>
+                                        <th className="p-3">วันจ่ายครั้งถัดไป</th>
                                         <th className="p-3">สลิปโอนเงิน</th>
                                     </tr>
-                                </thead>
+</thead>
                                 <tbody className="divide-y divide-gray-700">
                                     {sortedPayrollRecords.length === 0 ? (
                                         <tr><td colSpan={isEditMode ? 6 : 5} className="p-4 text-center text-gray-500">ไม่พบข้อมูล</td></tr>
@@ -1482,6 +1522,11 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                                             {p.status === 'paid' ? 'จ่ายแล้ว' : 'รอดำเนินการ'}
                                                         </span>
                                                     )}
+                                                </td>
+                                                <td className="p-3 font-semibold text-blue-400">
+                                                    {p.nextPaymentDate && !isNaN(new Date(p.nextPaymentDate).getTime()) 
+                                                        ? new Date(p.nextPaymentDate).toLocaleDateString('th-TH') 
+                                                        : '-'}
                                                 </td>
                                                 <td className="p-3">
                                                     {p.slipUrl ? (
