@@ -1797,7 +1797,7 @@ export const App: React.FC = () => {
                     </button>
                 )}
                 {/* Edit Mode Toggle */}
-                {['admin', 'branch-admin'].includes(user.role) && ['history', 'hr', 'hr-payroll'].includes(currentView) && (
+                {['admin', 'branch-admin'].includes(user.role) && ['history', 'hr', 'hr-payroll', 'leave'].includes(currentView) && (
                     <label className="relative inline-flex items-center cursor-pointer mr-1" title="โหมดแก้ไข">
                         <input type="checkbox" checked={isEditMode} onChange={onToggleEditMode} className="sr-only peer" />
                         <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-yellow-500"></div>
