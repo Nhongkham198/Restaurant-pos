@@ -134,7 +134,7 @@ export const PreOrderManagement: React.FC = () => {
                                 timer: 3000
                             });
                         }}
-                        className="flex-1 md:flex-none bg-white border border-gray-200 text-gray-700 px-4 md:px-6 py-2.5 rounded-xl text-[12px] md:text-sm font-black hover:bg-gray-50 transition-all flex items-center justify-center gap-2 shadow-sm whitespace-nowrap"
+                        className="flex-1 md:flex-none bg-emerald-600 border border-emerald-700 text-white px-4 md:px-6 py-2.5 rounded-xl text-[12px] md:text-sm font-black hover:bg-emerald-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-100 whitespace-nowrap active:scale-95"
                     >
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 md:h-5 md:w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
