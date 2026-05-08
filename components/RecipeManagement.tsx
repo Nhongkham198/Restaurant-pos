@@ -928,28 +928,43 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
                                         className="w-20 h-20 rounded-xl object-cover bg-gray-100"
                                     />
                                     <div className="flex-1 min-w-0">
-                                        <div className="flex items-center gap-1.5 min-w-0">
-                                            <div className="flex items-center gap-1.5 flex-wrap min-w-0 flex-1">
-                                                <h3 className="font-bold text-gray-900 truncate">{item.name}</h3>
-                                                {recipeStatus.hasUpdate && (
-                                                    <span className="flex-shrink-0 text-orange-500" title="มีราคาวัตถุดิบใหม่โปรดกดอัปเดตต้นทุน">
-                                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                                                            <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                                                        </svg>
-                                                    </span>
-                                                )}
+                                        <div className="flex items-start justify-between min-w-0">
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                                                    <h3 className="font-bold text-gray-900 truncate">{item.name}</h3>
+                                                    {recipeStatus.hasUpdate && (
+                                                        <span className="flex-shrink-0 text-orange-500" title="มีราคาวัตถุดิบใหม่โปรดกดอัปเดตต้นทุน">
+                                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                                                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                                                            </svg>
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <p className="text-sm text-gray-500">{item.category}</p>
                                             </div>
-                                            {!recipeStatus.hasUpdate && recipe && (
-                                                <div className="flex-shrink-0 bg-green-100 text-green-700 p-0.5 rounded-full" title="สูตรอาหารถูกต้องและบันทึกแล้ว">
-                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
-                                                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                                    </svg>
+
+                                            {recipe && (
+                                                <div className="flex flex-col items-end flex-shrink-0 text-[10px] text-gray-400 mt-0.5">
+                                                    <div className="bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded font-bold border border-gray-200 max-w-[80px] truncate" title={`แก้ไขโดย: ${recipe.lastUpdatedBy}`}>
+                                                        {recipe.lastUpdatedBy}
+                                                    </div>
+                                                    <div className="mt-1 flex items-center gap-1 font-medium">
+                                                        {new Date(recipe.lastUpdated).toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: '2-digit' })}
+                                                    </div>
                                                 </div>
                                             )}
                                         </div>
-                                        <p className="text-sm text-gray-500">{item.category}</p>
                                         <div className="flex items-center justify-between mt-1">
-                                            <p className="text-lg font-bold text-blue-600">฿{item.price.toLocaleString()}</p>
+                                            <div className="flex items-center gap-2">
+                                                <p className="text-lg font-bold text-blue-600">฿{item.price.toLocaleString()}</p>
+                                                {!recipeStatus.hasUpdate && recipe && (
+                                                    <div className="flex-shrink-0 bg-green-100 text-green-700 p-0.5 rounded-full" title="สูตรอาหารถูกต้องและบันทึกแล้ว">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                                        </svg>
+                                                    </div>
+                                                )}
+                                            </div>
                                             {sortOrder !== 'none' && (
                                                 <span className="bg-red-600 text-white px-2 py-0.5 rounded-lg text-xs font-bold shadow-sm">
                                                     อันดับ {index + 1}
