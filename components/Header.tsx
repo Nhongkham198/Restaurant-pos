@@ -241,7 +241,7 @@ export const Header: React.FC<HeaderProps> = ({
                         <div className="flex items-center gap-2">
                             <p className={`text-sm font-medium transition-colors ${isKitchenView ? 'text-gray-400' : 'text-gray-800'}`}>{branchName}</p>
                             {/* Printer Status Indicators */}
-                            <div className={`flex items-center gap-1 ml-2 pl-2 border-l transition-colors ${isKitchenView ? 'border-gray-800' : 'border-gray-300'}`}>
+                            <div className={`flex flex-row items-center gap-2 ml-2 pl-2 border-l transition-colors ${isKitchenView ? 'border-gray-800' : 'border-gray-300'}`}>
                                 <PrinterStatusIndicator type="kitchen" status={kitchenPrinterStatus} onClick={() => checkPrinter('kitchen')} />
                                 <PrinterStatusIndicator type="cashier" status={cashierPrinterStatus} onClick={() => checkPrinter('cashier')} />
                             </div>

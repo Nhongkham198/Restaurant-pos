@@ -1540,7 +1540,26 @@ export const App: React.FC = () => {
         setPendingPlatform(undefined);
     };
     const handleAddItemToOrder = (item: MenuItem) => { setItemToCustomize(item); setModalState(prev => ({ ...prev, isCustomization: true, isMenuSearch: false })); };
-    const handleConfirmCustomization = (itemToAdd: OrderItem) => { setCurrentOrderItems(prevItems => { const existingItemIndex = prevItems.findIndex(i => i.cartItemId === (orderItemToEdit?.cartItemId || itemToAdd.cartItemId)); if (orderItemToEdit) { const newItems = [...prevItems]; newItems[existingItemIndex] = { ...itemToAdd, quantity: orderItemToEdit.quantity }; return newItems; } else { if (existingItemIndex !== -1) { const newItems = [...prevItems]; newItems[existingItemIndex].quantity += itemToAdd.quantity; return newItems; } else { return [...prevItems, itemToAdd]; } } }); handleModalClose(); };
+    const handleConfirmCustomization = (itemToAdd: OrderItem) => {
+        setCurrentOrderItems(prevItems => {
+            const existingItemIndex = prevItems.findIndex(i => i.cartItemId === (orderItemToEdit?.cartItemId || itemToAdd.cartItemId));
+            if (orderItemToEdit && existingItemIndex !== -1) {
+                const newItems = [...prevItems];
+                // Use the full itemToAdd which already includes the updated quantity from the modal
+                newItems[existingItemIndex] = { ...itemToAdd };
+                return newItems;
+            } else {
+                if (existingItemIndex !== -1) {
+                    const newItems = [...prevItems];
+                    newItems[existingItemIndex].quantity += itemToAdd.quantity;
+                    return newItems;
+                } else {
+                    return [...prevItems, itemToAdd];
+                }
+            }
+        });
+        handleModalClose();
+    };
     const handleUpdateOrderItem = (itemToUpdate: OrderItem) => { setItemToCustomize(itemToUpdate); setOrderItemToEdit(itemToUpdate); setModalState(prev => ({ ...prev, isCustomization: true })); };
     const handleQuantityChange = (cartItemId: string, newQuantity: number) => { setCurrentOrderItems(prevItems => { if (newQuantity <= 0) return prevItems.filter(i => i.cartItemId !== cartItemId); return prevItems.map(i => i.cartItemId === cartItemId ? { ...i, quantity: newQuantity } : i); }); };
     const handleRemoveItem = (cartItemId: string) => { setCurrentOrderItems(prevItems => prevItems.filter(i => i.cartItemId !== cartItemId)); };
@@ -1778,7 +1797,7 @@ export const App: React.FC = () => {
                     </button>
                 )}
                 {/* Edit Mode Toggle */}
-                {['admin', 'branch-admin'].includes(user.role) && ['history', 'hr', 'hr-payroll'].includes(currentView) && (
+                {['admin', 'branch-admin'].includes(user.role) && ['history', 'hr', 'hr-payroll', 'leave'].includes(currentView) && (
                     <label className="relative inline-flex items-center cursor-pointer mr-1" title="โหมดแก้ไข">
                         <input type="checkbox" checked={isEditMode} onChange={onToggleEditMode} className="sr-only peer" />
                         <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-yellow-500"></div>

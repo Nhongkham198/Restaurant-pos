@@ -113,7 +113,7 @@ export const PreOrderManagement: React.FC = () => {
     };
 
     return (
-        <div className="flex-1 flex flex-col min-h-0 bg-gray-50">
+        <div className="flex-1 flex flex-col min-h-0 bg-slate-100">
             <header className="bg-white border-b border-gray-200 px-4 sm:px-6 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm sticky top-0 z-30 shrink-0">
                 <div className="min-w-0">
                     <h1 className="text-xl md:text-2xl font-black text-gray-900 tracking-tight">หน้าจัดการออเดอร์ล่วงหน้า</h1>
@@ -191,12 +191,16 @@ export const PreOrderManagement: React.FC = () => {
                                             </div>
                                         </div>
                                         {po.customerPhone && (
-                                            <div className="flex items-center gap-2 text-sm text-gray-600 mb-1">
-                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                                            <a 
+                                                href={`tel:${po.customerPhone}`}
+                                                className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800 transition-colors mb-1 group max-w-fit"
+                                                title="กดเพื่อโทรออก"
+                                            >
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-blue-500 group-hover:scale-110 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                                                 </svg>
-                                                {po.customerPhone}
-                                            </div>
+                                                <span className="font-black underline decoration-blue-200 underline-offset-4">{po.customerPhone}</span>
+                                            </a>
                                         )}
                                     </div>
 
