@@ -929,9 +929,14 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
                                     />
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-start justify-between min-w-0">
-                                            <div className="flex-1 min-w-0">
-                                                <div className="flex items-center gap-1.5 flex-wrap min-w-0">
-                                                    <h3 className="font-bold text-gray-900 truncate">{item.name}</h3>
+                                            <div className="flex-1 min-w-0 overflow-hidden">
+                                                <div className="flex items-center gap-1.5 flex-nowrap min-w-0">
+                                                    <div className="flex-1 min-w-0 overflow-hidden relative group">
+                                                        <div className="whitespace-nowrap inline-block animate-marquee">
+                                                            <h3 className="inline-block font-bold text-gray-900 pr-4">{item.name}</h3>
+                                                            <h3 className="inline-block font-bold text-gray-900 pr-4">{item.name}</h3>
+                                                        </div>
+                                                    </div>
                                                     {recipeStatus.hasUpdate && (
                                                         <span className="flex-shrink-0 text-orange-500" title="มีราคาวัตถุดิบใหม่โปรดกดอัปเดตต้นทุน">
                                                             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
