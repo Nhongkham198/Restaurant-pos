@@ -197,9 +197,84 @@ export const StockManagement: React.FC<StockManagementProps> = ({
         setIsItemModalOpen(true);
     };
 
-    const handleOpenAdjustModal = (item: StockItem) => {
-        setSelectedItem(item);
-        setIsAdjustModalOpen(true);
+    const handleOpenAdjustModal = async (item: StockItem) => {
+        // 1. check if stock is 0
+        if (item.quantity <= 0) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'สินค้าหมด (Out of Stock)',
+                text: `ขออภัย สินค้า "${item.name}" เหลือ 0 ${item.unit} ไม่สามารถทำการเบิกได้ กรุณาเพิ่มสินค้าก่อนทำการเบิก`,
+                confirmButtonText: 'รับทราบ',
+                confirmButtonColor: '#3B82F6'
+            });
+            return;
+        }
+
+        // 2. Find last withdrawal info from logs
+        const withdrawals = stockLogs
+            .filter(log => log.stockItemId === item.id && log.action === 'adjust' && log.changeDetails.includes('เบิกออก'))
+            .sort((a, b) => b.timestamp - a.timestamp);
+        
+        const lastLog = withdrawals[0];
+        let lastInfoHtml = '<div class="mt-3 p-3 bg-gray-50 border border-gray-100 rounded-lg text-left text-sm italic text-gray-500 italic">ไม่มีข้อมูลการเบิกก่อนหน้าในระบบ</div>';
+        
+        if (lastLog) {
+            const dateStr = new Date(lastLog.timestamp).toLocaleString('th-TH', { 
+                day: '2-digit', 
+                month: '2-digit', 
+                year: 'numeric', 
+                hour: '2-digit', 
+                minute: '2-digit' 
+            });
+            
+            // Extract amount from details like "ปรับสต็อก (เบิกออก): -2 กก..."
+            const match = lastLog.changeDetails.match(/: (-?\d+(\.\d+)?) /);
+            const amt = match ? Math.abs(Number(match[1])) : '?';
+
+            lastInfoHtml = `
+                <div class="mt-3 p-3 bg-red-50 border border-red-100 rounded-lg text-left">
+                    <p class="text-[10px] font-black text-red-600 uppercase mb-1 tracking-wider">ประวัติการเบิกล่าสุด:</p>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <span class="text-xs text-gray-500 block">จำนวน:</span>
+                            <span class="text-sm font-bold text-gray-800">${amt} ${item.unit}</span>
+                        </div>
+                        <div>
+                            <span class="text-xs text-gray-500 block">โดย:</span>
+                            <span class="text-sm font-bold text-gray-800">${lastLog.performedBy}</span>
+                        </div>
+                        <div class="col-span-2 border-t border-red-100 pt-1 mt-1">
+                            <span class="text-xs text-gray-500 block">วันเวลาที่เบิก:</span>
+                            <span class="text-sm font-bold text-gray-800">${dateStr} น.</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // 3. Confirmation Dialog
+        const result = await Swal.fire({
+            title: 'ยืนยันการทำรายการเบิก?',
+            html: `
+                <div class="text-left font-sans">
+                    <p class="text-gray-600">คุณต้องการเข้าสู่หน้าจอการเบิกสินค้า: <b class="text-gray-900">${item.name}</b> ใช่หรือไม่?</p>
+                    <p class="text-xs text-gray-400 mt-1">*กรุณาตรวจสอบประวัติการเบิกล่าสุด เพื่อป้องกันการกดเบิกซ้ำซ้อน</p>
+                    ${lastInfoHtml}
+                </div>
+            `,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'ยืนยัน, ไปหน้าเบิก',
+            cancelButtonText: 'ยกเลิก',
+            confirmButtonColor: '#EF4444', // Red for withdrawal awareness
+            cancelButtonColor: '#9CA3AF',
+            reverseButtons: true
+        });
+
+        if (result.isConfirmed) {
+            setSelectedItem(item);
+            setIsAdjustModalOpen(true);
+        }
     };
 
     const handleBulkUpdateStock = (items: StockItem[]) => {
@@ -557,6 +632,18 @@ export const StockManagement: React.FC<StockManagementProps> = ({
     };
 
     const handleAdjustStock = async (itemToAdjust: StockItem, adjustment: number) => {
+        // Safety check: Prevent withdrawing more than available
+        if (adjustment < 0 && (itemToAdjust.quantity + adjustment) < 0) {
+            Swal.fire({
+                icon: 'error',
+                title: 'จำนวนไม่เพียงพอ',
+                text: `ไม่สามารถเบิกสินค้าได้เนื่องจากยอดที่เบิก (${Math.abs(adjustment)}) มากกว่าจำนวนคงเหลือที่มีอยู่ (${itemToAdjust.quantity})`,
+                confirmButtonText: 'ตกลง',
+                confirmButtonColor: '#EF4444'
+            });
+            return;
+        }
+
         let success = false;
         const updatedBy = currentUser?.username || 'System';
         

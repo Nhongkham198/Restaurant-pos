@@ -69,6 +69,7 @@ import type {
     TakeawayCutleryOption, 
     Reservation, 
     LeaveRequest, 
+    PayrollRecord,
     StaffCall, 
     PaymentDetails, 
     CancellationReason, 
@@ -201,6 +202,7 @@ export const App: React.FC = () => {
         orderCounter, setOrderCounter,
         staffCalls, setStaffCalls,
         leaveRequests, setLeaveRequests,
+        payrollRecords,
         lastSalesCleanupDate, setLastSalesCleanupDate,
         // Settings
         logoUrl, setLogoUrl,
@@ -560,15 +562,34 @@ export const App: React.FC = () => {
 
     const payrollBadgeCount = useMemo(() => {
         if (!currentUser) return 0;
-        // Count approved unpaid leaves that haven't been processed (simplified logic: just count approved unpaid leaves)
-        // In a real app, you'd check if they are already deducted in a payroll record.
-        // For this request, we just count approved unpaid leaves to show the notification.
-        return leaveRequests.filter(req => 
-            (req.type === 'leave-without-pay' || req.type === 'vacation') && 
-            req.status === 'approved' &&
-            (currentUser.role === 'admin' || (currentUser.role === 'branch-admin' && currentUser.allowedBranchIds?.includes(req.branchId)))
-        ).length;
-    }, [leaveRequests, currentUser]);
+        
+        if (currentUser.role !== 'admin' && currentUser.role !== 'branch-admin') {
+            return 0;
+        }
+
+        const latestRecordsMap = new Map<string, PayrollRecord>();
+        payrollRecords.forEach(r => {
+            if (!latestRecordsMap.has(r.employeeName) || 
+                (r.nextPaymentDate || 0) > (latestRecordsMap.get(r.employeeName)?.nextPaymentDate || 0)
+            ) {
+                latestRecordsMap.set(r.employeeName, r);
+            }
+        });
+
+        const now = Date.now();
+        let dueCount = 0;
+
+        latestRecordsMap.forEach((record) => {
+            if (record.nextPaymentDate) {
+                // Notify if due or overdue
+                if (now >= record.nextPaymentDate) {
+                    dueCount++;
+                }
+            }
+        });
+
+        return dueCount;
+    }, [payrollRecords, currentUser]);
 
     const maintenanceBadgeCount = useMemo(() => {
         const now = Date.now();
@@ -1845,7 +1866,9 @@ export const App: React.FC = () => {
                         onViewChange={handleViewChange} currentView={currentView} onToggleEditMode={() => setIsEditMode(!isEditMode)} isEditMode={isEditMode}
                         onOpenSettings={() => setModalState(prev => ({...prev, isSettings: true}))} onOpenUserManager={() => setModalState(prev => ({...prev, isUserManager: true}))}
                         onManageBranches={() => setModalState(prev => ({...prev, isBranchManager: true}))} onChangeBranch={handleChangeBranch} onLogout={handleLogout}
-                        kitchenBadgeCount={totalKitchenBadgeCount} tablesBadgeCount={tablesBadgeCount} leaveBadgeCount={leaveBadgeCount} stockBadgeCount={stockBadgeCount}
+                        kitchenBadgeCount={totalKitchenBadgeCount} tablesBadgeCount={tablesBadgeCount} leaveBadgeCount={leaveBadgeCount} 
+                        payrollBadgeCount={payrollBadgeCount}
+                        stockBadgeCount={stockBadgeCount}
                         maintenanceBadgeCount={maintenanceBadgeCount}
                         preOrderBadgeCount={preOrderBadgeCount}
                         onUpdateCurrentUser={handleUpdateCurrentUser} onUpdateLogoUrl={setLogoUrl} onUpdateRestaurantName={setRestaurantName}

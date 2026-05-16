@@ -23,6 +23,7 @@ interface AdminSidebarProps {
     kitchenBadgeCount: number;
     tablesBadgeCount: number;
     leaveBadgeCount: number;
+    payrollBadgeCount: number;
     stockBadgeCount: number; 
     maintenanceBadgeCount: number; // Added maintenance badge
     preOrderBadgeCount: number; // New: Pre-order badge
@@ -157,6 +158,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({
     kitchenBadgeCount,
     tablesBadgeCount,
     leaveBadgeCount,
+    payrollBadgeCount,
     stockBadgeCount,
     maintenanceBadgeCount,
     preOrderBadgeCount,
@@ -579,6 +581,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({
                                     isCollapsed={isCollapsed}
                                     isActive={currentView === 'hr'}
                                     onClick={() => onViewChange('hr')}
+                                    badge={payrollBadgeCount}
                                 />
                                 <NavItem
                                     icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>}

@@ -1069,6 +1069,54 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
         });
     };
 
+    const payrollDueCount = useMemo(() => {
+        const latestRecordsMap = new Map<string, PayrollRecord>();
+        payrollRecords.forEach(r => {
+            if (!latestRecordsMap.has(r.employeeName) || 
+                (r.nextPaymentDate || 0) > (latestRecordsMap.get(r.employeeName)?.nextPaymentDate || 0)
+            ) {
+                latestRecordsMap.set(r.employeeName, r);
+            }
+        });
+
+        const now = Date.now();
+        let count = 0;
+
+        latestRecordsMap.forEach((record) => {
+            if (record.nextPaymentDate) {
+                if (now >= record.nextPaymentDate) {
+                    count++;
+                }
+            }
+        });
+
+        return count;
+    }, [payrollRecords]);
+
+    const renderTabButton = (id: HRTab, label: string) => {
+        const isPayrollTab = id === 'payroll';
+        const showBadge = isPayrollTab && payrollDueCount > 0;
+
+        return (
+            <button
+                key={id}
+                onClick={() => setActiveTab(id)}
+                className={`px-4 py-2 rounded-lg transition-colors whitespace-nowrap relative ${
+                    activeTab === id 
+                    ? 'bg-blue-600 text-white shadow-lg' 
+                    : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                }`}
+            >
+                {label}
+                {showBadge && (
+                    <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white shadow-lg border border-gray-900">
+                        {payrollDueCount}
+                    </span>
+                )}
+            </button>
+        );
+    };
+
     return (
         <div className="bg-gray-900 h-full overflow-y-auto text-white w-full pb-24">
             <div className="p-6">
@@ -1076,27 +1124,15 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                     <span className="text-blue-500">👥</span> จัดการบุคคล (HR Management)
                 </h1>
 
-            {/* Tabs */}
-            <div className="flex space-x-2 mb-6 overflow-x-auto pb-2">
-                {[
-                    { id: 'application', label: '📄 ใบสมัครงาน' },
-                    { id: 'contract', label: '📝 สัญญาจ้าง' },
-                    { id: 'time', label: '⏰ บันทึกเวลา' },
-                    { id: 'payroll', label: '💰 เงินเดือน' },
-                ].map(tab => (
-                    <button
-                        key={tab.id}
-                        onClick={() => setActiveTab(tab.id as HRTab)}
-                        className={`px-4 py-2 rounded-lg transition-colors whitespace-nowrap ${
-                            activeTab === tab.id 
-                            ? 'bg-blue-600 text-white shadow-lg' 
-                            : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-                        }`}
-                    >
-                        {tab.label}
-                    </button>
-                ))}
-            </div>
+                {/* Tabs */}
+                <div className="flex space-x-2 mb-6 overflow-x-auto pb-2">
+                    {[
+                        { id: 'application' as HRTab, label: '📄 ใบสมัครงาน' },
+                        { id: 'contract' as HRTab, label: '📝 สัญญาจ้าง' },
+                        { id: 'time' as HRTab, label: '⏰ บันทึกเวลา' },
+                        { id: 'payroll' as HRTab, label: '💰 เงินเดือน' },
+                    ].map(tab => renderTabButton(tab.id, tab.label))}
+                </div>
 
             {/* Content Area */}
             <div className="bg-gray-800 rounded-xl p-6 shadow-xl border border-gray-700">
