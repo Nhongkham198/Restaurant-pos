@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useData } from '../contexts/DataContext';
 import { MenuItem, OrderItem, MenuOption, PreOrder } from '../types';
 import { useFirestoreCollection } from '../hooks/useFirestoreSync';
@@ -26,11 +26,68 @@ export const PreOrderCustomer: React.FC = () => {
     const [customerName, setCustomerName] = useState('');
     const [customerPhone, setCustomerPhone] = useState('');
     const [notes, setNotes] = useState('');
+    const [isInAppBrowser, setIsInAppBrowser] = useState(false);
 
     // Item Selection Modal State
     const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
     const [itemQuantity, setItemQuantity] = useState(1);
     const [selectedOptions, setSelectedOptions] = useState<MenuOption[]>([]);
+
+    useEffect(() => {
+        const ua = navigator.userAgent || navigator.vendor || (window as any).opera;
+        const isInApp = (ua.indexOf("FBAN") > -1) || (ua.indexOf("FBAV") > -1) || (ua.indexOf("Line") > -1) || (ua.indexOf("Instagram") > -1);
+        
+        if (isInApp) {
+            setIsInAppBrowser(true);
+            Swal.fire({
+                title: 'เพื่อการใช้งานที่เสถียรกว่า',
+                html: `
+                    <div class="text-left space-y-3">
+                        <p class="text-sm text-gray-600">คุณกำลังเปิดผ่านแอป (เช่น Line, Facebook) ซึ่งอาจส่งผลให้การสั่งอาหารไม่เสถียร</p>
+                        <p class="text-sm font-bold text-blue-600">แนะนำให้เปิดผ่าน Browser ภายนอก (Safari หรือ Chrome) ครับ</p>
+                    </div>
+                `,
+                icon: 'info',
+                confirmButtonText: 'คัดลอกลิงก์เพื่อนำไปเปิดที่อื่น',
+                showCancelButton: true,
+                cancelButtonText: 'สั่งในนี้ต่อ',
+                confirmButtonColor: '#3b82f6',
+                cancelButtonColor: '#9ca3af',
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    handleCopyLink();
+                }
+            });
+        }
+    }, []);
+
+    const handleCopyLink = () => {
+        const currentUrl = window.location.href;
+        navigator.clipboard.writeText(currentUrl).then(() => {
+            Swal.fire({
+                icon: 'success',
+                title: 'คัดลอกลิงก์สำเร็จ!',
+                text: 'กรุณานำไปวางใน Browser (Chrome/Safari) ครับ',
+                timer: 2500,
+                showConfirmButton: false
+            });
+        }).catch(() => {
+            // Fallback for copy
+            const textArea = document.createElement("textarea");
+            textArea.value = currentUrl;
+            document.body.appendChild(textArea);
+            textArea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textArea);
+            Swal.fire({
+                icon: 'success',
+                title: 'คัดลอกลิงก์สำเร็จ!',
+                text: 'กรุณานำไปวางใน Browser (Chrome/Safari) ครับ',
+                timer: 2500,
+                showConfirmButton: false
+            });
+        });
+    };
 
     const filteredItems = useMemo(() => {
         if (activeCategory === 'ทั้งหมด') return menuItems.filter(item => item.isVisible !== false);
@@ -133,7 +190,27 @@ export const PreOrderCustomer: React.FC = () => {
     }
 
     return (
-        <div className="h-screen w-screen flex flex-col bg-gray-50 overflow-hidden font-sans">
+        <div className="h-screen w-screen flex flex-col bg-gray-50 overflow-hidden font-sans text-gray-900">
+            {/* Browser Warning Banner */}
+            {isInAppBrowser && (
+                <div className="bg-blue-600 text-white px-4 py-2.5 flex items-center justify-between shrink-0 relative z-[200]">
+                    <div className="flex items-center gap-2">
+                        <div className="bg-white/20 p-1 rounded-md animate-pulse">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            </svg>
+                        </div>
+                        <span className="text-[10px] font-black uppercase tracking-wider leading-tight">แนะนำให้เปิดผ่าน Browser ภายนอกเพื่อความเสถียร</span>
+                    </div>
+                    <button 
+                        onClick={handleCopyLink}
+                        className="bg-white text-blue-600 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase shadow-lg active:scale-95 transition-transform"
+                    >
+                        คัดลอกลิงก์
+                    </button>
+                </div>
+            )}
+
             {/* Header */}
             <header className="bg-white border-b border-gray-100 flex flex-col items-center py-6 px-4 shrink-0">
                 {appLogoUrl || logoUrl ? (
