@@ -916,6 +916,7 @@ export const App: React.FC = () => {
                     html: `
                         <div class="text-lg font-bold text-gray-800">โต๊ะ ${latestCall.tableName}</div>
                         <div class="text-sm text-gray-600">ลูกค้า: ${latestCall.customerName}</div>
+                        ${latestCall.message ? `<div class="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-yellow-800 text-sm font-bold shadow-sm">${latestCall.message}</div>` : ''}
                     `,
                     icon: 'info',
                     position: 'top', // Changed from 'top-center'
@@ -1717,8 +1718,8 @@ export const App: React.FC = () => {
                         activeOrders={activeOrders.filter(o => o.tableId === targetTableId)}
                         allBranchOrders={activeOrders}
                         completedOrders={completedOrders}
-                        onPlaceOrder={(items, name, slipUrl, phone, lat, lng, nearby) => handlePlaceOrder(items, name, 1, customerTable, false, undefined, undefined, slipUrl, phone, lat, lng, nearby)}
-                        onStaffCall={(table, custName) => setStaffCalls(prev => [...prev, {id: Date.now(), tableId: table.id, tableName: `${table.name} (${table.floor})`, customerName: custName, branchId: selectedBranch ? selectedBranch.id : Number(branchId || 0), timestamp: Date.now()}])}
+                        onPlaceOrder={(items, name, count, slipUrl, phone, lat, lng, nearby) => handlePlaceOrder(items, name, count, customerTable, false, undefined, undefined, slipUrl, phone, lat, lng, nearby)}
+                        onStaffCall={(table, custName, msg) => setStaffCalls(prev => [...prev, {id: Date.now(), tableId: table.id, tableName: `${table.name} (${table.floor})`, customerName: custName, message: msg, branchId: selectedBranch ? selectedBranch.id : Number(branchId || 0), timestamp: Date.now()}])}
                         recommendedMenuItemIds={recommendedMenuItemIds}
                         logoUrl={appLogoUrl || logoUrl}
                         qrCodeUrl={qrCodeUrl}

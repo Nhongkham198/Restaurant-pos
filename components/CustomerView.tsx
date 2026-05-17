@@ -123,8 +123,8 @@ interface CustomerViewProps {
     activeOrders: ActiveOrder[];
     allBranchOrders: ActiveOrder[]; 
     completedOrders: CompletedOrder[];
-    onPlaceOrder: (items: OrderItem[], customerName: string, paymentSlipUrl?: string, customerPhone?: string, latitude?: number, longitude?: number, nearbyLocations?: string) => Promise<number | void | undefined>;
-    onStaffCall: (table: Table, customerName: string) => void;
+    onPlaceOrder: (items: OrderItem[], customerName: string, customerCount: number, paymentSlipUrl?: string, customerPhone?: string, latitude?: number, longitude?: number, nearbyLocations?: string) => Promise<number | void | undefined>;
+    onStaffCall: (table: Table, customerName: string, message?: string) => void;
     recommendedMenuItemIds: number[];
     logoUrl: string | null;
     qrCodeUrl: string | null; // NEW: Added qrCodeUrl for payment slip
@@ -161,6 +161,14 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [customerName, setCustomerName] = useState('ลูกค้า'); 
     
+    // NEW: People Count Management
+    const countKey = `customer_people_count_${table.id}`;
+    const [customerCount, setCustomerCount] = useState<number>(() => {
+        const saved = localStorage.getItem(countKey);
+        return saved ? parseInt(saved) : 1;
+    });
+    const [hasSetInitialCount, setHasSetInitialCount] = useState(false);
+
     const [isSessionCompleted, setIsSessionCompleted] = useState(() => {
         return sessionStorage.getItem(`customer_completed_${table.id}`) === 'true';
     });
@@ -435,9 +443,98 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         setIsAuthenticated(true);
     };
 
+    // NEW: Handle People Count Initial Prompt
+    useEffect(() => {
+        if (!isAuthenticated || isSessionCompleted || hasSetInitialCount) return;
+
+        // Skip for Takeaway/Delivery
+        if (table.floor === 'Online' || table.id < 0) {
+            setHasSetInitialCount(true);
+            return;
+        }
+
+        const checkCount = async () => {
+            // Find if there are already orders for this table
+            const tableOrders = allBranchOrders.filter(o => String(o.tableId) === String(table.id) && o.status !== 'cancelled' && o.status !== 'completed');
+            const existingCount = tableOrders.length > 0 ? tableOrders[0].customerCount : null;
+            const savedCount = localStorage.getItem(countKey);
+
+            // If we have a saved count on this device, and it matches the table's count (or no table count yet), we can skip
+            if (savedCount && (!existingCount || parseInt(savedCount) === existingCount)) {
+                setHasSetInitialCount(true);
+                return;
+            }
+
+            let title = 'มากี่ท่านคะ?';
+            let html = '<p class="text-gray-600 mb-4">เพื่อความสะดวกในการเตรียมอุปกรณ์ (จาน, ช้อน, ส้อม) ให้ครบถ้วน</p>';
+            let initialValue = existingCount || customerCount || 1;
+
+            if (existingCount !== null && (!savedCount || parseInt(savedCount) !== existingCount)) {
+                title = 'ยินดีต้อนรับกลับค่ะ!';
+                html = `
+                    <div class="text-left space-y-2">
+                        <p class="text-sm text-gray-600">ขณะนี้มีรายการอาหารสั่งไว้ที่โต๊ะนี้แล้ว</p>
+                        <p class="text-sm font-bold text-blue-600">จำนวนท่านที่บันทึกไว้: ${existingCount} ท่าน</p>
+                        <p class="text-xs text-gray-400 font-medium border-t pt-2">หากท่านมาเพิ่ม หรือต้องการแก้ไขจำนวนจาน/ช้อน สามารถระบุใหม่ด้านล่างได้เลยค่ะ</p>
+                    </div>
+                `;
+                initialValue = existingCount;
+            }
+
+            const { value: count } = await Swal.fire({
+                title: title,
+                html: html,
+                input: 'number',
+                inputValue: initialValue,
+                inputAttributes: {
+                    min: '1',
+                    max: '50',
+                    step: '1'
+                },
+                showConfirmButton: true,
+                confirmButtonText: 'ยืนยันจำนวน',
+                confirmButtonColor: '#3b82f6',
+                allowOutsideClick: false,
+                inputValidator: (value) => {
+                    if (!value || parseInt(value) < 1) {
+                        return 'กรุณาระบุจำนวนอย่างน้อย 1 ท่านค่ะ';
+                    }
+                    return null;
+                }
+            });
+
+            if (count) {
+                const newCount = parseInt(count);
+                const prevCount = existingCount || (savedCount ? parseInt(savedCount) : 0);
+                
+                setCustomerCount(newCount);
+                localStorage.setItem(countKey, newCount.toString());
+                setHasSetInitialCount(true);
+
+                // If count increased, alert staff to bring more equipment
+                if (existingCount !== null && newCount > existingCount) {
+                    const diff = newCount - existingCount;
+                    onStaffCall(table, customerName, `ลูกค้ามาเพิ่ม ${diff} ท่าน (รวมเป็น ${newCount} ท่าน) กรุณาเตรียมจาน/ช้อนเพิ่มครับ/ค่ะ`);
+                    
+                    Swal.fire({
+                        toast: true,
+                        position: 'top-end',
+                        icon: 'success',
+                        title: 'แจ้งพนักงานเตรียมอุปกรณ์เพิ่มแล้ว',
+                        showConfirmButton: false,
+                        timer: 3000
+                    });
+                }
+            }
+        };
+
+        checkCount();
+    }, [isAuthenticated, isSessionCompleted, table.id, table.floor, allBranchOrders, hasSetInitialCount]);
+
     const handlePaymentCompleteLock = () => {
         localStorage.removeItem(cartKey);
         localStorage.removeItem(myOrdersKey);
+        localStorage.removeItem(countKey); // Clear count for next session
         sessionStorage.setItem(`customer_completed_${table.id}`, 'true');
         setIsSessionCompleted(true);
     };
@@ -813,6 +910,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
             const newOrderNumber = await onPlaceOrder(
                 itemsToSend, 
                 customerName, 
+                customerCount,
                 slipBase64, 
                 customerPhone, 
                 location?.lat, 
@@ -859,6 +957,35 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     const handleCallStaffClick = () => {
         onStaffCall(table, customerName);
         Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: t('ส่งสัญญาณเรียกพนักงานแล้ว'), text: t('กรุณารอสักครู่...'), showConfirmButton: false, timer: 3000 });
+    };
+
+    const handleChangePeopleCount = async () => {
+        const { value: count } = await Swal.fire({
+            title: 'แก้ไขจำนวนท่าน',
+            text: 'ระบุจำนวนคนที่อยู่หน้าโต๊ะขณะนี้',
+            input: 'number',
+            inputValue: customerCount,
+            inputAttributes: {
+                min: '1',
+                max: '50',
+                step: '1'
+            },
+            showCancelButton: true,
+            confirmButtonText: 'อัปเดต',
+            cancelButtonText: 'ยกเลิก',
+            confirmButtonColor: '#3b82f6',
+        });
+
+        if (count) {
+            const newCount = parseInt(count);
+            if (newCount > customerCount) {
+                const diff = newCount - customerCount;
+                onStaffCall(table, customerName, `ลูกค้ามาเพิ่ม ${diff} ท่าน (รวมเป็น ${newCount} ท่าน) กรุณาเตรียมจาน/ช้อนเพิ่มครับ/ค่ะ`);
+            }
+            setCustomerCount(newCount);
+            localStorage.setItem(countKey, newCount.toString());
+            Swal.fire({ toast: true, position: 'top-end', icon: 'info', title: 'อัปเดตจำนวนท่านเรียบร้อย', showConfirmButton: false, timer: 2000 });
+        }
     };
 
     const handleSaveBillAsImage = async () => {
@@ -1004,6 +1131,15 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                             )}
                         </div>
                         <p className="text-xs text-gray-400 pl-1">{t('คุณ')}{customerName}</p>
+                        <button 
+                            onClick={handleChangePeopleCount}
+                            className="mt-1 flex items-center gap-1.5 text-[10px] font-bold text-gray-500 bg-white border border-gray-100 px-2 py-0.5 rounded-full hover:bg-gray-50 transition-colors"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                            </svg>
+                            {customerCount} ท่าน (แก้ไข)
+                        </button>
                     </div>
 
                     <div className="flex items-start gap-2 flex-shrink-0">

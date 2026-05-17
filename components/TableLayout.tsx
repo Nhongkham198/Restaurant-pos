@@ -114,9 +114,12 @@ const TableCard: React.FC<TableCardProps> = ({
         statusPillStyle = 'bg-green-200 text-green-800';
     }
 
-    const totalCustomers = orders.reduce((sum, order) => {
-        return sum + (order.isSplitChild ? 0 : order.customerCount);
-    }, 0);
+    const totalCustomers = useMemo(() => {
+        if (orders.length === 0) return 0;
+        // Take the latest recorded customer count for the table
+        const sortedOrders = [...orders].sort((a, b) => (b.orderTime || 0) - (a.orderTime || 0));
+        return sortedOrders[0].customerCount || 0;
+    }, [orders]);
 
     const handleShowStaticQr = (e: React.MouseEvent) => {
         e.stopPropagation();

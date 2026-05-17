@@ -319,6 +319,7 @@ export interface StaffCall {
     customerName: string;
     branchId: number;
     timestamp: number;
+    message?: string; // NEW: Message from customer
 }
 
 // --- NEW MAINTENANCE TYPES ---
