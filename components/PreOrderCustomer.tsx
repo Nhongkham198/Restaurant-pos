@@ -30,8 +30,20 @@ export const PreOrderCustomer: React.FC = () => {
     const [notes, setNotes] = useState('');
     const [isInAppBrowser, setIsInAppBrowser] = useState(false);
     const [hasSetCustomerCount, setHasSetCustomerCount] = useState(false);
+    const isMonday = new Date().getDay() === 1;
 
-    // Item Selection Modal State
+    // NEW: Check for Monday closure
+    useEffect(() => {
+        if (isMonday) {
+            Swal.fire({
+                title: 'วันนี้ร้านปิดทำการค่ะ',
+                text: 'ขออภัยด้วยนะคะ วันจันทร์ร้านปิดให้บริการ แต่ลูกค้ายังสามารถเลือกดูเมนูต่างๆ ได้ตามปกติค่ะ (ไม่สามารถส่งออเดอร์ได้)',
+                icon: 'info',
+                confirmButtonText: 'รับทราบค่ะ',
+                confirmButtonColor: '#3b82f6',
+            });
+        }
+    }, [isMonday]);
     const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
     const [itemQuantity, setItemQuantity] = useState(1);
     const [selectedOptions, setSelectedOptions] = useState<MenuOption[]>([]);
@@ -194,6 +206,16 @@ export const PreOrderCustomer: React.FC = () => {
     };
 
     const handleSubmitPreOrder = async () => {
+        if (isMonday) {
+            Swal.fire({
+                icon: 'error',
+                title: 'ไม่สามารถสั่งอาหารได้',
+                text: 'ขออภัยค่ะ วันจันทร์ร้านปิดทำการ ลูกค้าสามารถดูเมนูได้เท่านั้นค่ะ',
+                confirmButtonColor: '#3b82f6'
+            });
+            return;
+        }
+
         if (!customerName.trim() || !customerPhone.trim() || cart.length === 0) {
             Swal.fire({
                 icon: 'error',
@@ -274,6 +296,19 @@ export const PreOrderCustomer: React.FC = () => {
 
             {/* Header */}
             <header className="bg-white border-b border-gray-100 flex flex-col items-center py-6 px-4 shrink-0">
+                {isMonday && (
+                    <div className="w-full max-w-sm mb-4 bg-rose-50 border border-rose-100 p-3 rounded-2xl flex items-center gap-3 animate-pulse">
+                        <div className="bg-rose-500 text-white p-1.5 rounded-lg">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                        </div>
+                        <div className="flex-1 text-left">
+                            <p className="text-[10px] font-black text-rose-600 uppercase tracking-wider">วันจันทร์ร้านปิดทำการ</p>
+                            <p className="text-[11px] font-bold text-rose-400 leading-tight">ขออภัยค่ะ วันนี้รับชมเพื่อดูเมนูเท่านั้น ไม่สามารถส่งออเดอร์ได้ค่ะ</p>
+                        </div>
+                    </div>
+                )}
                 {appLogoUrl || logoUrl ? (
                     <img src={appLogoUrl || logoUrl || ''} alt="Logo" className="w-16 h-16 object-contain mb-3 rounded-2xl shadow-sm" />
                 ) : (
@@ -655,9 +690,9 @@ export const PreOrderCustomer: React.FC = () => {
                                 </button>
                                 <button 
                                     onClick={handleSubmitPreOrder}
-                                    className="flex-[2] py-5 rounded-3xl bg-blue-600 text-white font-black text-sm uppercase tracking-widest shadow-xl shadow-blue-100 flex items-center justify-center gap-3 active:scale-95 transition-all"
+                                    className={`flex-[2] py-5 rounded-3xl text-white font-black text-sm uppercase tracking-widest shadow-xl flex items-center justify-center gap-3 active:scale-95 transition-all ${isMonday ? 'bg-gray-300 shadow-none cursor-not-allowed' : 'bg-blue-600 shadow-blue-100'}`}
                                 >
-                                    ส่งรายการสั่งซื้อ
+                                    {isMonday ? 'ร้านปิดทำการ (ดูเมนูได้อย่างเดียว)' : 'ส่งรายการสั่งซื้อ'}
                                 </button>
                             </div>
                         </motion.div>
