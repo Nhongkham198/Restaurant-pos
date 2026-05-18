@@ -25,8 +25,11 @@ export const PreOrderCustomer: React.FC = () => {
     const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
     const [customerName, setCustomerName] = useState('');
     const [customerPhone, setCustomerPhone] = useState('');
+    const [customerCount, setCustomerCount] = useState<number>(1);
+    const [orderType, setOrderType] = useState<'dine-in' | 'takeaway'>('dine-in');
     const [notes, setNotes] = useState('');
     const [isInAppBrowser, setIsInAppBrowser] = useState(false);
+    const [hasSetCustomerCount, setHasSetCustomerCount] = useState(false);
 
     // Item Selection Modal State
     const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
@@ -60,6 +63,41 @@ export const PreOrderCustomer: React.FC = () => {
             });
         }
     }, []);
+
+    // NEW: Prompt for customer count on initial menu view (Only if Dine-in)
+    useEffect(() => {
+        if (!selectedBranch || hasSetCustomerCount || orderType === 'takeaway') return;
+
+        const timer = setTimeout(async () => {
+            const { value: count } = await Swal.fire({
+                title: 'มากี่ท่านคะ?',
+                text: 'เพื่อความสะดวกในการจัดเตรียมโต๊ะและอุปกรณ์สำหรับท่าน',
+                input: 'number',
+                inputValue: 1,
+                inputAttributes: {
+                    min: '1',
+                    max: '50',
+                    step: '1'
+                },
+                confirmButtonText: 'ตกลง',
+                confirmButtonColor: '#3b82f6',
+                allowOutsideClick: false,
+                inputValidator: (value) => {
+                    if (!value || parseInt(value) < 1) {
+                        return 'กรุณาระบุจำนวนอย่างน้อย 1 ท่านค่ะ';
+                    }
+                    return null;
+                }
+            });
+
+            if (count) {
+                setCustomerCount(parseInt(count));
+                setHasSetCustomerCount(true);
+            }
+        }, 800);
+
+        return () => clearTimeout(timer);
+    }, [selectedBranch, hasSetCustomerCount, orderType]);
 
     const handleCopyLink = () => {
         const currentUrl = window.location.href;
@@ -151,6 +189,8 @@ export const PreOrderCustomer: React.FC = () => {
                 id: preOrderId,
                 customerName: customerName.trim(),
                 customerPhone: customerPhone.trim(),
+                customerCount: orderType === 'takeaway' ? 0 : customerCount,
+                orderType,
                 items: cart,
                 status: 'pending',
                 timestamp: Date.now(),
@@ -222,6 +262,29 @@ export const PreOrderCustomer: React.FC = () => {
                 )}
                 <h1 className="text-xl font-black text-gray-900 leading-tight">{restaurantName}</h1>
                 <p className="text-xs font-bold text-gray-400 mt-1 uppercase tracking-widest text-center">ยินดีต้อนรับ! สั่งอาหารล่วงหน้าได้เลยครับ</p>
+                
+                {/* Order Type Switcher */}
+                <div className="mt-4 flex bg-gray-100 p-1 rounded-xl w-full max-w-[280px]">
+                    <button 
+                        onClick={() => setOrderType('dine-in')}
+                        className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-black transition-all ${orderType === 'dine-in' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                            <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
+                            <path fillRule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clipRule="evenodd" />
+                        </svg>
+                        ทานที่ร้าน
+                    </button>
+                    <button 
+                        onClick={() => setOrderType('takeaway')}
+                        className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-black transition-all ${orderType === 'takeaway' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M10 2a4 4 0 00-4 4v1H5a1 1 0 00-.994.89l-1 9A1 1 0 004 18h12a1 1 0 00.994-1.11l-1-9A1 1 0 0015 7h-1V6a4 4 0 00-4-4zm2 5V6a2 2 0 10-4 0v1h4zm-6 3a1 1 0 112 0 1 1 0 01-2 0zm7-1a1 1 0 100 2 1 1 0 000-2z" clipRule="evenodd" />
+                        </svg>
+                        สั่งกลับบ้าน
+                    </button>
+                </div>
             </header>
 
             {/* Categories */}
@@ -506,25 +569,48 @@ export const PreOrderCustomer: React.FC = () => {
                             <h2 className="text-2xl font-black text-gray-900 tracking-tight mb-8">ข้อมูลสำหรับการติดต่อ</h2>
                             <div className="space-y-6 mb-8">
                                 <div>
-                                    <label className="block text-xs font-black text-gray-400 mb-2 uppercase tracking-widest">ชื่อลูกค้า (จำเป็น)</label>
-                                    <input 
-                                        type="text" 
-                                        value={customerName}
-                                        onChange={(e) => setCustomerName(e.target.value)}
-                                        placeholder="ระบุชื่อของคุณ"
-                                        className="w-full bg-gray-50 border-2 border-transparent focus:border-blue-600 focus:bg-white rounded-2xl p-4 text-sm font-bold transition-all outline-none"
-                                    />
+                                    <label className="block text-xs font-black text-gray-400 mb-2 uppercase tracking-widest">ข้อมูลการติดต่อ (คนสั่ง)</label>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <input 
+                                            type="text" 
+                                            value={customerName}
+                                            onChange={(e) => setCustomerName(e.target.value)}
+                                            placeholder="ระบุชื่อของคุณ"
+                                            className="w-full bg-gray-50 border-2 border-transparent focus:border-blue-600 focus:bg-white rounded-2xl p-4 text-sm font-bold transition-all outline-none"
+                                        />
+                                        <input 
+                                            type="tel" 
+                                            value={customerPhone}
+                                            onChange={(e) => setCustomerPhone(e.target.value)}
+                                            placeholder="เบอร์ติดต่อ"
+                                            className="w-full bg-gray-50 border-2 border-transparent focus:border-blue-600 focus:bg-white rounded-2xl p-4 text-sm font-bold transition-all outline-none"
+                                        />
+                                    </div>
                                 </div>
-                                <div>
-                                    <label className="block text-xs font-black text-gray-400 mb-2 uppercase tracking-widest">เบอร์โทรศัพท์ (จำเป็น)</label>
-                                    <input 
-                                        type="tel" 
-                                        value={customerPhone}
-                                        onChange={(e) => setCustomerPhone(e.target.value)}
-                                        placeholder="ระบุเบอร์ติดต่อของคุณ"
-                                        className="w-full bg-gray-50 border-2 border-transparent focus:border-blue-600 focus:bg-white rounded-2xl p-4 text-sm font-bold transition-all outline-none"
-                                    />
-                                </div>
+                                {orderType === 'dine-in' && (
+                                    <div>
+                                        <label className="block text-xs font-black text-gray-400 mb-2 uppercase tracking-widest">จำนวนลูกค้า (ท่าน)</label>
+                                        <div className="flex items-center gap-4 bg-gray-50 p-2 rounded-2xl">
+                                            <button 
+                                                onClick={() => setCustomerCount(Math.max(1, customerCount - 1))}
+                                                className="w-12 h-12 bg-white shadow-sm border border-gray-100 rounded-xl flex items-center justify-center active:scale-90 transition-all"
+                                            >
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M20 12H4" />
+                                                </svg>
+                                            </button>
+                                            <span className="flex-1 text-center text-lg font-black text-gray-900">{customerCount}</span>
+                                            <button 
+                                                onClick={() => setCustomerCount(customerCount + 1)}
+                                                className="w-12 h-12 bg-blue-600 text-white shadow-lg shadow-blue-100 rounded-xl flex items-center justify-center active:scale-95 transition-all"
+                                            >
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 4v16m8-8H4" />
+                                                </svg>
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
                                 <div>
                                     <label className="block text-xs font-black text-gray-400 mb-2 uppercase tracking-widest">หมายเหตุเพิ่มเติม</label>
                                     <textarea 

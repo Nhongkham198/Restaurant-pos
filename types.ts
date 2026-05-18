@@ -130,7 +130,7 @@ interface BaseOrder {
     floor: string;
     customerCount: number;
     items: OrderItem[];
-    orderType: 'dine-in' | 'takeaway' | 'lineman';
+    orderType: 'dine-in' | 'takeaway' | 'lineman' | 'shopeefood';
     taxRate: number;
     taxAmount: number;
     placedBy: string;
@@ -357,12 +357,14 @@ export interface PreOrder {
     id: string; // Unique ID (e.g. timestamp or auto-gen)
     customerName: string;
     customerPhone?: string;
+    customerCount: number; // Added: Number of people for the pre-order
     items: OrderItem[];
     status: 'pending' | 'assigned' | 'cancelled';
     timestamp: number;
     branchId: number;
     notes?: string;
     totalAmount: number;
+    orderType?: 'dine-in' | 'takeaway'; // Added: Type of order
 }
 
 export type View = 'pos' | 'kitchen' | 'tables' | 'dashboard' | 'history' | 'stock' | 'stock-analytics' | 'recipes' | 'leave' | 'leave-analytics' | 'maintenance' | 'hr' | 'hr-payroll' | 'expense-analysis' | 'pre-order-management' | 'pre-order-customer';

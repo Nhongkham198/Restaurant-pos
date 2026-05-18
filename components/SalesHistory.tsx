@@ -22,11 +22,12 @@ interface SalesHistoryProps {
     onInitiateCashBill: (order: CompletedOrder) => void;
     onDeleteHistory: (completedIds: number[], cancelledIds: number[], printIds: number[]) => Promise<void>;
     currentUser: User | null;
-    onReprintReceipt: (order: CompletedOrder) => void; // New Prop for actual receipt reprint
+    onReprintReceipt: (order: CompletedOrder) => void;
     recipes: Recipe[];
     deliveryProviders: DeliveryProvider[];
     taxRate: number;
     onUpdateCompletedOrder?: (orderId: number, updates: Partial<CompletedOrder>) => Promise<void>;
+    floors?: string[]; // Added floors prop
 }
 
 export const SalesHistory: React.FC<SalesHistoryProps> = ({
@@ -40,11 +41,12 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({
     onInitiateCashBill,
     onDeleteHistory,
     currentUser,
-    onReprintReceipt, // Destructure
+    onReprintReceipt,
     recipes,
     deliveryProviders,
     taxRate,
-    onUpdateCompletedOrder
+    onUpdateCompletedOrder,
+    floors = [] // Added floors with default
 }) => {
     const { manualAdCosts } = useData();
     const [activeTab, setActiveTab] = useState<'completed' | 'cancelled' | 'print'>('completed');
@@ -53,6 +55,8 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({
     // Local state for smooth typing of year input
     const [yearInput, setYearInput] = useState(new Date().getFullYear().toString());
     const [searchTerm, setSearchTerm] = useState('');
+    const [selectedGroup, setSelectedGroup] = useState<string>('All'); // Added selectedGroup state
+    const [isDeliveryOpen, setIsDeliveryOpen] = useState(false); // Added for delivery sub-menu
     const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
     
     // Selection state for deletion
@@ -132,15 +136,28 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({
             else if (filterType === 'monthly') dateMatch = isSameMonth(date, selectedDate);
             else if (filterType === 'year') dateMatch = isSameYear(date, selectedDate);
 
+            let groupMatch = true;
+            if (selectedGroup === 'Delivery') {
+                groupMatch = order.orderType === 'lineman' || order.orderType === 'shopeefood' || order.floor === 'Online';
+            } else if (selectedGroup === 'LineMan') {
+                groupMatch = order.orderType === 'lineman';
+            } else if (selectedGroup === 'ShopeeFood') {
+                groupMatch = order.orderType === 'shopeefood';
+            } else if (selectedGroup !== 'All') {
+                groupMatch = order.floor === selectedGroup;
+            }
+
             const searchMatch = !searchTerm || 
                 order.orderNumber.toString().includes(searchTerm) || 
                 (order.customerName && order.customerName.toLowerCase().includes(searchTerm.toLowerCase())) ||
                 (order.tableName && order.tableName.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                (order.orderType && order.orderType.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                (order.floor && order.floor.toLowerCase().includes(searchTerm.toLowerCase())) ||
                 order.items.some(item => item.name.toLowerCase().includes(searchTerm.toLowerCase()));
 
-            return dateMatch && searchMatch;
+            return dateMatch && groupMatch && searchMatch;
         });
-    }, [completedOrders, filterType, selectedDate, searchTerm, currentUser]);
+    }, [completedOrders, filterType, selectedDate, searchTerm, selectedGroup, currentUser]);
 
     const filteredCancelled = useMemo(() => {
         let items = cancelledOrders;
@@ -156,14 +173,26 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({
             else if (filterType === 'monthly') dateMatch = isSameMonth(date, selectedDate);
             else if (filterType === 'year') dateMatch = isSameYear(date, selectedDate);
 
+            let groupMatch = true;
+            if (selectedGroup === 'Delivery') {
+                groupMatch = order.orderType === 'lineman' || order.orderType === 'shopeefood' || order.floor === 'Online';
+            } else if (selectedGroup === 'LineMan') {
+                groupMatch = order.orderType === 'lineman';
+            } else if (selectedGroup === 'ShopeeFood') {
+                groupMatch = order.orderType === 'shopeefood';
+            } else if (selectedGroup !== 'All') {
+                groupMatch = order.floor === selectedGroup;
+            }
+
             const searchMatch = !searchTerm || 
                 order.orderNumber.toString().includes(searchTerm) || 
                 (order.tableName && order.tableName.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                (order.orderType && order.orderType.toLowerCase().includes(searchTerm.toLowerCase())) ||
                 order.items.some(item => item.name.toLowerCase().includes(searchTerm.toLowerCase()));
 
-            return dateMatch && searchMatch;
+            return dateMatch && groupMatch && searchMatch;
         });
-    }, [cancelledOrders, filterType, selectedDate, searchTerm, currentUser]);
+    }, [cancelledOrders, filterType, selectedDate, searchTerm, selectedGroup, currentUser]);
 
     const filteredPrint = useMemo(() => {
         let items = printHistory;
@@ -179,14 +208,27 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({
             else if (filterType === 'monthly') dateMatch = isSameMonth(date, selectedDate);
             else if (filterType === 'year') dateMatch = isSameYear(date, selectedDate);
 
+            // Group match note: PrintHistoryEntry might not have floor directly in some cases
+            // but we usually havetableName.
+            let groupMatch = true;
+            if (selectedGroup === 'Delivery') {
+                groupMatch = entry.tableName?.includes('LineMan') || entry.tableName?.includes('Delivery') || entry.tableName?.includes('ShopeeFood');
+            } else if (selectedGroup === 'LineMan') {
+                groupMatch = entry.tableName?.includes('LineMan');
+            } else if (selectedGroup === 'ShopeeFood') {
+                groupMatch = entry.tableName?.includes('ShopeeFood');
+            } else if (selectedGroup !== 'All') {
+                groupMatch = entry.tableName?.includes(`(${selectedGroup})`);
+            }
+
             const searchMatch = !searchTerm || 
                 entry.orderNumber.toString().includes(searchTerm) ||
                 (entry.tableName && entry.tableName.toLowerCase().includes(searchTerm.toLowerCase())) ||
                 entry.orderItemsPreview.some(itemName => itemName.toLowerCase().includes(searchTerm.toLowerCase()));
 
-            return dateMatch && searchMatch;
+            return dateMatch && groupMatch && searchMatch;
         });
-    }, [printHistory, filterType, selectedDate, searchTerm, currentUser]);
+    }, [printHistory, filterType, selectedDate, searchTerm, selectedGroup, currentUser]);
 
     // ... Export functions ...
     const handleExportHistory = () => {
@@ -723,24 +765,91 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({
                     )}
                 </div>
 
-                {/* 3. Search Bar */}
-                <div className="relative w-full">
-                    <button
-                        onClick={() => setIsKeyboardOpen(!isKeyboardOpen)}
-                        className={`absolute inset-y-0 left-0 flex items-center pl-4 transition-colors z-10 ${isKeyboardOpen ? 'text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
-                        title="เปิดคีย์บอร์ด"
-                    >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-                        </svg>
-                    </button>
-                    <input 
-                        type="text" 
-                        placeholder="ค้นหาด้วย #ID, ชื่อโต๊ะ, หรืออื่นๆ..." 
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full pl-12 pr-4 py-3 border-none rounded-2xl bg-white shadow-sm text-gray-700 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 transition-all"
-                    />
+                {/* 3. Search Bar & Floor Filters */}
+                <div className="flex flex-col md:flex-row items-start md:items-center gap-3">
+                    <div className="relative w-full md:flex-1">
+                        <button
+                            onClick={() => setIsKeyboardOpen(!isKeyboardOpen)}
+                            className={`absolute inset-y-0 left-0 flex items-center pl-4 transition-colors z-10 ${isKeyboardOpen ? 'text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
+                            title="เปิดคีย์บอร์ด"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                            </svg>
+                        </button>
+                        <input 
+                            type="text" 
+                            placeholder="ค้นหาด้วย #ID, ชื่อโต๊ะ, หรืออื่นๆ..." 
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="w-full pl-12 pr-4 py-3 border-none rounded-2xl bg-white shadow-sm text-gray-700 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 transition-all"
+                        />
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2 md:flex-shrink-0">
+                        <button
+                            onClick={() => setSelectedGroup('All')}
+                            className={`px-4 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-sm ${selectedGroup === 'All' ? 'bg-blue-600 text-white' : 'bg-white text-gray-400 hover:text-gray-600 border border-gray-100'}`}
+                        >
+                            ทั้งหมด
+                        </button>
+                        {floors.map(floor => (
+                            <button
+                                key={floor}
+                                onClick={() => {
+                                    setSelectedGroup(floor);
+                                    setIsDeliveryOpen(false);
+                                }}
+                                className={`px-4 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-sm ${selectedGroup === floor ? 'bg-blue-600 text-white' : 'bg-white text-gray-400 hover:text-gray-600 border border-gray-100'}`}
+                            >
+                                {floor}
+                            </button>
+                        ))}
+
+                        <div className="relative flex items-center bg-gray-200/40 p-1 rounded-xl">
+                            <button
+                                onClick={() => {
+                                    if (!isDeliveryOpen) {
+                                        setSelectedGroup('Delivery');
+                                    }
+                                    setIsDeliveryOpen(!isDeliveryOpen);
+                                }}
+                                className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all shadow-sm flex items-center gap-1.5 ${['Delivery', 'LineMan', 'ShopeeFood'].includes(selectedGroup) ? 'bg-rose-500 text-white' : 'bg-white text-gray-400 hover:text-rose-500 border border-gray-100'}`}
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M10 2a4 4 0 00-4 4v1H5a1 1 0 00-.994.89l-1 9A1 1 0 004 18h12a1 1 0 00.994-1.11l-1-9A1 1 0 0015 7h-1V6a4 4 0 00-4-4zm2 5V6a2 2 0 10-4 0v1h4zm-6 3a1 1 0 112 0 1 1 0 01-2 0zm7-1a1 1 0 100 2 1 1 0 000-2z" clipRule="evenodd" />
+                                </svg>
+                                เดลิเวอรี่
+                                <svg xmlns="http://www.w3.org/2000/svg" className={`h-3 w-3 transition-transform ${isDeliveryOpen ? 'rotate-180' : ''}`} viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                                </svg>
+                            </button>
+
+                            {isDeliveryOpen && (
+                                <div className="flex items-center gap-1.5 px-2 animate-in fade-in slide-in-from-left-2 duration-300">
+                                    <div className="w-[1px] h-4 bg-gray-300 mr-1" />
+                                    <button
+                                        onClick={() => setSelectedGroup('Delivery')}
+                                        className={`px-3 py-1 rounded-lg text-[10px] font-black transition-all ${selectedGroup === 'Delivery' ? 'bg-white text-rose-500 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+                                    >
+                                        ทั้งหมด
+                                    </button>
+                                    <button
+                                        onClick={() => setSelectedGroup('LineMan')}
+                                        className={`px-3 py-1 rounded-lg text-[10px] font-black transition-all ${selectedGroup === 'LineMan' ? 'bg-[#00B14F] text-white shadow-sm' : 'text-gray-400 hover:text-emerald-500'}`}
+                                    >
+                                        LineMan
+                                    </button>
+                                    <button
+                                        onClick={() => setSelectedGroup('ShopeeFood')}
+                                        className={`px-3 py-1 rounded-lg text-[10px] font-black transition-all ${selectedGroup === 'ShopeeFood' ? 'bg-[#EE4D2D] text-white shadow-sm' : 'text-gray-400 hover:text-orange-500'}`}
+                                    >
+                                        ShopeeFood
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    </div>
                 </div>
 
                 {isKeyboardOpen && (

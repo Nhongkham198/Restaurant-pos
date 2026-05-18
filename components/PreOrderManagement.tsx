@@ -79,12 +79,12 @@ export const PreOrderManagement: React.FC = () => {
                 tableName: table.name,
                 floor: table.floor,
                 customerName: selectedPreOrder.customerName,
-                customerCount: 1, // Default or we could ask
+                customerCount: selectedPreOrder.customerCount || 1, 
                 items: selectedPreOrder.items.map(item => ({
                     ...item,
                     status: 'waiting' // Push to kitchen
                 })),
-                orderType: 'dine-in',
+                orderType: selectedPreOrder.orderType || 'dine-in',
                 status: 'waiting',
                 orderTime: Date.now(),
                 taxRate: 0, // Should use real settings
@@ -174,7 +174,26 @@ export const PreOrderManagement: React.FC = () => {
                                         <div className="flex justify-between items-start mb-3">
                                             <div>
                                                 <h3 className="text-lg font-black text-gray-900 leading-tight">{po.customerName}</h3>
-                                                <p className="text-xs font-bold text-gray-400 mt-0.5">{new Date(po.timestamp).toLocaleString('th-TH')}</p>
+                                                <div className="flex items-center gap-2 mt-0.5">
+                                                    <p className="text-xs font-bold text-gray-400">{new Date(po.timestamp).toLocaleString('th-TH')}</p>
+                                                    <span className="w-1 h-1 bg-gray-300 rounded-full"></span>
+                                                    {po.orderType === 'takeaway' ? (
+                                                        <p className="text-xs font-black text-rose-500 uppercase tracking-wider flex items-center gap-1">
+                                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+                                                                <path fillRule="evenodd" d="M10 2a4 4 0 00-4 4v1H5a1 1 0 00-.994.89l-1 9A1 1 0 004 18h12a1 1 0 00.994-1.11l-1-9A1 1 0 0015 7h-1V6a4 4 0 00-4-4zm2 5V6a2 2 0 10-4 0v1h4zm-6 3a1 1 0 112 0 1 1 0 01-2 0zm7-1a1 1 0 100 2 1 1 0 000-2z" clipRule="evenodd" />
+                                                            </svg>
+                                                            สั่งกลับบ้าน
+                                                        </p>
+                                                    ) : (
+                                                        <p className="text-xs font-black text-blue-600 uppercase tracking-wider flex items-center gap-1">
+                                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+                                                                <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
+                                                                <path fillRule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clipRule="evenodd" />
+                                                            </svg>
+                                                            {po.customerCount || 1} ท่าน
+                                                        </p>
+                                                    )}
+                                                </div>
                                             </div>
                                             <div className="flex flex-col items-end gap-2">
                                                 <div className="bg-yellow-100 text-yellow-700 px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider">
