@@ -64,40 +64,61 @@ export const PreOrderCustomer: React.FC = () => {
         }
     }, []);
 
-    // NEW: Prompt for customer count on initial menu view (Only if Dine-in)
+    // NEW: Prompt for Order Type and Customer Count on initial menu view
     useEffect(() => {
-        if (!selectedBranch || hasSetCustomerCount || orderType === 'takeaway') return;
+        if (!selectedBranch || hasSetCustomerCount) return;
 
         const timer = setTimeout(async () => {
-            const { value: count } = await Swal.fire({
-                title: 'มากี่ท่านคะ?',
-                text: 'เพื่อความสะดวกในการจัดเตรียมโต๊ะและอุปกรณ์สำหรับท่าน',
-                input: 'number',
-                inputValue: 1,
-                inputAttributes: {
-                    min: '1',
-                    max: '50',
-                    step: '1'
-                },
-                confirmButtonText: 'ตกลง',
+            const { value: type } = await Swal.fire({
+                title: 'สนใจรับประทานแบบไหนดีคะ?',
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: 'ทานที่ร้าน',
+                cancelButtonText: 'สั่งกลับบ้าน',
                 confirmButtonColor: '#3b82f6',
+                cancelButtonColor: '#fbbf24',
                 allowOutsideClick: false,
-                inputValidator: (value) => {
-                    if (!value || parseInt(value) < 1) {
-                        return 'กรุณาระบุจำนวนอย่างน้อย 1 ท่านค่ะ';
-                    }
-                    return null;
-                }
+                reverseButtons: true
             });
 
-            if (count) {
-                setCustomerCount(parseInt(count));
+            if (type) {
+                // User chose Dine-in
+                setOrderType('dine-in');
+                const { value: count } = await Swal.fire({
+                    title: 'มากี่ท่านคะ?',
+                    text: 'เพื่อความสะดวกในการจัดเตรียมโต๊ะและอุปกรณ์สำหรับท่าน',
+                    input: 'number',
+                    inputValue: 1,
+                    inputAttributes: {
+                        min: '1',
+                        max: '50',
+                        step: '1'
+                    },
+                    confirmButtonText: 'ตกลง',
+                    confirmButtonColor: '#3b82f6',
+                    allowOutsideClick: false,
+                    inputValidator: (value) => {
+                        if (!value || parseInt(value) < 1) {
+                            return 'กรุณาระบุจำนวนอย่างน้อย 1 ท่านค่ะ';
+                        }
+                        return null;
+                    }
+                });
+
+                if (count) {
+                    setCustomerCount(parseInt(count));
+                    setHasSetCustomerCount(true);
+                }
+            } else {
+                // User chose Takeaway (Clicked "cancel" button which we labeled "สั่งกลับบ้าน")
+                setOrderType('takeaway');
+                setCustomerCount(0);
                 setHasSetCustomerCount(true);
             }
         }, 800);
 
         return () => clearTimeout(timer);
-    }, [selectedBranch, hasSetCustomerCount, orderType]);
+    }, [selectedBranch, hasSetCustomerCount]);
 
     const handleCopyLink = () => {
         const currentUrl = window.location.href;
