@@ -39,8 +39,9 @@ export const PreOrderCustomer: React.FC = () => {
                 title: 'วันนี้ร้านปิดทำการค่ะ',
                 text: 'ขออภัยด้วยนะคะ วันจันทร์ร้านปิดให้บริการ แต่ลูกค้ายังสามารถเลือกดูเมนูต่างๆ ได้ตามปกติค่ะ (ไม่สามารถส่งออเดอร์ได้)',
                 icon: 'info',
-                confirmButtonText: 'รับทราบค่ะ',
+                confirmButtonText: 'รับทราบและเลือกชมเมนู',
                 confirmButtonColor: '#3b82f6',
+                allowOutsideClick: false,
             });
         }
     }, [isMonday]);
@@ -78,7 +79,7 @@ export const PreOrderCustomer: React.FC = () => {
 
     // NEW: Prompt for Order Type and Customer Count on initial menu view
     useEffect(() => {
-        if (!selectedBranch || hasSetCustomerCount) return;
+        if (!selectedBranch || hasSetCustomerCount || isMonday) return;
 
         const timer = setTimeout(async () => {
             const { value: type } = await Swal.fire({
