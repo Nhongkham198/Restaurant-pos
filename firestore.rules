@@ -2,23 +2,110 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Global Configs
-    match /users/data { allow read, write: if true; }
-    match /branches/data { allow read, write: if true; }
-    match /leaveRequests/data { allow read, write: if true; }
-    match /test/connection { allow read, write: if true; }
-    
-    // Branch Data
+    // --- Primitives ---
+    function isSignedIn() { return request.auth != null; }
+    function isAdmin() { 
+      return isSignedIn() && (
+        request.auth.token.email == 'zowamarketing@gmail.com' && request.auth.token.email_verified == true
+        || exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+
+    // --- Validation Helpers ---
+
+    function isValidUserList(data) {
+      return data.value is list && data.value.size() <= 100 
+        && (data.value.size() == 0 || (data.value[0].username is string && data.value[0].username.size() <= 50));
+    }
+
+    function isValidBranchList(data) {
+      return data.value is list && data.value.size() <= 10 
+        && (data.value.size() == 0 || (data.value[0].name is string && data.value[0].name.size() <= 100));
+    }
+
+    function isValidActiveOrder(data) {
+      return data.id is number 
+        && data.status in ['pending_payment', 'waiting', 'cooking', 'served', 'completed', 'cancelled']
+        && data.tableId is number
+        && data.items is list && data.items.size() <= 50
+        && data.orderTime is number;
+    }
+
+    // --- Rules ---
+
+    // Security Rules catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Global Collections
+    match /users/data {
+      allow read: if true; // Insecure but needed for custom login. TODO: Move to Firebase Auth.
+      allow write: if isAdmin() && isValidUserList(incoming());
+    }
+
+    match /branches/data {
+      allow read: if true;
+      allow write: if isAdmin() && isValidBranchList(incoming());
+    }
+
+    match /leaveRequests/data {
+      allow read: if isAdmin();
+      allow write: if isSignedIn() && (isAdmin() || incoming().value is list);
+    }
+
+    match /admins/{uid} {
+      allow read: if isSignedIn() && request.auth.uid == uid;
+      allow write: if false; // Only manageable via Firebase Console or special script
+    }
+
+    // Branch Context
     match /branches/{branchId} {
-      allow read, write: if true;
-      match /{allSubcollections=**} {
-        allow read, write: if true;
+      
+      // Allow read access to branch data if signed in or customer
+      allow read: if true;
+
+      // Menu Items (Document style)
+      match /menuItems/data {
+        allow read: if true;
+        allow write: if isAdmin();
+      }
+
+      // Active Orders (Collection style)
+      match /activeOrders/{orderId} {
+        allow read: if true; // Customers need to read their orders
+        allow create: if isValidActiveOrder(incoming()); // Allow unauthenticated order creation with strict validation
+        allow update: if isSignedIn() || isAdmin(); 
+        allow delete: if isAdmin();
+      }
+
+      // Pre-Orders
+      match /preOrders/{orderId} {
+        allow read: if true;
+        allow create: if true;
+        allow update: if isSignedIn() || isAdmin();
+      }
+
+      // Stock Items
+      match /stockItems/data {
+        allow read: if isSignedIn() || isAdmin();
+        allow write: if isAdmin();
+      }
+
+      // Stock Logs
+      match /stockLogs/{logId} {
+        allow read: if isAdmin();
+        allow create: if isSignedIn();
       }
     }
 
-    // Default Deny
-    match /{document=**} {
-      allow read, write: if false;
+    // Connection testing
+    match /test/connection {
+      allow read: if true;
+      allow write: if isAdmin();
     }
   }
 }

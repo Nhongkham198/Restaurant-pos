@@ -12,6 +12,10 @@ declare var html2canvas: any;
 // ... existing code ...
 const RAW_DICTIONARY: Record<string, string> = {
     // UI Elements
+    'ร้านอาหารปิดบริการแล้ว': 'The restaurant is closed',
+    'ขออภัยในความไม่สะดวก': 'We apologize for the inconvenience.',
+    'ร้านเปิดให้บริการช่วงเวลา': 'Operating hours:',
+    'น.': '',
     'เมนูอาหาร 🍽️': 'Menu 🍽️',
     'เมนูอาหาร': 'Menu', 
     'ค้นหาเมนู...': 'Search menu...', // Added for search placeholder
@@ -134,6 +138,8 @@ interface CustomerViewProps {
     branchId?: string | null; // NEW: Added branchId to support direct peeking
     lineOaUrl?: string;
     facebookPageUrl?: string;
+    openingTime?: string | null;
+    closingTime?: string | null;
 }
 
 export const CustomerView: React.FC<CustomerViewProps> = ({
@@ -153,10 +159,37 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     onLogout,
     branchId,
     lineOaUrl,
-    facebookPageUrl
+    facebookPageUrl,
+    openingTime,
+    closingTime
 }) => {
     // ... (Keep existing state hooks)
     const [lang, setLang] = useState<'TH' | 'EN'>('TH');
+
+    const isClosed = useMemo(() => {
+        if (!openingTime || !closingTime) return false;
+        try {
+            const now = new Date();
+            const currentHours = now.getHours();
+            const currentMinutes = now.getMinutes();
+            const currentTimeMinutes = currentHours * 60 + currentMinutes;
+
+            const [openHours, openMin] = openingTime.split(':').map(val => parseInt(val, 10));
+            const openTimeMinutes = openHours * 60 + openMin;
+
+            const [closeHours, closeMin] = closingTime.split(':').map(val => parseInt(val, 10));
+            const closeTimeMinutes = closeHours * 60 + closeMin;
+
+            if (openTimeMinutes <= closeTimeMinutes) {
+                return currentTimeMinutes < openTimeMinutes || currentTimeMinutes >= closeTimeMinutes;
+            } else {
+                return currentTimeMinutes < openTimeMinutes && currentTimeMinutes >= closeTimeMinutes;
+            }
+        } catch (e) {
+            console.error("Error parsing opening/closing times:", e);
+            return false;
+        }
+    }, [openingTime, closingTime]);
 
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [customerName, setCustomerName] = useState('ลูกค้า'); 
@@ -844,6 +877,15 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     }, [myItems.length, isAuthenticated, completedOrders, recentTableCompletedOrders, myOrderNumbers, logoUrl, restaurantName, customerName, isSessionCompleted, t]);
     
     const handleSelectItem = (item: MenuItem) => {
+        if (isClosed) {
+            Swal.fire({
+                icon: 'warning',
+                title: t('ร้านอาหารปิดบริการแล้ว'),
+                text: `${t('ขออภัยในความไม่สะดวก')} (${t('ร้านเปิดให้บริการช่วงเวลา')} ${openingTime || '10:00'} - ${closingTime || '22:00'} ${t('น.')})`,
+                confirmButtonColor: '#d33'
+            });
+            return;
+        }
         setItemToCustomize(item);
     };
 
@@ -864,6 +906,15 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     };
 
     const handleSubmitOrder = async () => {
+        if (isClosed) {
+            Swal.fire({
+                icon: 'warning',
+                title: t('ร้านอาหารปิดบริการแล้ว'),
+                text: `${t('ขออภัยในความไม่สะดวก')} (${t('ร้านเปิดให้บริการช่วงเวลา')} ${openingTime || '10:00'} - ${closingTime || '22:00'} ${t('น.')})`,
+                confirmButtonColor: '#d33'
+            });
+            return;
+        }
         if (cartItems.length === 0) return;
 
         // Require payment slip ONLY for Online/Link system (Takeaway/Delivery)
@@ -880,6 +931,15 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     };
 
     const executePlaceOrder = async (slipBase64?: string) => {
+        if (isClosed) {
+            Swal.fire({
+                icon: 'warning',
+                title: t('ร้านอาหารปิดบริการแล้ว'),
+                text: `${t('ขออภัยในความไม่สะดวก')} (${t('ร้านเปิดให้บริการช่วงเวลา')} ${openingTime || '10:00'} - ${closingTime || '22:00'} ${t('น.')})`,
+                confirmButtonColor: '#d33'
+            });
+            return;
+        }
         if ((table.floor === 'Online' || table.id < 0) && !customerPhone) {
             Swal.fire(t('เกิดข้อผิดพลาด'), t('กรุณาใส่เบอร์โทรศัพท์'), 'error');
             return;
@@ -1162,7 +1222,21 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                     </div>
                 </div>
             </header>
-            
+
+            {isClosed && (
+                <div role="alert" className="bg-red-50 border-b border-red-200 text-red-800 px-4 py-3.5 flex items-center gap-3 shadow-inner z-20">
+                    <div className="w-9 h-9 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0 animate-pulse text-red-600">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                    </div>
+                    <div className="text-sm font-semibold leading-normal">
+                        <p className="text-red-900">{t('ร้านอาหารปิดบริการแล้ว')} ({t('ร้านเปิดให้บริการช่วงเวลา')} {openingTime} - {closingTime} {t('น.')})</p>
+                        <p className="text-xs font-medium text-red-600/90 mt-0.5">{t('ขออภัยในความไม่สะดวก')}</p>
+                    </div>
+                </div>
+            )}
+
             <div className="flex-1 overflow-hidden relative">
                 <Menu 
                     menuItems={localizedMenuItems}

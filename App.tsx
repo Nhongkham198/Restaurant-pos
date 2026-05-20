@@ -1731,6 +1731,8 @@ export const App: React.FC = () => {
                         branchId={branchId}
                         lineOaUrl={lineOaUrl}
                         facebookPageUrl={facebookPageUrl}
+                        openingTime={openingTime}
+                        closingTime={closingTime}
                     />
                 </Suspense>
              );

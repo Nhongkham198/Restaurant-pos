@@ -189,10 +189,16 @@ export const KitchenOrderCard: React.FC<KitchenOrderCardProps> = ({
                     ) : (
                         <span className="text-3xl font-mono font-bold">{formatTime(elapsedSeconds)}</span>
                     )}
-                    <span className="text-xs font-bold opacity-90 truncate max-w-[100px]">
-                        {isLineMan ? 'Delivery' : `โต๊ะ ${order.tableName} (${order.floor})`}
-                        {!isLineMan && order.customerCount > 0 && ` | ${order.customerCount} ท่าน`}
-                    </span>
+                    <div className="flex items-center gap-1.5 mt-0.5 justify-end">
+                        <span className="text-xs font-bold opacity-90 truncate min-w-0 text-right" title={isLineMan ? 'Delivery' : `โต๊ะ ${order.tableName} (${order.floor})`}>
+                            {isLineMan ? 'Delivery' : `โต๊ะ ${order.tableName} (${order.floor})`}
+                        </span>
+                        {!isLineMan && order.customerCount > 0 && (
+                            <span className="bg-white/25 text-white text-[10px] font-extrabold px-1.5 py-0.5 rounded shadow-sm border border-white/10 whitespace-nowrap flex-shrink-0" title={`${order.customerCount} ท่าน`}>
+                                {order.customerCount} ท่าน
+                            </span>
+                        )}
+                    </div>
                 </div>
             </div>
 

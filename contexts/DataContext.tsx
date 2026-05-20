@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, createContext, useContext, ReactNode } from 'react';
 import { useFirestoreSync, useFirestoreCollection, CollectionActions } from '../hooks/useFirestoreSync';
+import { auth } from '../firebaseConfig';
 import { 
     MenuItem, Table, ActiveOrder, CompletedOrder, CancelledOrder, 
     StockItem, StockTag, StockLog, PrintHistoryEntry, MaintenanceItem, MaintenanceLog, 
@@ -186,6 +187,22 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         }
         return null;
     });
+
+    // --- Firebase Auth Integration ---
+    useEffect(() => {
+        if (!auth) return;
+        const unsubscribe = auth.onAuthStateChanged((user) => {
+            if (user) {
+                console.log('[Firebase Auth] User signed in:', user.email);
+                // If it's the admin email, we could auto-login them as the internal admin user
+                // but let's just keep the sessions separate for now.
+                // The main thing is that for Firestore operations, request.auth will now be populated.
+            } else {
+                console.log('[Firebase Auth] User signed out');
+            }
+        });
+        return () => unsubscribe();
+    }, []);
 
     const [isCustomerMode, setIsCustomerMode] = useState(() => {
         const params = new URLSearchParams(window.location.search);
