@@ -62,6 +62,10 @@ export const StockManagement: React.FC<StockManagementProps> = ({
     // New state to track if the PO modal is opened in "Mobile Image Mode"
     const [isMobilePOMode, setIsMobilePOMode] = useState(false);
     const [selectedItem, setSelectedItem] = useState<StockItem | null>(null);
+    const [isIgnoreModalOpen, setIsIgnoreModalOpen] = useState(false);
+    const [itemToIgnore, setItemToIgnore] = useState<StockItem | null>(null);
+    const [ignoreRemark, setIgnoreRemark] = useState('');
+    const [isRemarkKeyboardOpen, setIsRemarkKeyboardOpen] = useState(false);
     
     // Tag Registration State
     const [selectedTagItem, setSelectedTagItem] = useState<StockItem | null>(null);
@@ -162,6 +166,59 @@ export const StockManagement: React.FC<StockManagementProps> = ({
     const handleOpenLogModal = (item: StockItem) => {
         setSelectedLogItem(item);
         setIsLogModalOpen(true);
+    };
+
+    const handleOpenIgnoreModal = (item: StockItem) => {
+        setItemToIgnore(item);
+        setIgnoreRemark('');
+        setIsRemarkKeyboardOpen(false);
+        setIsIgnoreModalOpen(true);
+    };
+
+    const handleConfirmIgnore = (item: StockItem | null, remarkText: string) => {
+        if (!item) return;
+        if (!remarkText.trim()) {
+            Swal.fire({
+                icon: 'error',
+                title: 'กรุณาระบุหมายเหตุ',
+                text: 'จำเป็นต้องระบุสาเหตุเพื่อทำการปฏิเสธหรือเคลียร์รายการนี้ออก',
+                confirmButtonColor: '#EF4444'
+            });
+            return;
+        }
+
+        // Add log with the custom action and details
+        addLog(item, 'ignore', `ปฏิเสธ/เคลียร์รายการสั่งซื้อ (จำนวนเดิม: ${item.orderedQuantity} ${item.unit}) เนื่องจาก: ${remarkText}`);
+
+        // Update items in database/state
+        setStockItems(prev => prev.map(i => {
+            if (i.id === item.id) {
+                return {
+                    ...i,
+                    orderedQuantity: 0,
+                    orderedBy: undefined,
+                    orderDate: undefined,
+                    isIgnored: true,
+                    lastIgnoreRemark: remarkText,
+                    lastIgnoredAt: Date.now(),
+                    lastIgnoredBy: currentUser?.username || 'System'
+                };
+            }
+            return i;
+        }));
+
+        Swal.fire({
+            icon: 'success',
+            title: 'ดำเนินการปฏิเสธ/เคลียร์รายการสำเร็จ',
+            text: `ทำการลบรายการ "${item.name}" ออกจากรายการสั่งของเรียบร้อยแล้ว`,
+            timer: 2000,
+            showConfirmButton: false
+        });
+
+        setIsIgnoreModalOpen(false);
+        setItemToIgnore(null);
+        setIgnoreRemark('');
+        setIsRemarkKeyboardOpen(false);
     };
 
     const filteredLogs = useMemo(() => {
@@ -925,6 +982,7 @@ export const StockManagement: React.FC<StockManagementProps> = ({
             else if (log.action === 'delete') actionType = 'ลบ (Delete)';
             else if (log.action === 'receive') actionType = 'รับของ (Receive)';
             else if (log.action === 'adjust') actionType = 'ปรับสต็อก (Adjust)';
+            else if (log.action === 'ignore') actionType = 'ปฏิเสธ/เคลียร์รายการสั่งของ (Ignore)';
 
             return {
                 'วันที่/เวลา': new Date(log.timestamp).toLocaleString('th-TH'),
@@ -1388,6 +1446,19 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                                     </div>
                                                 </div>
 
+                                                {selectedCategory === 'รายการสั่งของ' && (
+                                                    <button 
+                                                        onClick={() => handleOpenIgnoreModal(item)} 
+                                                        className="px-3.5 py-2.5 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white rounded-2xl shadow-lg shadow-rose-100 flex items-center gap-1.5 text-xs font-black transition-all shrink-0 opacity-0 group-hover:opacity-100 duration-300" 
+                                                        title="Ignore/ปฏิเสธ"
+                                                    >
+                                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                                            <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                                                        </svg>
+                                                        <span>Ignore</span>
+                                                    </button>
+                                                )}
+
                                                 <button onClick={() => handleOpenAdjustModal(item)} className="p-3 text-white bg-red-500 hover:bg-red-600 rounded-2xl shadow-lg shadow-red-100 active:scale-90 transition-all shrink-0" title="เบิกของ">
                                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M15 12H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                                                 </button>
@@ -1485,6 +1556,9 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                         </div>
                                     </div>
                                     <div className="flex justify-end gap-3 pt-3 border-t border-gray-200">
+                                        {selectedCategory === 'รายการสั่งของ' && (
+                                            <button onClick={() => handleOpenIgnoreModal(item)} className="text-base font-bold text-rose-600 hover:underline">Ignore</button>
+                                        )}
                                         <button onClick={() => handleReceiveStock(item)} className="text-base font-medium text-purple-700 hover:underline">รับของ</button>
                                         <button onClick={() => handleOpenAdjustModal(item)} className="text-base font-medium text-red-700 hover:underline">เบิกของ</button>
                                         <button onClick={() => handleOpenItemModal(item)} className="text-base font-medium text-blue-700 hover:underline">แก้ไข</button>
@@ -1687,11 +1761,13 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                                           log.action === 'update' ? 'bg-blue-100 text-blue-700' :
                                                           log.action === 'delete' ? 'bg-red-100 text-red-700' :
                                                           log.action === 'receive' ? 'bg-purple-100 text-purple-700' :
+                                                          log.action === 'ignore' ? 'bg-rose-100 text-rose-700' :
                                                           'bg-yellow-100 text-yellow-700'}`}>
                                                         {log.action === 'create' ? 'สร้างใหม่' :
                                                          log.action === 'update' ? 'แก้ไข' :
                                                          log.action === 'delete' ? 'ลบ' :
-                                                         log.action === 'receive' ? 'รับของ' : 'ปรับสต็อก'}
+                                                         log.action === 'receive' ? 'รับของ' : 
+                                                         log.action === 'ignore' ? 'ปฏิเสธ/เคลียร์รายการ' : 'ปรับสต็อก'}
                                                     </span>
                                                 </td>
                                                 <td className="px-6 py-3 text-gray-600">
@@ -1988,6 +2064,402 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                     </div>
                 </div>
             )}
+
+            {/* Ignore / Reject Order Modal with Virtual Keyboard */}
+            {isIgnoreModalOpen && itemToIgnore && (
+                <div role="dialog" aria-hidden={!isIgnoreModalOpen} className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs select-none">
+                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-xl overflow-hidden flex flex-col max-h-[95vh] border border-gray-100 animate-in fade-in zoom-in duration-300">
+                        {/* Header */}
+                        <div className="p-5 bg-gradient-to-r from-red-500 to-rose-600 text-white flex justify-between items-center shadow">
+                            <div className="flex items-center gap-2.5">
+                                <span className="bg-white/20 p-2 rounded-2xl text-white">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                                    </svg>
+                                </span>
+                                <div>
+                                    <h3 className="text-lg font-black leading-none uppercase tracking-tight">Ignore Order List</h3>
+                                    <p className="text-red-100 text-xs font-bold mt-1">ปฏิเสธ / เคลียร์รายการวัตถุดิบและใส่สาเหตุเพื่อยืนยัน</p>
+                                </div>
+                            </div>
+                            <button onClick={() => { setIsIgnoreModalOpen(false); setItemToIgnore(null); setIsRemarkKeyboardOpen(false); }} className="p-1 text-red-100 hover:text-white hover:bg-white/10 rounded-full transition-colors cursor-pointer">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+
+                        {/* Content */}
+                        <div className="p-5 overflow-y-auto flex-1 space-y-4">
+                            {/* Target Item summary info */}
+                            <div className="bg-gray-50 border border-gray-100 rounded-2xl p-4 flex gap-4 items-center shadow-xs">
+                                <img 
+                                    src={itemToIgnore.imageUrl || "https://placehold.co/100?text=No+Image"} 
+                                    alt={itemToIgnore.name} 
+                                    className="w-14 h-14 object-cover rounded-xl border border-gray-200 flex-shrink-0"
+                                />
+                                <div className="min-w-0 flex-1">
+                                    <div className="text-sm font-bold text-gray-500 uppercase tracking-widest text-[9px]">ชื่อวัตถุดิบ</div>
+                                    <div className="text-lg font-black text-gray-900 leading-normal truncate">{itemToIgnore.name}</div>
+                                    <div className="flex gap-4 mt-1 text-xs">
+                                        <div>
+                                            <span className="font-semibold text-gray-400">คงเหลือ:</span> <span className="font-bold text-gray-750">{itemToIgnore.quantity} {itemToIgnore.unit}</span>
+                                        </div>
+                                        <div className="border-l border-gray-200 pl-4">
+                                            <span className="font-semibold text-blue-500">จำนวนที่สั่ง:</span> <span className="font-black text-blue-700">{itemToIgnore.orderedQuantity} {itemToIgnore.unit}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Remark Text area */}
+                            <div className="space-y-1.5 text-left">
+                                <label className="text-sm font-black text-gray-700 uppercase tracking-wider flex items-center gap-1.5">
+                                    <span>ระบุหมายเหตุ / สาเหตุที่เคลียร์รายการออก:</span>
+                                    <span className="text-red-500 text-xs font-bold leading-none select-none">* จำเป็น</span>
+                                </label>
+                                <div className="relative">
+                                    <textarea
+                                        value={ignoreRemark}
+                                        onChange={(e) => setIgnoreRemark(e.target.value)}
+                                        placeholder="พิมพ์หมายเหตุหรือใส่ข้อมูลสาเหตุที่ปฏิเสธรายการนี้ เช่น ของยังพอมีเต็มตู้..."
+                                        className="w-full border-2 border-gray-200 rounded-xl shadow-xs p-3 pr-12 text-base text-gray-800 font-bold focus:border-red-500 focus:ring-1 focus:ring-red-500 transition-colors placeholder:text-gray-400/80 outline-none animate-none"
+                                        rows={2}
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsRemarkKeyboardOpen(!isRemarkKeyboardOpen)}
+                                        className={`absolute top-3.5 right-3.5 transition-colors ${isRemarkKeyboardOpen ? 'text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
+                                        title="เปิดคีย์บอร์ด"
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Easy Template remarks */}
+                            <div className="space-y-1.5 text-left">
+                                <span className="text-xs font-black text-gray-400 uppercase tracking-widest block">สาเหตุด่วน (คำเลือกด่วน):</span>
+                                <div className="flex flex-wrap gap-1.5">
+                                    {[
+                                        "ของในคลังยังมีพอใช้งาน",
+                                        "รายการมีความต้องการสั่งซื้อซ้ำซ้อน",
+                                        "เช็คจำนวนผิดพลาด สต็อกคงเหลือปกติ",
+                                        "ปรับรายการยกเลิกตามออเดอร์ร้าน",
+                                        "เปลี่ยนไปสั่งผู้จำหน่ายรายอื่นแทน"
+                                    ].map((preset) => (
+                                        <button
+                                            key={preset}
+                                            type="button"
+                                            onClick={() => setIgnoreRemark(preset)}
+                                            className="px-2.5 py-1.5 text-xs font-bold rounded-lg border border-red-100 bg-red-50/50 hover:bg-red-50 hover:border-red-200 text-rose-700 transition-all cursor-pointer shadow-xs active:scale-95"
+                                        >
+                                            {preset}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* On screen Keyboard container */}
+                            {isRemarkKeyboardOpen && (
+                                <ThaiVirtualKeyboard
+                                    onKeyPress={(key) => setIgnoreRemark(prev => prev + key)}
+                                    onBackspace={() => setIgnoreRemark(prev => prev.slice(0, -1))}
+                                    onClear={() => setIgnoreRemark('')}
+                                    onClose={() => setIsRemarkKeyboardOpen(false)}
+                                />
+                            )}
+                        </div>
+
+                        {/* Footer Controls */}
+                        <div className="p-4 border-t border-gray-100 bg-gray-50 flex gap-3">
+                            <button
+                                type="button"
+                                onClick={() => { setIsIgnoreModalOpen(false); setItemToIgnore(null); setIsRemarkKeyboardOpen(false); }}
+                                className="flex-1 px-4 py-3 bg-white border-2 border-gray-200 text-gray-600 font-black rounded-2xl hover:bg-gray-100 transition-colors duration-150 cursor-pointer shadow-xs active:scale-95 text-center text-sm"
+                            >
+                                ยกเลิก (Cancel)
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => handleConfirmIgnore(itemToIgnore, ignoreRemark)}
+                                className="flex-1 px-4 py-3 bg-red-600 hover:bg-red-700 text-white font-black rounded-2xl shadow-lg transition-colors duration-150 cursor-pointer shadow-red-100 active:scale-95 text-center text-sm"
+                            >
+                                คอมเฟิร์มปฏิเสธรายการ
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </>
+    );
+};
+
+interface VirtualKeyboardProps {
+    value: string;
+    onChange: (newValue: string) => void;
+}
+
+const VirtualKeyboard: React.FC<VirtualKeyboardProps> = ({ value, onChange }) => {
+    const [layout, setLayout] = useState<'th' | 'en'>('th');
+    const [isShift, setIsShift] = useState(false);
+
+    // Thai Kedmanee keys containing both unshifted (bottom-right) and shifted (top-left) values
+    const thKeys = [
+        [
+            { unshifted: 'ๅ', shifted: '+' },
+            { unshifted: '/', shifted: '1' },
+            { unshifted: '-', shifted: '2' },
+            { unshifted: 'ภ', shifted: '3' },
+            { unshifted: 'ถ', shifted: '4' },
+            { unshifted: 'ุ', shifted: 'ู' },
+            { unshifted: 'ึ', shifted: '฿' },
+            { unshifted: 'ค', shifted: '5' },
+            { unshifted: 'ต', shifted: '6' },
+            { unshifted: 'จ', shifted: '7' },
+            { unshifted: 'ข', shifted: '8' },
+            { unshifted: 'ช', shifted: '9' }
+        ],
+        [
+            { unshifted: 'ๆ', shifted: '0' },
+            { unshifted: 'ไ', shifted: '๊' },
+            { unshifted: 'ำ', shifted: 'ฎ' },
+            { unshifted: 'พ', shifted: 'ฑ' },
+            { unshifted: 'ะ', shifted: 'ธ' },
+            { unshifted: 'ั', shifted: 'ํ' },
+            { unshifted: 'ี', shifted: '๊' },
+            { unshifted: 'ร', shifted: 'ณ' },
+            { unshifted: 'น', shifted: 'ฯ' },
+            { unshifted: 'ย', shifted: 'ญ' },
+            { unshifted: 'บ', shifted: 'ฐ' },
+            { unshifted: 'ล', shifted: 'ฅ' }
+        ],
+        [
+            { unshifted: 'ฟ', shifted: 'ฤ' },
+            { unshifted: 'ห', shifted: 'ฆ' },
+            { unshifted: 'ก', shifted: 'ฏ' },
+            { unshifted: 'ด', shifted: 'โ' },
+            { unshifted: 'เ', shifted: 'ฌ' },
+            { unshifted: '้', shifted: '็' },
+            { unshifted: '่', shifted: '๋' },
+            { unshifted: 'า', shifted: 'ษ' },
+            { unshifted: 'ส', shifted: 'ศ' },
+            { unshifted: 'ว', shifted: 'ซ' },
+            { unshifted: 'ง', shifted: '.' }
+        ],
+        [
+            { unshifted: 'ผ', shifted: '(' },
+            { unshifted: 'ป', shifted: ')' },
+            { unshifted: 'แ', shifted: 'ฉ' },
+            { unshifted: 'อ', shifted: 'ฮ' },
+            { unshifted: 'ิ', shifted: 'ฺ' },
+            { unshifted: 'ื', shifted: '์' },
+            { unshifted: 'ท', shifted: '?' },
+            { unshifted: 'ม', shifted: 'ฒ' },
+            { unshifted: 'ใ', shifted: 'ฬ' },
+            { unshifted: 'ฝ', shifted: 'ฦ' }
+        ]
+    ];
+
+    // English QWERTY keys containing both unshifted (bottom-right) and shifted (top-left) values
+    const enKeys = [
+        [
+            { unshifted: '`', shifted: '~' },
+            { unshifted: '1', shifted: '!' },
+            { unshifted: '2', shifted: '@' },
+            { unshifted: '3', shifted: '#' },
+            { unshifted: '4', shifted: '$' },
+            { unshifted: '5', shifted: '%' },
+            { unshifted: '6', shifted: '^' },
+            { unshifted: '7', shifted: '&' },
+            { unshifted: '8', shifted: '*' },
+            { unshifted: '9', shifted: '(' },
+            { unshifted: '0', shifted: ')' },
+            { unshifted: '-', shifted: '_' },
+            { unshifted: '=', shifted: '+' }
+        ],
+        [
+            { unshifted: 'q', shifted: 'Q' },
+            { unshifted: 'w', shifted: 'W' },
+            { unshifted: 'e', shifted: 'E' },
+            { unshifted: 'r', shifted: 'R' },
+            { unshifted: 't', shifted: 'T' },
+            { unshifted: 'y', shifted: 'Y' },
+            { unshifted: 'u', shifted: 'U' },
+            { unshifted: 'i', shifted: 'I' },
+            { unshifted: 'o', shifted: 'O' },
+            { unshifted: 'p', shifted: 'P' },
+            { unshifted: '[', shifted: '{' },
+            { unshifted: ']', shifted: '}' }
+        ],
+        [
+            { unshifted: 'a', shifted: 'A' },
+            { unshifted: 's', shifted: 'S' },
+            { unshifted: 'd', shifted: 'D' },
+            { unshifted: 'f', shifted: 'F' },
+            { unshifted: 'g', shifted: 'G' },
+            { unshifted: 'h', shifted: 'H' },
+            { unshifted: 'j', shifted: 'J' },
+            { unshifted: 'k', shifted: 'K' },
+            { unshifted: 'l', shifted: 'L' },
+            { unshifted: ';', shifted: ':' },
+            { unshifted: '\'', shifted: '"' }
+        ],
+        [
+            { unshifted: 'z', shifted: 'Z' },
+            { unshifted: 'x', shifted: 'X' },
+            { unshifted: 'c', shifted: 'C' },
+            { unshifted: 'v', shifted: 'V' },
+            { unshifted: 'b', shifted: 'B' },
+            { unshifted: 'n', shifted: 'N' },
+            { unshifted: 'm', shifted: 'M' },
+            { unshifted: ',', shifted: '<' },
+            { unshifted: '.', shifted: '>' },
+            { unshifted: '/', shifted: '?' }
+        ]
+    ];
+
+    const currentRows = layout === 'th' ? thKeys : enKeys;
+
+    // Detect if a Thai character is a combining vowel, tone, or mark
+    const isThaiCombining = (char: string) => {
+        if (!char || char.length !== 1) return false;
+        const code = char.charCodeAt(0);
+        return (code >= 0x0e31 && code <= 0x0e3a) || (code >= 0x0e47 && code <= 0x0e4e);
+    };
+
+    // Prepend dotted circle (◌) to combining signs for rendering/guidance feedback
+    const getDisplayChar = (char: string) => {
+        if (!char) return '';
+        if (isThaiCombining(char)) {
+            return `◌${char}`;
+        }
+        return char;
+    };
+
+    const handleKeyPress = (char: string) => {
+        onChange(value + char);
+    };
+
+    const handleBackspace = () => {
+        onChange(value.slice(0, -1));
+    };
+
+    const handleClear = () => {
+        onChange('');
+    };
+
+    return (
+        <div className="bg-[#dee2e6] border border-gray-300 rounded-[#1.5rem] p-4.5 shadow-md w-full select-none mt-4 font-sans text-left">
+            {/* Keyboard Header Info / Language Selector */}
+            <div className="flex justify-between items-center bg-[#cfd4da]/40 border border-gray-300/20 px-4 py-2 rounded-2xl mb-4">
+                <div className="flex items-center gap-2 text-[#495057]">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4.5 w-4.5 stroke-[2.5]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+                    </svg>
+                    <span className="text-[11px] sm:text-xs font-black tracking-wider uppercase">
+                        {layout === 'th' ? 'THAI KEYBOARD (KEDMANEE)' : 'ENGLISH KEYBOARD (QWERTY)'}
+                    </span>
+                </div>
+                {/* Language Switch Tabs styled like the original premium feel */}
+                <div className="flex bg-[#cbd2da]/60 p-0.5 rounded-lg border border-gray-300/40">
+                    <button
+                        type="button"
+                        onClick={() => setLayout('th')}
+                        className={`px-3 py-1 text-[10px] sm:text-xs font-black rounded-md transition-all ${
+                            layout === 'th'
+                                ? 'bg-white text-slate-800 shadow-xs'
+                                : 'text-slate-600 hover:text-slate-800'
+                        }`}
+                    >
+                        ภาษาไทย
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setLayout('en')}
+                        className={`px-3 py-1 text-[10px] sm:text-xs font-black rounded-md transition-all ${
+                            layout === 'en'
+                                ? 'bg-white text-slate-800 shadow-xs'
+                                : 'text-slate-600 hover:text-slate-800'
+                        }`}
+                    >
+                        English
+                    </button>
+                </div>
+            </div>
+
+            {/* Keyboard Keys Layout */}
+            <div className="flex flex-col gap-1.5 overflow-x-auto pb-1.5">
+                {currentRows.map((row, rIdx) => (
+                    <div key={rIdx} className="flex justify-center gap-1 sm:gap-1.5 min-w-[420px]">
+                        {row.map((keyObj, idx) => (
+                            <button
+                                key={idx}
+                                type="button"
+                                onClick={() => handleKeyPress(isShift ? keyObj.shifted : keyObj.unshifted)}
+                                className="relative flex-1 h-[42px] sm:h-[50px] min-w-[28px] sm:min-w-[34px] bg-white border border-[#ced4da] rounded-lg sm:rounded-xl shadow-xs transition-all active:scale-95 cursor-pointer hover:bg-slate-50 flex items-center justify-center select-none active:bg-slate-100"
+                            >
+                                {/* Shifted character (Top-Left) */}
+                                <span className="absolute top-1 left-1.5 text-[8px] sm:text-[10px] font-semibold text-slate-400">
+                                    {getDisplayChar(keyObj.shifted)}
+                                </span>
+                                {/* Unshifted character (Bottom-Right) */}
+                                <span className="absolute bottom-1 right-2 text-xs sm:text-base font-extrabold text-[#212529]">
+                                    {getDisplayChar(keyObj.unshifted)}
+                                </span>
+                            </button>
+                        ))}
+                    </div>
+                ))}
+
+                {/* Bottom Row Spans / Controls */}
+                <div className="flex gap-1.5 mt-1 min-w-[420px]">
+                    {/* SHIFT */}
+                    <button
+                        type="button"
+                        onClick={() => setIsShift(!isShift)}
+                        className={`w-18 sm:w-26 h-[42px] sm:h-[50px] text-xs sm:text-sm font-extrabold rounded-lg sm:rounded-xl border transition-all flex items-center justify-center gap-1.5 cursor-pointer select-none ${
+                            isShift
+                                ? 'bg-[#51555B] text-white border-[#51555B] shadow-md shadow-gray-400/50'
+                                : 'bg-[#cbd2da] hover:bg-[#b8c1cc] text-slate-800 border-gray-300'
+                        }`}
+                    >
+                        <span>Shift</span>
+                    </button>
+
+                    {/* SPACE / Spacebar */}
+                    <button
+                        type="button"
+                        onClick={() => handleKeyPress(' ')}
+                        className="flex-1 h-[42px] sm:h-[50px] bg-white hover:bg-slate-50 active:bg-slate-100 border border-[#ced4da] rounded-lg sm:rounded-xl shadow-xs text-slate-700 font-extrabold text-xs sm:text-sm flex items-center justify-center cursor-pointer select-none active:scale-95 transition-all"
+                    >
+                        <span>Space</span>
+                    </button>
+
+                    {/* CLEAR */}
+                    <button
+                        type="button"
+                        onClick={handleClear}
+                        className="w-18 sm:w-26 h-[42px] sm:h-[50px] bg-red-100 hover:bg-rose-150 border border-red-200 text-rose-700 font-extrabold text-xs sm:text-sm rounded-lg sm:rounded-xl transition-all flex items-center justify-center cursor-pointer select-none active:scale-95"
+                    >
+                        <span>Clear</span>
+                    </button>
+
+                    {/* BACKSPACE */}
+                    <button
+                        type="button"
+                        onClick={handleBackspace}
+                        className="w-18 sm:w-26 h-[42px] sm:h-[50px] bg-[#cbd2da] hover:bg-[#b8c1cc] border border-gray-300 rounded-lg sm:rounded-xl transition-all flex items-center justify-center cursor-pointer select-none active:scale-95 font-bold text-slate-800"
+                        title="Delete"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-[18px] w-[18px] sm:h-5 sm:w-5 stroke-[2.5]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2M3 12l6.414 6.414A2 2 0 0010.828 19H19a2 2 0 002-2V7a2 2 0 00-2-2h-8.172a2 2 0 00-1.414.586L3 12z" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </div>
     );
 };

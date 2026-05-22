@@ -65,6 +65,22 @@ export const ThaiVirtualKeyboard: React.FC<ThaiVirtualKeyboardProps> = ({ onKeyP
         };
     }, [isDragging]);
 
+    // Detect if a Thai character is a combining vowel, tone, or mark
+    const isThaiCombining = (char: string) => {
+        if (!char || char.length !== 1) return false;
+        const code = char.charCodeAt(0);
+        return (code >= 0x0e31 && code <= 0x0e3a) || (code >= 0x0e47 && code <= 0x0e4e);
+    };
+
+    // Prepend dotted circle (◌) to combining signs for rendering/guidance feedback
+    const getDisplayChar = (char: string) => {
+        if (!char) return '';
+        if (isThaiCombining(char)) {
+            return `◌${char}`;
+        }
+        return char;
+    };
+
     // Standard Kedmanee Layout (Modified to use Arabic numbers)
     const rows = [
         // Row 1
@@ -75,10 +91,9 @@ export const ThaiVirtualKeyboard: React.FC<ThaiVirtualKeyboardProps> = ({ onKeyP
         ],
         // Row 2
         [
-            { normal: 'ๆ', shift: '0' }, { normal: 'ไ', shift: '"' }, { normal: 'ำ', shift: 'ฎ' }, { normal: 'พ', shift: 'ฑ' },
+            { normal: 'ๆ', shift: '0' }, { normal: 'ไ', shift: '๊' }, { normal: 'ำ', shift: 'ฎ' }, { normal: 'พ', shift: 'ฑ' },
             { normal: 'ะ', shift: 'ธ' }, { normal: 'ั', shift: 'ํ' }, { normal: 'ี', shift: '๊' }, { normal: 'ร', shift: 'ณ' },
-            { normal: 'น', shift: 'ฯ' }, { normal: 'ย', shift: 'ญ' }, { normal: 'บ', shift: 'ฐ' }, { normal: 'ล', shift: ',' },
-            { normal: 'ฃ', shift: 'ฅ' }
+            { normal: 'น', shift: 'ฯ' }, { normal: 'ย', shift: 'ญ' }, { normal: 'บ', shift: 'ฐ' }, { normal: 'ล', shift: 'ฅ' }
         ],
         // Row 3
         [
@@ -96,7 +111,7 @@ export const ThaiVirtualKeyboard: React.FC<ThaiVirtualKeyboardProps> = ({ onKeyP
 
     return (
         <div 
-            className="fixed bg-gray-200 p-2 shadow-2xl z-[100] border border-gray-400 select-none rounded-xl"
+            className="fixed bg-[#dee2e6] border border-gray-300 rounded-[1.5rem] p-4 shadow-2xl z-[100] select-none font-sans"
             style={{ 
                 left: position.x, 
                 top: position.y,
@@ -105,43 +120,50 @@ export const ThaiVirtualKeyboard: React.FC<ThaiVirtualKeyboardProps> = ({ onKeyP
             }}
             onClick={(e) => e.stopPropagation()}
         >
-            <div className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-1.5 md:gap-2">
                 {/* Header / Actions - Drag Handle */}
                 <div 
-                    className="flex justify-between items-center px-2 py-1 mb-1 cursor-move bg-gray-300 rounded-lg hover:bg-gray-400 transition-colors"
+                    className="flex justify-between items-center bg-[#cfd4da]/40 border border-gray-300/25 px-4 py-2 rounded-2xl mb-2 cursor-move hover:bg-[#cfd4da]/60 transition-colors"
                     onMouseDown={handleMouseDown}
                     onTouchStart={handleMouseDown}
                     title="ลากเพื่อย้ายตำแหน่ง"
                 >
-                    <span className="text-xs text-gray-700 font-bold uppercase flex items-center gap-2">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
+                    <span className="text-[11px] sm:text-xs text-[#495057] font-black uppercase flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 stroke-[2.5]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
                         </svg>
-                        Thai Keyboard (Kedmanee)
+                        THAI KEYBOARD (KEDMANEE)
                     </span>
                     <button 
                         onClick={(e) => { e.stopPropagation(); onClose(); }} 
-                        className="p-1 text-gray-600 hover:text-red-600 hover:bg-gray-200 rounded-full" 
+                        className="p-1 text-gray-500 hover:text-red-600 hover:bg-gray-200/80 rounded-full cursor-pointer transition-colors" 
                         title="ปิดคีย์บอร์ด"
                         onMouseDown={e => e.stopPropagation()}
                         onTouchStart={e => e.stopPropagation()}
                     >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 stroke-[2.5]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                         </svg>
                     </button>
                 </div>
 
                 {rows.map((row, rowIndex) => (
-                    <div key={rowIndex} className="flex justify-center gap-1.5">
+                    <div key={rowIndex} className="flex justify-center gap-1 sm:gap-1.5">
                         {row.map((key, keyIndex) => (
                             <button
                                 key={keyIndex}
+                                type="button"
                                 onClick={() => onKeyPress(isShift ? key.shift : key.normal)}
-                                className="w-10 h-10 md:w-12 md:h-12 bg-white rounded shadow-sm hover:bg-blue-50 active:bg-blue-100 flex flex-col items-center justify-center border border-gray-300 transition-colors"
+                                className="relative w-11 h-11 sm:w-12 sm:h-12 bg-white rounded-lg sm:rounded-xl shadow-xs border border-[#ced4da] hover:bg-slate-50 active:bg-slate-100 flex items-center justify-center transition-all active:scale-95 cursor-pointer"
                             >
-                                <span className="text-[10px] text-gray-400 leading-none mb-0.5">{isShift ? key.normal : key.shift}</span>
-                                <span className="text-lg font-bold text-gray-800 leading-none">{isShift ? key.shift : key.normal}</span>
+                                {/* Shifted character (Top-Left) */}
+                                <span className="absolute top-1 left-1.5 text-[8px] sm:text-[10px] font-semibold text-slate-400">
+                                    {getDisplayChar(key.shift)}
+                                </span>
+                                {/* Unshifted character (Bottom-Right) */}
+                                <span className="absolute bottom-1 right-2 text-xs sm:text-base font-extrabold text-[#212529]">
+                                    {getDisplayChar(key.normal)}
+                                </span>
                             </button>
                         ))}
                     </div>
@@ -150,29 +172,37 @@ export const ThaiVirtualKeyboard: React.FC<ThaiVirtualKeyboardProps> = ({ onKeyP
                 {/* Control Row */}
                 <div className="flex justify-center gap-1.5 mt-1">
                     <button
+                        type="button"
                         onClick={() => setIsShift(!isShift)}
-                        className={`px-6 h-10 md:h-12 rounded shadow-sm border font-bold transition-colors ${isShift ? 'bg-blue-600 text-white border-blue-700' : 'bg-gray-300 text-gray-700 border-gray-400 hover:bg-gray-400'}`}
+                        className={`w-18 sm:w-26 h-11 sm:h-12 text-xs sm:text-sm font-extrabold rounded-lg sm:rounded-xl border transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                            isShift 
+                                ? 'bg-[#51555B] text-white border-[#51555B] shadow-md shadow-gray-400/50' 
+                                : 'bg-[#cbd2da] hover:bg-[#b8c1cc] text-[#212529] border-gray-300'
+                        }`}
                     >
                         Shift
                     </button>
                     <button
+                        type="button"
                         onClick={() => onKeyPress(' ')}
-                        className="flex-grow h-10 md:h-12 bg-white rounded shadow-sm border border-gray-300 hover:bg-gray-50 active:bg-gray-100 max-w-lg text-gray-500 font-medium"
+                        className="flex-grow h-11 sm:h-12 bg-white hover:bg-slate-50 active:bg-slate-100 rounded-lg sm:rounded-xl border border-gray-300 shadow-xs text-slate-700 font-extrabold text-xs sm:text-sm flex items-center justify-center cursor-pointer active:scale-95 transition-all max-w-md"
                     >
                         Space
                     </button>
                     <button
+                        type="button"
                         onClick={onClear}
-                        className="px-4 h-10 md:h-12 bg-red-100 text-red-700 rounded shadow-sm border border-red-200 hover:bg-red-200 font-bold"
+                        className="w-18 sm:w-26 h-11 sm:h-12 bg-red-105 hover:bg-rose-150 border border-red-200 text-rose-700 font-extrabold text-xs sm:text-sm rounded-lg sm:rounded-xl transition-all flex items-center justify-center cursor-pointer active:scale-95 shadow-xs"
                     >
                         Clear
                     </button>
                     <button
+                        type="button"
                         onClick={onBackspace}
-                        className="px-6 h-10 md:h-12 bg-gray-300 text-gray-700 rounded shadow-sm border border-gray-400 hover:bg-gray-400 font-bold flex items-center justify-center"
+                        className="w-18 sm:w-26 h-11 sm:h-12 bg-[#cbd2da] hover:bg-[#b8c1cc] border border-gray-300 rounded-lg sm:rounded-xl transition-all flex items-center justify-center cursor-pointer active:scale-95 font-bold text-slate-800"
                     >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2M3 12l6.414 6.414a2 2 0 002.828 0L21 12M3 12l6.414-6.414a2 2 0 012.828 0L21 12" />
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-[18px] w-[18px] sm:h-5 sm:w-5 stroke-[2.5]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2M3 12l6.414 6.414A2 2 0 0010.828 19H19a2 2 0 002-2V7a2 2 0 00-2-2h-8.172a2 2 0 00-1.414.586L3 12z" />
                         </svg>
                     </button>
                 </div>

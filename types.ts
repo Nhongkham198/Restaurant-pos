@@ -422,7 +422,7 @@ export interface StockLog {
     id: string;
     stockItemId: number;
     stockItemName: string;
-    action: 'create' | 'update' | 'delete' | 'adjust' | 'receive';
+    action: 'create' | 'update' | 'delete' | 'adjust' | 'receive' | 'ignore';
     changeDetails: string; // e.g., "Quantity: 10 -> 5"
     performedBy: string;
     timestamp: number;
