@@ -142,6 +142,7 @@ import { ItemCustomizationModal } from './components/ItemCustomizationModal';
 import { LeaveRequestModal } from './components/LeaveRequestModal';
 import { MenuSearchModal } from './components/MenuSearchModal';
 import { MergeBillModal } from './components/MergeBillModal';
+import { PasswordPinModal } from './components/PasswordPinModal';
 
 import Swal from 'sweetalert2';
 import * as XLSX from 'xlsx';
@@ -167,6 +168,8 @@ export const App: React.FC = () => {
     // 1. STATE INITIALIZATION
     const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 1024);
     const [isOnline, setIsOnline] = useState(navigator.onLine);
+    const [isPasswordPinModalOpen, setIsPasswordPinModalOpen] = useState(false);
+    const [pendingView, setPendingView] = useState<View | null>(null);
 
     // --- AUTH & BRANCH STATE ---
     const {
@@ -1127,41 +1130,32 @@ export const App: React.FC = () => {
         prevViewForStockAlertRef.current = currentView;
     }, [currentView, stockItems]);
 
-    const handleViewChange = useCallback(async (newView: View) => {
+    const handleViewChange = useCallback((newView: View) => {
         if (newView === 'expense-analysis') {
-            const { value: password } = await Swal.fire({
-                title: 'ยืนยันรหัสผ่าน',
-                text: 'กรุณากรอกรหัสผ่านเพื่อเข้าถึงหน้าวิเคราะห์ค่าใช้จ่าย',
-                input: 'password',
-                inputPlaceholder: 'รหัสผ่านของคุณ',
-                inputAttributes: {
-                    autocapitalize: 'off',
-                    autocorrect: 'off'
-                },
-                showCancelButton: true,
-                confirmButtonText: 'ยืนยัน',
-                cancelButtonText: 'ยกเลิก',
-                confirmButtonColor: '#3b82f6',
-                cancelButtonColor: '#6e7881'
-            });
-
-            if (password === undefined) return; // User cancelled
-
-            if (password === currentUser?.password) {
-                setCurrentView(newView);
-            } else {
-                Swal.fire({
-                    icon: 'error',
-                    title: 'รหัสผ่านไม่ถูกต้อง',
-                    text: 'กรุณาลองใหม่อีกครั้ง',
-                    timer: 2000,
-                    showConfirmButton: false
-                });
-            }
+            setPendingView(newView);
+            setIsPasswordPinModalOpen(true);
         } else {
             setCurrentView(newView);
         }
-    }, [currentUser, setCurrentView]);
+    }, [setCurrentView]);
+
+    const handleConfirmExpensePassword = useCallback((password: string) => {
+        if (password === currentUser?.password) {
+            if (pendingView) {
+                setCurrentView(pendingView);
+            }
+            setIsPasswordPinModalOpen(false);
+            setPendingView(null);
+        } else {
+            Swal.fire({
+                icon: 'error',
+                title: 'รหัสผ่านไม่ถูกต้อง',
+                text: 'กรุณาลองใหม่อีกครั้ง',
+                timer: 2000,
+                showConfirmButton: false
+            });
+        }
+    }, [currentUser, pendingView, setCurrentView]);
 
     useEffect(() => {
         if (currentUser) {
@@ -2264,6 +2258,16 @@ export const App: React.FC = () => {
             />
             <MenuSearchModal isOpen={modalState.isMenuSearch} onClose={handleModalClose} menuItems={menuItems} onSelectItem={handleAddItemToOrder} onToggleAvailability={handleToggleAvailability} />
             <MergeBillModal isOpen={modalState.isMergeBill} onClose={handleModalClose} order={orderForModal as ActiveOrder} allActiveOrders={activeOrders} tables={tables} onConfirmMerge={handleConfirmMerge} />
+            <PasswordPinModal
+                isOpen={isPasswordPinModalOpen}
+                title="ยืนยันรหัสผ่าน"
+                description="กรุณากรอกรหัสผ่านเพื่อเข้าถึงหน้าวิเคราะห์ค่าใช้จ่าย"
+                onClose={() => {
+                    setIsPasswordPinModalOpen(false);
+                    setPendingView(null);
+                }}
+                onConfirm={handleConfirmExpensePassword}
+            />
             <StaffChat onAddItemsToBasket={(items, platform, orderNumber) => {
                 setCurrentOrderItems(prev => [...prev, ...items]);
                 if (orderNumber) {

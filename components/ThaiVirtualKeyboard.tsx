@@ -157,11 +157,19 @@ export const ThaiVirtualKeyboard: React.FC<ThaiVirtualKeyboardProps> = ({ onKeyP
                                 className="relative w-11 h-11 sm:w-12 sm:h-12 bg-white rounded-lg sm:rounded-xl shadow-xs border border-[#ced4da] hover:bg-slate-50 active:bg-slate-100 flex items-center justify-center transition-all active:scale-95 cursor-pointer"
                             >
                                 {/* Shifted character (Top-Left) */}
-                                <span className="absolute top-1 left-1.5 text-[8px] sm:text-[10px] font-semibold text-slate-400">
+                                <span className={`absolute top-1 left-1.5 transition-all duration-150 ${
+                                    isShift 
+                                        ? 'text-xs sm:text-base font-extrabold text-[#212529]' 
+                                        : 'text-[8px] sm:text-[10px] font-semibold text-slate-400'
+                                }`}>
                                     {getDisplayChar(key.shift)}
                                 </span>
                                 {/* Unshifted character (Bottom-Right) */}
-                                <span className="absolute bottom-1 right-2 text-xs sm:text-base font-extrabold text-[#212529]">
+                                <span className={`absolute bottom-1 right-2 transition-all duration-150 ${
+                                    isShift 
+                                        ? 'text-[8px] sm:text-[10px] font-semibold text-slate-400' 
+                                        : 'text-xs sm:text-base font-extrabold text-[#212529]'
+                                }`}>
                                     {getDisplayChar(key.normal)}
                                 </span>
                             </button>
