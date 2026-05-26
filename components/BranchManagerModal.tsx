@@ -9,14 +9,15 @@ interface BranchManagerModalProps {
     branches: Branch[];
     setBranches: React.Dispatch<React.SetStateAction<Branch[]>>;
     currentUser: User | null;
+    restaurantName: string;
 }
 
-const initialFormState = { name: '', location: '' };
+const initialFormState = { name: '', location: '', restaurantName: '' };
 
-export const BranchManagerModal: React.FC<BranchManagerModalProps> = ({ isOpen, onClose, branches, setBranches, currentUser }) => {
+export const BranchManagerModal: React.FC<BranchManagerModalProps> = ({ isOpen, onClose, branches, setBranches, currentUser, restaurantName }) => {
     const [isAdding, setIsAdding] = useState(false);
     const [editingBranch, setEditingBranch] = useState<Branch | null>(null);
-    const [formData, setFormData] = useState<{ name: string; location?: string; geminiApiKey?: string }>(initialFormState);
+    const [formData, setFormData] = useState<{ name: string; location?: string; restaurantName?: string; geminiApiKey?: string }>(initialFormState);
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
@@ -111,14 +112,14 @@ export const BranchManagerModal: React.FC<BranchManagerModalProps> = ({ isOpen, 
     const startEdit = (branch: Branch) => {
         setEditingBranch(branch);
         setIsAdding(false);
-        setFormData({ name: branch.name, location: branch.location || '', geminiApiKey: branch.geminiApiKey || '' });
+        setFormData({ name: branch.name, location: branch.location || '', restaurantName: branch.restaurantName || '', geminiApiKey: branch.geminiApiKey || '' });
     };
 
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4" onClick={onClose}>
-            <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl transform transition-all flex flex-col" style={{maxHeight: '90vh'}} onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl transform transition-all flex flex-col" style={{maxHeight: '90vh'}}>
                 <div className="p-6 border-b">
                     <h3 className="text-2xl font-bold text-gray-900">จัดการสาขา</h3>
                 </div>
@@ -127,8 +128,11 @@ export const BranchManagerModal: React.FC<BranchManagerModalProps> = ({ isOpen, 
                     {branches.map(branch => (
                         <div key={branch.id} className={`flex items-center gap-2 p-2 rounded-md transition-colors ${editingBranch?.id === branch.id ? 'bg-gray-100' : 'hover:bg-gray-50'}`}>
                            <div className="flex-1">
-                                <p className="font-semibold text-gray-800">{branch.name}</p>
-                                {branch.location && <p className="text-sm text-gray-500">{branch.location}</p>}
+                                <p className="font-semibold text-gray-800">{branch.restaurantName || branch.name}</p>
+                                <p className="text-sm text-gray-500">
+                                    {branch.name}
+                                    {branch.location ? ` - ${branch.location}` : ''}
+                                </p>
                            </div>
                            <div className="flex gap-2">
                                 <button onClick={() => handleGetLink(branch)} className="p-2 text-green-600 hover:bg-green-100 rounded-full" title="สร้างลิงก์สั่งอาหาร">
@@ -149,8 +153,12 @@ export const BranchManagerModal: React.FC<BranchManagerModalProps> = ({ isOpen, 
                     <div className="p-6 border-t bg-gray-50 space-y-3 rounded-b-lg">
                         <h4 className="text-lg font-semibold text-gray-800">{editingBranch ? 'แก้ไขสาขา' : 'เพิ่มสาขาใหม่'}</h4>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            <input type="text" name="name" value={formData.name} onChange={handleInputChange} placeholder="ชื่อสาขา (เช่น สยาม)" className="px-3 py-2 border rounded-md bg-white border-gray-300 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                            <input type="text" name="name" value={formData.name} onChange={handleInputChange} placeholder="ชื่อสาขา (เช่น สาขากาฬสินธุ์)" className="px-3 py-2 border rounded-md bg-white border-gray-300 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500" />
                             <input type="text" name="location" value={formData.location} onChange={handleInputChange} placeholder="ที่ตั้ง (ถ้ามี)" className="px-3 py-2 border rounded-md bg-white border-gray-300 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                            <div className="md:col-span-2">
+                                <label className="block text-sm font-medium text-gray-700 mb-1">ชื่อร้านค้า (เช่น Seoul Good)</label>
+                                <input type="text" name="restaurantName" value={formData.restaurantName || ''} onChange={handleInputChange} placeholder="หากเว้นว่างไว้ จะใช้ชื่อสาขาแสดงผลแทน" className="w-full px-3 py-2 border rounded-md bg-white border-gray-300 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                            </div>
                             <div className="md:col-span-2">
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Gemini API Key (เฉพาะสาขานี้)</label>
                                 <input type="password" name="geminiApiKey" value={formData.geminiApiKey || ''} onChange={handleInputChange} placeholder="AIza..." className="w-full px-3 py-2 border rounded-md bg-white border-gray-300 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500" />

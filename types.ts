@@ -18,6 +18,7 @@ export interface Branch {
     id: number;
     name: string;
     location?: string;
+    restaurantName?: string; // Branch-specific restaurant name (e.g. Seoul Good, Whitelinen)
     lineNotifyToken?: string; // Deprecated
     lineMessagingToken?: string; // LINE Messaging API Channel Access Token
     lineUserId?: string; // LINE User ID or Group ID to send notifications to // Added: LINE Notify Access Token
