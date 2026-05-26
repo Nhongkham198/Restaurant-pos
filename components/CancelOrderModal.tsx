@@ -35,7 +35,7 @@ export const CancelOrderModal: React.FC<CancelOrderModalProps> = ({ isOpen, orde
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4" onClick={onClose}>
             <div className="bg-white rounded-lg shadow-xl w-full max-w-md transform transition-all" onClick={e => e.stopPropagation()}>
                 <div className="p-6 border-b">
-                    <h3 className="text-2xl font-bold text-gray-900">ยืนยันการยกเลิกออเดอร์</h3>
+                    <h3 className="text-2xl font-bold text-gray-900">ยืนยันเพื่อยกเลิกออเดอร์ทั้งหมดในโต๊ะนี้?</h3>
                     <p className="text-sm text-gray-500 mt-1">
                         ออเดอร์ #{order.orderNumber} (โต๊ะ {order.tableName} - {floorText})
                     </p>
