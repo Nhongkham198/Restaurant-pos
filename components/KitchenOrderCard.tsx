@@ -25,19 +25,9 @@ export const KitchenOrderCard: React.FC<KitchenOrderCardProps> = ({
     onPrintOrder,
     onCancelOrder
 }) => {
-    const { recipes, stockItems } = useData();
+    const { recipes, stockItems, activeOrdersActions } = useData();
 
     const [elapsedSeconds, setElapsedSeconds] = useState(0);
-    
-    // Checklist state: Persist to localStorage to survive page refreshes
-    const [checkedItems, setCheckedItems] = useState<Set<string>>(() => {
-        try {
-            const saved = localStorage.getItem(`checklist_${order.id}`);
-            return saved ? new Set(JSON.parse(saved)) : new Set();
-        } catch (e) {
-            return new Set();
-        }
-    });
 
     const isCooking = order.status === 'cooking';
     const isPendingPayment = order.status === 'pending_payment';
@@ -63,22 +53,22 @@ export const KitchenOrderCard: React.FC<KitchenOrderCardProps> = ({
         return () => clearInterval(timer);
     }, [order.status, order.orderTime, order.cookingStartTime]);
 
-    const handleToggleItem = (cartItemId: string) => {
-        setCheckedItems(prev => {
-            const next = new Set(prev);
-            if (next.has(cartItemId)) {
-                next.delete(cartItemId);
-            } else {
-                next.add(cartItemId);
+    const handleToggleItem = async (cartItemId: string) => {
+        const updatedItems = order.items.map(item => {
+            if (item.cartItemId === cartItemId) {
+                return { ...item, isDone: !item.isDone };
             }
-            localStorage.setItem(`checklist_${order.id}`, JSON.stringify(Array.from(next)));
-            return next;
+            return item;
         });
+
+        try {
+            await activeOrdersActions.update(order.id, { items: updatedItems });
+        } catch (e) {
+            console.error("Failed to update kitchen checked state", e);
+        }
     };
 
     const handleComplete = () => {
-        // Clean up storage when order is completed
-        localStorage.removeItem(`checklist_${order.id}`);
         onCompleteOrder(order.id);
     };
 
@@ -228,7 +218,7 @@ export const KitchenOrderCard: React.FC<KitchenOrderCardProps> = ({
             <div className="p-3 flex-1 flex flex-col gap-2">
                 <ul className="space-y-3">
                     {order.items.map((item, idx) => {
-                        const isChecked = checkedItems.has(item.cartItemId);
+                        const isChecked = !!item.isDone;
                         
                         return (
                             <li 

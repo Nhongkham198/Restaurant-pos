@@ -112,6 +112,7 @@ export interface OrderItem extends MenuItem {
     takeawayCutleryNotes?: string;
     originalOrderNumber?: number;
     isManuallyAdded?: boolean; // NEW: Flag for items added after completion
+    isDone?: boolean; // NEW: Flag for items completed in the kitchen (real-time synced)
 }
 
 export interface PaymentDetails {
