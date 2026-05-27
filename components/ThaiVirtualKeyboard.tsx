@@ -10,6 +10,7 @@ interface ThaiVirtualKeyboardProps {
 
 export const ThaiVirtualKeyboard: React.FC<ThaiVirtualKeyboardProps> = ({ onKeyPress, onBackspace, onClose, onClear }) => {
     const [isShift, setIsShift] = useState(false);
+    const keyboardRef = useRef<HTMLDivElement>(null);
     
     // Initial position: Centered horizontally, near bottom
     const [position, setPosition] = useState(() => ({ 
@@ -19,6 +20,21 @@ export const ThaiVirtualKeyboard: React.FC<ThaiVirtualKeyboardProps> = ({ onKeyP
     
     const [isDragging, setIsDragging] = useState(false);
     const dragOffset = useRef({ x: 0, y: 0 });
+
+    const clampPosition = (newX: number, newY: number) => {
+        if (!keyboardRef.current) return { x: newX, y: newY };
+        const rect = keyboardRef.current.getBoundingClientRect();
+        const width = rect.width;
+        const height = rect.height;
+        
+        const maxX = Math.max(0, window.innerWidth - width);
+        const maxY = Math.max(0, window.innerHeight - height);
+        
+        return {
+            x: Math.max(0, Math.min(newX, maxX)),
+            y: Math.max(0, Math.min(newY, maxY))
+        };
+    };
 
     const handleMouseDown = (e: React.MouseEvent | React.TouchEvent) => {
         // Only allow dragging from the header
@@ -40,10 +56,10 @@ export const ThaiVirtualKeyboard: React.FC<ThaiVirtualKeyboardProps> = ({ onKeyP
             const clientX = 'touches' in e ? e.touches[0].clientX : (e as MouseEvent).clientX;
             const clientY = 'touches' in e ? e.touches[0].clientY : (e as MouseEvent).clientY;
             
-            setPosition({
-                x: clientX - dragOffset.current.x,
-                y: clientY - dragOffset.current.y
-            });
+            const targetX = clientX - dragOffset.current.x;
+            const targetY = clientY - dragOffset.current.y;
+            
+            setPosition(clampPosition(targetX, targetY));
         };
 
         const handleMouseUp = () => {
@@ -64,6 +80,24 @@ export const ThaiVirtualKeyboard: React.FC<ThaiVirtualKeyboardProps> = ({ onKeyP
             window.removeEventListener('touchend', handleMouseUp);
         };
     }, [isDragging]);
+
+    // Adjust position on mount and resize to keep within viewport
+    useEffect(() => {
+        const handleResize = () => {
+            setPosition(prev => clampPosition(prev.x, prev.y));
+        };
+        
+        // Initial adjust with a small delay to ensure the DOM element is rendered and has size
+        const timer = setTimeout(() => {
+            handleResize();
+        }, 100);
+
+        window.addEventListener('resize', handleResize);
+        return () => {
+            window.removeEventListener('resize', handleResize);
+            clearTimeout(timer);
+        };
+    }, []);
 
     // Detect if a Thai character is a combining vowel, tone, or mark
     const isThaiCombining = (char: string) => {
@@ -111,6 +145,7 @@ export const ThaiVirtualKeyboard: React.FC<ThaiVirtualKeyboardProps> = ({ onKeyP
 
     return (
         <div 
+            ref={keyboardRef}
             className="fixed bg-[#dee2e6] border border-gray-300 rounded-[1.5rem] p-4 shadow-2xl z-[100] select-none font-sans"
             style={{ 
                 left: position.x, 
@@ -159,16 +194,16 @@ export const ThaiVirtualKeyboard: React.FC<ThaiVirtualKeyboardProps> = ({ onKeyP
                                 {/* Shifted character (Top-Left) */}
                                 <span className={`absolute top-1 left-1.5 transition-all duration-150 ${
                                     isShift 
-                                        ? 'text-xs sm:text-base font-extrabold text-[#212529]' 
-                                        : 'text-[8px] sm:text-[10px] font-semibold text-slate-400'
+                                        ? 'text-[14px] sm:text-[19px] font-extrabold text-[#212529]' 
+                                        : 'text-[10px] sm:text-[12px] font-semibold text-slate-400'
                                 }`}>
                                     {getDisplayChar(key.shift)}
                                 </span>
                                 {/* Unshifted character (Bottom-Right) */}
                                 <span className={`absolute bottom-1 right-2 transition-all duration-150 ${
                                     isShift 
-                                        ? 'text-[8px] sm:text-[10px] font-semibold text-slate-400' 
-                                        : 'text-xs sm:text-base font-extrabold text-[#212529]'
+                                        ? 'text-[10px] sm:text-[12px] font-semibold text-slate-400' 
+                                        : 'text-[14px] sm:text-[19px] font-extrabold text-[#212529]'
                                 }`}>
                                     {getDisplayChar(key.normal)}
                                 </span>
@@ -182,7 +217,7 @@ export const ThaiVirtualKeyboard: React.FC<ThaiVirtualKeyboardProps> = ({ onKeyP
                     <button
                         type="button"
                         onClick={() => setIsShift(!isShift)}
-                        className={`w-18 sm:w-26 h-11 sm:h-12 text-xs sm:text-sm font-extrabold rounded-lg sm:rounded-xl border transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                        className={`w-18 sm:w-26 h-11 sm:h-12 text-sm sm:text-base font-extrabold rounded-lg sm:rounded-xl border transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
                             isShift 
                                 ? 'bg-[#51555B] text-white border-[#51555B] shadow-md shadow-gray-400/50' 
                                 : 'bg-[#cbd2da] hover:bg-[#b8c1cc] text-[#212529] border-gray-300'
@@ -193,14 +228,14 @@ export const ThaiVirtualKeyboard: React.FC<ThaiVirtualKeyboardProps> = ({ onKeyP
                     <button
                         type="button"
                         onClick={() => onKeyPress(' ')}
-                        className="flex-grow h-11 sm:h-12 bg-white hover:bg-slate-50 active:bg-slate-100 rounded-lg sm:rounded-xl border border-gray-300 shadow-xs text-slate-700 font-extrabold text-xs sm:text-sm flex items-center justify-center cursor-pointer active:scale-95 transition-all max-w-md"
+                        className="flex-grow h-11 sm:h-12 bg-white hover:bg-slate-50 active:bg-slate-100 rounded-lg sm:rounded-xl border border-gray-300 shadow-xs text-slate-700 font-extrabold text-sm sm:text-base flex items-center justify-center cursor-pointer active:scale-95 transition-all max-w-md"
                     >
                         Space
                     </button>
                     <button
                         type="button"
                         onClick={onClear}
-                        className="w-18 sm:w-26 h-11 sm:h-12 bg-red-105 hover:bg-rose-150 border border-red-200 text-rose-700 font-extrabold text-xs sm:text-sm rounded-lg sm:rounded-xl transition-all flex items-center justify-center cursor-pointer active:scale-95 shadow-xs"
+                        className="w-18 sm:w-26 h-11 sm:h-12 bg-red-105 hover:bg-rose-150 border border-red-200 text-rose-700 font-extrabold text-sm sm:text-base rounded-lg sm:rounded-xl transition-all flex items-center justify-center cursor-pointer active:scale-95 shadow-xs"
                     >
                         Clear
                     </button>
