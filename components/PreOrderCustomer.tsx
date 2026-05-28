@@ -269,14 +269,16 @@ export const PreOrderCustomer: React.FC = () => {
     const [showMissingBranch, setShowMissingBranch] = useState(false);
 
     useEffect(() => {
-        if (!selectedBranch) {
-            const timer = setTimeout(() => setShowMissingBranch(true), 3000);
+        if (!selectedBranch && !isDataLoading) {
+            const timer = setTimeout(() => setShowMissingBranch(true), 8000);
             return () => clearTimeout(timer);
+        } else {
+            setShowMissingBranch(false);
         }
-    }, [selectedBranch]);
+    }, [selectedBranch, isDataLoading]);
 
     if (!selectedBranch) {
-        if (showMissingBranch) {
+        if (showMissingBranch && !isDataLoading) {
             return (
                 <div className="h-screen w-screen flex flex-col items-center justify-center p-6 text-center">
                     <h1 className="text-xl font-bold text-red-600 mb-2">ไม่พบข้อมูลสาขา</h1>

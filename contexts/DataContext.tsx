@@ -172,7 +172,7 @@ const DataContext = createContext<DataContextType | undefined>(undefined);
 export const DataProvider = ({ children }: { children: ReactNode }) => {
     // --- AUTH & BRANCH STATE ---
     const [users, setUsers] = useFirestoreSync<User[]>(null, 'users', []);
-    const [rawBranches, setRawBranches] = useFirestoreSync<Branch[]>(null, 'branches', []);
+    const [rawBranches, setRawBranches, isBranchesLoading] = useFirestoreSync<Branch[]>(null, 'branches', []);
 
     // Sanitize branches to filter out any corrupted/empty entries
     const branches = useMemo(() => {
@@ -613,7 +613,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     const [latestIngredientPrices, setLatestIngredientPrices] = useFirestoreSync<IngredientPrice[]>(branchId, 'latestIngredientPrices', []);
     const [latestImportFilename, setLatestImportFilename] = useFirestoreSync<string | null>(branchId, 'latestImportFilename', null);
 
-    const isDataLoading = isMenuItemsLoading || isCategoriesLoading || isTablesLoading || isFloorsLoading || isDeliveryProvidersLoading;
+    const isDataLoading = isBranchesLoading || isMenuItemsLoading || isCategoriesLoading || isTablesLoading || isFloorsLoading || isDeliveryProvidersLoading;
 
     const value = useMemo(() => ({
         currentUser, setCurrentUser, users, setUsers, branches, setBranches,
