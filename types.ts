@@ -84,6 +84,7 @@ export interface MenuOptionGroup {
 }
 
 export interface MenuItem {
+    _firestoreId?: string;
     id: number;
     name: string;
     nameEn?: string; // Added English Name field
@@ -477,6 +478,7 @@ export interface RecipeIngredient {
     unit: string;
     unitPrice?: number; // Added: Custom unit price for this recipe
     smartUnitPrice?: number; // Added: Override for JSON/Smart price
+    isSmartPriceLocked?: boolean; // User manually overridden the smart/JSON price
 }
 
 export interface BagCounts {
@@ -486,6 +488,7 @@ export interface BagCounts {
 }
 
 export interface Recipe {
+    _firestoreId?: string;
     id: string; // Usually menu item ID as string
     menuItemId: number;
     ingredients: RecipeIngredient[];

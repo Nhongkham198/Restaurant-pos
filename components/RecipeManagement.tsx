@@ -6,6 +6,78 @@ import { RecipeModal } from './RecipeModal';
 import * as XLSX from 'xlsx';
 import { useData } from '../contexts/DataContext';
 import { calculateSmartUnitPrice } from '../utils/recipeUtils';
+import { db, firebase } from '../firebaseConfig';
+
+const isRecipeChanged = (oldRecipe: Recipe | null, newRecipe: Recipe) => {
+    if (!oldRecipe) return true;
+
+    const oldIngs = oldRecipe.ingredients || [];
+    const newIngs = newRecipe.ingredients || [];
+    if (oldIngs.length !== newIngs.length) return true;
+    for (let i = 0; i < oldIngs.length; i++) {
+        const oInput = oldIngs[i];
+        const nInput = newIngs[i];
+        if (oInput.stockItemId !== nInput.stockItemId ||
+            oInput.quantity !== nInput.quantity ||
+            oInput.unit !== nInput.unit ||
+            (oInput.unitPrice ?? 0) !== (nInput.unitPrice ?? 0) ||
+            (oInput.smartUnitPrice ?? 0) !== (nInput.smartUnitPrice ?? 0) ||
+            (!!oInput.isSmartPriceLocked) !== (!!nInput.isSmartPriceLocked)
+        ) {
+            return true;
+        }
+    }
+
+    const oldAddIngs = oldRecipe.additionalIngredients || [];
+    const newAddIngs = newRecipe.additionalIngredients || [];
+    if (oldAddIngs.length !== newAddIngs.length) return true;
+    for (let i = 0; i < oldAddIngs.length; i++) {
+        const oInput = oldAddIngs[i];
+        const nInput = newAddIngs[i];
+        if (oInput.stockItemId !== nInput.stockItemId ||
+            oInput.quantity !== nInput.quantity ||
+            oInput.unit !== nInput.unit ||
+            (oInput.unitPrice ?? 0) !== (nInput.unitPrice ?? 0) ||
+            (oInput.smartUnitPrice ?? 0) !== (nInput.smartUnitPrice ?? 0) ||
+            (!!oInput.isSmartPriceLocked) !== (!!nInput.isSmartPriceLocked)
+        ) {
+            return true;
+        }
+    }
+
+    if ((oldRecipe.hiddenCostPercentage ?? 0) !== (newRecipe.hiddenCostPercentage ?? 0)) return true;
+    if ((oldRecipe.instructions || '') !== (newRecipe.instructions || '')) return true;
+
+    return false;
+};
+
+const isDeliveryChanged = (
+    oldItem: MenuItem,
+    deliveryPrices: Record<string, number>,
+    deliveryGPs: Record<string, number>,
+    deliveryTaxes: Record<string, number>
+) => {
+    const oldPrices = oldItem.deliveryPrices || {};
+    const oldGPs = oldItem.deliveryGPs || {};
+    const oldTaxes = oldItem.deliveryTaxes || {};
+
+    const allPlatforms = Array.from(new Set([
+        ...Object.keys(oldPrices),
+        ...Object.keys(deliveryPrices),
+        ...Object.keys(oldGPs),
+        ...Object.keys(deliveryGPs),
+        ...Object.keys(oldTaxes),
+        ...Object.keys(deliveryTaxes)
+    ]));
+
+    for (const p of allPlatforms) {
+        if ((oldPrices[p] ?? 0) !== (deliveryPrices[p] ?? 0)) return true;
+        if ((oldGPs[p] ?? 0) !== (deliveryGPs[p] ?? 0)) return true;
+        if ((oldTaxes[p] ?? 0) !== (deliveryTaxes[p] ?? 0)) return true;
+    }
+
+    return false;
+};
 
 interface RecipeManagementProps {
     menuItems: MenuItem[];
@@ -32,7 +104,7 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedMenuItem, setSelectedMenuItem] = useState<MenuItem | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const { deliveryProviders, taxRate, latestIngredientPrices, latestImportFilename } = useData();
+    const { deliveryProviders, taxRate, latestIngredientPrices, latestImportFilename, branchId } = useData();
 
     // Generate priceMap for the latest prices by date
     const priceMap = useMemo(() => {
@@ -898,7 +970,21 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
                         const stockMap = new Map();
                         stockItems.forEach(s => stockMap.set(String(s.id), s));
                         
-                        const hasUpdate = recipe ? [...(recipe.ingredients || []), ...(recipe.additionalIngredients || [])].some(ing => {
+                        const latestImportTime = latestIngredientPrices.reduce((max, p) => p.updatedAt ? Math.max(max, p.updatedAt) : max, 0);
+                        
+                        const getVal = (v: any): number => {
+                            if (!v) return 0;
+                            if (typeof v === 'number') return v;
+                            if (typeof v === 'object' && 'seconds' in v) return v.seconds * 1000;
+                            const t = new Date(v).getTime();
+                            return isNaN(t) ? 0 : t;
+                        };
+
+                        const isAfterImport = recipe && recipe.lastUpdated && getVal(recipe.lastUpdated) >= latestImportTime;
+
+                        const hasUpdate = (recipe && !isAfterImport) ? [...(recipe.ingredients || []), ...(recipe.additionalIngredients || [])].some(ing => {
+                            if (ing.isSmartPriceLocked) return false;
+                            
                             const stockItem = stockMap.get(String(ing.stockItemId));
                             if (!stockItem) return false;
                             const itemName = (stockItem.name || '').trim();
@@ -979,8 +1065,9 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
                                                     <div className="bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded font-bold border border-gray-200 max-w-[80px] truncate" title={`แก้ไขโดย: ${recipe.lastUpdatedBy}`}>
                                                         {recipe.lastUpdatedBy}
                                                     </div>
-                                                    <div className="mt-1 flex items-center gap-1 font-medium">
-                                                        {safelyFormatDate(recipe.lastUpdated, 'date')}
+                                                    <div className="mt-1 flex flex-col items-end font-medium leading-normal">
+                                                        <span>{safelyFormatDate(recipe.lastUpdated, 'date')}</span>
+                                                        <span className="text-[9px] opacity-75">{safelyFormatDate(recipe.lastUpdated, 'time')}</span>
                                                     </div>
                                                 </div>
                                             )}
@@ -1048,7 +1135,7 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
                                                                 )}
                                                             </div>
                                                         </div>
-                                                        <div className="text-right">
+                                                        <div className="text-right font-mono">
                                                             <span className={`font-bold block text-sm ${dp.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                                                                 ฿{dp.profit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                             </span>
@@ -1086,18 +1173,46 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
                     stockItems={stockItems}
                     recipe={recipeMap.get(selectedMenuItem.id) || null}
                     onSave={(newRecipe, deliveryPrices, deliveryGPs, deliveryTaxes) => {
-                        // Update Recipe
+                        const originalRecipe = recipeMap.get(selectedMenuItem.id) || null;
+                        
+                        // Force write to Firestore for Recipe to ensure it is overwritten in the database and cleared of any old values
+                        if (db && branchId) {
+                            const foundRecipeIndex = recipes.findIndex(r => r.menuItemId === newRecipe.menuItemId);
+                            const recipeDocId = (foundRecipeIndex >= 0 ? recipes[foundRecipeIndex]._firestoreId : null) || newRecipe.id || newRecipe.menuItemId.toString();
+                            const recipePath = `branches/${branchId}/recipes/${recipeDocId}`;
+                            const sanitizedRecipe = JSON.parse(JSON.stringify(newRecipe, (key, val) => val === undefined ? null : val));
+                            
+                            db.doc(recipePath).set({
+                                ...sanitizedRecipe,
+                                lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
+                            }, { merge: true }).catch(err => console.error("Overwrite recipe save failed:", err));
+                        }
+
+                        // Force write to Firestore for MenuItem to overwrite delivery prices/options
+                        if (db && branchId) {
+                            const menuDocPath = `branches/${branchId}/menuItems/${selectedMenuItem.id}`;
+                            db.doc(menuDocPath).set({
+                                deliveryPrices,
+                                deliveryGPs,
+                                deliveryTaxes
+                            }, { merge: true }).catch(err => console.error("Overwrite menuitem save failed:", err));
+                        }
+
+                        // Update Recipe in local state
                         setRecipes(prev => {
                             const index = prev.findIndex(r => r.menuItemId === newRecipe.menuItemId);
                             if (index >= 0) {
                                 const updated = [...prev];
-                                updated[index] = newRecipe;
+                                updated[index] = {
+                                    ...newRecipe,
+                                    _firestoreId: prev[index]._firestoreId
+                                };
                                 return updated;
                             }
                             return [...prev, newRecipe];
                         });
 
-                        // Update MenuItem Delivery Prices, GPs, and Taxes
+                        // Update MenuItem in local state
                         setMenuItems(prev => prev.map(item => 
                             item.id === selectedMenuItem.id 
                             ? { ...item, deliveryPrices, deliveryGPs, deliveryTaxes } 
@@ -1109,7 +1224,7 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
                             toast: true,
                             position: 'top-end',
                             icon: 'success',
-                            title: 'บันทึกสูตรอาหารเรียบร้อย',
+                            title: 'บันทึกการแก้ไขเรียบร้อยแล้ว',
                             showConfirmButton: false,
                             timer: 1500
                         });

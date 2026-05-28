@@ -136,6 +136,7 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
     const [deliveryPrices, setDeliveryPrices] = useState<{ [providerId: string]: number }>(menuItem.deliveryPrices || {});
     const [deliveryGPs, setDeliveryGPs] = useState<{ [providerId: string]: number }>(menuItem.deliveryGPs || {});
     const [deliveryTaxes, setDeliveryTaxes] = useState<{ [providerId: string]: number }>(menuItem.deliveryTaxes || {});
+    const [isSaving, setIsSaving] = useState(false);
 
     useEffect(() => {
         if (recipe) {
@@ -234,7 +235,7 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
         const list = isAdditional ? additionalIngredients : ingredients;
         setTouchedIngredients(prev => new Set(prev).add(stockItemId));
         updater(list.map(ing => 
-            ing.stockItemId === stockItemId ? { ...ing, smartUnitPrice } : ing
+            ing.stockItemId === stockItemId ? { ...ing, smartUnitPrice, isSmartPriceLocked: true } : ing
         ));
     };
 
@@ -268,7 +269,8 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
                 return {
                     ...ing,
                     // unitPrice remains unchanged (manual price)
-                    smartUnitPrice: newPrice // Update only the JSON-derived price (red text logic)
+                    smartUnitPrice: newPrice, // Update only the JSON-derived price (red text logic)
+                    isSmartPriceLocked: false
                 };
             }
             return ing;
@@ -351,10 +353,18 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
     };
 
     const handleSave = () => {
-        // Automatically sync all ingredients to the latest JSON price on save so there's no mismatch
+        if (isSaving) return;
+        setIsSaving(true);
+        // Automatically sync all ingredients to the latest JSON price on save so there's no mismatch,
+        // but preserve any manual overrides or synced prices edited during this modal session.
         const syncedIngredients = ingredients.map(ing => {
             const stockItem = stockItems.find(s => s.id === ing.stockItemId);
             if (!stockItem) return ing;
+            
+            if (ing.isSmartPriceLocked && ing.smartUnitPrice !== undefined) {
+                return ing;
+            }
+
             const latestPrice = uniqueLatestPriceMap.get((stockItem.name || '').trim());
             const currentManualPrice = ing.unitPrice ?? stockItem.unitPrice ?? 0;
             const expectedSmartPrice = calculateSmartUnitPrice(ing, latestPrice, currentManualPrice);
@@ -367,6 +377,11 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
         const syncedAdditionalIngredients = additionalIngredients.map(ing => {
             const stockItem = stockItems.find(s => s.id === ing.stockItemId);
             if (!stockItem) return ing;
+
+            if (ing.isSmartPriceLocked && ing.smartUnitPrice !== undefined) {
+                return ing;
+            }
+
             const latestPrice = uniqueLatestPriceMap.get((stockItem.name || '').trim());
             const currentManualPrice = ing.unitPrice ?? stockItem.unitPrice ?? 0;
             const expectedSmartPrice = calculateSmartUnitPrice(ing, latestPrice, currentManualPrice);
@@ -389,9 +404,8 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
                 mCost += ing.quantity * manualPrice;
 
                 // Smart Cost is now the expected/synced one
-                const latestPrice = uniqueLatestPriceMap.get((stockItem?.name || '').trim());
-                const expectedSmartPrice = calculateSmartUnitPrice(ing, latestPrice, manualPrice);
-                sCost += ing.quantity * expectedSmartPrice;
+                const jsonUnitPrice = ing.smartUnitPrice ?? manualPrice;
+                sCost += ing.quantity * jsonUnitPrice;
             });
             return { mCost, sCost };
         };
@@ -480,7 +494,7 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
                                     // 2. The price in JSON is different from what's currently marked as smart price in recipe
                                     // 3. User hasn't touched it in this session
                                     const isMismatched = latestPrice && Math.abs(expectedSmartPrice - (ing.smartUnitPrice ?? 0)) > 0.0001;
-                                    const needsSync = isMismatched && !touchedIngredients.has(ing.stockItemId);
+                                    const needsSync = isMismatched && !touchedIngredients.has(ing.stockItemId) && !ing.isSmartPriceLocked;
                                     
                                     const showInput = needsSync || forcingEdit.has(ing.stockItemId);
                                     
@@ -713,7 +727,7 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
                                 // 1. There is a price in JSON
                                 // 2. The price is mismatched
                                 const isMismatched = latestPrice && Math.abs(expectedSmartPrice - (ing.smartUnitPrice ?? 0)) > 0.0001;
-                                const needsSync = isMismatched && !touchedIngredients.has(ing.stockItemId);
+                                const needsSync = isMismatched && !touchedIngredients.has(ing.stockItemId) && !ing.isSmartPriceLocked;
                                 
                                 const showInput = needsSync || forcingEdit.has(ing.stockItemId);
 
@@ -1034,9 +1048,14 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
                         </button>
                         <button
                             onClick={handleSave}
-                            className="px-8 py-3 bg-blue-600 text-white font-bold rounded-xl shadow-lg shadow-blue-200 hover:bg-blue-700 transition-colors"
+                            disabled={isSaving}
+                            className={`px-8 py-3 text-white font-bold rounded-xl transition-all ${
+                                isSaving 
+                                    ? 'bg-blue-400 cursor-not-allowed shadow-none' 
+                                    : 'bg-blue-600 shadow-lg shadow-blue-200 hover:bg-blue-700'
+                            }`}
                         >
-                            บันทึกสูตร
+                            {isSaving ? 'กำลังบันทึก...' : 'บันทึกสูตร'}
                         </button>
                     </div>
                 </div>
