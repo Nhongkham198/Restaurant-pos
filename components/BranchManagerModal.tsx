@@ -40,8 +40,10 @@ export const BranchManagerModal: React.FC<BranchManagerModalProps> = ({ isOpen, 
             setBranches(prev => prev.map(b => b.id === editingBranch.id ? { ...editingBranch, ...formData } : b));
             Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'อัปเดตสาขาแล้ว!', showConfirmButton: false, timer: 1500 });
         } else { // Add
+            // Filter out NaN ids when finding max, and ensure it falls back properly
+            const maxId = Math.max(0, ...branches.map(b => (b.id && !Number.isNaN(Number(b.id))) ? Number(b.id) : 0));
             const newBranch: Branch = {
-                id: Math.max(0, ...branches.map(b => b.id)) + 1,
+                id: maxId + 1,
                 ...formData
             };
             setBranches(prev => [...prev, newBranch]);
@@ -53,7 +55,7 @@ export const BranchManagerModal: React.FC<BranchManagerModalProps> = ({ isOpen, 
     const handleDelete = (branch: Branch) => {
         // Simple check, a real app would need to check if users or orders are tied to this branch
         Swal.fire({
-            title: `คุณแน่ใจหรือไม่ที่จะลบสาขา "${branch.name}"?`,
+            title: `คุณแน่ใจหรือไม่ที่จะลบสาขา "${branch.restaurantName || branch.name}"?`,
             text: "ข้อมูลทั้งหมดของสาขานี้จะถูกลบและไม่สามารถกู้คืนได้!",
             icon: 'warning',
             showCancelButton: true,
@@ -63,8 +65,11 @@ export const BranchManagerModal: React.FC<BranchManagerModalProps> = ({ isOpen, 
             cancelButtonText: 'ยกเลิก'
         }).then((result) => {
             if (result.isConfirmed) {
-                setBranches(prev => prev.filter(b => b.id !== branch.id));
-                Swal.fire('ลบแล้ว!', `สาขา ${branch.name} ถูกลบเรียบร้อยแล้ว`, 'success');
+                setBranches(prev => prev.filter(b => 
+                    // Support deleting branches with NaN IDs by explicitly checking for NaN
+                    (Number.isNaN(Number(branch.id)) ? !Number.isNaN(Number(b.id)) : b.id !== branch.id)
+                ));
+                Swal.fire('ลบแล้ว!', `สาขา ${branch.restaurantName || branch.name} ถูกลบเรียบร้อยแล้ว`, 'success');
             }
         });
     };

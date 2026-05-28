@@ -617,7 +617,7 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
     };
 
     const categories = useMemo(() => {
-        const cats = new Set(menuItems.map(item => item.category));
+        const cats = new Set(menuItems.map(item => item.category).filter(c => c && c !== 'ทั้งหมด'));
         return ['ทั้งหมด', ...Array.from(cats)];
     }, [menuItems]);
 
