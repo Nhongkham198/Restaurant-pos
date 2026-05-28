@@ -14,7 +14,8 @@ export const useMenuLogic = () => {
         setMenuItems(prev => { 
             if (itemData.id) return prev.map(item => item.id === itemData.id ? { ...item, ...itemData } as MenuItem : item); 
             const newId = Math.max(0, ...prev.map(i => i.id)) + 1; 
-            return [...prev, { ...itemData, id: newId }]; 
+            const newPosition = Math.max(0, ...prev.map(i => i.position ?? i.id)) + 1;
+            return [...prev, { ...itemData, id: newId, position: newPosition }]; 
         }); 
         Swal.fire({ 
             toast: true, 

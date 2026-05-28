@@ -116,7 +116,13 @@ export const Menu: React.FC<MenuProps> = ({
         dragItem.current = null;
         dragOverItem.current = null;
 
-        setMenuItems(_menuItems);
+        // Assign explicit position according to the new sorted order
+        const updatedMenuItems = _menuItems.map((item, index) => ({
+            ...item,
+            position: index
+        }));
+
+        setMenuItems(updatedMenuItems);
     };
 
     // --- Category Scroller Logic ---

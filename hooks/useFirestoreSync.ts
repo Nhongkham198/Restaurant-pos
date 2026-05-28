@@ -167,6 +167,14 @@ export function useFirestoreSync<T>(
                         finalValueToSet = Array.from(uniqueTablesMap.values()).sort((a, b) => a.id - b.id);
                     }
 
+                    if (collectionKey === 'menuItems') {
+                        finalValueToSet = [...items].sort((a, b) => {
+                            const posA = a && typeof a.position === 'number' ? a.position : (a && typeof a.id === 'number' ? a.id : 0);
+                            const posB = b && typeof b.position === 'number' ? b.position : (b && typeof b.id === 'number' ? b.id : 0);
+                            return posA - posB;
+                        });
+                    }
+
                     // Seeding fallback if database collection is empty
                     if (items.length === 0 && fallbackValueRef.current !== undefined && Array.isArray(fallbackValueRef.current)) {
                         console.log(`[Firestore Sync] Seeding fallback collections for empty ${collectionKey}...`);

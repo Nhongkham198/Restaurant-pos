@@ -97,6 +97,7 @@ export interface MenuItem {
     deliveryPrices?: { [providerId: string]: number }; // Added: Prices for different delivery platforms
     deliveryGPs?: { [providerId: string]: number }; // Added: GP percentage for different delivery platforms
     deliveryTaxes?: { [providerId: string]: number }; // Added: Tax percentage for different delivery platforms
+    position?: number;
 }
 
 export type TakeawayCutleryOption = 'spoon-fork' | 'chopsticks' | 'other' | 'none';

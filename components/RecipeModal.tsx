@@ -351,13 +351,71 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
     };
 
     const handleSave = () => {
-        const { manualTotal, smartTotal, totalAdditionalManual } = calculateTotalCost();
+        // Automatically sync all ingredients to the latest JSON price on save so there's no mismatch
+        const syncedIngredients = ingredients.map(ing => {
+            const stockItem = stockItems.find(s => s.id === ing.stockItemId);
+            if (!stockItem) return ing;
+            const latestPrice = uniqueLatestPriceMap.get((stockItem.name || '').trim());
+            const currentManualPrice = ing.unitPrice ?? stockItem.unitPrice ?? 0;
+            const expectedSmartPrice = calculateSmartUnitPrice(ing, latestPrice, currentManualPrice);
+            return {
+                ...ing,
+                smartUnitPrice: expectedSmartPrice
+            };
+        });
+
+        const syncedAdditionalIngredients = additionalIngredients.map(ing => {
+            const stockItem = stockItems.find(s => s.id === ing.stockItemId);
+            if (!stockItem) return ing;
+            const latestPrice = uniqueLatestPriceMap.get((stockItem.name || '').trim());
+            const currentManualPrice = ing.unitPrice ?? stockItem.unitPrice ?? 0;
+            const expectedSmartPrice = calculateSmartUnitPrice(ing, latestPrice, currentManualPrice);
+            return {
+                ...ing,
+                smartUnitPrice: expectedSmartPrice
+            };
+        });
+
+        // Recalculate cost with the newly synced lists to be completely accurate
+        const calculateListCost = (list: RecipeIngredient[]) => {
+            let mCost = 0;
+            let sCost = 0;
+
+            list.forEach(ing => {
+                const stockItem = stockItems.find(s => s.id === ing.stockItemId);
+                
+                // Manual Cost
+                const manualPrice = ing.unitPrice ?? stockItem?.unitPrice ?? 0;
+                mCost += ing.quantity * manualPrice;
+
+                // Smart Cost is now the expected/synced one
+                const latestPrice = uniqueLatestPriceMap.get((stockItem?.name || '').trim());
+                const expectedSmartPrice = calculateSmartUnitPrice(ing, latestPrice, manualPrice);
+                sCost += ing.quantity * expectedSmartPrice;
+            });
+            return { mCost, sCost };
+        };
+
+        const ingTotals = calculateListCost(syncedIngredients);
+        const addIngTotals = calculateListCost(syncedAdditionalIngredients);
+
+        // Final total additional cost is Packaging Sum + Misc/Manual Cost
+        const totalAdditionalManual = addIngTotals.mCost + miscCost;
+        const manualSubtotal = ingTotals.mCost + totalAdditionalManual;
+        const manualHidden = manualSubtotal * (hiddenCostPercentage / 100);
+        
+        const totalAdditionalSmart = addIngTotals.sCost + miscCost;
+        const smartSubtotal = ingTotals.sCost + totalAdditionalSmart;
+        const smartHidden = smartSubtotal * (hiddenCostPercentage / 100);
+
+        const manualTotal = manualSubtotal + manualHidden;
+        const smartTotal = smartSubtotal + smartHidden;
         
         const newRecipe: Recipe = {
             id: recipe?.id || menuItem.id.toString(),
             menuItemId: menuItem.id,
-            ingredients,
-            additionalIngredients,
+            ingredients: syncedIngredients,
+            additionalIngredients: syncedAdditionalIngredients,
             additionalCost: totalAdditionalManual,
             hiddenCostPercentage,
             manualTotalCost: manualTotal,

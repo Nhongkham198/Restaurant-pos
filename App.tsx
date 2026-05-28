@@ -97,24 +97,26 @@ import { onMessage } from 'firebase/messaging';
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
 import { Menu } from './components/Menu';
-// Static load of components to prevent duplicate React runtime instances and Invalid Hook errors during dynamic module evaluation
-import { KitchenView } from './components/KitchenView';
-import { TableLayout } from './components/TableLayout';
-import Dashboard from './components/Dashboard';
-import { SalesHistory } from './components/SalesHistory';
-import { StockManagement } from './components/StockManagement';
-import { StockAnalytics } from './components/StockAnalytics';
-import { RecipeManagement } from './components/RecipeManagement';
-import { LeaveCalendarView } from './components/LeaveCalendarView';
-import { LeaveAnalytics } from './components/LeaveAnalytics';
 import AdminSidebar from './components/AdminSidebar';
-import { MaintenanceView } from './components/MaintenanceView';
-import { CustomerView } from './components/CustomerView';
-import { QueueDisplay } from './components/QueueDisplay';
-import HRManagementView from './components/HRManagementView';
-import { PrivacyPolicy } from './components/PrivacyPolicy';
-import { PreOrderManagement } from './components/PreOrderManagement';
-import { PreOrderCustomer } from './components/PreOrderCustomer';
+
+// Lazy load components to enable code splitting, drastically reducing the initial bundle size
+// and ensuring customer-facing pages load instantly without downloading heavy admin code.
+const KitchenView = lazy(() => import('./components/KitchenView').then(m => ({ default: m.KitchenView })));
+const TableLayout = lazy(() => import('./components/TableLayout').then(m => ({ default: m.TableLayout })));
+const Dashboard = lazy(() => import('./components/Dashboard'));
+const SalesHistory = lazy(() => import('./components/SalesHistory').then(m => ({ default: m.SalesHistory })));
+const StockManagement = lazy(() => import('./components/StockManagement').then(m => ({ default: m.StockManagement })));
+const StockAnalytics = lazy(() => import('./components/StockAnalytics').then(m => ({ default: m.StockAnalytics })));
+const RecipeManagement = lazy(() => import('./components/RecipeManagement').then(m => ({ default: m.RecipeManagement })));
+const LeaveCalendarView = lazy(() => import('./components/LeaveCalendarView').then(m => ({ default: m.LeaveCalendarView })));
+const LeaveAnalytics = lazy(() => import('./components/LeaveAnalytics').then(m => ({ default: m.LeaveAnalytics })));
+const MaintenanceView = lazy(() => import('./components/MaintenanceView').then(m => ({ default: m.MaintenanceView })));
+const CustomerView = lazy(() => import('./components/CustomerView').then(m => ({ default: m.CustomerView })));
+const QueueDisplay = lazy(() => import('./components/QueueDisplay').then(m => ({ default: m.QueueDisplay })));
+const HRManagementView = lazy(() => import('./components/HRManagementView'));
+const PrivacyPolicy = lazy(() => import('./components/PrivacyPolicy').then(m => ({ default: m.PrivacyPolicy })));
+const PreOrderManagement = lazy(() => import('./components/PreOrderManagement').then(m => ({ default: m.PreOrderManagement })));
+const PreOrderCustomer = lazy(() => import('./components/PreOrderCustomer').then(m => ({ default: m.PreOrderCustomer })));
 
 import { BottomNavBar } from './components/BottomNavBar';
 
