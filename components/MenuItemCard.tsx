@@ -30,6 +30,11 @@ export const MenuItemCard: React.FC<MenuItemCardProps> = ({
     onToggleAvailability,
     onToggleVisibility 
 }) => {
+    // If item is completely missing, render nothing (prevent crash)
+    if (!item) {
+        return null;
+    }
+
     // Default to true if undefined
     const isAvailable = item.isAvailable !== false;
     const isVisible = item.isVisible !== false;
@@ -58,8 +63,8 @@ export const MenuItemCard: React.FC<MenuItemCardProps> = ({
         >
             <div className="relative h-36">
                 <MenuItemImage 
-                    src={item.imageUrl}
-                    alt={item.name}
+                    src={item.imageUrl || ''}
+                    alt={item.name || ''}
                     className="h-full w-full"
                 />
                 {!isAvailable && (
@@ -85,9 +90,9 @@ export const MenuItemCard: React.FC<MenuItemCardProps> = ({
             </div>
 
             <div className="p-2 flex flex-col flex-auto justify-between">
-                <h3 className="font-semibold text-gray-800 text-base leading-tight min-h-[40px] line-clamp-2">{item.name}</h3>
+                <h3 className="font-semibold text-gray-800 text-base leading-tight min-h-[40px] line-clamp-2">{item.name || ''}</h3>
                 <div className="flex justify-end items-baseline mt-1 pt-2 border-t border-gray-100">
-                     <p className="text-lg font-bold text-blue-600">{item.price.toLocaleString()}<span className="text-sm font-medium"> ฿</span></p>
+                     <p className="text-lg font-bold text-blue-600">{(item.price ?? 0).toLocaleString()}<span className="text-sm font-medium"> ฿</span></p>
                 </div>
             </div>
 
@@ -132,10 +137,10 @@ export const MenuItemCard: React.FC<MenuItemCardProps> = ({
                     {/* Middle Section: Menu Name & Price (Centered) */}
                     <div className="absolute inset-0 flex flex-col items-center justify-center px-2 text-center pointer-events-none z-30 pt-16 pb-16">
                         <span className="text-white font-bold text-sm drop-shadow-md line-clamp-2 leading-tight">
-                            {item.name}
+                            {item.name || ''}
                         </span>
                         <span className="block text-gray-300 text-xs mt-1 font-mono">
-                            {item.price.toLocaleString()} ฿
+                            {(item.price ?? 0).toLocaleString()} ฿
                         </span>
                     </div>
 

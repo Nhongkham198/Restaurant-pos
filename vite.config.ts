@@ -16,26 +16,28 @@ export default defineConfig(({ mode }) => {
       },
       plugins: [react()],
       optimizeDeps: {
-        include: [],
+        force: true,
+        include: ['react', 'react-dom'],
       },
       define: {
         'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
         'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY)
       },
       resolve: {
-        dedupe: ['react', 'react-dom', 'react-popper'],
+        dedupe: ['react', 'react-dom'],
         alias: {
           '@': path.resolve(__dirname, '.'),
+          'react/jsx-runtime': path.resolve(__dirname, 'node_modules/react/jsx-runtime'),
+          'react/jsx-dev-runtime': path.resolve(__dirname, 'node_modules/react/jsx-dev-runtime'),
+          'react-dom/client': path.resolve(__dirname, 'node_modules/react-dom/client'),
+          'react': path.resolve(__dirname, 'node_modules/react'),
+          'react-dom': path.resolve(__dirname, 'node_modules/react-dom'),
         }
       },
       build: {
         rollupOptions: {
           output: {
-            manualChunks: {
-              'vendor-react': ['react', 'react-dom'],
-              'vendor-firebase': ['firebase/compat/app', 'firebase/compat/firestore', 'firebase/compat/auth'],
-              'vendor-ui': ['sweetalert2', 'lucide-react', 'framer-motion'],
-            }
+            // standard automatic chunking
           }
         },
       },

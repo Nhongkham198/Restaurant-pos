@@ -111,21 +111,29 @@
     }
   },
   "firestore": {
-    "users/data": {
-      "schema": "object",
-      "description": "Global user data stored in a single document."
+    "users/{userId}": {
+      "schema": "User",
+      "description": "Global user accounts stored as individual documents."
     },
-    "branches/data": {
-      "schema": "object",
-      "description": "Global branches data stored in a single document."
+    "branches/{branchId}": {
+      "schema": "Branch",
+      "description": "Global branch configurations stored as individual documents."
     },
-    "leaveRequests/data": {
-      "schema": "object",
-      "description": "Global leave requests stored in a single document."
+    "leaveRequests/{leaveRequestId}": {
+      "schema": "LeaveRequest",
+      "description": "Global employee leave requests stored as individual documents."
     },
-    "branches/{branchId}/menuItems/data": {
+    "branches/{branchId}/tables/{tableId}": {
       "schema": "object",
-      "description": "Branch-specific menu items."
+      "description": "Branch-specific dining tables layout."
+    },
+    "branches/{branchId}/menuItems/{itemId}": {
+      "schema": "MenuItem",
+      "description": "Branch-specific menu items database."
+    },
+    "branches/{branchId}/recipes/{recipeId}": {
+      "schema": "object",
+      "description": "Branch-specific food recipes."
     },
     "branches/{branchId}/activeOrders/{orderId}": {
       "schema": "ActiveOrder",
@@ -135,13 +143,37 @@
       "schema": "PreOrder",
       "description": "Pre-orders submitted by customers."
     },
-    "branches/{branchId}/stockItems/data": {
-      "schema": "object",
-      "description": "Branch-specific stock items."
+    "branches/{branchId}/stockItems/{itemId}": {
+      "schema": "StockItem",
+      "description": "Branch-specific raw material inventory."
     },
     "branches/{branchId}/stockLogs/{logId}": {
       "schema": "StockLog",
       "description": "Inventory change logs."
+    },
+    "branches/{branchId}/printHistory/{id}": {
+      "schema": "object",
+      "description": "Branch-specific kitchen/cashier printer receipts log."
+    },
+    "branches/{branchId}/staffCalls/{id}": {
+      "schema": "object",
+      "description": "Branch-specific dynamic customer assistance requests."
+    },
+    "branches/{branchId}/timeRecords/{id}": {
+      "schema": "object",
+      "description": "Branch HR check-in/out time attendance."
+    },
+    "branches/{branchId}/payrollRecords/{id}": {
+      "schema": "object",
+      "description": "Branch HR payroll receipts records."
+    },
+    "branches/{branchId}/stockTags/{id}": {
+      "schema": "object",
+      "description": "Branch active stock bar tags tracking."
+    },
+    "branches/{branchId}/maintenanceItems/{id}": {
+      "schema": "object",
+      "description": "Repair/maintenance tracking items."
     }
   }
 }

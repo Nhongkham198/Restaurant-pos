@@ -43,18 +43,33 @@ service cloud.firestore {
 
     // Global Collections
     match /users/data {
-      allow read: if true; // Insecure but needed for custom login. TODO: Move to Firebase Auth.
-      allow write: if isAdmin() && isValidUserList(incoming());
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /users/{userId} {
+      allow read: if true;
+      allow write: if isAdmin();
     }
 
     match /branches/data {
       allow read: if true;
-      allow write: if isAdmin() && isValidBranchList(incoming());
+      allow write: if isAdmin();
+    }
+
+    match /branches/list/{branchId} {
+      allow read: if true;
+      allow write: if isAdmin();
     }
 
     match /leaveRequests/data {
       allow read: if isAdmin();
       allow write: if isSignedIn() && (isAdmin() || incoming().value is list);
+    }
+
+    match /leaveRequests/{requestId} {
+      allow read: if isAdmin() || isSignedIn();
+      allow write: if isSignedIn();
     }
 
     match /admins/{uid} {
@@ -67,10 +82,35 @@ service cloud.firestore {
       
       // Allow read access to branch data if signed in or customer
       allow read: if true;
+      allow write: if isAdmin();
 
-      // Menu Items (Document style)
+      // Tables (Collection style)
+      match /tables/{tableId} {
+        allow read: if true;
+        allow write: if isSignedIn() || isAdmin();
+      }
+      match /tables/data {
+        allow read: if true;
+        allow write: if isSignedIn() || isAdmin();
+      }
+
+      // Menu Items (Document & Collection style)
       match /menuItems/data {
         allow read: if true;
+        allow write: if isAdmin();
+      }
+      match /menuItems/{itemId} {
+        allow read: if true;
+        allow write: if isAdmin();
+      }
+
+      // Recipes (Collection style)
+      match /recipes/{recipeId} {
+        allow read: if isSignedIn() || isAdmin();
+        allow write: if isAdmin();
+      }
+      match /recipes/data {
+        allow read: if isSignedIn() || isAdmin();
         allow write: if isAdmin();
       }
 
@@ -94,11 +134,75 @@ service cloud.firestore {
         allow read: if isSignedIn() || isAdmin();
         allow write: if isAdmin();
       }
+      match /stockItems/{itemId} {
+        allow read: if isSignedIn() || isAdmin();
+        allow write: if isSignedIn() || isAdmin();
+      }
 
       // Stock Logs
       match /stockLogs/{logId} {
         allow read: if isAdmin();
         allow create: if isSignedIn();
+      }
+
+      // Print History
+      match /printHistory/{id} {
+        allow read: if isSignedIn() || isAdmin();
+        allow write: if isSignedIn() || isAdmin();
+      }
+      match /printHistory/data {
+        allow read: if isSignedIn() || isAdmin();
+        allow write: if isSignedIn() || isAdmin();
+      }
+
+      // Staff Calls
+      match /staffCalls/{id} {
+        allow read: if true;
+        allow write: if true;
+      }
+      match /staffCalls/data {
+        allow read: if true;
+        allow write: if true;
+      }
+
+      // Time Records
+      match /timeRecords/{id} {
+        allow read: if isSignedIn() || isAdmin();
+        allow write: if isSignedIn() || isAdmin();
+      }
+      match /timeRecords/data {
+        allow read: if isSignedIn() || isAdmin();
+        allow write: if isSignedIn() || isAdmin();
+      }
+
+      // Payroll Records
+      match /payrollRecords/{id} {
+        allow read: if isSignedIn() || isAdmin();
+        allow write: if isAdmin();
+      }
+      match /payrollRecords/data {
+        allow read: if isSignedIn() || isAdmin();
+        allow write: if isAdmin();
+      }
+
+      // Stock Tags
+      match /stockTags/{id} {
+        allow read: if isSignedIn() || isAdmin();
+        allow write: if isSignedIn() || isAdmin();
+      }
+      match /stockTags/data {
+        allow read: if isSignedIn() || isAdmin();
+        allow write: if isSignedIn() || isAdmin();
+      }
+
+      // Maintenance Items
+      match /maintenanceItems/{id} {
+        allow read: if isSignedIn() || isAdmin();
+        allow write: if isSignedIn() || isAdmin();
+      }
+      match /maintenanceItems/data {
+        allow read: if isSignedIn() || isAdmin();
+        allow write: if isSignedIn() || isAdmin();
       }
     }
 

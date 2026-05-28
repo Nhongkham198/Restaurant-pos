@@ -165,13 +165,13 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
     }, [recipe, menuItem, stockItems]);
 
     const filteredStock = stockItems.filter(item => 
-        item.name.toLowerCase().includes(searchTerm.toLowerCase()) &&
+        (item.name || '').toLowerCase().includes(searchTerm.toLowerCase()) &&
         !ingredients.some(ing => ing.stockItemId === item.id) &&
         !additionalIngredients.some(ing => ing.stockItemId === item.id)
     );
 
     const filteredAdditionalStock = stockItems.filter(item =>
-        item.name.toLowerCase().includes(additionalSearchTerm.toLowerCase()) &&
+        (item.name || '').toLowerCase().includes(additionalSearchTerm.toLowerCase()) &&
         !ingredients.some(ing => ing.stockItemId === item.id) &&
         !additionalIngredients.some(ing => ing.stockItemId === item.id)
     );
