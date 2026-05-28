@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { auth, firebase } from '../firebaseConfig';
+import { auth, firebase } from '@/firebaseConfig';
 
 interface LoginScreenProps {
     onLogin: (username: string, password: string) => Promise<{ success: boolean; error?: string }> | { success: boolean; error?: string };

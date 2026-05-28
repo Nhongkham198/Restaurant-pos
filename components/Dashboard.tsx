@@ -51,7 +51,7 @@ const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelledOrders,
         setLocalAdCosts(prev => {
             const next = { ...prev };
             let hasChanges = false;
-            Object.entries(manualAdCosts || {}).forEach(([key, val]) => {
+            Object.entries(manualAdCosts).forEach(([key, val]) => {
                 // Only update local if the numeric value is different
                 if (parseFloat(prev[key] || '0') !== val) {
                     next[key] = val.toString();
@@ -91,35 +91,26 @@ const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelledOrders,
     // --- DYNAMIC RECIPE COSTING (LIVE CALCULATION) ---
     const liveRecipeCosts = useMemo(() => {
         const costMap = new Map<number, { manual: number, smart: number }>();
-        const recipesArr = Array.isArray(recipes) ? recipes : [];
-        const stockItemsArr = Array.isArray(stockItems) ? stockItems : [];
-        const latestPricesArr = Array.isArray(latestIngredientPrices) ? latestIngredientPrices : [];
         
-        recipesArr.forEach(r => {
-            if (!r) return;
+        recipes.forEach(r => {
             // Calculate manual ingredients sum to find misc cost
             let ingManualSum = 0;
-            const rIngredients = Array.isArray(r.ingredients) ? r.ingredients : [];
-            rIngredients.forEach(ing => {
-                if (!ing) return;
-                const stockItem = stockItemsArr.find(s => s && s.id === ing.stockItemId);
+            r.ingredients.forEach(ing => {
+                const stockItem = stockItems.find(s => s.id === ing.stockItemId);
                 ingManualSum += ing.quantity * (ing.unitPrice ?? stockItem?.unitPrice ?? 0);
             });
             
             let addManualSum = 0;
-            const rAddIngredients = Array.isArray(r.additionalIngredients) ? r.additionalIngredients : [];
-            rAddIngredients.forEach(ing => {
-                if (!ing) return;
-                const stockItem = stockItemsArr.find(s => s && s.id === ing.stockItemId);
+            (r.additionalIngredients || []).forEach(ing => {
+                const stockItem = stockItems.find(s => s.id === ing.stockItemId);
                 addManualSum += ing.quantity * (ing.unitPrice ?? stockItem?.unitPrice ?? 0);
             });
 
             // Recalculate smart based on CURRENT latestIngredientPrices or saved smartUnitPrice
             let ingSmartSum = 0;
-            rIngredients.forEach(ing => {
-                if (!ing) return;
-                const stockItem = stockItemsArr.find(s => s && s.id === ing.stockItemId);
-                const latestPrice = latestPricesArr.find(p => p && (p.name || '').trim() === (stockItem?.name || '').trim());
+            r.ingredients.forEach(ing => {
+                const stockItem = stockItems.find(s => s.id === ing.stockItemId);
+                const latestPrice = latestIngredientPrices.find(p => (p.name || '').trim() === (stockItem?.name || '').trim());
                 const manualPrice = ing.unitPrice ?? stockItem?.unitPrice ?? 0;
                 
                 let jsonUnitPrice = ing.smartUnitPrice;
@@ -130,10 +121,9 @@ const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelledOrders,
             });
 
             let addSmartSum = 0;
-            rAddIngredients.forEach(ing => {
-                if (!ing) return;
-                const stockItem = stockItemsArr.find(s => s && s.id === ing.stockItemId);
-                const latestPrice = latestPricesArr.find(p => p && (p.name || '').trim() === (stockItem?.name || '').trim());
+            (r.additionalIngredients || []).forEach(ing => {
+                const stockItem = stockItems.find(s => s.id === ing.stockItemId);
+                const latestPrice = latestIngredientPrices.find(p => (p.name || '').trim() === (stockItem?.name || '').trim());
                 const manualPrice = ing.unitPrice ?? stockItem?.unitPrice ?? 0;
                 
                 let jsonUnitPrice = ing.smartUnitPrice;
@@ -143,7 +133,7 @@ const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelledOrders,
                 addSmartSum += ing.quantity * jsonUnitPrice;
             });
 
-            const miscCost = Math.max(0, (r.additionalCost || 0) - addManualSum);
+            const miscCost = Math.max(0, r.additionalCost - addManualSum);
             const manualTotal = ingManualSum + addManualSum + miscCost;
             const smartSubtotal = ingSmartSum + addSmartSum + miscCost;
             
@@ -280,7 +270,7 @@ const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelledOrders,
             const manualAdCostsByProvider: Record<string, number> = {};
             let totalManualAdCostWithTax = 0;
             
-            Object.entries(manualAdCosts || {}).forEach(([key, cost]) => {
+            Object.entries(manualAdCosts).forEach(([key, cost]) => {
                 // ONLY include keys that match the current day AND have the new composite format "date|provider"
                 // This ignores legacy keys that were just "date" which caused incorrect totals.
                 if (key.startsWith(dayKey) && key.includes('|')) {

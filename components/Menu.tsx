@@ -624,26 +624,22 @@ export const Menu: React.FC<MenuProps> = ({
                         <p className="mt-2 font-semibold text-gray-500 group-hover:text-blue-600 transition-colors">เพิ่มเมนูใหม่</p>
                     </div>
                 )}
-                {filteredItems.map((item, index) => {
-                    if (!item) return null;
-                    const itemKey = item.id !== undefined && item.id !== null ? `menu-item-${item.id}-${index}` : `menu-item-idx-${index}`;
-                    return (
-                        <MenuItemCard
-                            key={itemKey}
-                            item={item}
-                            onSelectItem={onSelectItem}
-                            isEditMode={isEditMode}
-                            onEdit={onEditItem}
-                            onDelete={onDeleteItem}
-                            onDragStart={() => (dragItem.current = item.id)}
-                            onDragEnter={() => (dragOverItem.current = item.id)}
-                            onDragEnd={handleDragSort}
-                            isRecommended={Array.isArray(recommendedMenuItemIds) && recommendedMenuItemIds.includes(item.id)}
-                            onToggleAvailability={() => handleToggleAvailability(item.id)}
-                            onToggleVisibility={() => onToggleVisibility && onToggleVisibility(item.id)}
-                        />
-                    );
-                })}
+                {filteredItems.map(item => (
+                    <MenuItemCard
+                        key={item.id}
+                        item={item}
+                        onSelectItem={onSelectItem}
+                        isEditMode={isEditMode}
+                        onEdit={onEditItem}
+                        onDelete={onDeleteItem}
+                        onDragStart={() => (dragItem.current = item.id)}
+                        onDragEnter={() => (dragOverItem.current = item.id)}
+                        onDragEnd={handleDragSort}
+                        isRecommended={recommendedMenuItemIds.includes(item.id)}
+                        onToggleAvailability={() => handleToggleAvailability(item.id)}
+                        onToggleVisibility={() => onToggleVisibility && onToggleVisibility(item.id)}
+                    />
+                ))}
             </div>
 
             {/* SIDEBAR TOGGLE BUTTON - MOVED & STYLED AS REQUESTED */}

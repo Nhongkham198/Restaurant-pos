@@ -35,17 +35,16 @@ export const AdjustStockModal: React.FC<AdjustStockModalProps> = ({ isOpen, onCl
 
     if (!isOpen || !item) return null;
     
-    const newQuantity = (item.quantity ?? 0) + (adjustmentType === 'add' ? (adjustment ?? 0) : -(adjustment ?? 0));
+    const newQuantity = item.quantity + (adjustmentType === 'add' ? adjustment : -adjustment);
 
     const inputClasses = "mt-1 block w-full border border-gray-300 p-2 rounded-md shadow-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500";
 
     // Helper to format quantity based on unit
-    const formatQuantity = (qty: number | undefined | null) => {
-        const safeQty = qty ?? 0;
+    const formatQuantity = (qty: number) => {
         if (item.unit === 'กิโลกรัม') {
-            return safeQty.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            return qty.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         }
-        return safeQty.toLocaleString();
+        return qty.toLocaleString();
     };
 
     return (
@@ -105,7 +104,7 @@ export const AdjustStockModal: React.FC<AdjustStockModalProps> = ({ isOpen, onCl
                                 onClick={() => setIsNumpadOpen(true)}
                                 className={`${inputClasses} cursor-pointer text-left h-[42px] flex items-center`}
                             >
-                                {(adjustment ?? 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                                {adjustment.toLocaleString(undefined, { maximumFractionDigits: 2 })}
                             </div>
                         </div>
                         
