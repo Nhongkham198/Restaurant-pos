@@ -1349,7 +1349,7 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                     const isLowStock = Number(item.quantity) <= Number(item.reorderPoint);
                                     
                                     return (
-                                        <div key={item.id} className={`grid grid-cols-12 gap-4 px-6 py-5 items-center bg-white rounded-[2rem] shadow-sm border border-gray-100 hover:shadow-xl hover:border-blue-300 transition-all duration-500 group relative ${getRowStyle(item)}`}>
+                                        <div key={`desktop-stock-${item.id}-${index}`} className={`grid grid-cols-12 gap-4 px-6 py-5 items-center bg-white rounded-[2rem] shadow-sm border border-gray-100 hover:shadow-xl hover:border-blue-300 transition-all duration-500 group relative ${getRowStyle(item)}`}>
                                             
                                             {/* Section 1: Identity & Metadata (cols 1-3) */}
                                             <div className="col-span-3 flex items-center gap-4">
@@ -1486,7 +1486,7 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                             const status = getStatus(item);
                             
                             return (
-                                <div key={item.id} className={`p-4 space-y-3 rounded-lg shadow-sm ${getMobileCardStyle(item)}`}>
+                                <div key={`mobile-stock-${item.id}-${index}`} className={`p-4 space-y-3 rounded-lg shadow-sm ${getMobileCardStyle(item)}`}>
                                     <div className="flex justify-between items-start gap-3">
                                         <div className="relative flex-shrink-0">
                                             <div className="absolute -top-2 -left-2 w-6 h-6 bg-gray-900 text-white rounded-full flex items-center justify-center text-xs font-bold shadow-md border-2 border-white z-10">
@@ -1638,9 +1638,9 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                     <div className="space-y-2">
                                         {stockItems
                                             .filter(item => item.name.toLowerCase().includes(tagSearchTerm.toLowerCase()))
-                                            .map(item => (
+                                            .map((item, index) => (
                                                 <button 
-                                                    key={item.id} 
+                                                    key={`barcode-stock-${item.id}-${index}`} 
                                                     onClick={() => setSelectedTagItem(item)}
                                                     className="w-full text-left p-3 hover:bg-indigo-50 rounded-lg border border-gray-100 hover:border-indigo-200 transition-all flex items-center justify-between group"
                                                 >
@@ -1893,11 +1893,11 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                                                     if (!aPending && bPending) return 1;
                                                                     return 0;
                                                                 })
-                                                                .map(item => {
+                                                                .map((item, index) => {
                                                                     const isVerifiedToday = !!((item.receivedDate && new Date(item.receivedDate).toDateString() === new Date().toDateString()) || (item.orderedQuantity === 0 && item.lastUpdatedBy));
                                                                     
                                                                     return (
-                                                                        <tr key={item.id} className={`transition-colors ${isVerifiedToday ? 'bg-gray-50/30' : 'hover:bg-gray-50/50'}`}>
+                                                                        <tr key={`received-stock-${item.id}-${index}`} className={`transition-colors ${isVerifiedToday ? 'bg-gray-50/30' : 'hover:bg-gray-50/50'}`}>
                                                                             <td className="px-4 py-3 min-w-[180px] sticky left-0 z-10 bg-inherit shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
                                                                                 <div className="flex items-center gap-3">
                                                                                     <div className="w-10 h-10 rounded-lg bg-gray-100 flex-shrink-0 overflow-hidden ring-1 ring-gray-200">

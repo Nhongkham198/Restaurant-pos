@@ -97,24 +97,24 @@ import { onMessage } from 'firebase/messaging';
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
 import { Menu } from './components/Menu';
-// Lazy load heavy components
-const KitchenView = lazy(() => import('./components/KitchenView').then(module => ({ default: module.KitchenView })));
-const TableLayout = lazy(() => import('./components/TableLayout').then(module => ({ default: module.TableLayout })));
-const Dashboard = lazy(() => import('./components/Dashboard'));
-const SalesHistory = lazy(() => import('./components/SalesHistory').then(module => ({ default: module.SalesHistory })));
-const StockManagement = lazy(() => import('./components/StockManagement').then(module => ({ default: module.StockManagement })));
-const StockAnalytics = lazy(() => import('./components/StockAnalytics').then(module => ({ default: module.StockAnalytics })));
-const RecipeManagement = lazy(() => import('./components/RecipeManagement').then(module => ({ default: module.RecipeManagement })));
-const LeaveCalendarView = lazy(() => import('./components/LeaveCalendarView').then(module => ({ default: module.LeaveCalendarView })));
-const LeaveAnalytics = lazy(() => import('./components/LeaveAnalytics').then(module => ({ default: module.LeaveAnalytics })));
-const AdminSidebar = lazy(() => import('./components/AdminSidebar')); // Default export
-const MaintenanceView = lazy(() => import('./components/MaintenanceView').then(module => ({ default: module.MaintenanceView })));
-const CustomerView = lazy(() => import('./components/CustomerView').then(module => ({ default: module.CustomerView })));
-const QueueDisplay = lazy(() => import('./components/QueueDisplay').then(module => ({ default: module.QueueDisplay })));
-const HRManagementView = lazy(() => import('./components/HRManagementView'));
-const PrivacyPolicy = lazy(() => import('./components/PrivacyPolicy').then(module => ({ default: module.PrivacyPolicy })));
-const PreOrderManagement = lazy(() => import('./components/PreOrderManagement').then(module => ({ default: module.PreOrderManagement })));
-const PreOrderCustomer = lazy(() => import('./components/PreOrderCustomer').then(module => ({ default: module.PreOrderCustomer })));
+// Static load of components to prevent duplicate React runtime instances and Invalid Hook errors during dynamic module evaluation
+import { KitchenView } from './components/KitchenView';
+import { TableLayout } from './components/TableLayout';
+import Dashboard from './components/Dashboard';
+import { SalesHistory } from './components/SalesHistory';
+import { StockManagement } from './components/StockManagement';
+import { StockAnalytics } from './components/StockAnalytics';
+import { RecipeManagement } from './components/RecipeManagement';
+import { LeaveCalendarView } from './components/LeaveCalendarView';
+import { LeaveAnalytics } from './components/LeaveAnalytics';
+import AdminSidebar from './components/AdminSidebar';
+import { MaintenanceView } from './components/MaintenanceView';
+import { CustomerView } from './components/CustomerView';
+import { QueueDisplay } from './components/QueueDisplay';
+import HRManagementView from './components/HRManagementView';
+import { PrivacyPolicy } from './components/PrivacyPolicy';
+import { PreOrderManagement } from './components/PreOrderManagement';
+import { PreOrderCustomer } from './components/PreOrderCustomer';
 
 import { BottomNavBar } from './components/BottomNavBar';
 
@@ -129,8 +129,7 @@ import { SplitCompletedBillModal } from './components/SplitCompletedBillModal';
 import { TableBillModal } from './components/TableBillModal';
 import { PaymentModal } from './components/PaymentModal';
 import { PaymentSuccessModal } from './components/PaymentSuccessModal';
-// Lazy load heavy settings modal
-const SettingsModal = lazy(() => import('./components/SettingsModal').then(module => ({ default: module.SettingsModal })));
+import { SettingsModal } from './components/SettingsModal';
 import { EditCompletedOrderModal } from './components/EditCompletedOrderModal';
 import { UserManagerModal } from './components/UserManagerModal';
 import { BranchManagerModal } from './components/BranchManagerModal';

@@ -961,7 +961,7 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
                                         </div>
                                         <div className="flex items-center justify-between mt-1">
                                             <div className="flex items-center gap-2">
-                                                <p className="text-lg font-bold text-blue-600">฿{item.price.toLocaleString()}</p>
+                                                <p className="text-lg font-bold text-blue-600">฿{(item?.price ?? 0).toLocaleString()}</p>
                                                 {!recipeStatus.hasUpdate && recipe && (
                                                     <div className="flex-shrink-0 bg-green-100 text-green-700 p-0.5 rounded-full" title="สูตรอาหารถูกต้องและบันทึกแล้ว">
                                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">

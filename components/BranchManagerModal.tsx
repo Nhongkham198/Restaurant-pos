@@ -125,28 +125,32 @@ export const BranchManagerModal: React.FC<BranchManagerModalProps> = ({ isOpen, 
                 </div>
                 
                 <div className="p-6 space-y-3 overflow-y-auto flex-1">
-                    {branches.map(branch => (
-                        <div key={branch.id} className={`flex items-center gap-2 p-2 rounded-md transition-colors ${editingBranch?.id === branch.id ? 'bg-gray-100' : 'hover:bg-gray-50'}`}>
-                           <div className="flex-1">
-                                <p className="font-semibold text-gray-800">{branch.restaurantName || branch.name}</p>
-                                <p className="text-sm text-gray-500">
-                                    {branch.name}
-                                    {branch.location ? ` - ${branch.location}` : ''}
-                                </p>
-                           </div>
-                           <div className="flex gap-2">
-                                <button onClick={() => handleGetLink(branch)} className="p-2 text-green-600 hover:bg-green-100 rounded-full" title="สร้างลิงก์สั่งอาหาร">
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
-                                </button>
-                                <button onClick={() => startEdit(branch)} className="p-2 text-blue-600 hover:bg-blue-100 rounded-full" title="แก้ไข">
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L15.232 5.232z" /></svg>
-                                </button>
-                                <button onClick={() => handleDelete(branch)} className="p-2 text-red-600 hover:bg-red-100 rounded-full" title="ลบ">
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                                </button>
-                           </div>
-                        </div>
-                    ))}
+                    {branches.map((branch, index) => {
+                        if (!branch) return null;
+                        const uniqueKey = branch.id !== undefined && branch.id !== null ? branch.id : `branch-${index}`;
+                        return (
+                            <div key={uniqueKey} className={`flex items-center gap-2 p-2 rounded-md transition-colors ${editingBranch?.id === branch.id ? 'bg-gray-100' : 'hover:bg-gray-50'}`}>
+                               <div className="flex-1">
+                                    <p className="font-semibold text-gray-800">{branch.restaurantName || branch.name}</p>
+                                    <p className="text-sm text-gray-500">
+                                        {branch.name}
+                                        {branch.location ? ` - ${branch.location}` : ''}
+                                    </p>
+                               </div>
+                               <div className="flex gap-2">
+                                    <button onClick={() => handleGetLink(branch)} className="p-2 text-green-600 hover:bg-green-100 rounded-full" title="สร้างลิงก์สั่งอาหาร">
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
+                                    </button>
+                                    <button onClick={() => startEdit(branch)} className="p-2 text-blue-600 hover:bg-blue-100 rounded-full" title="แก้ไข">
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L15.232 5.232z" /></svg>
+                                    </button>
+                                    <button onClick={() => handleDelete(branch)} className="p-2 text-red-600 hover:bg-red-100 rounded-full" title="ลบ">
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                    </button>
+                               </div>
+                            </div>
+                        );
+                    })}
                 </div>
 
                 {(isAdding || editingBranch) && (
