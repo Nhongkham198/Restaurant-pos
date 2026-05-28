@@ -63,6 +63,7 @@ const MIGRATED_COLLECTIONS = [
 // Helper to reliably retrieve or generate a unique ID string from any item
 function getItemDocId(item: any): string {
     if (!item) return '';
+    if (item._firestoreId) return item._firestoreId.toString(); // Use the exact document ID if we fetched it
     const rawId = item.id !== undefined && item.id !== null ? item.id : 
                   (item.userId !== undefined && item.userId !== null ? `${item.userId}_${item.startDate}` : undefined);
     const fallbackId = rawId !== undefined ? rawId : (item.username || item.timestamp || item.name || item.code);
@@ -142,7 +143,11 @@ export function useFirestoreSync<T>(
                     const items: any[] = [];
                     snapshot.forEach(docSnap => {
                         if (docSnap.exists) {
-                            items.push(docSnap.data());
+                            const d = docSnap.data();
+                            if (d && typeof d === 'object') {
+                                d._firestoreId = docSnap.id;
+                            }
+                            items.push(d);
                         }
                     });
 

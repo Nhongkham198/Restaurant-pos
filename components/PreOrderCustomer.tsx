@@ -12,11 +12,13 @@ export const PreOrderCustomer: React.FC = () => {
         categories, 
         selectedBranch, 
         branchId,
+        branches,
         restaurantName,
         logoUrl,
         appLogoUrl,
         recommendedMenuItemIds,
-        preOrdersActions
+        preOrdersActions,
+        isDataLoading
     } = useData();
 
     const [activeCategory, setActiveCategory] = useState<string>(categories[0] || 'ทั้งหมด');
@@ -264,7 +266,25 @@ export const PreOrderCustomer: React.FC = () => {
         }
     };
 
+    const [showMissingBranch, setShowMissingBranch] = useState(false);
+
+    useEffect(() => {
+        if (!selectedBranch) {
+            const timer = setTimeout(() => setShowMissingBranch(true), 3000);
+            return () => clearTimeout(timer);
+        }
+    }, [selectedBranch]);
+
     if (!selectedBranch) {
+        if (showMissingBranch) {
+            return (
+                <div className="h-screen w-screen flex flex-col items-center justify-center p-6 text-center">
+                    <h1 className="text-xl font-bold text-red-600 mb-2">ไม่พบข้อมูลสาขา</h1>
+                    <p className="text-gray-500">สาขาที่คุณระบุไม่ถูกต้อง กรุณาตรวจสอบลิงก์ใหม่อีกครั้ง</p>
+                </div>
+            );
+        }
+
         return (
             <div className="h-screen w-screen flex flex-col items-center justify-center p-6 text-center">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>

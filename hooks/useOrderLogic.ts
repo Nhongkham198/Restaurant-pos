@@ -357,6 +357,9 @@ export const useOrderLogic = () => {
         const order = activeOrders.find(o => o.id === orderId); 
         if (!order) return; 
         
+        // Auto-tick all items inside the order when clicked Serve/Bump
+        const updatedItems = order.items.map(item => ({ ...item, isDone: true }));
+
         if (order.orderType === 'lineman') { 
             try { 
                 // Calculate Ad Cost Snapshot
@@ -375,6 +378,7 @@ export const useOrderLogic = () => {
                 const paymentDetails: PaymentDetails = { method: 'transfer' }; 
                 const completed: CompletedOrder = { 
                     ...order, 
+                    items: updatedItems,
                     status: 'completed', 
                     completionTime: Date.now(), 
                     paymentDetails: paymentDetails, 
@@ -382,7 +386,7 @@ export const useOrderLogic = () => {
                     recordedAdCost,
                     recordedAdCostTax
                 }; 
-                await activeOrdersActions.update(orderId, { status: 'completed', completionTime: completed.completionTime, paymentDetails: paymentDetails }); 
+                await activeOrdersActions.update(orderId, { items: updatedItems, status: 'completed', completionTime: completed.completionTime, paymentDetails: paymentDetails }); 
                 await db.collection(`branches/${branchId}/completedOrders_v2`).doc(orderId.toString()).set(completed); 
                 
                 Swal.fire({ 
@@ -400,10 +404,11 @@ export const useOrderLogic = () => {
             // If it's an online order that was already paid (and likely logged to history), 
             // and it's for a virtual table (Takeaway/Delivery), we can complete it fully.
             if (order.paymentSlipUrl && (order.tableId === -1 || order.tableId === -2)) {
+                await activeOrdersActions.update(orderId, { items: updatedItems });
                 await activeOrdersActions.remove(orderId);
                 Swal.fire({ icon: 'success', title: 'จบงานสำเร็จ', timer: 1500, showConfirmButton: false });
             } else {
-                await activeOrdersActions.update(orderId, { status: 'served' }); 
+                await activeOrdersActions.update(orderId, { items: updatedItems, status: 'served' }); 
             }
         } 
     };

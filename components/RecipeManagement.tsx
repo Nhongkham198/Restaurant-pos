@@ -341,21 +341,51 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
         }
     };
 
+    const safelyFormatDate = (val: any, format: 'date' | 'time' | 'full' = 'date') => {
+        if (!val) return '-';
+        let d: Date;
+        if (typeof val === 'number') {
+            d = new Date(val > 1e11 ? val : val * 1000);
+        } else if (typeof val === 'string') {
+            d = new Date(val);
+        } else if (val && typeof val === 'object' && 'seconds' in val) {
+            d = new Date(val.seconds * 1000);
+        } else {
+            return '-';
+        }
+        
+        if (isNaN(d.getTime())) return '-';
+
+        if (format === 'time') {
+            return d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+        } else if (format === 'full') {
+            return d.toLocaleString('th-TH', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        } else {
+            return d.toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: '2-digit' });
+        }
+    };
+
     const lastUpdateInfo = useMemo(() => {
         if (recipes.length === 0) return null;
-        const latestRecipe = [...recipes].sort((a, b) => (b.lastUpdated || 0) - (a.lastUpdated || 0))[0];
+        const latestRecipe = [...recipes].sort((a, b) => {
+            const getVal = (v: any) => {
+                if (!v) return 0;
+                if (typeof v === 'number') return v;
+                if (typeof v === 'object' && 'seconds' in v) return v.seconds * 1000;
+                return new Date(v).getTime() || 0;
+            };
+            return getVal(b.lastUpdated) - getVal(a.lastUpdated);
+        })[0];
         if (!latestRecipe || !latestRecipe.lastUpdated) return null;
         
-        const timeStr = new Date(latestRecipe.lastUpdated).toLocaleString('th-TH', {
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit'
-        });
-        
         return {
-            time: timeStr,
+            time: safelyFormatDate(latestRecipe.lastUpdated, 'full'),
             user: latestRecipe.lastUpdatedBy,
             filename: latestRecipe.lastImportedFilename
         };
@@ -466,7 +496,7 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
                 row[`${provider.name} Tax %`] = menuItem?.deliveryTaxes?.[provider.id] || 0;
             });
 
-            row['Last Updated'] = new Date(recipe.lastUpdated).toLocaleString('th-TH');
+            row['Last Updated'] = safelyFormatDate(recipe.lastUpdated, 'full');
             row['Updated By'] = recipe.lastUpdatedBy;
 
             return row;
@@ -874,11 +904,6 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
                             const itemName = (stockItem.name || '').trim();
                             const latestPrice = priceMap.get(itemName);
                             if (!latestPrice) return false;
-                            
-                            // Check if this price update is newer than the last time the recipe was saved
-                            // latestPrice.date is "YYYY-MM-DD"
-                            const priceDate = new Date(latestPrice.date + 'T00:00:00').getTime();
-                            if (priceDate <= (recipe.lastUpdated || 0)) return false;
 
                             // Use calculateSmartUnitPrice to get the correctly converted latest price
                             const expectedSmartPrice = calculateSmartUnitPrice(
@@ -955,7 +980,7 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
                                                         {recipe.lastUpdatedBy}
                                                     </div>
                                                     <div className="mt-1 flex items-center gap-1 font-medium">
-                                                        {new Date(recipe.lastUpdated).toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: '2-digit' })}
+                                                        {safelyFormatDate(recipe.lastUpdated, 'date')}
                                                     </div>
                                                 </div>
                                             )}

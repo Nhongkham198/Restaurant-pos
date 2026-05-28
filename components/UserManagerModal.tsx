@@ -8,7 +8,7 @@ interface UserManagerModalProps {
     onClose: () => void;
     users: User[];
     setUsers: React.Dispatch<React.SetStateAction<User[]>>;
-    currentUser: User;
+    currentUser: User | null;
     branches: Branch[];
     isEditMode: boolean;
     tables?: Table[]; // Added tables prop
@@ -47,6 +47,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
     }, [isOpen, initialNewUser]);
 
     const usersToDisplay = useMemo(() => {
+        if (!currentUser) return [];
         if (currentUser.role === 'admin') {
             return users; // Admin sees everyone
         }
@@ -54,8 +55,8 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
         // Branch admin only sees users in their branches + system admins
         const currentUserBranches = new Set(currentUser.allowedBranchIds || []);
         return users.filter(user => {
-            if (user.role === 'admin') return true; // Always show admins
-            const userBranches = user.allowedBranchIds || [];
+            if (user && user.role === 'admin') return true; // Always show admins
+            const userBranches = user ? (user.allowedBranchIds || []) : [];
             // User is visible if they share at least one branch with the current branch-admin
             return userBranches.some(branchId => currentUserBranches.has(branchId));
         });
@@ -64,28 +65,30 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
 
     const groupedUsers = useMemo(() => {
         const groups: Record<string, User[]> = {};
+        if (!currentUser) return groups;
 
         // Determine which branches to display headers for
         const visibleBranches = currentUser.role === 'admin'
             ? branches
-            : branches.filter(b => (currentUser.allowedBranchIds || []).includes(b.id));
+            : branches.filter(b => b && (currentUser.allowedBranchIds || []).includes(b.id));
 
         // Group system admins separately at the top
-        const systemAdmins = usersToDisplay.filter(u => u.role === 'admin');
+        const systemAdmins = usersToDisplay.filter(u => u && u.role === 'admin');
         if (systemAdmins.length > 0) {
             groups['ผู้ดูแลระบบ'] = systemAdmins;
         }
 
         // Group Table Users (No branch specific logic yet, just group them)
-        const tableUsers = usersToDisplay.filter(u => u.role === 'table');
+        const tableUsers = usersToDisplay.filter(u => u && u.role === 'table');
         if (tableUsers.length > 0) {
             groups['Tablets / โต๊ะลูกค้า'] = tableUsers;
         }
 
         // Group users by each visible branch (excluding tables/admins to avoid duplicates if possible, or just strict filter)
         visibleBranches.forEach(branch => {
+            if (!branch) return;
             const usersInBranch = usersToDisplay.filter(user =>
-                user.role !== 'admin' && user.role !== 'table' && (user.allowedBranchIds || []).includes(branch.id)
+                user && user.role !== 'admin' && user.role !== 'table' && (user.allowedBranchIds || []).includes(branch.id)
             );
             if (usersInBranch.length > 0) {
                 groups[branch.name] = usersInBranch;
@@ -165,7 +168,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
 
         // --- Logic ---
         if (editingUser) { // UPDATE
-            if (users.some(u => u.username.trim().toLowerCase() === formData.username.trim().toLowerCase() && u.id !== editingUser.id)) {
+            if (users.some(u => u && typeof u.username === 'string' && u.username.trim().toLowerCase() === formData.username.trim().toLowerCase() && u.id !== editingUser.id)) {
                 Swal.fire('ผิดพลาด', 'ชื่อผู้ใช้นี้มีอยู่แล้ว', 'error');
                 return;
             }
@@ -194,7 +197,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
                 }
 
                 // Update password only if a new one is provided AND user is Admin OR Branch Admin
-                if (formData.password && (currentUser.role === 'admin' || currentUser.role === 'branch-admin')) {
+                if (formData.password && currentUser && (currentUser.role === 'admin' || currentUser.role === 'branch-admin')) {
                     updatedUser.password = formData.password;
                 }
     
@@ -218,7 +221,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
             Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'อัปเดตผู้ใช้แล้ว!', showConfirmButton: false, timer: 1500 });
 
         } else { // ADD
-            if (users.some(u => u.username.trim().toLowerCase() === formData.username.trim().toLowerCase())) {
+            if (users.some(u => u && typeof u.username === 'string' && u.username.trim().toLowerCase() === formData.username.trim().toLowerCase())) {
                 Swal.fire('ผิดพลาด', 'ชื่อผู้ใช้นี้มีอยู่แล้ว', 'error');
                 return;
             }
@@ -286,7 +289,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
         setIsAdding(false);
         setFormData({ 
             username: user.username, 
-            password: currentUser.role === 'admin' ? user.password : '', // Only Admin sees the actual password
+            password: currentUser?.role === 'admin' ? user.password : '', // Only Admin sees the actual password
             role: user.role, 
             allowedBranchIds: user.allowedBranchIds || [],
             profilePictureUrl: user.profilePictureUrl || '',
@@ -301,7 +304,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
         setFormData(initialFormState);
     };
     
-    if (!isOpen) return null;
+    if (!isOpen || !currentUser) return null;
 
     const roleText = (role: User['role']) => {
         switch (role) {
@@ -329,7 +332,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
     };
 
     // Helper to determine if password editing is allowed
-    const canEditPassword = !editingUser || currentUser.role === 'admin' || currentUser.role === 'branch-admin';
+    const canEditPassword = !editingUser || (currentUser && (currentUser.role === 'admin' || currentUser.role === 'branch-admin'));
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
@@ -424,48 +427,76 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
 
                 {(isAdding || editingUser) && (
                     <div className="p-6 border-t bg-gray-50 space-y-4 rounded-b-lg">
-                        <h4 className="text-lg font-semibold text-gray-800">{editingUser ? `แก้ไขผู้ใช้: ${editingUser.username}` : 'เพิ่มผู้ใช้ใหม่'}</h4>
-                        <div className="flex gap-4 items-start">
-                             <div className="relative group flex-shrink-0">
-                                <img className="h-24 w-24 rounded-full object-cover border-2 border-gray-300" src={formData.profilePictureUrl || "https://img.icons8.com/fluency/96/user-male-circle.png"} alt="Profile"/>
+                        <h4 className="text-lg font-semibold text-gray-800">
+                            {editingUser ? `แก้ไขผู้ใช้: ${editingUser.username}` : 'เพิ่มผู้ใช้ใหม่'}
+                        </h4>
+                        
+                        <div className="flex gap-4 items-start flex-col sm:flex-row">
+                            {/* Profile Image Section */}
+                            <div className="relative group flex-shrink-0 mx-auto sm:mx-0">
+                                <img 
+                                    className="h-24 w-24 rounded-full object-cover border-2 border-gray-300 bg-white" 
+                                    src={formData.profilePictureUrl || "https://img.icons8.com/fluency/96/user-male-circle.png"} 
+                                    alt="Profile"
+                                    referrerPolicy="no-referrer"
+                                />
                                 <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 flex items-center justify-center gap-2 rounded-full transition-opacity">
-                                    <button type="button" onClick={handleChangePicture} className="p-2 bg-white rounded-full shadow-lg hover:bg-gray-200 opacity-0 group-hover:opacity-100 transition-opacity" title="เปลี่ยนรูป">
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-600" viewBox="0 0 20 20" fill="currentColor"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" /></svg>
+                                    <button 
+                                        type="button" 
+                                        onClick={handleChangePicture} 
+                                        className="p-2 bg-white rounded-full shadow-lg hover:bg-gray-200 opacity-0 group-hover:opacity-100 transition-opacity" 
+                                        title="เปลี่ยนรูป"
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-600" viewBox="0 0 20 20" fill="currentColor">
+                                            <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                                        </svg>
                                     </button>
                                     {formData.profilePictureUrl && (
-                                        <button type="button" onClick={handleDeletePicture} className="p-2 bg-white rounded-full shadow-lg hover:bg-gray-200 opacity-0 group-hover:opacity-100 transition-opacity" title="ลบรูป">
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-red-600" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clipRule="evenodd" /></svg>
+                                        <button 
+                                            type="button" 
+                                            onClick={handleDeletePicture} 
+                                            className="p-2 bg-white rounded-full shadow-lg hover:bg-gray-200 opacity-0 group-hover:opacity-100 transition-opacity" 
+                                            title="ลบรูป"
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-red-600" viewBox="0 0 20 20" fill="currentColor">
+                                                <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1-1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                                            </svg>
                                         </button>
                                     )}
                                 </div>
                             </div>
-                            <div className="flex-grow space-y-3">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 relative">
+
+                            {/* Inputs Block */}
+                            <div className="flex-1 w-full space-y-4">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    {/* Username field (with Autocomplete suggestion popup) */}
                                     <div className="relative">
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">ชื่อผู้ใช้:</label>
                                         <input 
                                             type="text" 
                                             name="username" 
                                             value={formData.username} 
                                             onChange={handleInputChange} 
-                                            placeholder="ชื่อผู้ใช้" 
-                                            className="w-full px-3 py-2 border rounded-md bg-white border-gray-300 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500" 
-                                            autoComplete="off"
+                                            placeholder="ชื่อผู้ใช้"
+                                            className="w-full px-3 py-2 border rounded-md border-gray-300 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                                         />
+                                        
                                         {/* Username Suggestions */}
                                         {isAdding && formData.username && (
                                             (() => {
                                                 const suggestions = users.filter(u => 
+                                                    u && typeof u.username === 'string' &&
                                                     u.username.toLowerCase().includes(formData.username.toLowerCase()) &&
                                                     u.username.toLowerCase() !== formData.username.toLowerCase()
                                                 );
                                                 
                                                 if (suggestions.length === 0) return null;
-
+         
                                                 return (
                                                     <div className="absolute z-10 w-full bg-white border border-gray-200 rounded-md shadow-lg mt-1 max-h-40 overflow-y-auto">
-                                                        {suggestions.map(user => (
+                                                        {suggestions.map((user, idx) => (
                                                             <div 
-                                                                key={user.id} 
+                                                                key={user.id !== undefined && user.id !== null ? `suggest-${user.id}` : `suggest-idx-${idx}`} 
                                                                 className="px-4 py-2 hover:bg-blue-50 cursor-pointer text-sm text-gray-700 flex justify-between items-center"
                                                                 onClick={() => {
                                                                     startEdit(user);
@@ -481,45 +512,63 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
                                             })()
                                         )}
                                     </div>
-                                    <input 
-                                        type="text" 
-                                        name="password" 
-                                        value={formData.password} 
-                                        onChange={handleInputChange} 
-                                        placeholder={!canEditPassword ? "ติดต่อ Admin เพื่อเปลี่ยนรหัส" : (editingUser ? "เปลี่ยนรหัสผ่าน (เว้นว่างหากไม่เปลี่ยน)" : "รหัสผ่าน")}
-                                        disabled={!canEditPassword}
-                                        className={`px-3 py-2 border rounded-md border-gray-300 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 ${!canEditPassword ? 'bg-gray-100 cursor-not-allowed text-gray-500' : 'bg-white'}`} 
-                                    />
+
+                                    {/* Password field */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">รหัสผ่าน / PIN:</label>
+                                        <input 
+                                            type="text" 
+                                            name="password" 
+                                            value={formData.password} 
+                                            onChange={handleInputChange} 
+                                            placeholder={!canEditPassword ? "ติดต่อ Admin เพื่อเปลี่ยนรหัส" : (editingUser ? "เว้นเพื่อใช้รหัสเดิม" : "รหัสผ่าน")}
+                                            disabled={!canEditPassword}
+                                            className="w-full px-3 py-2 border rounded-md border-gray-300 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
+                                        />
+                                    </div>
                                 </div>
+
+                                {/* Role dropdown field */}
                                 <div>
-                                    <select name="role" value={formData.role} onChange={handleInputChange} className="w-full px-3 py-2 border rounded-md bg-white border-gray-300 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">ตำแหน่ง:</label>
+                                    <select 
+                                        name="role" 
+                                        value={formData.role} 
+                                        onChange={handleInputChange} 
+                                        disabled={editingUser && editingUser.id === currentUser.id}
+                                        className="w-full px-3 py-2 border rounded-md bg-white border-gray-300 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
+                                    >
                                         <option value="pos">พนักงาน POS</option>
                                         <option value="kitchen">พนักงานครัว</option>
                                         <option value="branch-admin">ผู้ดูแลสาขา</option>
+                                        <option value="admin">ผู้ดูแลระบบ (Admin)</option>
                                         <option value="auditor">Auditor</option>
                                         <option value="table">Tablet / โต๊ะลูกค้า</option>
-                                        {currentUser.role === 'admin' && (
-                                            <option value="admin">ผู้ดูแลระบบ</option>
-                                        )}
                                     </select>
                                 </div>
-                                
-                                {/* Branch Selection - Updated to include 'table' role */}
+
+                                {/* Branch Selection Checkboxes */}
                                 {formData.role !== 'admin' && (
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">กำหนดสิทธิ์สาขา {formData.role === 'table' && '(สาขาที่ Tablet ประจำอยู่)'}:</label>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                            กำหนดสิทธิ์สาขา {formData.role === 'table' && '(สาขาที่ Tablet ประจำอยู่)'}:
+                                        </label>
                                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 p-2 border rounded-md bg-white max-h-32 overflow-y-auto">
-                                            {branches.map(branch => (
-                                                <label key={branch.id} className="flex items-center gap-2 p-1.5 rounded hover:bg-gray-100">
-                                                    <input 
-                                                        type="checkbox"
-                                                        checked={(formData.allowedBranchIds || []).includes(branch.id)}
-                                                        onChange={() => handleBranchChange(branch.id)}
-                                                        className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                                    />
-                                                    <span className="text-gray-800">{branch.name} (#{branch.id})</span>
-                                                </label>
-                                            ))}
+                                            {branches.map((branch, index) => {
+                                                const branchId = branch && branch.id !== undefined && branch.id !== null ? branch.id : `branch-idx-${index}`;
+                                                const branchName = branch && (branch.name || branch.restaurantName) ? (branch.name || branch.restaurantName) : `สาขา #${branchId}`;
+                                                return (
+                                                    <label key={`branch-chk-${branchId}`} className="flex items-center gap-2 p-1.5 rounded hover:bg-gray-100 cursor-pointer">
+                                                        <input 
+                                                            type="checkbox"
+                                                            checked={branch && (formData.allowedBranchIds || []).includes(branch.id)}
+                                                            onChange={() => branch && handleBranchChange(branch.id)}
+                                                            className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                                        />
+                                                        <span className="text-sm text-gray-800">{branchName} (#{branchId})</span>
+                                                    </label>
+                                                );
+                                            })}
                                         </div>
                                     </div>
                                 )}
@@ -536,7 +585,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
                                         >
                                             <option value="">-- เลือกโต๊ะ (หรือ Guest) --</option>
                                             {tables.map(table => (
-                                                <option key={table.id} value={table.id}>{table.name} ({table.floor})</option>
+                                                <option key={`table-opt-${table.id}`} value={table.id}>{table.name} ({table.floor})</option>
                                             ))}
                                         </select>
                                         <p className="text-xs text-gray-500 mt-1">
@@ -556,7 +605,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
                                                     type="number" 
                                                     value={formData.leaveQuotas?.sick ?? 30} 
                                                     onChange={(e) => handleQuotaChange('sick', Number(e.target.value))}
-                                                    className="w-full px-2 py-1 border rounded text-center"
+                                                    className="w-full px-2 py-1 border rounded text-center text-gray-900 bg-white"
                                                 />
                                             </div>
                                             <div>
@@ -565,16 +614,16 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
                                                     type="number" 
                                                     value={formData.leaveQuotas?.personal ?? 6} 
                                                     onChange={(e) => handleQuotaChange('personal', Number(e.target.value))}
-                                                    className="w-full px-2 py-1 border rounded text-center"
+                                                    className="w-full px-2 py-1 border rounded text-center text-gray-900 bg-white"
                                                 />
                                             </div>
                                             <div>
-                                                <label className="block text-xs text-gray-500 mb-1">ลาไม่รับเงินเดือน</label>
+                                                <label className="block text-xs text-gray-500 mb-1">ลาพักร้อน</label>
                                                 <input 
                                                     type="number" 
                                                     value={formData.leaveQuotas?.vacation ?? 6} 
                                                     onChange={(e) => handleQuotaChange('vacation', Number(e.target.value))}
-                                                    className="w-full px-2 py-1 border rounded text-center"
+                                                    className="w-full px-2 py-1 border rounded text-center text-gray-900 bg-white"
                                                 />
                                             </div>
                                         </div>
@@ -582,9 +631,11 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
                                 )}
                             </div>
                         </div>
+
+                        {/* Action buttons */}
                         <div className="flex gap-2 justify-end pt-2">
-                            <button onClick={cancelAction} className="px-4 py-2 bg-gray-200 rounded-md hover:bg-gray-300">ยกเลิก</button>
-                            <button onClick={handleSave} className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700">บันทึก</button>
+                            <button onClick={cancelAction} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 font-semibold transition-colors">ยกเลิก</button>
+                            <button onClick={handleSave} className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 font-semibold transition-colors">บันทึก</button>
                         </div>
                     </div>
                 )}

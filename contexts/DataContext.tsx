@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, createContext, useContext, ReactNode } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, createContext, useContext, ReactNode } from 'react';
 import { useFirestoreSync, useFirestoreCollection, CollectionActions } from '../hooks/useFirestoreSync';
 import { auth } from '../firebaseConfig';
 import { 
@@ -172,7 +172,31 @@ const DataContext = createContext<DataContextType | undefined>(undefined);
 export const DataProvider = ({ children }: { children: ReactNode }) => {
     // --- AUTH & BRANCH STATE ---
     const [users, setUsers] = useFirestoreSync<User[]>(null, 'users', []);
-    const [branches, setBranches] = useFirestoreSync<Branch[]>(null, 'branches', []);
+    const [rawBranches, setRawBranches] = useFirestoreSync<Branch[]>(null, 'branches', []);
+
+    // Sanitize branches to filter out any corrupted/empty entries
+    const branches = useMemo(() => {
+        return rawBranches.filter(b => b && b.id !== undefined && b.id !== null && String(b.id).trim() !== '' && !Number.isNaN(Number(b.id)) && ((typeof b.name === 'string' && b.name.trim() !== '') || (typeof b.restaurantName === 'string' && b.restaurantName.trim() !== '')));
+    }, [rawBranches]);
+
+    const setBranches = useCallback((action: React.SetStateAction<Branch[]>) => {
+        setRawBranches(prevBranches => {
+            const resolved = typeof action === 'function' ? action(prevBranches) : action;
+            return resolved;
+        });
+    }, [setRawBranches]);
+
+    // Self-healing database pattern: Automatically delete corrupted/empty branches from Firestore
+    useEffect(() => {
+        if (rawBranches.length > 0) {
+            const hasInvalid = rawBranches.some(b => !b || b.id === undefined || b.id === null || String(b.id).trim() === '' || Number.isNaN(Number(b.id)) || ((!b.name || b.name.trim() === '') && (!b.restaurantName || b.restaurantName.trim() === '')));
+            if (hasInvalid) {
+                console.log('[DataContext] Automatically cleaning up corrupted/empty branches from Firestore.');
+                const cleaned = rawBranches.filter(b => b && b.id !== undefined && b.id !== null && String(b.id).trim() !== '' && !Number.isNaN(Number(b.id)) && ((typeof b.name === 'string' && b.name.trim() !== '') || (typeof b.restaurantName === 'string' && b.restaurantName.trim() !== '')));
+                setRawBranches(cleaned);
+            }
+        }
+    }, [rawBranches, setRawBranches]);
     
     const [currentUser, setCurrentUser] = useState<User | null>(() => {
         const storedUser = localStorage.getItem('currentUser');
@@ -206,7 +230,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
     const [isCustomerMode, setIsCustomerMode] = useState(() => {
         const params = new URLSearchParams(window.location.search);
-        if (params.get('mode') === 'customer' || params.get('orderType') === 'takeaway' || params.get('orderType') === 'delivery') return true;
+        if (params.get('mode') === 'customer' || params.get('mode') === 'pre-order' || params.get('orderType') === 'takeaway' || params.get('orderType') === 'delivery') return true;
         const storedUser = localStorage.getItem('currentUser');
         if (storedUser) {
             try {
