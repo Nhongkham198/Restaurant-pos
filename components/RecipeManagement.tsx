@@ -644,7 +644,8 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
 
     const filteredItems = useMemo(() => {
         let items = menuItems.filter(item => {
-            const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase());
+            if (!item || !item.name) return false;
+            const matchesSearch = item.name.toLowerCase().includes((searchTerm || '').toLowerCase());
             const matchesCategory = selectedCategory === 'ทั้งหมด' || item.category === selectedCategory;
             
             const recipe = recipeMap.get(item.id);
