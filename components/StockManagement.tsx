@@ -1,0 +1,2481 @@
+
+import React, { useState, useMemo, useRef, useEffect } from 'react';
+import type { StockItem, User, StockTag, StockLog } from '../types';
+import Swal from 'sweetalert2';
+import { StockItemModal } from './StockItemModal';
+import { AdjustStockModal } from './AdjustStockModal';
+import { PurchaseOrderModal } from './PurchaseOrderModal';
+import { functionsService } from '../services/firebaseFunctionsService';
+import { CollectionActions } from '../hooks/useFirestoreSync';
+
+import { ThaiVirtualKeyboard } from './ThaiVirtualKeyboard';
+import { IngredientPriceUpload } from './IngredientPriceUpload';
+import { PriceComparisonWorkspace } from './PriceComparisonWorkspace';
+import { useData } from '../contexts/DataContext';
+
+// Declare XLSX to inform TypeScript that it's available globally from the script tag
+declare var XLSX: any;
+// Declare html2canvas for potential direct usage if needed, though mainly used in modal
+declare var html2canvas: any;
+
+interface StockManagementProps {
+    stockItems: StockItem[];
+    setStockItems: React.Dispatch<React.SetStateAction<StockItem[]>>;
+    stockTags: StockTag[];
+    setStockTags: React.Dispatch<React.SetStateAction<StockTag[]>>;
+    stockCategories: string[];
+    setStockCategories: React.Dispatch<React.SetStateAction<string[]>>;
+    stockUnits: string[];
+    setStockUnits: React.Dispatch<React.SetStateAction<string[]>>;
+    stockLogs: StockLog[];
+    stockLogsActions: CollectionActions<StockLog>;
+    currentUser: User | null;
+    isTagModalOpen: boolean;
+    onOpenTagModal: () => void;
+    onCloseTagModal: () => void;
+}
+
+export const StockManagement: React.FC<StockManagementProps> = ({
+    stockItems,
+    setStockItems,
+    stockTags,
+    setStockTags,
+    stockCategories,
+    setStockCategories,
+    stockUnits,
+    setStockUnits,
+    stockLogs,
+    stockLogsActions,
+    currentUser,
+    isTagModalOpen,
+    onOpenTagModal,
+    onCloseTagModal
+}) => {
+    const [selectedCategory, setSelectedCategory] = useState('ทั้งหมด');
+    const [activeTab, setActiveTab] = useState<'inventory' | 'comparison'>('inventory');
+    const [isBulkReceiveOpen, setIsBulkReceiveOpen] = useState(false);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
+    const [isItemModalOpen, setIsItemModalOpen] = useState(false);
+    const [isAdjustModalOpen, setIsAdjustModalOpen] = useState(false);
+    const [isPurchaseOrderModalOpen, setIsPurchaseOrderModalOpen] = useState(false);
+    // New state to track if the PO modal is opened in "Mobile Image Mode"
+    const [isMobilePOMode, setIsMobilePOMode] = useState(false);
+    const [selectedItem, setSelectedItem] = useState<StockItem | null>(null);
+    const [isIgnoreModalOpen, setIsIgnoreModalOpen] = useState(false);
+    const [itemToIgnore, setItemToIgnore] = useState<StockItem | null>(null);
+    const [ignoreRemark, setIgnoreRemark] = useState('');
+    const [isRemarkKeyboardOpen, setIsRemarkKeyboardOpen] = useState(false);
+    
+    // Tag Registration State
+    const [selectedTagItem, setSelectedTagItem] = useState<StockItem | null>(null);
+    const [isWritingTag, setIsWritingTag] = useState(false);
+    const [tagSearchTerm, setTagSearchTerm] = useState('');
+
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    // Sorting State
+    const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' }>({ key: 'default', direction: 'desc' });
+    const [isSortMenuOpen, setIsSortMenuOpen] = useState(false);
+    const sortMenuRef = useRef<HTMLDivElement>(null);
+
+    // Close sort menu when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (sortMenuRef.current && !sortMenuRef.current.contains(event.target as Node)) {
+                setIsSortMenuOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    const { latestIngredientPrices, setLatestIngredientPrices, latestImportFilename, setLatestImportFilename } = useData();
+
+    const filteredItems = useMemo(() => {
+        // Safety check: Ensure stockItems is an array
+        const items = Array.isArray(stockItems) ? stockItems : [];
+        
+        // Filter out null/undefined items first
+        const validItems = items.filter(item => item && typeof item === 'object');
+
+        let result = validItems;
+
+        if (selectedCategory === 'รายการสั่งของ') {
+             // Filter only items with orderedQuantity > 0 as requested by user
+             result = validItems.filter(item => {
+                 const qty = Number(item.orderedQuantity);
+                 return !isNaN(qty) && qty > 0;
+             });
+        } else if (selectedCategory !== 'ทั้งหมด') {
+             result = validItems.filter(item => item.category === selectedCategory);
+        }
+        
+        if (searchTerm.trim()) {
+            result = result.filter(item => 
+                // Safety check: Ensure name exists before calling toLowerCase
+                (item.name || '').toLowerCase().includes(searchTerm.toLowerCase())
+            );
+        }
+
+        // Sorting Logic
+        if (sortConfig.key !== 'default') {
+            result.sort((a, b) => {
+                let valA = 0;
+                let valB = 0;
+
+                if (sortConfig.key === 'lastUpdated') {
+                    valA = a.lastUpdated || 0;
+                    valB = b.lastUpdated || 0;
+                } else if (sortConfig.key === 'orderDate') {
+                    valA = a.orderDate || 0;
+                    valB = b.orderDate || 0;
+                } else if (sortConfig.key === 'receivedDate') {
+                    valA = a.receivedDate || 0;
+                    valB = b.receivedDate || 0;
+                }
+
+                return sortConfig.direction === 'asc' ? valA - valB : valB - valA;
+            });
+        } else {
+             // Default sort by ID (usually creation order)
+             result.sort((a, b) => a.id - b.id);
+        }
+
+        return result;
+    }, [stockItems, selectedCategory, searchTerm, sortConfig]);
+
+    const [isLogModalOpen, setIsLogModalOpen] = useState(false);
+    const [selectedLogItem, setSelectedLogItem] = useState<StockItem | null>(null);
+
+    // Helper to add log
+    const addLog = (item: StockItem, action: StockLog['action'], details: string) => {
+        const logId = Date.now().toString() + Math.random().toString(36).substr(2, 9);
+        
+        // Ensure stockItemId is a valid number to prevent Firebase errors
+        let safeStockItemId = 0;
+        if (item && typeof item.id === 'number' && !Number.isNaN(item.id)) {
+             safeStockItemId = item.id;
+        } else if (item && typeof item.id === 'string' && !Number.isNaN(Number(item.id))) {
+             safeStockItemId = Number(item.id);
+        }
+
+        const newLog: StockLog = {
+            id: logId,
+            stockItemId: safeStockItemId ?? 0,
+            stockItemName: item?.name || 'ไม่มีชื่อรายการ',
+            action,
+            changeDetails: details,
+            performedBy: currentUser?.username || 'System',
+            timestamp: Date.now()
+        };
+        stockLogsActions.add(newLog);
+    };
+
+    const handleOpenLogModal = (item: StockItem) => {
+        setSelectedLogItem(item);
+        setIsLogModalOpen(true);
+    };
+
+    const handleOpenIgnoreModal = (item: StockItem) => {
+        setItemToIgnore(item);
+        setIgnoreRemark('');
+        setIsRemarkKeyboardOpen(false);
+        setIsIgnoreModalOpen(true);
+    };
+
+    const handleConfirmIgnore = (item: StockItem | null, remarkText: string) => {
+        if (!item) return;
+        if (!remarkText.trim()) {
+            Swal.fire({
+                icon: 'error',
+                title: 'กรุณาระบุหมายเหตุ',
+                text: 'จำเป็นต้องระบุสาเหตุเพื่อทำการปฏิเสธหรือเคลียร์รายการนี้ออก',
+                confirmButtonColor: '#EF4444'
+            });
+            return;
+        }
+
+        // Add log with the custom action and details
+        addLog(item, 'ignore', `ปฏิเสธ/เคลียร์รายการสั่งซื้อ (จำนวนเดิม: ${item.orderedQuantity} ${item.unit}) เนื่องจาก: ${remarkText}`);
+
+        // Update items in database/state
+        setStockItems(prev => prev.map(i => {
+            if (i.id === item.id) {
+                return {
+                    ...i,
+                    orderedQuantity: 0,
+                    orderedBy: undefined,
+                    orderDate: undefined,
+                    isIgnored: true,
+                    lastIgnoreRemark: remarkText,
+                    lastIgnoredAt: Date.now(),
+                    lastIgnoredBy: currentUser?.username || 'System'
+                };
+            }
+            return i;
+        }));
+
+        Swal.fire({
+            icon: 'success',
+            title: 'ดำเนินการปฏิเสธ/เคลียร์รายการสำเร็จ',
+            text: `ทำการลบรายการ "${item.name}" ออกจากรายการสั่งของเรียบร้อยแล้ว`,
+            timer: 2000,
+            showConfirmButton: false
+        });
+
+        setIsIgnoreModalOpen(false);
+        setItemToIgnore(null);
+        setIgnoreRemark('');
+        setIsRemarkKeyboardOpen(false);
+    };
+
+    const filteredLogs = useMemo(() => {
+        if (!selectedLogItem) return [];
+        return stockLogs
+            .filter(log => log.stockItemId === selectedLogItem.id)
+            .sort((a, b) => b.timestamp - a.timestamp);
+    }, [stockLogs, selectedLogItem]);
+
+    const handleSort = (key: string) => {
+        setSortConfig(prev => ({
+            key,
+            // Toggle direction if clicking the same key, otherwise default to desc (newest first)
+            direction: prev.key === key && prev.direction === 'desc' ? 'asc' : 'desc'
+        }));
+        setIsSortMenuOpen(false);
+    };
+
+    const getSortLabel = () => {
+        if (sortConfig.key === 'lastUpdated') return 'เรียงตามแก้ไขล่าสุด';
+        if (sortConfig.key === 'orderDate') return 'เรียงตามวันที่สั่ง';
+        if (sortConfig.key === 'receivedDate') return 'เรียงตามวันที่รับ';
+        return 'วันที่สั่ง/รับ';
+    };
+
+    const canDelete = useMemo(() => {
+        if (!currentUser) return false;
+        return !['pos', 'kitchen'].includes(currentUser.role);
+    }, [currentUser]);
+
+    const handleOpenItemModal = (item: StockItem | null) => {
+        setSelectedItem(item);
+        setIsItemModalOpen(true);
+    };
+
+    const handleOpenAdjustModal = async (item: StockItem) => {
+        // 1. check if stock is 0
+        if (item.quantity <= 0) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'สินค้าหมด (Out of Stock)',
+                text: `ขออภัย สินค้า "${item.name}" เหลือ 0 ${item.unit} ไม่สามารถทำการเบิกได้ กรุณาเพิ่มสินค้าก่อนทำการเบิก`,
+                confirmButtonText: 'รับทราบ',
+                confirmButtonColor: '#3B82F6'
+            });
+            return;
+        }
+
+        // 2. Find last withdrawal info from logs
+        const withdrawals = stockLogs
+            .filter(log => log.stockItemId === item.id && log.action === 'adjust' && log.changeDetails.includes('เบิกออก'))
+            .sort((a, b) => b.timestamp - a.timestamp);
+        
+        const lastLog = withdrawals[0];
+        let lastInfoHtml = '<div class="mt-3 p-3 bg-gray-50 border border-gray-100 rounded-lg text-left text-sm italic text-gray-500 italic">ไม่มีข้อมูลการเบิกก่อนหน้าในระบบ</div>';
+        
+        if (lastLog) {
+            const dateStr = new Date(lastLog.timestamp).toLocaleString('th-TH', { 
+                day: '2-digit', 
+                month: '2-digit', 
+                year: 'numeric', 
+                hour: '2-digit', 
+                minute: '2-digit' 
+            });
+            
+            // Extract amount from details like "ปรับสต็อก (เบิกออก): -2 กก..."
+            const match = lastLog.changeDetails.match(/: (-?\d+(\.\d+)?) /);
+            const amt = match ? Math.abs(Number(match[1])) : '?';
+
+            lastInfoHtml = `
+                <div class="mt-3 p-3 bg-red-50 border border-red-100 rounded-lg text-left">
+                    <p class="text-[10px] font-black text-red-600 uppercase mb-1 tracking-wider">ประวัติการเบิกล่าสุด:</p>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <span class="text-xs text-gray-500 block">จำนวน:</span>
+                            <span class="text-sm font-bold text-gray-800">${amt} ${item.unit}</span>
+                        </div>
+                        <div>
+                            <span class="text-xs text-gray-500 block">โดย:</span>
+                            <span class="text-sm font-bold text-gray-800">${lastLog.performedBy}</span>
+                        </div>
+                        <div class="col-span-2 border-t border-red-100 pt-1 mt-1">
+                            <span class="text-xs text-gray-500 block">วันเวลาที่เบิก:</span>
+                            <span class="text-sm font-bold text-gray-800">${dateStr} น.</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // 3. Confirmation Dialog
+        const result = await Swal.fire({
+            title: 'ยืนยันการทำรายการเบิก?',
+            html: `
+                <div class="text-left font-sans">
+                    <p class="text-gray-600">คุณต้องการเข้าสู่หน้าจอการเบิกสินค้า: <b class="text-gray-900">${item.name}</b> ใช่หรือไม่?</p>
+                    <p class="text-xs text-gray-400 mt-1">*กรุณาตรวจสอบประวัติการเบิกล่าสุด เพื่อป้องกันการกดเบิกซ้ำซ้อน</p>
+                    ${lastInfoHtml}
+                </div>
+            `,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'ยืนยัน, ไปหน้าเบิก',
+            cancelButtonText: 'ยกเลิก',
+            confirmButtonColor: '#EF4444', // Red for withdrawal awareness
+            cancelButtonColor: '#9CA3AF',
+            reverseButtons: true
+        });
+
+        if (result.isConfirmed) {
+            setSelectedItem(item);
+            setIsAdjustModalOpen(true);
+        }
+    };
+
+    const handleBulkUpdateStock = (items: StockItem[]) => {
+        const updatedBy = currentUser?.username || 'System';
+        const timestamp = Date.now();
+        
+        const updatesMap = new Map(items.map(i => [i.id, i]));
+        
+        setStockItems(prev => prev.map(item => {
+            if (updatesMap.has(item.id)) {
+                const updatedItem = updatesMap.get(item.id)!;
+                // Log the order action
+                addLog(item, 'update', `ออกใบสั่งของ: จำนวน ${updatedItem.orderedQuantity} ${item.unit}`);
+                return {
+                    ...item,
+                    orderDate: updatedItem.orderDate,
+                    orderedQuantity: updatedItem.orderedQuantity,
+                    quantityBeforeOrder: item.quantity, // Save current quantity before this order
+                    orderedBy: updatedItem.orderedBy,
+                    lastUpdated: timestamp,
+                    lastUpdatedBy: updatedBy
+                };
+            }
+            return item;
+        }));
+        
+        Swal.fire({
+            icon: 'success',
+            title: 'อัปเดตสถานะการสั่งซื้อแล้ว',
+            toast: true,
+            position: 'top-end',
+            showConfirmButton: false,
+            timer: 2000
+        });
+    };
+
+    // Handler for Mobile PO Button
+    const handleMobilePO = () => {
+        setIsMobilePOMode(true);
+        setIsPurchaseOrderModalOpen(true);
+    };
+
+    // Smart Running Function: Find the first available gap in the sequence
+    const getNextTagId = (item: StockItem) => {
+        const itemTags = stockTags.filter(t => t.stockItemId === item.id);
+        const usedNumbers = new Set<number>();
+        
+        itemTags.forEach(tag => {
+            // Extract number from ID (Format: Name-XXX)
+            const parts = tag.id.split('-');
+            const lastPart = parts[parts.length - 1];
+            const num = parseInt(lastPart, 10);
+            if (!isNaN(num)) {
+                usedNumbers.add(num);
+            }
+        });
+
+        let nextNum = 1;
+        while (usedNumbers.has(nextNum)) {
+            nextNum++;
+        }
+        
+        return String(nextNum).padStart(3, '0');
+    };
+
+    const handleRegisterTag = async () => {
+        if (!selectedTagItem) return;
+
+        setIsWritingTag(true);
+        try {
+            // 1. Generate ID using Smart Running
+            const runningId = getNextTagId(selectedTagItem);
+            const tagDisplayId = `${selectedTagItem.name}-${runningId}`;
+
+            if ('NDEFReader' in window) {
+                try {
+                    const ndef = new (window as any).NDEFReader();
+                    await ndef.write(tagDisplayId);
+                    Swal.fire('สำเร็จ', `บันทึก Tag: ${tagDisplayId} เรียบร้อย`, 'success');
+                } catch (writeError) {
+                    console.error("NDEF Write Error:", writeError);
+                    throw writeError;
+                }
+            } else {
+                // Simulation for desktop/incompatible devices
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                Swal.fire('จำลอง', `(Simulation) บันทึก Tag: ${tagDisplayId} เรียบร้อย`, 'success');
+            }
+
+            // 2. Save to DB
+            const newTag: StockTag = {
+                id: tagDisplayId,
+                stockItemId: selectedTagItem.id,
+                stockItemName: selectedTagItem.name,
+                createdAt: Date.now(),
+                status: 'active'
+            };
+            
+            setStockTags(prev => [...prev, newTag]);
+            onCloseTagModal();
+            setSelectedTagItem(null);
+
+        } catch (error) {
+            console.error(error);
+            Swal.fire('ผิดพลาด', 'ไม่สามารถบันทึก Tag ได้ (ต้องใช้บน Android/Chrome หรืออุปกรณ์ที่รองรับ NFC)', 'error');
+        } finally {
+            setIsWritingTag(false);
+        }
+    };
+
+    const handleViewImage = (item: StockItem) => {
+        Swal.fire({
+            title: item.name,
+            text: item.category,
+            imageUrl: item.imageUrl || "https://placehold.co/400?text=No+Image",
+            imageWidth: 400,
+            imageHeight: 'auto',
+            imageAlt: item.name,
+            showConfirmButton: false,
+            showCloseButton: true,
+        });
+    };
+
+    const handleReceiveStock = async (item: StockItem) => {
+        const result = await Swal.fire({
+            title: `รับสินค้า: ${item.name}`,
+            html: `
+                <div class="flex flex-col gap-4 text-left">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">วันที่รับสินค้า</label>
+                        <input type="date" id="swal-receive-date" class="w-full px-3 py-2 border rounded-lg" value="${new Date().toISOString().split('T')[0]}">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">จำนวนที่รับ (${item.unit})</label>
+                        <input type="number" id="swal-receive-qty" class="w-full px-3 py-2 border rounded-lg" placeholder="ระบุจำนวน">
+                    </div>
+                </div>
+            `,
+            showCancelButton: true,
+            confirmButtonText: 'รับยอดครบ',
+            denyButtonText: 'รับยอดไม่ครบ',
+            showDenyButton: true,
+            confirmButtonColor: '#10B981',
+            denyButtonColor: '#F59E0B',
+            cancelButtonText: 'ยกเลิก',
+            preConfirm: () => {
+                const date = (document.getElementById('swal-receive-date') as HTMLInputElement).value;
+                const qty = (document.getElementById('swal-receive-qty') as HTMLInputElement).value;
+                if (!date || !qty) {
+                    Swal.showValidationMessage('กรุณากรอกข้อมูลให้ครบถ้วน');
+                    return false;
+                }
+                return { date, qty: Number(qty), status: 'complete' };
+            },
+            preDeny: () => {
+                const date = (document.getElementById('swal-receive-date') as HTMLInputElement).value;
+                const qty = (document.getElementById('swal-receive-qty') as HTMLInputElement).value;
+                if (!date || !qty) {
+                    Swal.showValidationMessage('กรุณากรอกข้อมูลให้ครบถ้วน');
+                    return false;
+                }
+                return { date, qty: Number(qty), status: 'incomplete' };
+            }
+        });
+
+        if (!result.isConfirmed && !result.isDenied) return;
+
+        const receivedData = result.value; 
+        if (!receivedData) return;
+
+        if (receivedData.status === 'incomplete') {
+             const { value: note } = await Swal.fire({
+                 title: 'บันทึกยอดไม่ครบ',
+                 input: 'textarea',
+                 inputLabel: 'ระบุสาเหตุ/จำนวนที่ขาด',
+                 inputPlaceholder: 'เช่น ขาดไป 2 กก. เพราะ...',
+                 showCancelButton: true,
+                 confirmButtonText: 'บันทึก',
+                 cancelButtonText: 'ยกเลิก',
+                 inputValidator: (value) => {
+                     if (!value) {
+                         return 'กรุณาระบุสาเหตุ';
+                     }
+                 }
+             });
+             
+             if (!note) return;
+             receivedData.note = note;
+        }
+
+        let newTotal = receivedData.qty;
+        let shouldMerge = false;
+
+        if (item.quantity > 0) {
+            newTotal = item.quantity + receivedData.qty;
+            const confirmMerge = await Swal.fire({
+                title: 'รวมยอดสินค้า?',
+                html: `
+                    <div class="text-left">
+                        <p>มีสินค้าเดิมอยู่: <b>${formatQty(item.quantity, item.unit)} ${item.unit}</b></p>
+                        <p>รับเพิ่ม: <b>${formatQty(receivedData.qty, item.unit)} ${item.unit}</b></p>
+                        <hr class="my-2">
+                        <p class="text-lg">ยอดรวมใหม่: <b class="text-blue-600">${formatQty(newTotal, item.unit)} ${item.unit}</b></p>
+                    </div>
+                `,
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: 'ใช่, รวมยอด',
+                cancelButtonText: 'ยกเลิก',
+                confirmButtonColor: '#3B82F6'
+            });
+
+            if (!confirmMerge.isConfirmed) return;
+            shouldMerge = true;
+        }
+
+        // Update Item
+        const updatedBy = currentUser?.username || 'System';
+        const timestamp = Date.now();
+
+        const updatedItem = {
+             ...item,
+             quantity: shouldMerge ? newTotal : receivedData.qty,
+             receivedDate: new Date(receivedData.date).getTime(),
+             lastReceivedQuantity: Number(receivedData.qty),
+             lastOrderedQuantity: Number(item.orderedQuantity) || 0,
+             orderedQuantity: Math.max(0, (Number(item.orderedQuantity) || 0) - Number(receivedData.qty)),
+             lastUpdated: timestamp,
+             lastUpdatedBy: updatedBy
+        };
+        
+        // Log the receive action
+        addLog(item, 'receive', `รับสินค้าเข้า: ${receivedData.qty} ${item.unit} (รวมยอด: ${shouldMerge ? 'ใช่' : 'ไม่'}) ${receivedData.note ? `หมายเหตุ: ${receivedData.note}` : ''}`);
+
+        setStockItems(prev => prev.map(i => i.id === item.id ? updatedItem : i));
+        Swal.fire('สำเร็จ', 'รับสินค้าเรียบร้อย', 'success');
+    };
+
+    const handleSaveItem = async (itemToSave: Omit<StockItem, 'id'> & { id?: number }) => {
+        let success = false;
+        const updatedBy = currentUser?.username || 'System';
+
+        try {
+            if (itemToSave.id) {
+                // ... existing update logic ...
+                const oldItem = stockItems.find(i => i.id === itemToSave.id);
+                if (oldItem) {
+                    const changes = [];
+                    if (oldItem.name !== itemToSave.name) changes.push(`ชื่อ: ${oldItem.name} -> ${itemToSave.name}`);
+                    if (oldItem.quantity !== Number(itemToSave.quantity)) changes.push(`คงเหลือ: ${oldItem.quantity} -> ${itemToSave.quantity}`);
+                    if (oldItem.reorderPoint !== Number(itemToSave.reorderPoint)) changes.push(`จุดสั่งซื้อ: ${oldItem.reorderPoint} -> ${itemToSave.reorderPoint}`);
+                    
+                    if (changes.length > 0) {
+                        addLog(oldItem, 'update', changes.join(', '));
+                    }
+                }
+
+                await functionsService.updateStockItem({
+                    itemId: itemToSave.id,
+                    name: itemToSave.name,
+                    category: itemToSave.category,
+                    unit: itemToSave.unit,
+                    reorderPoint: itemToSave.reorderPoint
+                });
+            } else {
+                // ... existing create logic ...
+                 await functionsService.addStockItem({
+                    name: itemToSave.name,
+                    category: itemToSave.category,
+                    quantity: itemToSave.quantity,
+                    unit: itemToSave.unit,
+                    reorderPoint: itemToSave.reorderPoint,
+                    branchId: 1 // Placeholder branch ID
+                });
+                
+                // Create a temporary item object for logging since we don't have the full ID yet
+                const tempItem = { ...itemToSave, id: 0 } as StockItem; 
+                addLog(tempItem, 'create', `สร้างสินค้าใหม่: ${itemToSave.name}, จำนวน: ${itemToSave.quantity}`);
+            }
+            success = true;
+        } catch (e: any) {
+            console.warn("Backend function for stock management failed or not implemented. Falling back to direct client-side DB write.", e);
+            setStockItems(prev => {
+                const safePrev = Array.isArray(prev) ? prev : [];
+                
+                const itemWithTimestamp = { 
+                    ...itemToSave, 
+                    lastUpdated: Date.now(),
+                    lastUpdatedBy: updatedBy
+                };
+                
+                if (itemToSave.id) {
+                    const oldItem = safePrev.find(i => i.id === itemToSave.id);
+                    if (oldItem) {
+                        const changes = [];
+                        if (oldItem.name !== itemToSave.name) changes.push(`ชื่อ: ${oldItem.name} -> ${itemToSave.name}`);
+                        if (oldItem.quantity !== Number(itemToSave.quantity)) changes.push(`คงเหลือ: ${oldItem.quantity} -> ${itemToSave.quantity}`);
+                        if (changes.length > 0) {
+                            addLog(oldItem, 'update', changes.join(', '));
+                        }
+                        
+                        // Check for PO sync
+                        const diff = Number(itemToSave.quantity) - (Number(oldItem.quantity) || 0);
+                        if (diff > 0 && (Number(oldItem.orderedQuantity) || 0) > 0) {
+                            itemWithTimestamp.lastReceivedQuantity = diff;
+                            itemWithTimestamp.receivedDate = Date.now();
+                            itemWithTimestamp.lastOrderedQuantity = Number(oldItem.orderedQuantity) || 0;
+                            itemWithTimestamp.orderedQuantity = Math.max(0, (Number(oldItem.orderedQuantity) || 0) - diff);
+                        }
+                    }
+                    return safePrev.map(i => i.id === itemToSave.id ? { ...i, ...itemWithTimestamp } as StockItem : i);
+                }
+                
+                const maxId = safePrev.reduce((max, item) => {
+                    const id = Number(item?.id);
+                    return !isNaN(id) ? Math.max(max, id) : max;
+                }, 0);
+                
+                const newId = maxId + 1;
+                
+                const newItem: StockItem = {
+                    id: newId,
+                    name: itemToSave.name || 'สินค้าใหม่',
+                    category: itemToSave.category || 'ทั่วไป',
+                    imageUrl: itemToSave.imageUrl || '',
+                    quantity: Number(itemToSave.quantity) || 0,
+                    unit: itemToSave.unit || 'ชิ้น',
+                    reorderPoint: Number(itemToSave.reorderPoint) || 0,
+                    withdrawalCount: 0, // Initialize withdrawal count
+                    lastUpdated: Date.now(),
+                    lastUpdatedBy: updatedBy,
+                    orderDate: itemToSave.orderDate,
+                    receivedDate: itemToSave.receivedDate
+                };
+                
+                addLog(newItem, 'create', `สร้างสินค้าใหม่: ${newItem.name}, จำนวน: ${newItem.quantity}`);
+                return [...safePrev, newItem];
+            });
+            success = true;
+        }
+        
+        if (success) {
+            setIsItemModalOpen(false);
+            Swal.fire({
+                toast: true,
+                position: 'top-end',
+                icon: 'success',
+                title: 'บันทึกข้อมูลสำเร็จ',
+                showConfirmButton: false,
+                timer: 1500
+            });
+        } else {
+            Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถบันทึกข้อมูลได้', 'error');
+        }
+    };
+
+    const handleAdjustStock = async (itemToAdjust: StockItem, adjustment: number) => {
+        // Safety check: Prevent withdrawing more than available
+        if (adjustment < 0 && (itemToAdjust.quantity + adjustment) < 0) {
+            Swal.fire({
+                icon: 'error',
+                title: 'จำนวนไม่เพียงพอ',
+                text: `ไม่สามารถเบิกสินค้าได้เนื่องจากยอดที่เบิก (${Math.abs(adjustment)}) มากกว่าจำนวนคงเหลือที่มีอยู่ (${itemToAdjust.quantity})`,
+                confirmButtonText: 'ตกลง',
+                confirmButtonColor: '#EF4444'
+            });
+            return;
+        }
+
+        let success = false;
+        const updatedBy = currentUser?.username || 'System';
+        
+        // Key for current month's stats (e.g., "2023-10")
+        const currentMonthKey = new Date().toISOString().slice(0, 7);
+
+        try {
+            await functionsService.adjustStockQuantity({
+                itemId: itemToAdjust.id,
+                adjustment: adjustment
+            });
+            
+            const action = adjustment > 0 ? 'receive' : 'adjust'; // Positive is receive/restock, negative is adjust/withdraw
+            const typeText = adjustment > 0 ? 'รับเข้า' : 'เบิกออก';
+            addLog(itemToAdjust, action, `ปรับสต็อก (${typeText}): ${adjustment} ${itemToAdjust.unit} (คงเหลือ: ${itemToAdjust.quantity} -> ${itemToAdjust.quantity + adjustment})`);
+
+            success = true;
+        } catch (e: any) {
+             console.warn("Backend function for stock adjustment failed or not implemented. Falling back to direct client-side DB write.", e);
+             
+             setStockItems(prev => prev.map(i => {
+                if (i.id !== itemToAdjust.id) return i;
+
+                let newWithdrawalCount = i.withdrawalCount || 0;
+                let newMonthlyWithdrawals = { ...(i.monthlyWithdrawals || {}) };
+
+                if (adjustment < 0) {
+                    // WITHDRAWAL: Increment count AND history
+                    newWithdrawalCount = newWithdrawalCount + 1;
+                    const currentMonthCount = newMonthlyWithdrawals[currentMonthKey] || 0;
+                    newMonthlyWithdrawals[currentMonthKey] = currentMonthCount + 1;
+                } else if (adjustment > 0) {
+                    // RESTOCK (ADD): Reset cycle count to 0 (Keep history intact)
+                    newWithdrawalCount = 0;
+                }
+                
+                // Log inside the fallback as well
+                const action = adjustment > 0 ? 'receive' : 'adjust';
+                const typeText = adjustment > 0 ? 'รับเข้า' : 'เบิกออก';
+                addLog(i, action, `ปรับสต็อก (${typeText}): ${adjustment} ${i.unit} (คงเหลือ: ${i.quantity} -> ${i.quantity + adjustment})`);
+
+                const isManualReceiptForOrder = adjustment > 0 && (Number(i.orderedQuantity) || 0) > 0;
+
+                return { 
+                    ...i, 
+                    quantity: (Number(i.quantity) || 0) + adjustment, 
+                    withdrawalCount: newWithdrawalCount,
+                    monthlyWithdrawals: newMonthlyWithdrawals,
+                    lastUpdated: Date.now(),
+                    lastUpdatedBy: updatedBy,
+                    ...(isManualReceiptForOrder ? {
+                        lastReceivedQuantity: adjustment,
+                        receivedDate: Date.now(),
+                        lastOrderedQuantity: Number(i.orderedQuantity) || 0,
+                        orderedQuantity: Math.max(0, (Number(i.orderedQuantity) || 0) - adjustment)
+                    } : {})
+                };
+            }));
+            success = true;
+        }
+
+        if (success) {
+            setIsAdjustModalOpen(false);
+            const actionText = adjustment > 0 ? 'รับเข้า' : 'นำออก';
+            Swal.fire({
+                toast: true,
+                position: 'top-end',
+                icon: 'success',
+                title: `ปรับสต็อก (${actionText}) เรียบร้อย`,
+                showConfirmButton: false,
+                timer: 1500
+            });
+        } else {
+             Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถปรับสต็อกได้', 'error');
+        }
+    };
+
+    const handleDeleteItem = async (itemId: number) => {
+        if (!canDelete) {
+            Swal.fire('ไม่มีสิทธิ์', 'คุณไม่มีสิทธิ์ลบรายการสินค้า', 'error');
+            return;
+        }
+
+        Swal.fire({
+            title: 'คุณแน่ใจหรือไม่?',
+            text: "คุณกำลังจะลบรายการนี้ออกจากสต็อก",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            confirmButtonText: 'ใช่, ลบเลย',
+            cancelButtonText: 'ยกเลิก'
+        }).then(async (result) => {
+            if (result.isConfirmed) {
+                let success = false;
+                try {
+                    // Try to use the backend function, this will likely fail if itemId is empty/NaN
+                    if (itemId && !Number.isNaN(Number(itemId))) {
+                        await functionsService.deleteStockItem({ itemId }).catch(e => {
+                            console.warn("Backend function failed, ignoring.", e);
+                        });
+                    }
+                    
+                    const itemToDelete = stockItems.find(i => 
+                        Number.isNaN(Number(itemId)) ? Number.isNaN(Number(i.id)) : i.id === itemId
+                    );
+                    if (itemToDelete) {
+                        addLog(itemToDelete, 'delete', `ลบสินค้า: ${itemToDelete.name || 'ไม่มีชื่อรายการ'}`);
+                    }
+                    setStockItems(prev => prev.filter(item => 
+                        Number.isNaN(Number(itemId)) ? !Number.isNaN(Number(item.id)) : item.id !== itemId
+                    ));
+                    success = true;
+                } catch (e: any) {
+                    console.warn("Stock deletion error.", e);
+                }
+
+                if (success) {
+                    Swal.fire('ลบแล้ว!', 'รายการถูกลบออกจากสต็อกแล้ว', 'success');
+                } else {
+                    Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถลบรายการได้', 'error');
+                }
+            }
+        });
+    };
+
+    const getStatus = (item: StockItem) => {
+        const qty = Number(item.quantity) || 0;
+        const reorder = Number(item.reorderPoint) || 0;
+        
+        if (qty <= 0) return { text: 'หมด', color: 'bg-red-100 text-red-700 border-red-200' };
+        if (qty <= reorder) return { text: 'ใกล้หมด', color: 'bg-yellow-100 text-yellow-800 border-yellow-200' };
+        return { text: 'มีของ', color: 'bg-green-100 text-green-700 border-green-200' };
+    };
+
+    const getMobileCardStyle = (item: StockItem) => {
+        const qty = Number(item.quantity) || 0;
+        const reorder = Number(item.reorderPoint) || 0;
+        
+        if (qty <= 0) return 'bg-red-50 border-l-4 border-red-500 shadow-sm';
+        if (qty <= reorder) return 'bg-yellow-50 border-l-4 border-yellow-500 shadow-sm';
+        return 'bg-white border-l-4 border-green-500 shadow-sm';
+    };
+
+    const getRowStyle = (item: StockItem) => {
+        const qty = Number(item.quantity) || 0;
+        const reorder = Number(item.reorderPoint) || 0;
+        
+        if (qty <= 0) return 'bg-red-50 border-red-200 hover:bg-red-100';
+        if (qty <= reorder) return 'bg-yellow-50 border-yellow-200 hover:bg-yellow-100';
+        return 'border-gray-100 hover:bg-blue-50/30';
+    };
+
+    const formatQty = (qty: any, unit: string | undefined) => {
+        const val = Number(qty);
+        const safeVal = isNaN(val) ? 0 : val;
+        
+        if (unit === 'กิโลกรัม') {
+            return safeVal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+        return safeVal.toLocaleString();
+    };
+
+    const formatDate = (timestamp?: number) => {
+        if (!timestamp) return '-';
+        return new Date(timestamp).toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: '2-digit' });
+    };
+
+    const handlePrintKitchen = () => {
+        const printWindow = window.open('', '_blank');
+        if (!printWindow) {
+            Swal.fire('Error', 'กรุณาอนุญาตให้แสดง Popup เพื่อพิมพ์', 'error');
+            return;
+        }
+
+        const now = new Date();
+        const dateStr = now.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' });
+        const timeStr = now.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+
+        let html = `
+            <html>
+            <head>
+                <title>พิมพ์รายการสั่งของ</title>
+                <style>
+                    @page { margin: 0; size: 80mm auto; }
+                    body { 
+                        font-family: 'Sarabun', sans-serif; 
+                        width: 80mm; 
+                        margin: 0; 
+                        padding: 10px; 
+                        font-size: 14px;
+                        color: #000;
+                    }
+                    .text-center { text-align: center; }
+                    .font-bold { font-weight: bold; }
+                    .mb-2 { margin-bottom: 8px; }
+                    .flex { display: flex; justify-content: space-between; }
+                    .border-b { border-bottom: 1px dashed #000; padding-bottom: 4px; margin-bottom: 4px; }
+                    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+                    th, td { text-align: left; padding: 4px 0; vertical-align: top; }
+                    th { border-bottom: 1px solid #000; }
+                    .qty { text-align: right; width: 30%; }
+                </style>
+            </head>
+            <body>
+                <div class="text-center font-bold mb-2" style="font-size: 18px;">รายการสั่งของ</div>
+                <div class="flex mb-2">
+                    <span>วันที่: ${dateStr}</span>
+                    <span>เวลา: ${timeStr}</span>
+                </div>
+                <div class="border-b">ผู้พิมพ์: ${currentUser?.username || 'System'}</div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>รายการ</th>
+                            <th class="qty">จำนวน</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+
+        filteredItems.forEach(item => {
+            const qty = item.orderedQuantity || '-';
+            const unit = item.unit || '';
+            html += `
+                <tr>
+                    <td>${item.name}</td>
+                    <td class="qty">${qty} ${unit}</td>
+                </tr>
+            `;
+        });
+
+        html += `
+                    </tbody>
+                </table>
+                <div class="text-center" style="margin-top: 20px; border-top: 1px dashed #000; padding-top: 10px;">
+                    --- สิ้นสุดรายการ ---
+                </div>
+                <script>
+                    window.onload = function() { window.print(); window.close(); }
+                </script>
+            </body>
+            </html>
+        `;
+
+        printWindow.document.write(html);
+        printWindow.document.close();
+    };
+
+    const handleExport = () => {
+        const dataToExport = stockItems.map(item => ({
+            'id': item.id,
+            'ชื่อวัตถุดิบ': item.name,
+            'รูปภาพ (URL)': item.imageUrl || '',
+            'ก่อนสั่ง': item.quantityBeforeOrder || 0,
+            'จำนวนเริ่มต้น': item.quantity,
+            'จำนวนสั่ง': item.orderedQuantity || 0,
+            'หมวดหมู่': item.category,
+            'หน่วยนับ': item.unit,
+            'จุดสั่งซื้อขั้นต่ำ': item.reorderPoint,
+            'วันที่สั่งของ': item.orderDate ? new Date(item.orderDate).toISOString().split('T')[0] : '',
+            'วันที่รับของ': item.receivedDate ? new Date(item.receivedDate).toISOString().split('T')[0] : '',
+            'แก้ไขล่าสุดโดย': item.lastUpdatedBy || '-',
+            'เวลาแก้ไขล่าสุด': new Date(item.lastUpdated).toLocaleString('th-TH'),
+        }));
+
+        const ws = XLSX.utils.json_to_sheet(dataToExport);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'StockData');
+        XLSX.writeFile(wb, 'stock_data.xlsx');
+    };
+
+    const handleExportLogs = () => {
+        if (stockLogs.length === 0) {
+            Swal.fire('ไม่มีข้อมูล', 'ยังไม่มีประวัติการแก้ไข', 'info');
+            return;
+        }
+
+        const sortedLogs = [...stockLogs].sort((a, b) => b.timestamp - a.timestamp);
+
+        const dataToExport = sortedLogs.map(log => {
+            let actionType = 'อื่นๆ';
+            if (log.action === 'create') actionType = 'สร้างใหม่ (Create)';
+            else if (log.action === 'update') actionType = 'แก้ไข (Update)';
+            else if (log.action === 'delete') actionType = 'ลบ (Delete)';
+            else if (log.action === 'receive') actionType = 'รับของ (Receive)';
+            else if (log.action === 'adjust') actionType = 'ปรับสต็อก (Adjust)';
+            else if (log.action === 'ignore') actionType = 'ปฏิเสธ/เคลียร์รายการสั่งของ (Ignore)';
+
+            return {
+                'วันที่/เวลา': new Date(log.timestamp).toLocaleString('th-TH'),
+                'ผู้ทำรายการ': log.performedBy,
+                'สินค้า': log.stockItemName,
+                'ประเภทการกระทำ': actionType,
+                'รายละเอียดการเปลี่ยนแปลง': log.changeDetails
+            };
+        });
+
+        const ws = XLSX.utils.json_to_sheet(dataToExport);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'AuditLogs');
+        XLSX.writeFile(wb, `stock_audit_log_${new Date().toISOString().slice(0,10)}.xlsx`);
+    };
+
+    const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            try {
+                const data = event.target?.result;
+                const workbook = XLSX.read(data, { type: 'binary' });
+                const sheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[sheetName];
+                const json: any[] = XLSX.utils.sheet_to_json(worksheet);
+
+                const expectedHeaders = ['id', 'ชื่อวัตถุดิบ', 'รูปภาพ (URL)', 'ก่อนสั่ง', 'จำนวนเริ่มต้น', 'จำนวนสั่ง', 'หมวดหมู่', 'หน่วยนับ', 'จุดสั่งซื้อขั้นต่ำ', 'วันที่สั่งของ', 'วันที่รับของ'];
+                if (json.length > 0) {
+                    const keys = Object.keys(json[0]);
+                    const missing = expectedHeaders.filter(h => !keys.includes(h));
+                    if (missing.length > 0) {
+                         Swal.fire({
+                            icon: 'error',
+                            title: 'รูปแบบไฟล์ไม่ถูกต้อง',
+                            text: `ไม่พบคอลัมน์: ${missing.join(', ')} กรุณาใช้ไฟล์ที่ Export จากระบบ`,
+                        });
+                        if (fileInputRef.current) fileInputRef.current.value = '';
+                        return;
+                    }
+                }
+
+                const newStockItemsMap = new Map<number, StockItem>();
+                const importUser = currentUser?.username || 'Import';
+                
+                for (const row of json) {
+                    const id = Number(row.id);
+                    const quantity = Number(row['จำนวนเริ่มต้น']);
+                    const quantityBeforeOrder = Number(row['ก่อนสั่ง']);
+                    const orderedQuantity = Number(row['จำนวนสั่ง']);
+                    const reorderPoint = Number(row['จุดสั่งซื้อขั้นต่ำ']);
+
+                    if (isNaN(id) || !row['ชื่อวัตถุดิบ'] || !row['หน่วยนับ']) {
+                        console.warn('Skipping invalid row:', row);
+                        continue;
+                    }
+
+                    // Handle dates safely
+                    const parseDate = (val: any) => {
+                        if (!val) return undefined;
+                        const d = new Date(val);
+                        return isNaN(d.getTime()) ? undefined : d.getTime();
+                    };
+
+                    newStockItemsMap.set(id, {
+                        id: id,
+                        name: String(row['ชื่อวัตถุดิบ']),
+                        category: String(row['หมวดหมู่']),
+                        quantity: isNaN(quantity) ? 0 : quantity,
+                        unit: String(row['หน่วยนับ']),
+                        reorderPoint: isNaN(reorderPoint) ? 0 : reorderPoint,
+                        orderedQuantity: isNaN(orderedQuantity) ? 0 : orderedQuantity,
+                        quantityBeforeOrder: isNaN(quantityBeforeOrder) ? undefined : quantityBeforeOrder,
+                        unitPrice: 0, // No longer using unit price from Excel
+                        orderDate: parseDate(row['วันที่สั่งของ']),
+                        receivedDate: parseDate(row['วันที่รับของ']),
+                        withdrawalCount: 0, 
+                        imageUrl: row['รูปภาพ (URL)'] ? String(row['รูปภาพ (URL)']) : '',
+                        lastUpdated: Date.now(),
+                        lastUpdatedBy: importUser
+                    });
+                }
+                
+                setStockItems(prevItems => {
+                    const updatedItemsMap = new Map(prevItems.map(item => [item.id, item]));
+                    newStockItemsMap.forEach((value, key) => {
+                        updatedItemsMap.set(key, value);
+                    });
+                    return Array.from(updatedItemsMap.values());
+                });
+
+                Swal.fire('สำเร็จ', `นำเข้าและอัปเดตข้อมูลสต็อก ${newStockItemsMap.size} รายการเรียบร้อยแล้ว`, 'success');
+
+            } catch (error) {
+                 Swal.fire({
+                    icon: 'error',
+                    title: 'เกิดข้อผิดพลาดในการนำเข้า',
+                    text: error instanceof Error ? error.message : 'ไม่สามารถอ่านไฟล์ได้',
+                });
+            } finally {
+                if (fileInputRef.current) fileInputRef.current.value = '';
+            }
+        };
+        reader.readAsBinaryString(file);
+    };
+
+    return (
+        <>
+            <div className="h-full w-full flex flex-col bg-gray-50">
+                <header className="p-4 sm:p-6 border-b border-gray-200 bg-white flex-shrink-0 shadow-sm z-10">
+                    <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
+                        <div className="flex justify-between items-center w-full md:w-auto flex-shrink-0">
+                            <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 whitespace-nowrap">จัดการสต็อกสินค้า</h1>
+                            {/* Mobile Action Buttons */}
+                            <div className="lg:hidden flex gap-2 ml-2">
+                                <button onClick={() => setIsBulkReceiveOpen(true)} className="px-3 py-2 bg-orange-600 text-white font-semibold rounded-lg hover:bg-orange-700 text-sm flex items-center gap-2 shadow-sm transition-all active:scale-95">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                                    </svg>
+                                    <span>ตรวจรับ</span>
+                                </button>
+                                <button onClick={handleMobilePO} className="px-3 py-2 bg-orange-500 text-white font-semibold rounded-lg hover:bg-orange-600 text-sm flex items-center gap-2 shadow-sm transition-all active:scale-95">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                                    <span>ออกใบสั่ง</span>
+                                </button>
+                            </div>
+                        </div>
+                        {/* Hidden on mobile and tablet vertical (< 1024px), shown on desktop */}
+                        <div className="hidden lg:flex flex-wrap items-center justify-end gap-2 flex-1">
+                            <input
+                                type="file"
+                                ref={fileInputRef}
+                                onChange={handleImport}
+                                className="hidden"
+                                accept=".xlsx, .xls"
+                            />
+                            <button onClick={() => { setIsMobilePOMode(false); setIsPurchaseOrderModalOpen(true); }} className="px-4 py-2 bg-orange-500 text-white font-semibold rounded-lg hover:bg-orange-600 whitespace-nowrap text-sm flex items-center gap-2 shadow transition-all hover:shadow-md">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>
+                                ออกรายการสั่งของ
+                            </button>
+
+                            <button onClick={() => setIsBulkReceiveOpen(true)} className="px-4 py-2 bg-orange-600 text-white font-semibold rounded-lg hover:bg-orange-700 whitespace-nowrap text-sm shadow transition-all hover:shadow-md flex items-center gap-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                                </svg>
+                                ตรวจรับสินค้า
+                            </button>
+
+                            <button onClick={handleExport} className="px-4 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 whitespace-nowrap text-sm shadow transition-all hover:shadow-md">
+                                Export Excel
+                            </button>
+                            {currentUser?.role === 'admin' && (
+                                <button onClick={handleExportLogs} className="px-4 py-2 bg-teal-600 text-white font-semibold rounded-lg hover:bg-teal-700 whitespace-nowrap text-sm shadow transition-all hover:shadow-md flex items-center gap-2">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                    </svg>
+                                    Export ประวัติ
+                                </button>
+                            )}
+                             <button onClick={() => fileInputRef.current?.click()} className="px-4 py-2 bg-purple-600 text-white font-semibold rounded-lg hover:bg-purple-700 whitespace-nowrap text-sm shadow transition-all hover:shadow-md">
+                                Import Excel
+                            </button>
+                            <button onClick={() => handleOpenItemModal(null)} className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 whitespace-nowrap text-sm shadow transition-all hover:shadow-md">
+                                + เพิ่มรายการ
+                            </button>
+                            <div className="flex flex-col">
+                                <IngredientPriceUpload onUpload={(data, filename) => {
+                                    setLatestIngredientPrices(data);
+                                    setLatestImportFilename(filename);
+                                }} />
+                                {latestImportFilename && (
+                                    <div className="flex items-center gap-1 mt-1 px-2 py-0.5 bg-blue-50 border border-blue-100 rounded text-[10px] text-blue-600 font-bold whitespace-nowrap">
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                        </svg>
+                                        SYNCED: {latestImportFilename}
+                                    </div>
+                                )}
+                            </div>
+                            <button onClick={onOpenTagModal} className="px-4 py-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 whitespace-nowrap text-sm shadow transition-all hover:shadow-md flex items-center gap-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>
+                                🏷️ ลงทะเบียน Tag
+                            </button>
+                        </div>
+                    </div>
+                     <div className="mt-4 flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+                        {/* Container for Search (Mobile: Full Width, Desktop: Side-by-side) */}
+                        <div className="flex w-full sm:w-auto gap-3">
+                            <div className="relative flex-grow sm:w-80">
+                                <span className="absolute inset-y-0 left-0 flex items-center pl-3">
+                                    <svg className="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" /></svg>
+                                </span>
+                                <input
+                                    type="text"
+                                    placeholder="ค้นหาวัตถุดิบ..."
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    className="w-full pl-10 pr-12 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-900 shadow-sm"
+                                />
+                                <button
+                                    onClick={() => setIsKeyboardOpen(!isKeyboardOpen)}
+                                    className={`absolute inset-y-0 right-0 flex items-center pr-3 transition-colors ${isKeyboardOpen ? 'text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
+                                    title="เปิดคีย์บอร์ด"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                                    </svg>
+                                </button>
+                            </div>
+                            
+                            {isKeyboardOpen && (
+                                <ThaiVirtualKeyboard
+                                    onKeyPress={(key) => setSearchTerm(prev => prev + key)}
+                                    onBackspace={() => setSearchTerm(prev => prev.slice(0, -1))}
+                                    onClear={() => setSearchTerm('')}
+                                    onClose={() => setIsKeyboardOpen(false)}
+                                />
+                            )}
+                        </div>
+
+                        {/* Mobile Filters & Sorting - Side by Side (Mobile Only) */}
+                        <div className="sm:hidden flex w-full gap-2">
+                            {/* Mobile Category Dropdown */}
+                            <div className="flex-1 relative">
+                                <select
+                                    value={selectedCategory}
+                                    onChange={(e) => setSelectedCategory(e.target.value)}
+                                    className="w-full pl-3 pr-8 py-2 border border-gray-300 rounded-lg bg-white text-gray-700 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm appearance-none shadow-sm"
+                                >
+                                    <option value="ทั้งหมด">หมวดหมู่: ทั้งหมด</option>
+                                    <option value="รายการสั่งของ">รายการสั่งของ</option>
+                                    {stockCategories.filter(c => c !== 'ทั้งหมด').map(category => (
+                                        <option key={category} value={category}>{category}</option>
+                                    ))}
+                                </select>
+                                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-500">
+                                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                                </div>
+                            </div>
+
+                            {/* Mobile Sort Dropdown */}
+                            <div className="flex-1 relative">
+                                <select
+                                    value={sortConfig.key}
+                                    onChange={(e) => handleSort(e.target.value)}
+                                    className="w-full pl-3 pr-8 py-2 border border-gray-300 rounded-lg bg-white text-gray-700 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm appearance-none shadow-sm"
+                                >
+                                    <option value="default">เรียงตามปกติ</option>
+                                    <option value="lastUpdated">เรียงตามแก้ไขล่าสุด</option>
+                                    <option value="orderDate">เรียงตามวันที่สั่ง</option>
+                                    <option value="receivedDate">เรียงตามวันที่รับ</option>
+                                </select>
+                                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-500">
+                                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                                </div>
+                            </div>
+
+                            {/* Reset Button (Small icon on mobile to save space) */}
+                            {sortConfig.key !== 'default' && (
+                                <button 
+                                    onClick={() => handleSort('default')}
+                                    className="flex-shrink-0 p-2 bg-red-50 text-red-600 border border-red-100 rounded-lg flex items-center justify-center shadow-sm active:scale-95 transition-all"
+                                    title="รีเซ็ตการเรียง"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                </button>
+                            )}
+                        </div>
+
+                        {/* Desktop Category Buttons - Hidden on mobile */}
+                        <div className="hidden sm:flex items-center gap-2 flex-wrap">
+                            <button
+                                onClick={() => setSelectedCategory('ทั้งหมด')}
+                                className={`px-4 py-1.5 rounded-full text-sm font-semibold transition-all ${selectedCategory === 'ทั้งหมด' ? 'bg-blue-600 text-white shadow-md' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300'}`}
+                            >
+                                ทั้งหมด
+                            </button>
+                            <button
+                                onClick={() => setSelectedCategory('รายการสั่งของ')}
+                                className={`px-4 py-1.5 rounded-full text-sm font-semibold transition-all ${selectedCategory === 'รายการสั่งของ' ? 'bg-purple-600 text-white shadow-md' : 'bg-white border border-purple-200 text-purple-600 hover:bg-purple-50 hover:border-purple-300'}`}
+                            >
+                                รายการสั่งของ
+                            </button>
+                            {stockCategories.filter(c => c !== 'ทั้งหมด').map(category => (
+                                <button
+                                    key={category}
+                                    onClick={() => setSelectedCategory(category)}
+                                    className={`px-4 py-1.5 rounded-full text-sm font-semibold transition-all ${selectedCategory === category ? 'bg-blue-600 text-white shadow-md' : 'bg-blue-50 border border-blue-100 text-blue-600 hover:bg-blue-100 hover:border-blue-200'}`}
+                                >
+                                    {category}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </header>
+
+                {/* Content Area */}
+                <div className="flex-1 flex flex-col min-h-0 p-4 md:p-6">
+                    {/* Main Tabs */}
+                    <div className="flex border-b border-gray-100 mb-6 bg-white rounded-xl shadow-sm overflow-hidden p-1 gap-1">
+                        <button 
+                            onClick={() => setActiveTab('inventory')}
+                            className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-lg font-bold text-sm transition-all ${activeTab === 'inventory' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'}`}
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
+                            รายการคลังสินค้า
+                        </button>
+                        <button 
+                            onClick={() => setActiveTab('comparison')}
+                            className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-lg font-bold text-sm transition-all ${activeTab === 'comparison' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'}`}
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+                            เปรียบเทียบราคา (Manual)
+                        </button>
+                    </div>
+
+                    {activeTab === 'inventory' ? (
+                        <>
+                            {/* Desktop Header Layout - Simplified as requested */}
+                            <div className="hidden md:grid grid-cols-12 gap-4 px-8 py-3 text-sm font-bold text-gray-500 items-center">
+                                <div className="col-span-8"></div>
+                                <div className="col-span-2 text-center relative" ref={sortMenuRef}>
+                                    <button 
+                                        onClick={() => setIsSortMenuOpen(!isSortMenuOpen)}
+                                        className={`flex items-center justify-center gap-2 w-full transition-colors ${sortConfig.key !== 'default' ? 'text-blue-600' : 'hover:text-blue-600'}`}
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002-2z" /></svg>
+                                        <span className="text-sm font-bold">{getSortLabel()}</span>
+                                        <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 transition-transform ${isSortMenuOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+                                        </svg>
+                                    </button>
+                                    {isSortMenuOpen && (
+                                        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-64 bg-white rounded-2xl shadow-2xl border border-gray-100 z-50 overflow-hidden font-sans">
+                                            <div className="p-2 space-y-1">
+                                                <button onClick={() => handleSort('lastUpdated')} className={`flex items-center w-full px-4 py-3 text-sm font-bold rounded-xl transition-all ${sortConfig.key === 'lastUpdated' ? 'bg-blue-50 text-blue-600' : 'text-gray-700 hover:bg-gray-50'}`}>
+                                                    เรียงตามแก้ไขล่าสุด
+                                                </button>
+                                                <button onClick={() => handleSort('orderDate')} className={`flex items-center w-full px-4 py-3 text-sm font-bold rounded-xl transition-all ${sortConfig.key === 'orderDate' ? 'bg-blue-50 text-blue-600' : 'text-gray-700 hover:bg-gray-50'}`}>
+                                                    เรียงตามวันที่สั่ง
+                                                </button>
+                                                <button onClick={() => handleSort('receivedDate')} className={`flex items-center w-full px-4 py-3 text-sm font-bold rounded-xl transition-all ${sortConfig.key === 'receivedDate' ? 'bg-blue-50 text-blue-600' : 'text-gray-700 hover:bg-gray-50'}`}>
+                                                    เรียงตามวันที่รับ
+                                                </button>
+                                                <div className="h-px bg-gray-100 my-1 mx-2"></div>
+                                                <button onClick={() => handleSort('default')} className="flex items-center w-full px-4 py-3 text-sm font-bold text-red-600 hover:bg-red-50 rounded-xl transition-all">
+                                                    รีเซ็ตการเรียง
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="col-span-2 text-right pr-4 text-sm font-bold">สต็อกคงเหลือ</div>
+                            </div>
+
+                            <div className="hidden md:flex flex-1 flex-col overflow-y-auto space-y-4 pt-1 pb-10 px-1">
+                                {filteredItems.length > 0 ? filteredItems.map((item, index) => {
+                                    if (!item) return null;
+                                    const status = getStatus(item);
+                                    const isLowStock = Number(item.quantity) <= Number(item.reorderPoint);
+                                    
+                                    return (
+                                        <div key={`desktop-stock-${item.id}-${index}`} className={`grid grid-cols-12 gap-4 px-6 py-5 items-center bg-white rounded-[2rem] shadow-sm border border-gray-100 hover:shadow-xl hover:border-blue-300 transition-all duration-500 group relative ${getRowStyle(item)}`}>
+                                            
+                                            {/* Section 1: Identity & Metadata (cols 1-3) */}
+                                            <div className="col-span-3 flex items-center gap-4">
+                                                <div className="relative shrink-0">
+                                                    <img 
+                                                        src={item.imageUrl || "https://placehold.co/100?text=No+Image"} 
+                                                        alt={item.name} 
+                                                        className="w-16 h-16 object-cover rounded-2xl border-2 border-gray-50 shadow-sm cursor-pointer group-hover:scale-110 transition-transform duration-500" 
+                                                        onClick={() => handleViewImage(item)}
+                                                        onError={(e) => e.currentTarget.src = "https://placehold.co/100?text=Error"} 
+                                                    />
+                                                    <div className="absolute -top-2 -left-2 w-7 h-7 bg-white border border-gray-100 text-gray-900 text-xs flex items-center justify-center rounded-xl font-black shadow-md z-10">
+                                                        {index + 1}
+                                                    </div>
+                                                </div>
+                                                <div className="min-w-0 flex-1">
+                                                    <div className="font-black text-gray-900 text-xl leading-normal mb-1" title={item.name}>
+                                                        {item.name || <span className="text-gray-400 font-medium italic text-sm">ไม่มีชื่อรายการ</span>}
+                                                    </div>
+                                                    <div className="flex flex-wrap items-center gap-2">
+                                                        <span className="px-2 py-0.5 text-[9px] font-black rounded-md bg-gray-50 text-gray-400 border border-gray-100 uppercase tracking-wider">
+                                                            {item.category || '-'}
+                                                        </span>
+                                                        <span className={`px-2 py-0.5 text-[9px] font-black rounded-md border shadow-xs uppercase tracking-wider ${status.color}`}>
+                                                            {status.text}
+                                                        </span>
+                                                        
+                                                        {/* Floating Inline Actions for quick access */}
+                                                        <div className="flex gap-1 ml-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                            <button onClick={() => handleOpenItemModal(item)} className="p-1 text-blue-500 hover:bg-blue-50 rounded-md transition-colors" title="แก้ไข">
+                                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L15.232 5.232z" /></svg>
+                                                            </button>
+                                                            {canDelete && (
+                                                                <button onClick={() => handleDeleteItem(item.id)} className="p-1 text-red-500 hover:bg-red-50 rounded-md transition-colors" title="ลบรายการนี้">
+                                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            
+                                            {/* Section 2: Order Metrics Detail (cols 4-8) */}
+                                            <div className="col-span-5 px-4">
+                                                <div className="flex items-center bg-gray-50/50 rounded-2xl p-3 border border-gray-100/50 backdrop-blur-sm">
+                                                    <div className="flex-1 text-center">
+                                                        <div className="text-[10px] text-gray-400 font-black uppercase mb-1 tracking-tighter">ก่อนสั่ง</div>
+                                                        <div className="text-sm font-black text-gray-800">{item.quantityBeforeOrder !== undefined ? formatQty(item.quantityBeforeOrder, item.unit) : '-'}</div>
+                                                    </div>
+                                                    <div className="h-8 w-px bg-gray-200 mx-2"></div>
+                                                    <div className="flex-1 text-center">
+                                                        <div className="text-[10px] text-blue-500 font-black uppercase mb-1 tracking-tighter">จำนวนสั่ง</div>
+                                                        <div className="text-base font-black text-blue-700">{item.orderedQuantity || '-'} <span className="text-[10px] text-blue-400">{item.unit}</span></div>
+                                                    </div>
+                                                    <div className="h-8 w-px bg-gray-200 mx-2"></div>
+                                                    <div className="flex-1 text-center">
+                                                        <div className="text-[10px] text-gray-400 font-black uppercase mb-1 tracking-tighter">ผู้สั่งซื้อ</div>
+                                                        <div className="text-xs font-bold text-gray-600 truncate px-1">{item.orderedBy || '-'}</div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            
+                                            {/* Section 3: Timeline (cols 9-10) */}
+                                            <div className="col-span-2">
+                                                <div className="flex flex-col gap-1.5 bg-blue-50/30 p-2.5 rounded-xl border border-blue-100/30">
+                                                    <div className="flex items-center justify-between">
+                                                        <span className="text-[9px] font-black text-blue-400 uppercase">สั่ง:</span>
+                                                        <span className="text-xs font-black text-gray-700">{formatDate(item.orderDate)}</span>
+                                                    </div>
+                                                    <div className="flex items-center justify-between border-t border-blue-100/50 pt-1.5">
+                                                        <span className="text-[9px] font-black text-blue-400 uppercase">รับ:</span>
+                                                        <span className="text-xs font-black text-blue-600">{formatDate(item.receivedDate)}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            
+                                            {/* Section 4: Inventory & Quick Adjust (cols 11-12) */}
+                                            <div className="col-span-2 flex items-center justify-end gap-4 pl-4">
+                                                <div className="text-right">
+                                                    <div className="flex flex-col items-end">
+                                                        <div className="flex items-baseline gap-1.5">
+                                                            <span className={`text-2xl font-black tracking-tighter ${isLowStock ? 'text-red-600' : 'text-gray-900'}`}>
+                                                                {formatQty(item.quantity, item.unit)}
+                                                            </span>
+                                                            <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{item.unit}</span>
+                                                        </div>
+                                                        <div className="w-24 bg-gray-100 h-2 rounded-full mt-1.5 overflow-hidden flex border border-gray-50 shadow-inner">
+                                                            <div 
+                                                                className={`h-full transition-all duration-1000 ${isLowStock ? 'bg-gradient-to-r from-red-500 to-orange-400 animate-pulse' : 'bg-gradient-to-r from-emerald-500 to-teal-400'}`} 
+                                                                style={{ width: `${Math.min((Number(item.quantity) / (Number(item.reorderPoint) * 2)) * 100, 100)}%` }}
+                                                            ></div>
+                                                        </div>
+                                                        <div className="text-[9px] font-black text-gray-400 mt-1 uppercase tracking-widest opacity-60">
+                                                            Min: {formatQty(item.reorderPoint, item.unit)}
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {selectedCategory === 'รายการสั่งของ' && (
+                                                    <button 
+                                                        onClick={() => handleOpenIgnoreModal(item)} 
+                                                        className="px-3.5 py-2.5 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white rounded-2xl shadow-lg shadow-rose-100 flex items-center gap-1.5 text-xs font-black transition-all shrink-0 opacity-0 group-hover:opacity-100 duration-300" 
+                                                        title="Ignore/ปฏิเสธ"
+                                                    >
+                                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                                            <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                                                        </svg>
+                                                        <span>Ignore</span>
+                                                    </button>
+                                                )}
+
+                                                <button onClick={() => handleOpenAdjustModal(item)} className="p-3 text-white bg-red-500 hover:bg-red-600 rounded-2xl shadow-lg shadow-red-100 active:scale-90 transition-all shrink-0" title="เบิกของ">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M15 12H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    );
+                                }) : (
+                                    <div className="h-full flex flex-col items-center justify-center text-gray-400 py-32 bg-white rounded-[3rem] border-2 border-dashed border-gray-100 shadow-inner">
+                                        <div className="relative mb-6 text-center">
+                                            <div className="absolute inset-0 bg-blue-100 rounded-full scale-150 opacity-20 animate-ping"></div>
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-24 w-24 opacity-20 mx-auto relative z-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                                            </svg>
+                                        </div>
+                                        <p className="text-2xl font-black text-gray-300 tracking-tight">ไม่พบรายการวัตถุดิบ</p>
+                                        <p className="text-gray-400 font-medium max-w-xs text-center mt-2">โปรดตรวจสอบเงื่อนไขการค้นหาอีกครั้ง</p>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Mobile/Tablet Card Layout */}
+                            <div className="md:hidden space-y-3 pb-24 overflow-y-auto flex-1">
+                        {filteredItems.length > 0 ? filteredItems.map((item, index) => {
+                            if (!item) return null;
+                            const status = getStatus(item);
+                            
+                            return (
+                                <div key={`mobile-stock-${item.id}-${index}`} className={`p-4 space-y-3 rounded-lg shadow-sm ${getMobileCardStyle(item)}`}>
+                                    <div className="flex justify-between items-start gap-3">
+                                        <div className="relative flex-shrink-0">
+                                            <div className="absolute -top-2 -left-2 w-6 h-6 bg-gray-900 text-white rounded-full flex items-center justify-center text-xs font-bold shadow-md border-2 border-white z-10">
+                                                {index + 1}
+                                            </div>
+                                            <img 
+                                                src={item.imageUrl || "https://placehold.co/100?text=No+Image"} 
+                                                alt={item.name} 
+                                                className="w-16 h-16 object-cover rounded-md border border-gray-200 cursor-pointer hover:opacity-80 transition-opacity" 
+                                                onClick={() => handleViewImage(item)}
+                                                onError={(e) => e.currentTarget.src = "https://placehold.co/100?text=Error"} 
+                                            />
+                                        </div>
+                                        
+                                        <div className="flex-1">
+                                            <h3 className="font-bold text-xl text-gray-900">{item.name}</h3>
+                                            <p className="text-base text-gray-500">หมวดหมู่: {item.category}</p>
+                                        </div>
+                                        <span className={`px-3 py-1 text-sm font-semibold rounded-full border ${status.color}`}>{status.text}</span>
+                                    </div>
+                                    <div className="flex justify-between text-sm text-gray-600 bg-white/50 p-2 rounded">
+                                        <div>
+                                            <span className="font-semibold block text-xs text-gray-500">สั่งของ</span>
+                                            {formatDate(item.orderDate)}
+                                        </div>
+                                        <div className="text-right">
+                                            <span className="font-semibold block text-xs text-gray-500">รับของ</span>
+                                            {formatDate(item.receivedDate)}
+                                        </div>
+                                    </div>
+                                    <div className="flex justify-between text-sm text-gray-600 bg-gray-50 p-2 rounded border border-gray-100 mt-2 mb-2">
+                                        <div>
+                                            <span className="font-semibold block text-xs text-gray-500">ก่อนสั่ง</span>
+                                            <span className="font-medium text-gray-800">{item.quantityBeforeOrder !== undefined ? formatQty(item.quantityBeforeOrder, item.unit) : '-'}</span>
+                                        </div>
+                                        <div className="text-center">
+                                            <span className="font-semibold block text-xs text-gray-500">จำนวนสั่ง</span>
+                                            <span className="font-medium text-gray-800">{item.orderedQuantity || '-'}</span>
+                                        </div>
+                                        <div className="text-right">
+                                            <span className="font-semibold block text-xs text-gray-500">ผู้สั่งซื้อ</span>
+                                            <span className="font-medium text-gray-800">{item.orderedBy || '-'}</span>
+                                        </div>
+                                    </div>
+                                    <div className="flex justify-between items-center text-sm text-gray-600 bg-blue-50 p-2 rounded border border-blue-100">
+                                        <span className="font-semibold text-xs text-blue-600">แก้ไขล่าสุด:</span>
+                                        <div className="text-right">
+                                            <div className="font-bold text-gray-800">{item.lastUpdatedBy || '-'}</div>
+                                            <div className="text-xs text-gray-500">{new Date(item.lastUpdated).toLocaleString('th-TH', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</div>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 text-base pt-2 border-t border-gray-200 gap-2">
+                                        <div>
+                                            <p className="text-gray-600 text-xs">คงเหลือ</p> 
+                                            <div className="flex items-baseline gap-1">
+                                                <p className="font-semibold text-gray-900 text-lg">{formatQty(item.quantity, item.unit)}</p>
+                                                <p className="text-xs text-gray-500">{item.unit}</p>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <p className="text-gray-600 text-xs">จุดสั่งซื้อ</p>
+                                            <div className="flex items-baseline gap-1">
+                                                <p className="font-semibold text-gray-900 text-lg">{formatQty(item.reorderPoint, item.unit)}</p>
+                                                <p className="text-xs text-gray-500">{item.unit}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="flex justify-end gap-3 pt-3 border-t border-gray-200">
+                                        {selectedCategory === 'รายการสั่งของ' && (
+                                            <button onClick={() => handleOpenIgnoreModal(item)} className="text-base font-bold text-rose-600 hover:underline">Ignore</button>
+                                        )}
+                                        <button onClick={() => handleReceiveStock(item)} className="text-base font-medium text-purple-700 hover:underline">รับของ</button>
+                                        <button onClick={() => handleOpenAdjustModal(item)} className="text-base font-medium text-red-700 hover:underline">เบิกของ</button>
+                                        <button onClick={() => handleOpenItemModal(item)} className="text-base font-medium text-blue-700 hover:underline">แก้ไข</button>
+                                        {canDelete && (
+                                            <button onClick={() => handleDeleteItem(item.id)} className="text-base font-medium text-red-700 hover:underline">ลบ</button>
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        }) : (
+                            <div className="text-center py-16 text-gray-500">
+                                <p>ไม่พบรายการวัตถุดิบ</p>
+                            </div>
+                        )}
+                    </div>
+                </>
+            ) : (
+                <PriceComparisonWorkspace stockItems={stockItems} />
+            )}
+                </div>
+            </div>
+            
+            <StockItemModal
+                isOpen={isItemModalOpen}
+                onClose={() => setIsItemModalOpen(false)}
+                onSave={handleSaveItem}
+                itemToEdit={selectedItem}
+                categories={stockCategories.filter(c => c !== 'ทั้งหมด')}
+                setCategories={setStockCategories}
+                units={stockUnits}
+                setUnits={setStockUnits}
+                stockItems={stockItems}
+            />
+
+            <AdjustStockModal
+                isOpen={isAdjustModalOpen}
+                onClose={() => setIsAdjustModalOpen(false)}
+                onSave={handleAdjustStock}
+                item={selectedItem}
+            />
+
+            <PurchaseOrderModal 
+                isOpen={isPurchaseOrderModalOpen}
+                onClose={() => { setIsPurchaseOrderModalOpen(false); setIsMobilePOMode(false); }}
+                stockItems={stockItems}
+                currentUser={currentUser}
+                isMobileMode={isMobilePOMode}
+                onUpdateStock={handleBulkUpdateStock}
+            />
+
+            {/* Tag Registration Modal */}
+            {isTagModalOpen && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black bg-opacity-50 p-4 pb-24">
+                    <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden flex flex-col max-h-[80vh]">
+                        <div className="p-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
+                            <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>
+                                ลงทะเบียน NFC Tag
+                            </h3>
+                            <button onClick={() => { onCloseTagModal(); setSelectedTagItem(null); }} className="text-gray-400 hover:text-gray-600">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                            </button>
+                        </div>
+                        
+                        <div className="p-4 flex-1 overflow-y-auto">
+                            {!selectedTagItem ? (
+                                <>
+                                    <div className="mb-4">
+                                        <input 
+                                            type="text" 
+                                            placeholder="ค้นหาสินค้า..." 
+                                            value={tagSearchTerm}
+                                            onChange={(e) => setTagSearchTerm(e.target.value)}
+                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        {stockItems
+                                            .filter(item => item.name.toLowerCase().includes(tagSearchTerm.toLowerCase()))
+                                            .map((item, index) => (
+                                                <button 
+                                                    key={`barcode-stock-${item.id}-${index}`} 
+                                                    onClick={() => setSelectedTagItem(item)}
+                                                    className="w-full text-left p-3 hover:bg-indigo-50 rounded-lg border border-gray-100 hover:border-indigo-200 transition-all flex items-center justify-between group"
+                                                >
+                                                    <span className="font-medium text-gray-700 group-hover:text-indigo-700">{item.name}</span>
+                                                    <span className="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded-full group-hover:bg-indigo-100 group-hover:text-indigo-600">{item.category}</span>
+                                                </button>
+                                            ))
+                                        }
+                                        {stockItems.length === 0 && <p className="text-center text-gray-500 py-4">ไม่พบสินค้า</p>}
+                                    </div>
+                                </>
+                            ) : (
+                                <div className="text-center py-6 space-y-6">
+                                    <div className="bg-indigo-50 p-4 rounded-xl inline-block mb-2">
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 text-indigo-600 mx-auto animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.131A8 8 0 008 8m0 0a8 8 0 00-8 8c0 2.33.341 4.591.976 6.722" />
+                                        </svg>
+                                    </div>
+                                    
+                                    <div>
+                                        <h4 className="text-xl font-bold text-gray-800 mb-1">{selectedTagItem.name}</h4>
+                                        <p className="text-gray-500 text-sm">กำลังจะสร้าง Tag ID:</p>
+                                        <div className="text-2xl font-mono font-bold text-indigo-600 mt-2 bg-indigo-50 py-2 rounded-lg border border-indigo-100">
+                                            {selectedTagItem.name}-{getNextTagId(selectedTagItem)}
+                                        </div>
+                                    </div>
+
+                                    <div className="text-sm text-gray-600 bg-yellow-50 p-3 rounded-lg border border-yellow-100 text-left">
+                                        <p className="font-semibold text-yellow-800 mb-1">คำแนะนำ:</p>
+                                        <ul className="list-disc list-inside space-y-1">
+                                            <li>นำ NFC Tag มาแตะที่ด้านหลังโทรศัพท์</li>
+                                            <li>กดปุ่ม "บันทึกข้อมูลลง Tag" ด้านล่าง</li>
+                                            <li>ถือค้างไว้จนกว่าจะขึ้นข้อความสำเร็จ</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="p-4 border-t border-gray-200 bg-gray-50 flex gap-3">
+                            {selectedTagItem ? (
+                                <>
+                                    <button 
+                                        onClick={() => setSelectedTagItem(null)}
+                                        className="flex-1 px-4 py-2 bg-white border border-gray-300 text-gray-700 font-semibold rounded-lg hover:bg-gray-50"
+                                        disabled={isWritingTag}
+                                    >
+                                        ย้อนกลับ
+                                    </button>
+                                    <button 
+                                        onClick={handleRegisterTag}
+                                        disabled={isWritingTag}
+                                        className={`flex-1 px-4 py-2 font-semibold rounded-lg text-white shadow-sm flex items-center justify-center gap-2 ${isWritingTag ? 'bg-gray-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700'}`}
+                                    >
+                                        {isWritingTag ? (
+                                            <>
+                                                <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                                </svg>
+                                                กำลังบันทึก...
+                                            </>
+                                        ) : (
+                                            'บันทึกข้อมูลลง Tag'
+                                        )}
+                                    </button>
+                                </>
+                            ) : (
+                                <button 
+                                    onClick={onCloseTagModal}
+                                    className="w-full px-4 py-2 bg-gray-200 text-gray-700 font-semibold rounded-lg hover:bg-gray-300"
+                                >
+                                    ปิด
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* Log Modal */}
+            {isLogModalOpen && selectedLogItem && (
+                <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black bg-opacity-50 p-4">
+                    <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[80vh]">
+                        <div className="p-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
+                            <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                ประวัติการแก้ไข: {selectedLogItem.name}
+                            </h3>
+                            <button onClick={() => setIsLogModalOpen(false)} className="text-gray-400 hover:text-gray-600">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                            </button>
+                        </div>
+                        
+                        <div className="p-0 flex-1 overflow-y-auto">
+                            <table className="w-full text-sm text-left">
+                                <thead className="text-gray-500 bg-gray-50 uppercase text-xs sticky top-0 z-10 shadow-sm">
+                                    <tr>
+                                        <th className="px-6 py-3">วันที่/เวลา</th>
+                                        <th className="px-6 py-3">การกระทำ</th>
+                                        <th className="px-6 py-3">รายละเอียด</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100">
+                                    {filteredLogs.length > 0 ? (
+                                        filteredLogs.map((log) => (
+                                            <tr key={log.id} className="hover:bg-gray-50 transition-colors">
+                                                <td className="px-6 py-3 text-gray-500 whitespace-nowrap">
+                                                    {new Date(log.timestamp).toLocaleString('th-TH')}
+                                                </td>
+                                                <td className="px-6 py-3 font-medium text-gray-900">
+                                                    {log.performedBy}
+                                                </td>
+                                                <td className="px-6 py-3">
+                                                    <span className={`px-2 py-1 rounded-full text-xs font-semibold 
+                                                        ${log.action === 'create' ? 'bg-green-100 text-green-700' : 
+                                                          log.action === 'update' ? 'bg-blue-100 text-blue-700' :
+                                                          log.action === 'delete' ? 'bg-red-100 text-red-700' :
+                                                          log.action === 'receive' ? 'bg-purple-100 text-purple-700' :
+                                                          log.action === 'ignore' ? 'bg-rose-100 text-rose-700' :
+                                                          'bg-yellow-100 text-yellow-700'}`}>
+                                                        {log.action === 'create' ? 'สร้างใหม่' :
+                                                         log.action === 'update' ? 'แก้ไข' :
+                                                         log.action === 'delete' ? 'ลบ' :
+                                                         log.action === 'receive' ? 'รับของ' : 
+                                                         log.action === 'ignore' ? 'ปฏิเสธ/เคลียร์รายการ' : 'ปรับสต็อก'}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-3 text-gray-600">
+                                                    {log.changeDetails}
+                                                </td>
+                                            </tr>
+                                        ))
+                                    ) : (
+                                        <tr>
+                                            <td colSpan={4} className="px-6 py-8 text-center text-gray-500">
+                                                ยังไม่มีประวัติการแก้ไข
+                                            </td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div className="p-4 border-t border-gray-200 bg-gray-50 text-right">
+                            <button 
+                                onClick={() => setIsLogModalOpen(false)}
+                                className="px-4 py-2 bg-gray-200 text-gray-700 font-semibold rounded-lg hover:bg-gray-300"
+                            >
+                                ปิด
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Bulk Receive Modal */}
+            {isBulkReceiveOpen && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center sm:p-4 bg-black/60 backdrop-blur-sm">
+                    <div className="bg-white sm:rounded-2xl shadow-2xl w-full max-w-4xl h-full sm:h-auto sm:max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in duration-200">
+                        <div className="p-4 sm:p-6 border-b border-gray-100 flex justify-between items-center bg-orange-50">
+                            <h3 className="text-xl font-bold text-orange-800 flex items-center gap-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                                </svg>
+                                ตรวจรับสินค้า (Bulk Receive)
+                            </h3>
+                            <button 
+                                onClick={() => setIsBulkReceiveOpen(false)}
+                                className="p-2 hover:bg-orange-100 rounded-full transition-colors"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto p-4 sm:p-6 scrollbar-hide">
+                            {(() => {
+                                const filtered = stockItems.filter(item => {
+                                    const isReceivedToday = !!(item.receivedDate && new Date(item.receivedDate).toDateString() === new Date().toDateString());
+                                    const isPending = (Number(item.orderedQuantity) || 0) > 0;
+                                    return isReceivedToday || isPending;
+                                });
+
+                                if (filtered.length === 0) {
+                                    return (
+                                        <div className="text-center py-12">
+                                            <div className="bg-orange-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-3.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+                                                </svg>
+                                            </div>
+                                            <p className="text-gray-500 font-medium text-lg">ไม่มีรายการที่กำลังรอรับของ</p>
+                                            <p className="text-gray-400 text-sm mt-1">รายการสินค้าที่คุณออกใบสั่งของ จะปรากฏที่นี่</p>
+                                        </div>
+                                    );
+                                }
+
+                                // Group by Date string
+                                const groups: { [key: string]: typeof filtered } = {};
+                                filtered.forEach(item => {
+                                    const date = item.orderDate || item.receivedDate || 0;
+                                    const dateKey = date ? new Date(date).toLocaleDateString('th-TH') : 'ไม่ระบุวันที่';
+                                    if (!groups[dateKey]) groups[dateKey] = [];
+                                    groups[dateKey].push(item);
+                                });
+
+                                // Sort groups by date descending
+                                const sortedGroupKeys = Object.keys(groups).sort((a, b) => {
+                                    if (a === 'ไม่ระบุวันที่') return 1;
+                                    if (b === 'ไม่ระบุวันที่') return -1;
+                                    const [da, ma, ya] = a.split('/').map(Number);
+                                    const [db, mb, yb] = b.split('/').map(Number);
+                                    const dateA = new Date(ya - 543, ma - 1, da).getTime();
+                                    const dateB = new Date(yb - 543, mb - 1, db).getTime();
+                                    return dateB - dateA;
+                                });
+
+                                return (
+                                    <div className="space-y-6">
+                                        {sortedGroupKeys.map(dateKey => (
+                                            <div key={dateKey} className="bg-white border border-gray-100 rounded-xl overflow-hidden shadow-sm">
+                                                <div className="bg-gray-50 px-4 py-2 border-b border-gray-100 flex justify-between items-center">
+                                                    <span className="text-sm font-bold text-gray-600 flex items-center gap-2">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                                        </svg>
+                                                        รอบวันที่: {dateKey}
+                                                    </span>
+                                                    <span className="text-xs text-gray-400 font-medium">จำนวน {groups[dateKey].length} รายการ</span>
+                                                </div>
+                                                <div className="overflow-x-auto">
+                                                    <table className="w-full text-left border-collapse">
+                                                        <thead className="bg-gray-50/50">
+                                                            <tr>
+                                                                <th className="px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-wider min-w-[180px] sticky left-0 bg-gray-50/90 backdrop-blur-sm z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">สินค้า</th>
+                                                                <th className="px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-wider text-center min-w-[100px]">สั่งโดย</th>
+                                                                <th className="px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-wider text-center min-w-[100px]">จำนวนที่สั่ง</th>
+                                                                <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider text-center min-w-[220px]">ระบุจำนวนที่ได้รับ</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody className="divide-y divide-gray-100">
+                                                            {groups[dateKey]
+                                                                .sort((a, b) => {
+                                                                    const aPending = (Number(a.orderedQuantity) || 0) > 0;
+                                                                    const bPending = (Number(b.orderedQuantity) || 0) > 0;
+                                                                    if (aPending && !bPending) return -1;
+                                                                    if (!aPending && bPending) return 1;
+                                                                    return 0;
+                                                                })
+                                                                .map((item, index) => {
+                                                                    const isVerifiedToday = !!((item.receivedDate && new Date(item.receivedDate).toDateString() === new Date().toDateString()) || (item.orderedQuantity === 0 && item.lastUpdatedBy));
+                                                                    
+                                                                    return (
+                                                                        <tr key={`received-stock-${item.id}-${index}`} className={`transition-colors ${isVerifiedToday ? 'bg-gray-50/30' : 'hover:bg-gray-50/50'}`}>
+                                                                            <td className="px-4 py-3 min-w-[180px] sticky left-0 z-10 bg-inherit shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
+                                                                                <div className="flex items-center gap-3">
+                                                                                    <div className="w-10 h-10 rounded-lg bg-gray-100 flex-shrink-0 overflow-hidden ring-1 ring-gray-200">
+                                                                                        {item.imageUrl ? (
+                                                                                            <img src={item.imageUrl} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                                                                        ) : (
+                                                                                            <div className="w-full h-full flex items-center justify-center text-gray-400">
+                                                                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                                                                                            </div>
+                                                                                        )}
+                                                                                    </div>
+                                                                                    <div>
+                                                                                        <div className="font-bold text-sm text-gray-800 line-clamp-1">{item.name}</div>
+                                                                                        <div className="text-[10px] text-gray-500">{item.unit}</div>
+                                                                                    </div>
+                                                                                </div>
+                                                                            </td>
+                                                                            <td className="px-4 py-3 text-center min-w-[100px]">
+                                                                                <span className="text-xs text-gray-600 font-medium">{item.orderedBy || '-'}</span>
+                                                                            </td>
+                                                                            <td className="px-4 py-3 text-center min-w-[100px]">
+                                                                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-blue-700 whitespace-nowrap">
+                                                                                    {item.orderedQuantity || item.lastOrderedQuantity || 0}
+                                                                                </span>
+                                                                            </td>
+                                                                            <td className="px-4 py-2 font-medium min-w-[220px]">
+                                                                                <div className="w-full max-w-[200px] mx-auto relative">
+                                                                                    {isVerifiedToday && (
+                                                                                        <div className="absolute -top-2.5 -left-2.5 z-20">
+                                                                                            <div className="bg-green-500 text-white rounded-full p-1 shadow-lg ring-2 ring-white">
+                                                                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                                                                                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                                                                                </svg>
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    )}
+                                                                                    
+                                                                                    <input 
+                                                                                        type="number"
+                                                                                        id={`bulk-qty-${item.id}`}
+                                                                                        step="0.01"
+                                                                                        className={`w-full px-3 py-2.5 border border-gray-300 rounded-xl text-center font-black outline-none transition-all placeholder:text-gray-300 placeholder:font-normal text-xl [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
+                                                                                            isVerifiedToday
+                                                                                            ? 'bg-green-50 text-green-700 cursor-not-allowed border-green-200' 
+                                                                                            : 'text-orange-600 focus:ring-4 focus:ring-orange-100 focus:border-orange-500 shadow-md bg-white'
+                                                                                        }`}
+                                                                                        placeholder="0.00"
+                                                                                        value={isVerifiedToday ? (item.lastReceivedQuantity ?? 0) : undefined}
+                                                                                        defaultValue={!isVerifiedToday ? "" : undefined}
+                                                                                        disabled={isVerifiedToday}
+                                                                                    />
+                                                                                    
+                                                                                    <input 
+                                                                                        type="hidden"
+                                                                                        id={`bulk-date-${item.id}`}
+                                                                                        defaultValue={new Date().toISOString().split('T')[0]}
+                                                                                    />
+    
+                                                                                    {isVerifiedToday && item.lastUpdatedBy && (
+                                                                                        <div className="mt-1 text-[10px] text-gray-500 font-medium text-center bg-green-50/50 py-1 rounded-lg">
+                                                                                            <span className="text-green-700 font-bold block mb-0.5">บันทึกโดย: {item.lastUpdatedBy}</span>
+                                                                                            <span className="text-gray-400 opacity-80">{new Date(item.lastUpdated || 0).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.</span>
+                                                                                        </div>
+                                                                                    )}
+                                                                                </div>
+                                                                            </td>
+                                                                        </tr>
+                                                                    );
+                                                                })}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                );
+                            })()}
+                        </div>
+
+                        <div className="p-6 border-t border-gray-100 bg-gray-50 flex justify-end gap-3 translate-y-0">
+                            <button 
+                                onClick={() => setIsBulkReceiveOpen(false)}
+                                className="px-6 py-2.5 bg-white border border-gray-200 text-gray-700 font-bold rounded-xl hover:bg-gray-50 transition-all active:scale-95"
+                            >
+                                ยกเลิก
+                            </button>
+                            {stockItems.filter(item => (Number(item.orderedQuantity) || 0) > 0).length > 0 && (
+                                <button 
+                                    onClick={async () => {
+                                        const itemsToUpdate = stockItems.filter(item => (Number(item.orderedQuantity) || 0) > 0);
+                                        const results: any[] = [];
+                                        
+                                        itemsToUpdate.forEach(item => {
+                                            const qtyInput = document.getElementById(`bulk-qty-${item.id}`) as HTMLInputElement;
+                                            const dateInput = document.getElementById(`bulk-date-${item.id}`) as HTMLInputElement;
+                                            
+                                            if (qtyInput && dateInput && qtyInput.value) {
+                                                results.push({
+                                                    item,
+                                                    qty: Number(qtyInput.value),
+                                                    date: dateInput.value
+                                                });
+                                            }
+                                        });
+
+                                        if (results.length === 0) {
+                                            Swal.fire('คำเตือน', 'กรุณาระบุจำนวนสินค้าที่ได้รับ', 'warning');
+                                            return;
+                                        }
+
+                                        const confirmed = await Swal.fire({
+                                            title: 'ยืนยันการรับสินค้า?',
+                                            text: `กำลังบันทึกการรับสินค้าทั้งหมด ${results.length} รายการ`,
+                                            icon: 'question',
+                                            showCancelButton: true,
+                                            confirmButtonColor: '#ea580c',
+                                            cancelButtonColor: '#94a3b8',
+                                            confirmButtonText: 'ยืนยันบันทึก',
+                                            cancelButtonText: 'ยกเลิก'
+                                        });
+
+                                        if (confirmed.isConfirmed) {
+                                            const now = Date.now();
+                                            const activeUsername = currentUser?.username || 'Unknown Staff';
+                                            
+                                            setStockItems(prev => {
+                                                let nextItems = [...prev];
+                                                for (const res of results) {
+                                                    const updatedItem = {
+                                                        ...res.item,
+                                                        quantity: res.item.quantity + res.qty,
+                                                        receivedDate: new Date(res.date).getTime(),
+                                                        lastReceivedQuantity: Number(res.qty),
+                                                        lastOrderedQuantity: Number(res.item.orderedQuantity) || 0,
+                                                        orderedQuantity: Math.max(0, (Number(res.item.orderedQuantity) || 0) - res.qty),
+                                                        lastUpdated: now,
+                                                        lastUpdatedBy: activeUsername
+                                                    };
+                                                    nextItems = nextItems.map(i => i.id === res.item.id ? updatedItem : i);
+                                                    addLog(res.item, 'receive', `รับสินค้าเข้าแบบกลุ่ม: ${res.qty} ${res.item.unit} (รวมยอด: ใช่) โดย ${activeUsername}`);
+                                                }
+                                                return nextItems;
+                                            });
+
+                                            Swal.fire({
+                                                title: 'สำเร็จ!',
+                                                text: `บันทึกรายการรับสินค้า ${results.length} รายการเรียบร้อยแล้ว`,
+                                                icon: 'success',
+                                                timer: 2000,
+                                                showConfirmButton: false
+                                            });
+                                            setIsBulkReceiveOpen(false);
+                                        }
+                                    }}
+                                    className="px-8 py-2.5 bg-orange-600 text-white font-bold rounded-xl hover:bg-orange-700 shadow-lg shadow-orange-200 transition-all active:scale-95 flex items-center gap-2"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                    </svg>
+                                    บันทึกทั้งหมด
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Ignore / Reject Order Modal with Virtual Keyboard */}
+            {isIgnoreModalOpen && itemToIgnore && (
+                <div role="dialog" aria-hidden={!isIgnoreModalOpen} className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs select-none">
+                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-xl overflow-hidden flex flex-col max-h-[95vh] border border-gray-100 animate-in fade-in zoom-in duration-300">
+                        {/* Header */}
+                        <div className="p-5 bg-gradient-to-r from-red-500 to-rose-600 text-white flex justify-between items-center shadow">
+                            <div className="flex items-center gap-2.5">
+                                <span className="bg-white/20 p-2 rounded-2xl text-white">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                                    </svg>
+                                </span>
+                                <div>
+                                    <h3 className="text-lg font-black leading-none uppercase tracking-tight">Ignore Order List</h3>
+                                    <p className="text-red-100 text-xs font-bold mt-1">ปฏิเสธ / เคลียร์รายการวัตถุดิบและใส่สาเหตุเพื่อยืนยัน</p>
+                                </div>
+                            </div>
+                            <button onClick={() => { setIsIgnoreModalOpen(false); setItemToIgnore(null); setIsRemarkKeyboardOpen(false); }} className="p-1 text-red-100 hover:text-white hover:bg-white/10 rounded-full transition-colors cursor-pointer">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+
+                        {/* Content */}
+                        <div className="p-5 overflow-y-auto flex-1 space-y-4">
+                            {/* Target Item summary info */}
+                            <div className="bg-gray-50 border border-gray-100 rounded-2xl p-4 flex gap-4 items-center shadow-xs">
+                                <img 
+                                    src={itemToIgnore.imageUrl || "https://placehold.co/100?text=No+Image"} 
+                                    alt={itemToIgnore.name} 
+                                    className="w-14 h-14 object-cover rounded-xl border border-gray-200 flex-shrink-0"
+                                />
+                                <div className="min-w-0 flex-1">
+                                    <div className="text-sm font-bold text-gray-500 uppercase tracking-widest text-[9px]">ชื่อวัตถุดิบ</div>
+                                    <div className="text-lg font-black text-gray-900 leading-normal truncate">{itemToIgnore.name}</div>
+                                    <div className="flex gap-4 mt-1 text-xs">
+                                        <div>
+                                            <span className="font-semibold text-gray-400">คงเหลือ:</span> <span className="font-bold text-gray-750">{itemToIgnore.quantity} {itemToIgnore.unit}</span>
+                                        </div>
+                                        <div className="border-l border-gray-200 pl-4">
+                                            <span className="font-semibold text-blue-500">จำนวนที่สั่ง:</span> <span className="font-black text-blue-700">{itemToIgnore.orderedQuantity} {itemToIgnore.unit}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Remark Text area */}
+                            <div className="space-y-1.5 text-left">
+                                <label className="text-sm font-black text-gray-700 uppercase tracking-wider flex items-center gap-1.5">
+                                    <span>ระบุหมายเหตุ / สาเหตุที่เคลียร์รายการออก:</span>
+                                    <span className="text-red-500 text-xs font-bold leading-none select-none">* จำเป็น</span>
+                                </label>
+                                <div className="relative">
+                                    <textarea
+                                        value={ignoreRemark}
+                                        onChange={(e) => setIgnoreRemark(e.target.value)}
+                                        placeholder="พิมพ์หมายเหตุหรือใส่ข้อมูลสาเหตุที่ปฏิเสธรายการนี้ เช่น ของยังพอมีเต็มตู้..."
+                                        className="w-full border-2 border-gray-200 rounded-xl shadow-xs p-3 pr-12 text-base text-gray-800 font-bold focus:border-red-500 focus:ring-1 focus:ring-red-500 transition-colors placeholder:text-gray-400/80 outline-none animate-none"
+                                        rows={2}
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsRemarkKeyboardOpen(!isRemarkKeyboardOpen)}
+                                        className={`absolute top-3.5 right-3.5 transition-colors ${isRemarkKeyboardOpen ? 'text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
+                                        title="เปิดคีย์บอร์ด"
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Easy Template remarks */}
+                            <div className="space-y-1.5 text-left">
+                                <span className="text-xs font-black text-gray-400 uppercase tracking-widest block">สาเหตุด่วน (คำเลือกด่วน):</span>
+                                <div className="flex flex-wrap gap-1.5">
+                                    {[
+                                        "ของในคลังยังมีพอใช้งาน",
+                                        "รายการมีความต้องการสั่งซื้อซ้ำซ้อน",
+                                        "เช็คจำนวนผิดพลาด สต็อกคงเหลือปกติ",
+                                        "ปรับรายการยกเลิกตามออเดอร์ร้าน",
+                                        "เปลี่ยนไปสั่งผู้จำหน่ายรายอื่นแทน"
+                                    ].map((preset) => (
+                                        <button
+                                            key={preset}
+                                            type="button"
+                                            onClick={() => setIgnoreRemark(preset)}
+                                            className="px-2.5 py-1.5 text-xs font-bold rounded-lg border border-red-100 bg-red-50/50 hover:bg-red-50 hover:border-red-200 text-rose-700 transition-all cursor-pointer shadow-xs active:scale-95"
+                                        >
+                                            {preset}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* On screen Keyboard container */}
+                            {isRemarkKeyboardOpen && (
+                                <ThaiVirtualKeyboard
+                                    onKeyPress={(key) => setIgnoreRemark(prev => prev + key)}
+                                    onBackspace={() => setIgnoreRemark(prev => prev.slice(0, -1))}
+                                    onClear={() => setIgnoreRemark('')}
+                                    onClose={() => setIsRemarkKeyboardOpen(false)}
+                                />
+                            )}
+                        </div>
+
+                        {/* Footer Controls */}
+                        <div className="p-4 border-t border-gray-100 bg-gray-50 flex gap-3">
+                            <button
+                                type="button"
+                                onClick={() => { setIsIgnoreModalOpen(false); setItemToIgnore(null); setIsRemarkKeyboardOpen(false); }}
+                                className="flex-1 px-4 py-3 bg-white border-2 border-gray-200 text-gray-600 font-black rounded-2xl hover:bg-gray-100 transition-colors duration-150 cursor-pointer shadow-xs active:scale-95 text-center text-sm"
+                            >
+                                ยกเลิก (Cancel)
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => handleConfirmIgnore(itemToIgnore, ignoreRemark)}
+                                className="flex-1 px-4 py-3 bg-red-600 hover:bg-red-700 text-white font-black rounded-2xl shadow-lg transition-colors duration-150 cursor-pointer shadow-red-100 active:scale-95 text-center text-sm"
+                            >
+                                คอมเฟิร์มปฏิเสธรายการ
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </>
+    );
+};
+
+interface VirtualKeyboardProps {
+    value: string;
+    onChange: (newValue: string) => void;
+}
+
+const VirtualKeyboard: React.FC<VirtualKeyboardProps> = ({ value, onChange }) => {
+    const [layout, setLayout] = useState<'th' | 'en'>('th');
+    const [isShift, setIsShift] = useState(false);
+
+    // Thai Kedmanee keys containing both unshifted (bottom-right) and shifted (top-left) values
+    const thKeys = [
+        [
+            { unshifted: 'ๅ', shifted: '+' },
+            { unshifted: '/', shifted: '1' },
+            { unshifted: '-', shifted: '2' },
+            { unshifted: 'ภ', shifted: '3' },
+            { unshifted: 'ถ', shifted: '4' },
+            { unshifted: 'ุ', shifted: 'ู' },
+            { unshifted: 'ึ', shifted: '฿' },
+            { unshifted: 'ค', shifted: '5' },
+            { unshifted: 'ต', shifted: '6' },
+            { unshifted: 'จ', shifted: '7' },
+            { unshifted: 'ข', shifted: '8' },
+            { unshifted: 'ช', shifted: '9' }
+        ],
+        [
+            { unshifted: 'ๆ', shifted: '0' },
+            { unshifted: 'ไ', shifted: '๊' },
+            { unshifted: 'ำ', shifted: 'ฎ' },
+            { unshifted: 'พ', shifted: 'ฑ' },
+            { unshifted: 'ะ', shifted: 'ธ' },
+            { unshifted: 'ั', shifted: 'ํ' },
+            { unshifted: 'ี', shifted: '๊' },
+            { unshifted: 'ร', shifted: 'ณ' },
+            { unshifted: 'น', shifted: 'ฯ' },
+            { unshifted: 'ย', shifted: 'ญ' },
+            { unshifted: 'บ', shifted: 'ฐ' },
+            { unshifted: 'ล', shifted: 'ฅ' }
+        ],
+        [
+            { unshifted: 'ฟ', shifted: 'ฤ' },
+            { unshifted: 'ห', shifted: 'ฆ' },
+            { unshifted: 'ก', shifted: 'ฏ' },
+            { unshifted: 'ด', shifted: 'โ' },
+            { unshifted: 'เ', shifted: 'ฌ' },
+            { unshifted: '้', shifted: '็' },
+            { unshifted: '่', shifted: '๋' },
+            { unshifted: 'า', shifted: 'ษ' },
+            { unshifted: 'ส', shifted: 'ศ' },
+            { unshifted: 'ว', shifted: 'ซ' },
+            { unshifted: 'ง', shifted: '.' }
+        ],
+        [
+            { unshifted: 'ผ', shifted: '(' },
+            { unshifted: 'ป', shifted: ')' },
+            { unshifted: 'แ', shifted: 'ฉ' },
+            { unshifted: 'อ', shifted: 'ฮ' },
+            { unshifted: 'ิ', shifted: 'ฺ' },
+            { unshifted: 'ื', shifted: '์' },
+            { unshifted: 'ท', shifted: '?' },
+            { unshifted: 'ม', shifted: 'ฒ' },
+            { unshifted: 'ใ', shifted: 'ฬ' },
+            { unshifted: 'ฝ', shifted: 'ฦ' }
+        ]
+    ];
+
+    // English QWERTY keys containing both unshifted (bottom-right) and shifted (top-left) values
+    const enKeys = [
+        [
+            { unshifted: '`', shifted: '~' },
+            { unshifted: '1', shifted: '!' },
+            { unshifted: '2', shifted: '@' },
+            { unshifted: '3', shifted: '#' },
+            { unshifted: '4', shifted: '$' },
+            { unshifted: '5', shifted: '%' },
+            { unshifted: '6', shifted: '^' },
+            { unshifted: '7', shifted: '&' },
+            { unshifted: '8', shifted: '*' },
+            { unshifted: '9', shifted: '(' },
+            { unshifted: '0', shifted: ')' },
+            { unshifted: '-', shifted: '_' },
+            { unshifted: '=', shifted: '+' }
+        ],
+        [
+            { unshifted: 'q', shifted: 'Q' },
+            { unshifted: 'w', shifted: 'W' },
+            { unshifted: 'e', shifted: 'E' },
+            { unshifted: 'r', shifted: 'R' },
+            { unshifted: 't', shifted: 'T' },
+            { unshifted: 'y', shifted: 'Y' },
+            { unshifted: 'u', shifted: 'U' },
+            { unshifted: 'i', shifted: 'I' },
+            { unshifted: 'o', shifted: 'O' },
+            { unshifted: 'p', shifted: 'P' },
+            { unshifted: '[', shifted: '{' },
+            { unshifted: ']', shifted: '}' }
+        ],
+        [
+            { unshifted: 'a', shifted: 'A' },
+            { unshifted: 's', shifted: 'S' },
+            { unshifted: 'd', shifted: 'D' },
+            { unshifted: 'f', shifted: 'F' },
+            { unshifted: 'g', shifted: 'G' },
+            { unshifted: 'h', shifted: 'H' },
+            { unshifted: 'j', shifted: 'J' },
+            { unshifted: 'k', shifted: 'K' },
+            { unshifted: 'l', shifted: 'L' },
+            { unshifted: ';', shifted: ':' },
+            { unshifted: '\'', shifted: '"' }
+        ],
+        [
+            { unshifted: 'z', shifted: 'Z' },
+            { unshifted: 'x', shifted: 'X' },
+            { unshifted: 'c', shifted: 'C' },
+            { unshifted: 'v', shifted: 'V' },
+            { unshifted: 'b', shifted: 'B' },
+            { unshifted: 'n', shifted: 'N' },
+            { unshifted: 'm', shifted: 'M' },
+            { unshifted: ',', shifted: '<' },
+            { unshifted: '.', shifted: '>' },
+            { unshifted: '/', shifted: '?' }
+        ]
+    ];
+
+    const currentRows = layout === 'th' ? thKeys : enKeys;
+
+    // Detect if a Thai character is a combining vowel, tone, or mark
+    const isThaiCombining = (char: string) => {
+        if (!char || char.length !== 1) return false;
+        const code = char.charCodeAt(0);
+        return (code >= 0x0e31 && code <= 0x0e3a) || (code >= 0x0e47 && code <= 0x0e4e);
+    };
+
+    // Prepend dotted circle (◌) to combining signs for rendering/guidance feedback
+    const getDisplayChar = (char: string) => {
+        if (!char) return '';
+        if (isThaiCombining(char)) {
+            return `◌${char}`;
+        }
+        return char;
+    };
+
+    const handleKeyPress = (char: string) => {
+        onChange(value + char);
+    };
+
+    const handleBackspace = () => {
+        onChange(value.slice(0, -1));
+    };
+
+    const handleClear = () => {
+        onChange('');
+    };
+
+    return (
+        <div className="bg-[#dee2e6] border border-gray-300 rounded-[#1.5rem] p-4.5 shadow-md w-full select-none mt-4 font-sans text-left">
+            {/* Keyboard Header Info / Language Selector */}
+            <div className="flex justify-between items-center bg-[#cfd4da]/40 border border-gray-300/20 px-4 py-2 rounded-2xl mb-4">
+                <div className="flex items-center gap-2 text-[#495057]">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4.5 w-4.5 stroke-[2.5]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+                    </svg>
+                    <span className="text-[11px] sm:text-xs font-black tracking-wider uppercase">
+                        {layout === 'th' ? 'THAI KEYBOARD (KEDMANEE)' : 'ENGLISH KEYBOARD (QWERTY)'}
+                    </span>
+                </div>
+                {/* Language Switch Tabs styled like the original premium feel */}
+                <div className="flex bg-[#cbd2da]/60 p-0.5 rounded-lg border border-gray-300/40">
+                    <button
+                        type="button"
+                        onClick={() => setLayout('th')}
+                        className={`px-3 py-1 text-[10px] sm:text-xs font-black rounded-md transition-all ${
+                            layout === 'th'
+                                ? 'bg-white text-slate-800 shadow-xs'
+                                : 'text-slate-600 hover:text-slate-800'
+                        }`}
+                    >
+                        ภาษาไทย
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setLayout('en')}
+                        className={`px-3 py-1 text-[10px] sm:text-xs font-black rounded-md transition-all ${
+                            layout === 'en'
+                                ? 'bg-white text-slate-800 shadow-xs'
+                                : 'text-slate-600 hover:text-slate-800'
+                        }`}
+                    >
+                        English
+                    </button>
+                </div>
+            </div>
+
+            {/* Keyboard Keys Layout */}
+            <div className="flex flex-col gap-1.5 overflow-x-auto pb-1.5">
+                {currentRows.map((row, rIdx) => (
+                    <div key={rIdx} className="flex justify-center gap-1 sm:gap-1.5 min-w-[420px]">
+                        {row.map((keyObj, idx) => (
+                            <button
+                                key={idx}
+                                type="button"
+                                onClick={() => handleKeyPress(isShift ? keyObj.shifted : keyObj.unshifted)}
+                                className="relative flex-1 h-[42px] sm:h-[50px] min-w-[28px] sm:min-w-[34px] bg-white border border-[#ced4da] rounded-lg sm:rounded-xl shadow-xs transition-all active:scale-95 cursor-pointer hover:bg-slate-50 flex items-center justify-center select-none active:bg-slate-100"
+                            >
+                                {/* Shifted character (Top-Left) */}
+                                <span className="absolute top-1 left-1.5 text-[8px] sm:text-[10px] font-semibold text-slate-400">
+                                    {getDisplayChar(keyObj.shifted)}
+                                </span>
+                                {/* Unshifted character (Bottom-Right) */}
+                                <span className="absolute bottom-1 right-2 text-xs sm:text-base font-extrabold text-[#212529]">
+                                    {getDisplayChar(keyObj.unshifted)}
+                                </span>
+                            </button>
+                        ))}
+                    </div>
+                ))}
+
+                {/* Bottom Row Spans / Controls */}
+                <div className="flex gap-1.5 mt-1 min-w-[420px]">
+                    {/* SHIFT */}
+                    <button
+                        type="button"
+                        onClick={() => setIsShift(!isShift)}
+                        className={`w-18 sm:w-26 h-[42px] sm:h-[50px] text-xs sm:text-sm font-extrabold rounded-lg sm:rounded-xl border transition-all flex items-center justify-center gap-1.5 cursor-pointer select-none ${
+                            isShift
+                                ? 'bg-[#51555B] text-white border-[#51555B] shadow-md shadow-gray-400/50'
+                                : 'bg-[#cbd2da] hover:bg-[#b8c1cc] text-slate-800 border-gray-300'
+                        }`}
+                    >
+                        <span>Shift</span>
+                    </button>
+
+                    {/* SPACE / Spacebar */}
+                    <button
+                        type="button"
+                        onClick={() => handleKeyPress(' ')}
+                        className="flex-1 h-[42px] sm:h-[50px] bg-white hover:bg-slate-50 active:bg-slate-100 border border-[#ced4da] rounded-lg sm:rounded-xl shadow-xs text-slate-700 font-extrabold text-xs sm:text-sm flex items-center justify-center cursor-pointer select-none active:scale-95 transition-all"
+                    >
+                        <span>Space</span>
+                    </button>
+
+                    {/* CLEAR */}
+                    <button
+                        type="button"
+                        onClick={handleClear}
+                        className="w-18 sm:w-26 h-[42px] sm:h-[50px] bg-red-100 hover:bg-rose-150 border border-red-200 text-rose-700 font-extrabold text-xs sm:text-sm rounded-lg sm:rounded-xl transition-all flex items-center justify-center cursor-pointer select-none active:scale-95"
+                    >
+                        <span>Clear</span>
+                    </button>
+
+                    {/* BACKSPACE */}
+                    <button
+                        type="button"
+                        onClick={handleBackspace}
+                        className="w-18 sm:w-26 h-[42px] sm:h-[50px] bg-[#cbd2da] hover:bg-[#b8c1cc] border border-gray-300 rounded-lg sm:rounded-xl transition-all flex items-center justify-center cursor-pointer select-none active:scale-95 font-bold text-slate-800"
+                        title="Delete"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-[18px] w-[18px] sm:h-5 sm:w-5 stroke-[2.5]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2M3 12l6.414 6.414A2 2 0 0010.828 19H19a2 2 0 002-2V7a2 2 0 00-2-2h-8.172a2 2 0 00-1.414.586L3 12z" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
