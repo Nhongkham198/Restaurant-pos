@@ -1,10 +1,10 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { db } from '../firebaseConfig';
-import type { Table } from '../types';
+import { db } from '@/firebaseConfig';
+import type { Table } from '@/types';
 import firebase from 'firebase/compat/app';
 import 'firebase/compat/firestore';
-import { auth } from '../firebaseConfig';
+import { auth } from '@/firebaseConfig';
 
 interface FirestoreErrorInfo {
   error: string;
@@ -43,33 +43,7 @@ const handleFirestoreError = (err: any, operationType: FirestoreErrorInfo['opera
     throw err;
 };
 
-// List of collections containing complex arrays of entities that should be stored as individual documents to prevent the 1MB single-document limit
-const MIGRATED_COLLECTIONS = [
-    'users',
-    'branches',
-    'tables',
-    'menuItems',
-    'stockItems',
-    'recipes',
-    'leaveRequests',
-    'printHistory',
-    'staffCalls',
-    'timeRecords',
-    'payrollRecords',
-    'stockTags',
-    'maintenanceItems'
-];
-
-// Helper to reliably retrieve or generate a unique ID string from any item
-function getItemDocId(item: any): string {
-    if (!item) return '';
-    const rawId = item.id !== undefined && item.id !== null ? item.id : 
-                  (item.userId !== undefined && item.userId !== null ? `${item.userId}_${item.startDate}` : undefined);
-    const fallbackId = rawId !== undefined ? rawId : (item.username || item.timestamp || item.name || item.code);
-    return fallbackId ? fallbackId.toString() : '';
-}
-
-// Hook for Highly Scalable Sync (Legacy single document for config/primitives; modern multi-document collections for bulk list data)
+// Hook for Single Document Sync (Legacy/Config/Arrays)
 export function useFirestoreSync<T>(
     branchId: string | null,
     collectionKey: string,
@@ -89,6 +63,7 @@ export function useFirestoreSync<T>(
     }, [value]);
 
     const isInitialLoadDoneRef = useRef(false);
+    const hasOverriddenRef = useRef(false);
 
     useEffect(() => {
         if (!db) {
@@ -99,7 +74,6 @@ export function useFirestoreSync<T>(
 
         const isBranchSpecific = !['users', 'branches', 'leaveRequests'].includes(collectionKey);
         const currentInitialValue = initialValueRef.current;
-        const isMigrated = MIGRATED_COLLECTIONS.includes(collectionKey);
 
         if (isBranchSpecific && !branchId) {
             setValue(currentInitialValue);
@@ -107,7 +81,7 @@ export function useFirestoreSync<T>(
             return () => {};
         }
 
-        // Optimization: Only show loading if it takes more than 150ms 
+        // Optimization: Only show loading if it takes more than 150ms (prevents flicker on cache hits)
         if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
         loadingTimeoutRef.current = setTimeout(() => {
             if (!isInitialLoadDoneRef.current) {
@@ -121,200 +95,113 @@ export function useFirestoreSync<T>(
         
         const docRef = db.doc(pathSegments.join('/'));
 
-        const collectionPath = isBranchSpecific && branchId
-            ? `branches/${branchId}/${collectionKey}`
-            : collectionKey;
-
-        // Cleanup function reference
-        let unsubscribe = () => {};
-
-        if (isMigrated) {
-            // Modern scalable list collection subscription
-            console.log(`[Firestore Sync] Tracking high-capacity collection: "${collectionPath}"`);
-            unsubscribe = db.collection(collectionPath).onSnapshot(
-                (snapshot) => {
-                    if (loadingTimeoutRef.current) {
-                        clearTimeout(loadingTimeoutRef.current);
-                        loadingTimeoutRef.current = null;
-                    }
-                    isInitialLoadDoneRef.current = true;
-
-                    const items: any[] = [];
-                    snapshot.forEach(docSnap => {
-                        if (docSnap.exists) {
-                            items.push(docSnap.data());
-                        }
-                    });
-
-                    let finalValueToSet = items;
-
-                    // --- Post-fetch Validation/Cleanup & Sorting (specific keys) ---
-                    if (collectionKey === 'tables') {
-                        // Prevent duplicates and sort tables by ID
-                        const uniqueTablesMap = new Map<number, Table>();
-                        items.forEach(table => {
-                            if (table && typeof table.id === 'number') {
-                                if (!uniqueTablesMap.has(table.id)) {
-                                    uniqueTablesMap.set(table.id, table);
-                                }
-                            }
-                        });
-                        finalValueToSet = Array.from(uniqueTablesMap.values()).sort((a, b) => a.id - b.id);
-                    }
-
-                    // Seeding fallback if database collection is empty
-                    if (items.length === 0 && fallbackValueRef.current !== undefined && Array.isArray(fallbackValueRef.current)) {
-                        console.log(`[Firestore Sync] Seeding fallback collections for empty ${collectionKey}...`);
-                        const batch = db.batch();
-                        fallbackValueRef.current.forEach(item => {
-                            const docId = getItemDocId(item);
-                            if (docId) {
-                                const sanitizedItem = JSON.parse(JSON.stringify(item, (k, v) => v === undefined ? null : v));
-                                batch.set(db.collection(collectionPath).doc(docId), {
-                                    ...sanitizedItem,
-                                    lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
-                                }, { merge: true });
-                            }
-                        });
-                        batch.commit().catch(err => console.error(`[Firestore Sync] Seeding failed for ${collectionKey}:`, err));
-                    } else {
-                        setValue(finalValueToSet as unknown as T);
-                    }
-                    setIsLoading(false);
-                },
-                (error) => {
-                    console.error(`Firestore collection sync error for ${collectionKey}:`, error);
-                    setIsLoading(false);
-                    if (error.code === 'permission-denied') {
-                        handleFirestoreError(error, 'list', collectionPath);
-                    }
+        const unsubscribe = docRef.onSnapshot(
+            { includeMetadataChanges: true }, 
+            (docSnapshot) => {
+                if (loadingTimeoutRef.current) {
+                    clearTimeout(loadingTimeoutRef.current);
+                    loadingTimeoutRef.current = null;
                 }
-            );
+                
+                isInitialLoadDoneRef.current = true;
+                if (docSnapshot.exists) {
+                    const data = docSnapshot.data();
+                    if (data && typeof data.value !== 'undefined') {
+                        // Special override disabled to allow user edits
+                        if ([].includes(collectionKey) && fallbackValueRef.current && !hasOverriddenRef.current) {
+                            // This is a measure to force the database to update
+                            // with the correct default data set if it's stale.
+                            const dbValueJSON = JSON.stringify(data.value);
+                            const fallbackValueJSON = JSON.stringify(fallbackValueRef.current);
 
-            // AUTO-MIGRATION checking module (Runs in the background once upon load)
-            const checkMigration = async () => {
-                try {
-                    const legacyDocRef = db.doc(pathSegments.join('/'));
-                    const legacySnap = await legacyDocRef.get();
-                    if (legacySnap.exists) {
-                        const legacyData = legacySnap.data();
-                        if (legacyData && Array.isArray(legacyData.value) && legacyData.value.length > 0 && !legacyData.migrated) {
-                            console.log(`[Firestore Migration] Legacy array data found for "${collectionKey}" - migrating ${legacyData.value.length} items to direct scalable documents...`);
-                            
-                            // Upload items in batches of 100 to stay safely below Firestore batch limits up to 500 writes
-                            const itemsToMigrate = legacyData.value;
-                            const size = 100;
-                            for (let i = 0; i < itemsToMigrate.length; i += size) {
-                                const batch = db.batch();
-                                const chunk = itemsToMigrate.slice(i, i + size);
-                                let count = 0;
+                            if (dbValueJSON !== fallbackValueJSON) {
+                                // console.log(`[Firestore Sync] Stale ${collectionKey} data detected. Overwriting with defaults.`);
+                                docRef.set({ value: fallbackValueRef.current });
+                                setValue(fallbackValueRef.current as T);
+                                hasOverriddenRef.current = true; // Prevent infinite loop
+                                setIsLoading(false);
+                                return; // Stop further processing, as we've just set the correct state
+                            }
+                        }
 
-                                chunk.forEach(item => {
-                                    if (!item) return;
-                                    const docId = getItemDocId(item);
-                                    if (docId) {
-                                        const sanitizedItem = JSON.parse(JSON.stringify(item, (k, v) => v === undefined ? null : v));
-                                        const targetDoc = db.collection(collectionPath).doc(docId);
-                                        batch.set(targetDoc, {
-                                            ...sanitizedItem,
-                                            lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
-                                        }, { merge: true });
-                                        count++;
+                        let valueToSet = data.value;
+
+                        // --- Validation & Cleanup Logic ---
+                        if (collectionKey === 'tables' && Array.isArray(valueToSet)) {
+                            const rawTablesFromDb = valueToSet as Table[];
+                            const uniqueTablesMap = new Map<number, Table>();
+                            rawTablesFromDb.forEach(table => {
+                                if (table && typeof table.id === 'number') {
+                                    if (!uniqueTablesMap.has(table.id)) {
+                                        uniqueTablesMap.set(table.id, table);
                                     }
-                                });
-
-                                if (count > 0) {
-                                    await batch.commit();
                                 }
+                            });
+                            valueToSet = Array.from(uniqueTablesMap.values());
+                        } 
+                        else if (collectionKey === 'orderCounter') {
+                            const counterData = valueToSet as any;
+                            if (!counterData || typeof counterData !== 'object' || typeof counterData.count !== 'number') {
+                                setValue(currentInitialValue);
+                                setIsLoading(false);
+                                return;
                             }
-
-                            // Clean and tag old document as migrated
-                            await legacyDocRef.set({ value: [], migrated: true }, { merge: true });
-                            console.log(`[Firestore Migration] Successfully migrated and optimized "${collectionKey}" data!`);
-                        }
-                    }
-                } catch (err) {
-                    console.error(`[Firestore Migration] Error during migration of "${collectionKey}":`, err);
-                }
-            };
-            checkMigration();
-        } else {
-            // Legacy single document array/config tracking fallback
-            unsubscribe = docRef.onSnapshot(
-                { includeMetadataChanges: true }, 
-                (docSnapshot) => {
-                    if (loadingTimeoutRef.current) {
-                        clearTimeout(loadingTimeoutRef.current);
-                        loadingTimeoutRef.current = null;
-                    }
-                    
-                    isInitialLoadDoneRef.current = true;
-                    if (docSnapshot.exists) {
-                        const data = docSnapshot.data();
-                        if (data && typeof data.value !== 'undefined') {
-                            let valueToSet = data.value;
-
-                            // Custom cleanup check for legacy orders resets
-                            if (collectionKey === 'orderCounter') {
-                                const counterData = valueToSet as any;
-                                if (!counterData || typeof counterData !== 'object' || typeof counterData.count !== 'number') {
-                                    setValue(currentInitialValue);
-                                    setIsLoading(false);
-                                    return;
-                                }
-                                const { count, lastResetDate } = counterData;
-                                let correctedDateString = '';
-                                if (typeof lastResetDate === 'string') {
-                                    correctedDateString = lastResetDate;
-                                } else if (lastResetDate && typeof lastResetDate.toDate === 'function') {
-                                    const dateObj = lastResetDate.toDate();
-                                    const year = dateObj.getFullYear();
-                                    const month = String(dateObj.getMonth() + 1).padStart(2, '0');
-                                    const day = String(dateObj.getDate()).padStart(2, '0');
-                                    correctedDateString = `${year}-${month}-${day}`;
-                                }
-                                if (correctedDateString) {
-                                    valueToSet = { count, lastResetDate: correctedDateString };
-                                } else {
-                                    setValue(currentInitialValue);
-                                    setIsLoading(false);
-                                    return;
-                                }
+                            const { count, lastResetDate } = counterData;
+                            let correctedDateString = '';
+                            if (typeof lastResetDate === 'string') {
+                                correctedDateString = lastResetDate;
+                            } else if (lastResetDate && typeof lastResetDate.toDate === 'function') {
+                                const dateObj = lastResetDate.toDate();
+                                const year = dateObj.getFullYear();
+                                const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+                                const day = String(dateObj.getDate()).padStart(2, '0');
+                                correctedDateString = `${year}-${month}-${day}`;
                             }
-
-                            setValue(valueToSet as T);
-                        } else {
-                            if (fallbackValueRef.current !== undefined) {
-                                console.log(`[Firestore] Seeding missing value for ${collectionKey}`);
-                                docRef.set({ value: fallbackValueRef.current }, { merge: true });
-                                setValue(fallbackValueRef.current);
+                            if (correctedDateString) {
+                                valueToSet = { count, lastResetDate: correctedDateString };
                             } else {
                                 setValue(currentInitialValue);
+                                setIsLoading(false);
+                                return;
                             }
                         }
+
+                        setValue(valueToSet as T);
                     } else {
+                        // Document exists but value is missing/undefined. 
+                        // If we have a fallback, Seed it. Otherwise use initial.
                         if (fallbackValueRef.current !== undefined) {
-                            console.log(`[Firestore] Seeding new document for ${collectionKey}`);
-                            docRef.set({ value: fallbackValueRef.current });
+                            console.log(`[Firestore] Seeding missing value for ${collectionKey} (Doc exists)`);
+                            docRef.set({ value: fallbackValueRef.current }, { merge: true });
                             setValue(fallbackValueRef.current);
                         } else {
                             setValue(currentInitialValue);
                         }
                     }
-                    setIsLoading(false);
-                },
-                (error) => {
-                    console.error(`Firestore sync error for ${collectionKey}:`, error);
-                    setIsLoading(false);
-                    if (error.code === 'permission-denied') {
-                        const path = isBranchSpecific && branchId
-                            ? `branches/${branchId}/${collectionKey}/data`
-                            : `${collectionKey}/data`;
-                        handleFirestoreError(error, 'get', path);
+                } else {
+                    // Document does NOT exist.
+                    // If we have a fallback, Seed it. Otherwise use initial.
+                    if (fallbackValueRef.current !== undefined) {
+                        console.log(`[Firestore] Seeding new document for ${collectionKey}`);
+                        docRef.set({ value: fallbackValueRef.current });
+                        setValue(fallbackValueRef.current);
+                    } else {
+                        setValue(currentInitialValue);
                     }
                 }
-            );
-        }
+                setIsLoading(false);
+            },
+            (error) => {
+                console.error(`Firestore sync error for ${collectionKey}:`, error);
+                setIsLoading(false);
+                if (error.code === 'permission-denied') {
+                    const path = isBranchSpecific && branchId
+                        ? `branches/${branchId}/${collectionKey}/data`
+                        : `${collectionKey}/data`;
+                    handleFirestoreError(error, 'get', path);
+                }
+            }
+        );
 
         return () => unsubscribe();
     }, [branchId, collectionKey]);
@@ -327,7 +214,6 @@ export function useFirestoreSync<T>(
         if (!db) return;
 
         const isBranchSpecific = !['users', 'branches', 'leaveRequests'].includes(collectionKey);
-        const isMigrated = MIGRATED_COLLECTIONS.includes(collectionKey);
         
         if (isBranchSpecific && !branchId) {
              setValue(newValue);
@@ -340,81 +226,20 @@ export function useFirestoreSync<T>(
         
         const docRef = db.doc(pathSegments.join('/'));
 
-        const collectionPath = isBranchSpecific && branchId
-            ? `branches/${branchId}/${collectionKey}`
-            : collectionKey;
-
         setValue((prevValue) => {
             const resolvedValue = newValue instanceof Function ? newValue(prevValue) : newValue;
             
             // SANITIZATION: Firestore fails on 'undefined' values. 
+            // We use JSON stringify/parse to strip undefineds recursively.
             const sanitizedValue = JSON.parse(JSON.stringify({ value: resolvedValue }, (key, val) => {
                 return val === undefined ? null : val;
             }));
 
-            if (isMigrated && Array.isArray(prevValue) && Array.isArray(resolvedValue)) {
-                // High-performance direct sub-document sync
-                const prevMap = new Map<string, any>();
-                prevValue.forEach(item => {
-                    const di = getItemDocId(item);
-                    if (di) prevMap.set(di, item);
+            docRef.set(sanitizedValue)
+                .catch(err => {
+                    console.error(`Failed to write ${collectionKey} to Firestore:`, err);
+                    handleFirestoreError(err, 'write', pathSegments.join('/'));
                 });
-
-                const newMap = new Map<string, any>();
-                resolvedValue.forEach(item => {
-                    const di = getItemDocId(item);
-                    if (di) newMap.set(di, item);
-                });
-
-                // Batch up writes and deletions
-                const batch = db.batch();
-                let opCount = 0;
-
-                resolvedValue.forEach(item => {
-                    if (!item) return;
-                    const docId = getItemDocId(item);
-                    if (!docId) return;
-
-                    const prevItem = prevMap.get(docId);
-                    const sanitizedItem = JSON.parse(JSON.stringify(item, (key, val) => val === undefined ? null : val));
-
-                    if (!prevItem || JSON.stringify(sanitizedItem) !== JSON.stringify(prevItem)) {
-                        const targetRef = db.collection(collectionPath).doc(docId);
-                        batch.set(targetRef, {
-                            ...sanitizedItem,
-                            lastUpdated: firebase.firestore.FieldValue.serverTimestamp() // Timestamp guard
-                        }, { merge: true });
-                        opCount++;
-                    }
-                });
-
-                prevValue.forEach(item => {
-                    if (!item) return;
-                    const docId = getItemDocId(item);
-                    if (!docId) return;
-
-                    if (!newMap.has(docId)) {
-                        const targetRef = db.collection(collectionPath).doc(docId);
-                        batch.delete(targetRef);
-                        opCount++;
-                    }
-                });
-
-                if (opCount > 0) {
-                    batch.commit().catch(err => {
-                        console.error(`Failed to commit scalability changes batch for ${collectionKey}:`, err);
-                        handleFirestoreError(err, 'write', collectionPath);
-                    });
-                }
-            } else {
-                // Fallback traditional single document write
-                docRef.set(sanitizedValue)
-                    .catch(err => {
-                        console.error(`Failed to write ${collectionKey} to Firestore:`, err);
-                        handleFirestoreError(err, 'write', pathSegments.join('/'));
-                    });
-            }
-
             return resolvedValue;
         });
     }, [branchId, collectionKey]);
