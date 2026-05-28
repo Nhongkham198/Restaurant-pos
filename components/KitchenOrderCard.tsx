@@ -25,7 +25,7 @@ export const KitchenOrderCard: React.FC<KitchenOrderCardProps> = ({
     onPrintOrder,
     onCancelOrder
 }) => {
-    const { recipes, stockItems, activeOrdersActions } = useData();
+    const { recipes, stockItems, activeOrdersActions, currentUser } = useData();
 
     const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
@@ -54,6 +54,22 @@ export const KitchenOrderCard: React.FC<KitchenOrderCardProps> = ({
     }, [order.status, order.orderTime, order.cookingStartTime]);
 
     const handleToggleItem = async (cartItemId: string) => {
+        const allowedRoles = ['admin', 'branch-admin', 'kitchen'];
+        if (!currentUser || !allowedRoles.includes(currentUser.role)) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'ไม่มีสิทธิ์เข้าถึง',
+                text: 'เฉพาะ แอดมิน, ผู้ดูแลสาขา และพนักงานครัว เท่านั้นที่สามารถติ๊กสถานะอาหารสำเร็จได้',
+                confirmButtonText: 'ตกลง',
+                timer: 4000,
+                timerProgressBar: true,
+                customClass: {
+                    confirmButton: 'bg-orange-500 hover:bg-orange-600 text-white font-bold py-2 px-4 rounded',
+                }
+            });
+            return;
+        }
+
         const updatedItems = order.items.map(item => {
             if (item.cartItemId === cartItemId) {
                 return { ...item, isDone: !item.isDone };

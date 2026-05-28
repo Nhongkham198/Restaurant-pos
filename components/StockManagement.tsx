@@ -151,10 +151,19 @@ export const StockManagement: React.FC<StockManagementProps> = ({
     // Helper to add log
     const addLog = (item: StockItem, action: StockLog['action'], details: string) => {
         const logId = Date.now().toString() + Math.random().toString(36).substr(2, 9);
+        
+        // Ensure stockItemId is a valid number to prevent Firebase errors
+        let safeStockItemId = 0;
+        if (item && typeof item.id === 'number' && !Number.isNaN(item.id)) {
+             safeStockItemId = item.id;
+        } else if (item && typeof item.id === 'string' && !Number.isNaN(Number(item.id))) {
+             safeStockItemId = Number(item.id);
+        }
+
         const newLog: StockLog = {
             id: logId,
-            stockItemId: item.id,
-            stockItemName: item.name,
+            stockItemId: safeStockItemId,
+            stockItemName: item?.name || 'ไม่มีชื่อรายการ',
             action,
             changeDetails: details,
             performedBy: currentUser?.username || 'System',
@@ -796,7 +805,12 @@ export const StockManagement: React.FC<StockManagementProps> = ({
             if (result.isConfirmed) {
                 let success = false;
                 try {
-                    await functionsService.deleteStockItem({ itemId });
+                    // Try to use the backend function, this will likely fail if itemId is empty/NaN
+                    if (itemId && !Number.isNaN(Number(itemId))) {
+                        await functionsService.deleteStockItem({ itemId });
+                    } else {
+                        throw new Error("Invalid or empty ID, falling back to local filter");
+                    }
                     const itemToDelete = stockItems.find(i => i.id === itemId);
                     if (itemToDelete) {
                         addLog(itemToDelete, 'delete', `ลบสินค้า: ${itemToDelete.name}`);
@@ -804,11 +818,15 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                     success = true;
                 } catch (e: any) {
                     console.warn("Backend function for stock deletion failed or not implemented. Falling back to direct client-side DB write.", e);
-                    const itemToDelete = stockItems.find(i => i.id === itemId);
+                    const itemToDelete = stockItems.find(i => 
+                        Number.isNaN(Number(itemId)) ? Number.isNaN(Number(i.id)) : i.id === itemId
+                    );
                     if (itemToDelete) {
                         addLog(itemToDelete, 'delete', `ลบสินค้า: ${itemToDelete.name}`);
                     }
-                    setStockItems(prev => prev.filter(item => item.id !== itemId));
+                    setStockItems(prev => prev.filter(item => 
+                        Number.isNaN(Number(itemId)) ? !Number.isNaN(Number(item.id)) : item.id !== itemId
+                    ));
                     success = true;
                 }
 
@@ -1349,7 +1367,7 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                     const isLowStock = Number(item.quantity) <= Number(item.reorderPoint);
                                     
                                     return (
-                                        <div key={item.id} className={`grid grid-cols-12 gap-4 px-6 py-5 items-center bg-white rounded-[2rem] shadow-sm border border-gray-100 hover:shadow-xl hover:border-blue-300 transition-all duration-500 group relative ${getRowStyle(item)}`}>
+                                        <div key={`desktop-stock-${item.id}-${index}`} className={`grid grid-cols-12 gap-4 px-6 py-5 items-center bg-white rounded-[2rem] shadow-sm border border-gray-100 hover:shadow-xl hover:border-blue-300 transition-all duration-500 group relative ${getRowStyle(item)}`}>
                                             
                                             {/* Section 1: Identity & Metadata (cols 1-3) */}
                                             <div className="col-span-3 flex items-center gap-4">
@@ -1365,24 +1383,26 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                                         {index + 1}
                                                     </div>
                                                 </div>
-                                                <div className="min-w-0">
-                                                    <div className="font-black text-gray-900 text-xl leading-normal mb-1" title={item.name}>{item.name}</div>
+                                                <div className="min-w-0 flex-1">
+                                                    <div className="font-black text-gray-900 text-xl leading-normal mb-1" title={item.name}>
+                                                        {item.name || <span className="text-gray-400 font-medium italic text-sm">ไม่มีชื่อรายการ</span>}
+                                                    </div>
                                                     <div className="flex flex-wrap items-center gap-2">
                                                         <span className="px-2 py-0.5 text-[9px] font-black rounded-md bg-gray-50 text-gray-400 border border-gray-100 uppercase tracking-wider">
-                                                            {item.category}
+                                                            {item.category || '-'}
                                                         </span>
                                                         <span className={`px-2 py-0.5 text-[9px] font-black rounded-md border shadow-xs uppercase tracking-wider ${status.color}`}>
                                                             {status.text}
                                                         </span>
                                                         
                                                         {/* Floating Inline Actions for quick access */}
-                                                        <div className="flex gap-1 ml-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                        <div className="flex gap-1 ml-1 transition-opacity">
                                                             <button onClick={() => handleOpenItemModal(item)} className="p-1 text-blue-500 hover:bg-blue-50 rounded-md transition-colors" title="แก้ไข">
-                                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L15.232 5.232z" /></svg>
+                                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L15.232 5.232z" /></svg>
                                                             </button>
                                                             {canDelete && (
-                                                                <button onClick={() => handleDeleteItem(item.id)} className="p-1 text-red-500 hover:bg-red-50 rounded-md transition-colors" title="ลบ">
-                                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                                                <button onClick={() => handleDeleteItem(item.id)} className="p-1 text-red-500 hover:bg-red-50 rounded-md transition-colors" title="ลบรายการนี้">
+                                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                                                                 </button>
                                                             )}
                                                         </div>
@@ -1486,7 +1506,7 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                             const status = getStatus(item);
                             
                             return (
-                                <div key={item.id} className={`p-4 space-y-3 rounded-lg shadow-sm ${getMobileCardStyle(item)}`}>
+                                <div key={`mobile-stock-${item.id}-${index}`} className={`p-4 space-y-3 rounded-lg shadow-sm ${getMobileCardStyle(item)}`}>
                                     <div className="flex justify-between items-start gap-3">
                                         <div className="relative flex-shrink-0">
                                             <div className="absolute -top-2 -left-2 w-6 h-6 bg-gray-900 text-white rounded-full flex items-center justify-center text-xs font-bold shadow-md border-2 border-white z-10">
@@ -1638,9 +1658,9 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                     <div className="space-y-2">
                                         {stockItems
                                             .filter(item => item.name.toLowerCase().includes(tagSearchTerm.toLowerCase()))
-                                            .map(item => (
+                                            .map((item, index) => (
                                                 <button 
-                                                    key={item.id} 
+                                                    key={`barcode-stock-${item.id}-${index}`} 
                                                     onClick={() => setSelectedTagItem(item)}
                                                     className="w-full text-left p-3 hover:bg-indigo-50 rounded-lg border border-gray-100 hover:border-indigo-200 transition-all flex items-center justify-between group"
                                                 >
@@ -1893,11 +1913,11 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                                                     if (!aPending && bPending) return 1;
                                                                     return 0;
                                                                 })
-                                                                .map(item => {
+                                                                .map((item, index) => {
                                                                     const isVerifiedToday = !!((item.receivedDate && new Date(item.receivedDate).toDateString() === new Date().toDateString()) || (item.orderedQuantity === 0 && item.lastUpdatedBy));
                                                                     
                                                                     return (
-                                                                        <tr key={item.id} className={`transition-colors ${isVerifiedToday ? 'bg-gray-50/30' : 'hover:bg-gray-50/50'}`}>
+                                                                        <tr key={`received-stock-${item.id}-${index}`} className={`transition-colors ${isVerifiedToday ? 'bg-gray-50/30' : 'hover:bg-gray-50/50'}`}>
                                                                             <td className="px-4 py-3 min-w-[180px] sticky left-0 z-10 bg-inherit shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
                                                                                 <div className="flex items-center gap-3">
                                                                                     <div className="w-10 h-10 rounded-lg bg-gray-100 flex-shrink-0 overflow-hidden ring-1 ring-gray-200">

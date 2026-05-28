@@ -297,7 +297,7 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({
                 overallProviderBills[providerName] = (overallProviderBills[providerName] || 0) + 1;
                 
                 const compositeKey = `${dateKey}|${providerName}`;
-                const totalManualCost = manualAdCosts[compositeKey] || 0;
+                const totalManualCost = (manualAdCosts || {})[compositeKey] || 0;
                 const adOrderCount = stats.adOrderCounts[providerName] || 0;
                 const dailyAdRevenue = stats.adRevenueByProvider[providerName] || 0;
 

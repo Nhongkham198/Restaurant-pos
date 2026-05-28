@@ -105,7 +105,7 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, 
             }
         });
 
-        return combined.sort((a, b) => a.category.localeCompare(b.category));
+        return combined.sort((a, b) => (a.category || '').localeCompare(b.category || ''));
     }, [stockItems, addedItemIds]);
 
     // Apply "Show Only Ordered" Filter
@@ -122,7 +122,7 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, 
         const currentIds = new Set(itemsToOrder.map(i => i.id));
         return stockItems
             .filter(i => !currentIds.has(i.id))
-            .sort((a, b) => a.name.localeCompare(b.name));
+            .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
     }, [stockItems, itemsToOrder]);
 
     // Filtered list based on search term
