@@ -991,6 +991,10 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
                             const latestPrice = priceMap.get(itemName);
                             if (!latestPrice) return false;
 
+                            // Check if this latestPrice is part of the most recently uploaded JSON file
+                            const isLatestUpload = latestPrice.updatedAt && Math.abs(latestPrice.updatedAt - latestImportTime) < 5000;
+                            if (!isLatestUpload) return false;
+
                             // Use calculateSmartUnitPrice to get the correctly converted latest price
                             const expectedSmartPrice = calculateSmartUnitPrice(
                                 ing, 

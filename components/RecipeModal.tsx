@@ -124,6 +124,11 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
         return priceMap;
     }, [latestIngredientPrices]);
 
+    const latestImportTime = React.useMemo(() => {
+        const prices = Array.isArray(latestIngredientPrices) ? latestIngredientPrices : [];
+        return prices.reduce((max, p) => p.updatedAt ? Math.max(max, p.updatedAt) : max, 0);
+    }, [latestIngredientPrices]);
+
     const [ingredients, setIngredients] = useState<RecipeIngredient[]>([]);
     const [additionalIngredients, setAdditionalIngredients] = useState<RecipeIngredient[]>([]);
     const [touchedIngredients, setTouchedIngredients] = useState<Set<number>>(new Set());
@@ -490,10 +495,11 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
                                     const expectedSmartPrice = calculateSmartUnitPrice(ing, latestPrice, currentManualPrice);
                                     
                                     // Criteria for Red Warning:
-                                    // 1. There is a price in JSON
+                                    // 1. There is a price in JSON and it is part of the most recently uploaded JSON batch
                                     // 2. The price in JSON is different from what's currently marked as smart price in recipe
                                     // 3. User hasn't touched it in this session
-                                    const isMismatched = latestPrice && Math.abs(expectedSmartPrice - (ing.smartUnitPrice ?? 0)) > 0.0001;
+                                    const isLatestUpload = latestPrice && latestPrice.updatedAt && Math.abs(latestPrice.updatedAt - latestImportTime) < 5000;
+                                    const isMismatched = isLatestUpload && Math.abs(expectedSmartPrice - (ing.smartUnitPrice ?? 0)) > 0.0001;
                                     const needsSync = isMismatched && !touchedIngredients.has(ing.stockItemId) && !ing.isSmartPriceLocked;
                                     
                                     const showInput = needsSync || forcingEdit.has(ing.stockItemId);
@@ -724,9 +730,10 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
                                 const expectedSmartPrice = calculateSmartUnitPrice(ing, latestPrice, currentManualPrice);
                                 
                                 // Criteria for Red Warning (Additional items)
-                                // 1. There is a price in JSON
+                                // 1. There is a price in JSON and it is part of the most recently uploaded JSON batch
                                 // 2. The price is mismatched
-                                const isMismatched = latestPrice && Math.abs(expectedSmartPrice - (ing.smartUnitPrice ?? 0)) > 0.0001;
+                                const isLatestUpload = latestPrice && latestPrice.updatedAt && Math.abs(latestPrice.updatedAt - latestImportTime) < 5000;
+                                const isMismatched = isLatestUpload && Math.abs(expectedSmartPrice - (ing.smartUnitPrice ?? 0)) > 0.0001;
                                 const needsSync = isMismatched && !touchedIngredients.has(ing.stockItemId) && !ing.isSmartPriceLocked;
                                 
                                 const showInput = needsSync || forcingEdit.has(ing.stockItemId);
