@@ -5,7 +5,7 @@ import Swal from 'sweetalert2';
 import { RecipeModal } from './RecipeModal';
 import * as XLSX from 'xlsx';
 import { useData } from '../contexts/DataContext';
-import { calculateSmartUnitPrice } from '../utils/recipeUtils';
+import { calculateSmartUnitPrice, parseThaiDateToTimestamp } from '../utils/recipeUtils';
 import { db, firebase } from '../firebaseConfig';
 
 const isRecipeChanged = (oldRecipe: Recipe | null, newRecipe: Recipe) => {
@@ -994,6 +994,11 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
                             // Check if this latestPrice is part of the most recently uploaded JSON file
                             const isLatestUpload = latestPrice.updatedAt && Math.abs(latestPrice.updatedAt - latestImportTime) < 5000;
                             if (!isLatestUpload) return false;
+
+                            const priceDateVal = latestPrice.date ? parseThaiDateToTimestamp(latestPrice.date) : 0;
+                            const recipeLastUpdatedVal = recipe ? getVal(recipe.lastUpdated) : 0;
+                            const isNewUpdate = isLatestUpload && (recipeLastUpdatedVal === 0 || priceDateVal > recipeLastUpdatedVal);
+                            if (!isNewUpdate) return false;
 
                             // Use calculateSmartUnitPrice to get the correctly converted latest price
                             const expectedSmartPrice = calculateSmartUnitPrice(
