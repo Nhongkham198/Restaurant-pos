@@ -872,9 +872,28 @@ export const StockManagement: React.FC<StockManagementProps> = ({
         return safeVal.toLocaleString();
     };
 
-    const formatDate = (timestamp?: number) => {
-        if (!timestamp) return '-';
-        return new Date(timestamp).toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: '2-digit' });
+    const parseDateValue = (val: any): Date | null => {
+        if (!val) return null;
+        if (typeof val.toDate === 'function') {
+            return val.toDate();
+        }
+        if (typeof val === 'object' && typeof val.seconds === 'number') {
+            return new Date(val.seconds * 1000);
+        }
+        if (val instanceof Date) {
+            return val;
+        }
+        const parsed = new Date(val);
+        if (!isNaN(parsed.getTime())) {
+            return parsed;
+        }
+        return null;
+    };
+
+    const formatDate = (timestamp?: any) => {
+        const parsed = parseDateValue(timestamp);
+        if (!parsed) return '-';
+        return parsed.toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: '2-digit' });
     };
 
     const handlePrintKitchen = () => {
@@ -969,10 +988,10 @@ export const StockManagement: React.FC<StockManagementProps> = ({
             'หมวดหมู่': item.category,
             'หน่วยนับ': item.unit,
             'จุดสั่งซื้อขั้นต่ำ': item.reorderPoint,
-            'วันที่สั่งของ': item.orderDate ? new Date(item.orderDate).toISOString().split('T')[0] : '',
-            'วันที่รับของ': item.receivedDate ? new Date(item.receivedDate).toISOString().split('T')[0] : '',
+            'วันที่สั่งของ': item.orderDate ? (parseDateValue(item.orderDate)?.toISOString().split('T')[0] || '') : '',
+            'วันที่รับของ': item.receivedDate ? (parseDateValue(item.receivedDate)?.toISOString().split('T')[0] || '') : '',
             'แก้ไขล่าสุดโดย': item.lastUpdatedBy || '-',
-            'เวลาแก้ไขล่าสุด': new Date(item.lastUpdated).toLocaleString('th-TH'),
+            'เวลาแก้ไขล่าสุด': parseDateValue(item.lastUpdated)?.toLocaleString('th-TH') || '-',
         }));
 
         const ws = XLSX.utils.json_to_sheet(dataToExport);
@@ -1551,7 +1570,7 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                         <span className="font-semibold text-xs text-blue-600">แก้ไขล่าสุด:</span>
                                         <div className="text-right">
                                             <div className="font-bold text-gray-800">{item.lastUpdatedBy || '-'}</div>
-                                            <div className="text-xs text-gray-500">{new Date(item.lastUpdated).toLocaleString('th-TH', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</div>
+                                            <div className="text-xs text-gray-500">{parseDateValue(item.lastUpdated)?.toLocaleString('th-TH', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) || '-'}</div>
                                         </div>
                                     </div>
 
@@ -1838,7 +1857,8 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                         <div className="flex-1 overflow-y-auto p-4 sm:p-6 scrollbar-hide">
                             {(() => {
                                 const filtered = stockItems.filter(item => {
-                                    const isReceivedToday = !!(item.receivedDate && new Date(item.receivedDate).toDateString() === new Date().toDateString());
+                                    const receivedDateObj = parseDateValue(item.receivedDate);
+                                    const isReceivedToday = !!(receivedDateObj && receivedDateObj.toDateString() === new Date().toDateString());
                                     const isPending = (Number(item.orderedQuantity) || 0) > 0;
                                     return isReceivedToday || isPending;
                                 });
@@ -1910,7 +1930,8 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                                                     return 0;
                                                                 })
                                                                 .map((item, index) => {
-                                                                    const isVerifiedToday = !!((item.receivedDate && new Date(item.receivedDate).toDateString() === new Date().toDateString()) || (item.orderedQuantity === 0 && item.lastUpdatedBy));
+                                                                    const receivedDateObj = parseDateValue(item.receivedDate);
+                                                                    const isVerifiedToday = !!((receivedDateObj && receivedDateObj.toDateString() === new Date().toDateString()) || (item.orderedQuantity === 0 && item.lastUpdatedBy));
                                                                     
                                                                     return (
                                                                         <tr key={`received-stock-${item.id}-${index}`} className={`transition-colors ${isVerifiedToday ? 'bg-gray-50/30' : 'hover:bg-gray-50/50'}`}>
@@ -1975,7 +1996,7 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                                                                     {isVerifiedToday && item.lastUpdatedBy && (
                                                                                         <div className="mt-1 text-[10px] text-gray-500 font-medium text-center bg-green-50/50 py-1 rounded-lg">
                                                                                             <span className="text-green-700 font-bold block mb-0.5">บันทึกโดย: {item.lastUpdatedBy}</span>
-                                                                                            <span className="text-gray-400 opacity-80">{new Date(item.lastUpdated || 0).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.</span>
+                                                                                            <span className="text-gray-400 opacity-80">{parseDateValue(item.lastUpdated)?.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) || '-'} น.</span>
                                                                                         </div>
                                                                                     )}
                                                                                 </div>

@@ -16,7 +16,10 @@ export const useTableLogic = () => {
     const { selectedSidebarFloor, setSelectedSidebarFloor } = useUI();
 
     const handleAddTable = (floor: string) => { 
-        const newId = Math.max(0, ...tables.map(t => t.id)) + 1; 
+        const validIdNumbers = tables
+            .map(t => t.id)
+            .filter(id => typeof id === 'number' && !Number.isNaN(id) && Number.isFinite(id));
+        const newId = Math.max(0, ...validIdNumbers) + 1; 
         const tablesOnFloor = tables.filter(t => t.floor === floor); 
         const newTableName = `T${tablesOnFloor.length + 1}`; 
         setTables(prev => [...prev, { id: newId, name: newTableName, floor: floor, activePin: null, reservation: null }]); 

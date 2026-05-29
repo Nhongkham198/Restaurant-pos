@@ -158,7 +158,7 @@ export function useFirestoreSync<T>(
                         // Prevent duplicates and sort tables by ID
                         const uniqueTablesMap = new Map<number, Table>();
                         items.forEach(table => {
-                            if (table && typeof table.id === 'number') {
+                            if (table && typeof table.id === 'number' && !Number.isNaN(table.id) && Number.isFinite(table.id)) {
                                 if (!uniqueTablesMap.has(table.id)) {
                                     uniqueTablesMap.set(table.id, table);
                                 }
