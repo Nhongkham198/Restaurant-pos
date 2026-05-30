@@ -193,9 +193,14 @@ exports.sendHighPriorityOrderNotification = functions.region('asia-southeast1').
                 ? `${newOrder.tableName} (${newOrder.floor})` 
                 : newOrder.tableName;
 
-            const customerDisplay = newOrder.manualOrderNumber 
-                ? `${newOrder.customerName || 'ทั่วไป'} #${newOrder.manualOrderNumber}`
-                : (newOrder.customerName || 'ทั่วไป');
+            let customerDisplay = newOrder.customerName || 'ทั่วไป';
+            if (newOrder.manualOrderNumber) {
+                const hasNumAlready = customerDisplay.includes(`#${newOrder.manualOrderNumber}`) || 
+                                     customerDisplay.endsWith(newOrder.manualOrderNumber);
+                if (!hasNumAlready) {
+                    customerDisplay = `${customerDisplay} #${newOrder.manualOrderNumber}`;
+                }
+            }
 
             // HTML version for Telegram
             const htmlMessageText = `🔔 <b>ออเดอร์ใหม่! #${displayOrderNumber}</b>\n` +
