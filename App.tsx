@@ -101,12 +101,12 @@ import AdminSidebar from './components/AdminSidebar';
 
 // Lazy load components to enable code splitting, drastically reducing the initial bundle size
 // and ensuring customer-facing pages load instantly without downloading heavy admin code.
+import { StockAnalytics } from './components/StockAnalytics';
 const KitchenView = lazy(() => import('./components/KitchenView').then(m => ({ default: m.KitchenView })));
 const TableLayout = lazy(() => import('./components/TableLayout').then(m => ({ default: m.TableLayout })));
 const Dashboard = lazy(() => import('./components/Dashboard'));
 const SalesHistory = lazy(() => import('./components/SalesHistory').then(m => ({ default: m.SalesHistory })));
 const StockManagement = lazy(() => import('./components/StockManagement').then(m => ({ default: m.StockManagement })));
-const StockAnalytics = lazy(() => import('./components/StockAnalytics').then(m => ({ default: m.StockAnalytics })));
 const RecipeManagement = lazy(() => import('./components/RecipeManagement').then(m => ({ default: m.RecipeManagement })));
 const LeaveCalendarView = lazy(() => import('./components/LeaveCalendarView').then(m => ({ default: m.LeaveCalendarView })));
 const LeaveAnalytics = lazy(() => import('./components/LeaveAnalytics').then(m => ({ default: m.LeaveAnalytics })));

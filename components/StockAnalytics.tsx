@@ -8,7 +8,7 @@ interface StockAnalyticsProps {
     stockItems: StockItem[];
 }
 
-export const StockAnalytics: React.FC<StockAnalyticsProps> = ({ stockItems }) => {
+export const StockAnalytics: React.FC<StockAnalyticsProps> = ({ stockItems = [] }) => {
     // State for Modal
     const [selectedGroup, setSelectedGroup] = useState<'total' | 'good' | 'low' | 'out' | null>(null);
 
@@ -21,7 +21,10 @@ export const StockAnalytics: React.FC<StockAnalyticsProps> = ({ stockItems }) =>
         const lowStockItems: StockItem[] = [];
         const goodStockItems: StockItem[] = [];
 
-        stockItems.forEach(item => {
+        const validItems = Array.isArray(stockItems) ? stockItems : [];
+
+        validItems.forEach(item => {
+            if (!item) return;
             const qty = Number(item.quantity) || 0;
             const reorder = Number(item.reorderPoint) || 0;
 
@@ -37,17 +40,21 @@ export const StockAnalytics: React.FC<StockAnalyticsProps> = ({ stockItems }) =>
             }
         });
 
-        // Sort items by name for easier reading in lists
-        const sortByName = (a: StockItem, b: StockItem) => a.name.localeCompare(b.name);
+        // Sort items by name helper that gracefully handles missing strings or undefined objects
+        const sortByName = (a: StockItem, b: StockItem) => {
+            const nameA = a?.name || '';
+            const nameB = b?.name || '';
+            return nameA.localeCompare(nameB);
+        };
         outOfStockItems.sort(sortByName);
         lowStockItems.sort(sortByName);
         goodStockItems.sort(sortByName);
         
         // Total items sorted
-        const allItems = [...stockItems].sort(sortByName);
+        const allItems = [...validItems].sort(sortByName);
 
         return {
-            total: stockItems.length,
+            total: validItems.length,
             outOfStock,
             lowStock,
             goodStock,
@@ -71,20 +78,22 @@ export const StockAnalytics: React.FC<StockAnalyticsProps> = ({ stockItems }) =>
     const currentMonthKey = new Date().toISOString().slice(0, 7); // e.g. "2023-10"
     
     const topRotationItems = useMemo(() => {
-        return [...stockItems]
+        const validItems = Array.isArray(stockItems) ? stockItems : [];
+        return [...validItems]
+            .filter(Boolean)
             .sort((a, b) => {
-                const countA = a.monthlyWithdrawals?.[currentMonthKey] || 0;
-                const countB = b.monthlyWithdrawals?.[currentMonthKey] || 0;
+                const countA = a?.monthlyWithdrawals?.[currentMonthKey] || 0;
+                const countB = b?.monthlyWithdrawals?.[currentMonthKey] || 0;
                 return countB - countA;
             })
             .slice(0, 7); // Top 7
     }, [stockItems, currentMonthKey]);
 
     const rotationData = {
-        labels: topRotationItems.map(i => i.name),
-        data: topRotationItems.map(i => i.monthlyWithdrawals?.[currentMonthKey] || 0),
-        images: topRotationItems.map(i => i.imageUrl || ''), // Extract images
-        maxValue: Math.max(...topRotationItems.map(i => i.monthlyWithdrawals?.[currentMonthKey] || 0), 10)
+        labels: topRotationItems.map(i => i?.name || ''),
+        data: topRotationItems.map(i => i?.monthlyWithdrawals?.[currentMonthKey] || 0),
+        images: topRotationItems.map(i => i?.imageUrl || ''), // Extract images
+        maxValue: Math.max(...topRotationItems.map(i => i?.monthlyWithdrawals?.[currentMonthKey] || 0), 10)
     };
 
     // --- 3. Usage Rate Analysis (Excluding Mondays) ---
@@ -107,9 +116,11 @@ export const StockAnalytics: React.FC<StockAnalyticsProps> = ({ stockItems }) =>
     }, []);
 
     const usageAnalysisItems = useMemo(() => {
-        return [...stockItems]
+        const validItems = Array.isArray(stockItems) ? stockItems : [];
+        return [...validItems]
+            .filter(Boolean)
             .map(item => {
-                const used = item.monthlyWithdrawals?.[currentMonthKey] || 0;
+                const used = item?.monthlyWithdrawals?.[currentMonthKey] || 0;
                 const rate = used / operatingDays;
                 return { ...item, used, rate };
             })
@@ -250,10 +261,10 @@ export const StockAnalytics: React.FC<StockAnalyticsProps> = ({ stockItems }) =>
                         </thead>
                         <tbody>
                             {usageAnalysisItems.length > 0 ? (
-                                usageAnalysisItems.map((item) => {
+                                usageAnalysisItems.map((item, idx) => {
                                     const daysLeft = item.rate > 0 ? Number(item.quantity) / item.rate : 999;
                                     return (
-                                        <tr key={item.id} className="border-b hover:bg-gray-50 transition-colors">
+                                        <tr key={`${item.id || 'usage'}-${idx}`} className="border-b hover:bg-gray-50 transition-colors">
                                             <td className="px-4 py-3 font-medium text-gray-900 flex items-center gap-2">
                                                 <div className="w-8 h-8 rounded bg-gray-100 overflow-hidden border border-gray-200 flex-shrink-0">
                                                     <img src={item.imageUrl || "https://placehold.co/100?text=No+Image"} alt={item.name} className="w-full h-full object-cover" onError={(e) => e.currentTarget.src = "https://placehold.co/100?text=Error"} />
@@ -315,8 +326,8 @@ export const StockAnalytics: React.FC<StockAnalyticsProps> = ({ stockItems }) =>
                                     </td>
                                 </tr>
                             ) : (
-                                [...stats.outOfStockItems, ...stats.lowStockItems].map((item) => (
-                                    <tr key={item.id} className="border-b hover:bg-gray-50 transition-colors">
+                                [...stats.outOfStockItems, ...stats.lowStockItems].map((item, idx) => (
+                                    <tr key={`${item.id || 'low-out'}-${idx}`} className="border-b hover:bg-gray-50 transition-colors">
                                         <td className="px-6 py-4 font-medium text-gray-900 flex items-center gap-3">
                                             <div className="w-10 h-10 rounded-md bg-gray-100 overflow-hidden border border-gray-200 flex-shrink-0">
                                                 <img src={item.imageUrl || "https://placehold.co/100?text=No+Image"} alt={item.name} className="w-full h-full object-cover" onError={(e) => e.currentTarget.src = "https://placehold.co/100?text=Error"} />
@@ -379,7 +390,7 @@ export const StockAnalytics: React.FC<StockAnalyticsProps> = ({ stockItems }) =>
                                     </thead>
                                     <tbody className="divide-y divide-gray-100">
                                         {modalData.items.map((item, idx) => (
-                                            <tr key={item.id} className="hover:bg-gray-50 transition-colors">
+                                            <tr key={`${item.id || 'modal'}-${idx}`} className="hover:bg-gray-50 transition-colors">
                                                 <td className="px-6 py-3 flex items-center gap-3">
                                                     <span className="text-gray-400 text-xs w-4">{idx + 1}.</span>
                                                     <div className="w-10 h-10 rounded bg-gray-100 border border-gray-200 overflow-hidden flex-shrink-0">
