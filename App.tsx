@@ -237,6 +237,11 @@ export const App: React.FC = () => {
         facebookPageUrl, setFacebookPageUrl
     } = useData();
 
+    const handleChangeBranch = () => {
+        localStorage.setItem('intentToChangeBranch', 'true');
+        setSelectedBranch(null);
+    };
+
     // 2. COMPUTED STATE (LEAVE MANAGEMENT)
     const visibleLeaveRequests = useMemo(() => {
         if (!currentUser) return [];
@@ -616,6 +621,23 @@ export const App: React.FC = () => {
             {id: 'pos', label: 'POS', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4z" /><path fillRule="evenodd" d="M18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h2a1 1 0 100-2H9z" clipRule="evenodd" /></svg>, view: 'pos'},
         ];
 
+        // "สลับสาขา" (Switch Branch) for admin/branch-admin with multiple branches
+        const hasMultipleBranches = (currentUser?.role === 'admin' && branches.length > 1) || 
+            (currentUser?.allowedBranchIds && currentUser.allowedBranchIds.length > 1);
+            
+        if (hasMultipleBranches && (currentUser?.role === 'admin' || currentUser?.role === 'branch-admin')) {
+            items.push({
+                id: 'change-branch',
+                label: 'สลับสาขา',
+                icon: (
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                    </svg>
+                ),
+                onClick: handleChangeBranch
+            });
+        }
+
         // Show Kitchen tab for everyone except auditor (so admin/branch-admin can see it too)
         if (currentUser?.role !== 'auditor') {
              items.push({id: 'kitchen', label: 'ครัว', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M17.707 9.293a1 1 0 010 1.414l-7 7a1 1 0 01-1.414 0l-7-7A.997.997 0 012 10V5a3 3 0 013-3h10a3 3 0 013 3v5a.997.997 0 01-.293.707zM5 6a1 1 0 100 2 1 1 0 000-2zm3 0a1 1 0 100 2 1 1 0 000-2zm3 0a1 1 0 100 2 1 1 0 000-2z" clipRule="evenodd" /></svg>, view: 'kitchen', badge: totalKitchenBadgeCount});
@@ -702,7 +724,7 @@ export const App: React.FC = () => {
             badge: maintenanceBadgeCount
         });
         return items;
-    }, [currentUser, tablesBadgeCount, totalKitchenBadgeCount, leaveBadgeCount, stockBadgeCount, maintenanceBadgeCount]);
+    }, [currentUser, branches, tablesBadgeCount, totalKitchenBadgeCount, leaveBadgeCount, stockBadgeCount, maintenanceBadgeCount]);
 
     const selectedTable = useMemo(() => {
         return tables.find(t => t.id === selectedTableId) || null;
@@ -1328,11 +1350,6 @@ export const App: React.FC = () => {
     const handleUpdateCurrentUser = (updates: Partial<User>) => {
         setUsers(prevUsers => prevUsers.map(user => user.id === currentUser?.id ? { ...user, ...updates } : user));
         setCurrentUser(prev => (prev ? { ...prev, ...updates } : null));
-    };
-
-    const handleChangeBranch = () => {
-        localStorage.setItem('intentToChangeBranch', 'true');
-        setSelectedBranch(null);
     };
 
     const handleUpdateLeaveStatus = async (requestId: number, status: 'approved' | 'rejected') => {
