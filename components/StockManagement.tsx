@@ -1410,6 +1410,18 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                                             {status.text}
                                                         </span>
                                                         
+                                                        {/* Quick Receive Button (always visible for easy access on tables/tablets) */}
+                                                        <button 
+                                                            onClick={(e) => { e.stopPropagation(); handleReceiveStock(item); }} 
+                                                            className="px-2.5 py-1 text-[10px] font-black rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 hover:border-emerald-350 active:scale-95 transition-all flex items-center gap-1 cursor-pointer shadow-xs"
+                                                            title="รับของ / เพิ่มสต็อก"
+                                                        >
+                                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3.5}>
+                                                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                                                            </svg>
+                                                            <span>รับของ</span>
+                                                        </button>
+                                                        
                                                         {/* Floating Inline Actions for quick access */}
                                                         <div className="flex gap-1 ml-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                                             <button onClick={() => handleOpenItemModal(item)} className="p-1 text-blue-500 hover:bg-blue-50 rounded-md transition-colors" title="แก้ไข">
