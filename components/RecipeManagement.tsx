@@ -218,7 +218,7 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
                         <tbody>
             `;
 
-            recipe.ingredients.forEach((ing, idx) => {
+            (recipe.ingredients || []).forEach((ing, idx) => {
                 const stockItem = stockMap.get(String(ing.stockItemId));
                 const manualPrice = ing.unitPrice ?? stockItem?.unitPrice ?? 0;
                 const itemName = (stockItem?.name || '').trim();
@@ -353,7 +353,7 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
                     return { mCost, sCost, updatedIngredients };
                 };
 
-                const ingResults = calculateListCost(recipe.ingredients);
+                const ingResults = calculateListCost(recipe.ingredients || []);
                 const addIngResults = calculateListCost(recipe.additionalIngredients || []);
 
                 // Determine miscCost
@@ -472,7 +472,7 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
             stockItems.forEach(s => stockMap.set(String(s.id), s));
 
             // Detailed Ingredient Stats
-            const ingredientDetails = recipe.ingredients.map(ing => {
+            const ingredientDetails = (recipe.ingredients || []).map(ing => {
                 const stockItem = stockMap.get(String(ing.stockItemId));
                 const manualPrice = ing.unitPrice ?? stockItem?.unitPrice ?? 0;
                 const latestPrice = stockItem ? priceMap.get(stockItem.name.trim()) : undefined;
@@ -522,7 +522,7 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
                 'Packaging Cost (Smart)': (packagingDetails.reduce((sum, p) => sum + p.smartSubtotal, 0)),
                 'Misc Cost (ส่วนบวกเพิ่มเอง)': miscCost,
                 'Hidden Cost % (ต้นทุนแฝง)': recipe.hiddenCostPercentage || 0,
-                'Ingredients (JSON for Import)': JSON.stringify(recipe.ingredients.map(ing => {
+                'Ingredients (JSON for Import)': JSON.stringify((recipe.ingredients || []).map(ing => {
                     const stockItem = stockMap.get(String(ing.stockItemId));
                     const manualPrice = ing.unitPrice ?? stockItem?.unitPrice ?? 0;
                     const latestPrice = stockItem ? priceMap.get(stockItem.name.trim()) : undefined;
@@ -731,7 +731,7 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
 
     const calculateCost = (recipe: Recipe) => {
         let ingredientCost = 0;
-        recipe.ingredients.forEach(ing => {
+        (recipe.ingredients || []).forEach(ing => {
             // Use custom unitPrice if available, otherwise fallback to stockItem unitPrice
             const stockItem = stockItems.find(s => s.id === ing.stockItemId);
             const priceToUse = ing.unitPrice ?? stockItem?.unitPrice ?? 0;

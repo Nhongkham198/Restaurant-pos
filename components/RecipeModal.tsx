@@ -186,7 +186,7 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
 
     const toggleExcludeCost = (stockItemId: number, isAdditional = false) => {
         const updater = isAdditional ? setAdditionalIngredients : setIngredients;
-        const list = isAdditional ? additionalIngredients : ingredients;
+        const list = isAdditional ? (additionalIngredients || []) : (ingredients || []);
         updater(list.map(ing => 
             ing.stockItemId === stockItemId ? { ...ing, excludeFromCost: !ing.excludeFromCost } : ing
         ));
@@ -194,7 +194,7 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
 
     useEffect(() => {
         if (recipe) {
-            setIngredients(recipe.ingredients);
+            setIngredients(recipe.ingredients || []);
             setAdditionalIngredients(recipe.additionalIngredients || []);
             
             // Calculate what portion of additionalCost was manual vs packaging
@@ -221,14 +221,14 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
 
     const filteredStock = stockItems.filter(item => 
         (item.name || '').toLowerCase().includes(searchTerm.toLowerCase()) &&
-        !ingredients.some(ing => ing.stockItemId === item.id) &&
-        !additionalIngredients.some(ing => ing.stockItemId === item.id)
+        !(ingredients || []).some(ing => ing.stockItemId === item.id) &&
+        !(additionalIngredients || []).some(ing => ing.stockItemId === item.id)
     );
 
     const filteredAdditionalStock = stockItems.filter(item =>
         (item.name || '').toLowerCase().includes(additionalSearchTerm.toLowerCase()) &&
-        !ingredients.some(ing => ing.stockItemId === item.id) &&
-        !additionalIngredients.some(ing => ing.stockItemId === item.id)
+        !(ingredients || []).some(ing => ing.stockItemId === item.id) &&
+        !(additionalIngredients || []).some(ing => ing.stockItemId === item.id)
     );
 
     const addIngredient = (stockItem: StockItem) => {
@@ -526,12 +526,12 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
                     <div>
                         <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">วัตถุดิบที่ใช้</h3>
                         <div className="space-y-3">
-                            {ingredients.length === 0 ? (
+                            {(!ingredients || ingredients.length === 0) ? (
                                 <div className="text-center py-8 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200">
                                     <p className="text-gray-400 text-sm">ยังไม่มีการเพิ่มวัตถุดิบ</p>
                                 </div>
                             ) : (
-                                ingredients.map((ing, index) => {
+                                (ingredients || []).map((ing, index) => {
                                     const stockItem = stockItems.find(s => s.id === ing.stockItemId);
                                     const currentManualPrice = ing.unitPrice ?? stockItem?.unitPrice ?? 0;
                                     
@@ -809,7 +809,7 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
 
                         {/* Selected Additional Items */}
                         <div className="space-y-2 mb-4">
-                            {additionalIngredients.map((ing, index) => {
+                            {(additionalIngredients || []).map((ing, index) => {
                                 const stockItem = stockItems.find(s => s.id === ing.stockItemId);
                                 const currentManualPrice = ing.unitPrice ?? stockItem?.unitPrice ?? 0;
                                 const rowManualCost = ing.quantity * currentManualPrice;

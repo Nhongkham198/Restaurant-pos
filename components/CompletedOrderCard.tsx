@@ -94,7 +94,7 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({
             // Raw Material Cost
             const recipe = recipes.find(r => r.menuItemId === item.id);
             if (recipe) {
-                const ingredientCost = recipe.ingredients.reduce((sum, ing) => sum + (ing.quantity * (ing.unitPrice || 0)), 0);
+                const ingredientCost = (recipe.ingredients || []).reduce((sum, ing) => sum + (ing.quantity * (ing.unitPrice || 0)), 0);
                 const baseCost = ingredientCost + recipe.additionalCost;
                 const hiddenCost = baseCost * ((recipe.hiddenCostPercentage || 0) / 100);
                 totalRawMaterialCost += (baseCost + hiddenCost) * item.quantity;
