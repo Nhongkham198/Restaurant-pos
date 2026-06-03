@@ -479,6 +479,7 @@ export interface RecipeIngredient {
     unitPrice?: number; // Added: Custom unit price for this recipe
     smartUnitPrice?: number; // Added: Override for JSON/Smart price
     isSmartPriceLocked?: boolean; // User manually overridden the smart/JSON price
+    excludeFromCost?: boolean; // Enabled/disabled in cost calculation
 }
 
 export interface BagCounts {

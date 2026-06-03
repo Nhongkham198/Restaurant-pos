@@ -26,13 +26,15 @@ export const MenuSearchModal: React.FC<MenuSearchModalProps> = ({ isOpen, onClos
     }, [isOpen]);
 
     const filteredItems = useMemo(() => {
-        if (!searchTerm.trim()) {
-            return menuItems;
+        const safeMenuItems = Array.isArray(menuItems) ? menuItems.filter(Boolean) : [];
+        const term = (searchTerm || '').trim();
+        if (!term) {
+            return safeMenuItems;
         }
         // Improved Search: Split terms by whitespace and check if all terms exist in name
-        const searchParts = searchTerm.toLowerCase().trim().split(/\s+/);
-        return menuItems.filter(item =>
-            searchParts.every(part => item.name.toLowerCase().includes(part))
+        const searchParts = term.toLowerCase().split(/\s+/);
+        return safeMenuItems.filter(item =>
+            item && item.name && searchParts.every(part => (item.name || '').toLowerCase().includes(part))
         );
     }, [searchTerm, menuItems]);
 

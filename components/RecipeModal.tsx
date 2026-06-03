@@ -151,6 +151,47 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
     const [deliveryTaxes, setDeliveryTaxes] = useState<{ [providerId: string]: number }>(menuItem.deliveryTaxes || {});
     const [isSaving, setIsSaving] = useState(false);
 
+    // Drag and Drop & Cost exclusion states
+    const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+    const [draggedType, setDraggedType] = useState<'main' | 'additional' | null>(null);
+
+    const handleDragStart = (index: number, type: 'main' | 'additional') => {
+        setDraggedIndex(index);
+        setDraggedType(type);
+    };
+
+    const handleDragOver = (e: React.DragEvent, index: number, type: 'main' | 'additional') => {
+        e.preventDefault();
+        if (draggedType !== type || draggedIndex === null || draggedIndex === index) return;
+    };
+
+    const handleDrop = (index: number, type: 'main' | 'additional') => {
+        if (draggedType !== type || draggedIndex === null) return;
+        
+        if (type === 'main') {
+            const updated = [...ingredients];
+            const [moved] = updated.splice(draggedIndex, 1);
+            updated.splice(index, 0, moved);
+            setIngredients(updated);
+        } else {
+            const updated = [...additionalIngredients];
+            const [moved] = updated.splice(draggedIndex, 1);
+            updated.splice(index, 0, moved);
+            setAdditionalIngredients(updated);
+        }
+        
+        setDraggedIndex(null);
+        setDraggedType(null);
+    };
+
+    const toggleExcludeCost = (stockItemId: number, isAdditional = false) => {
+        const updater = isAdditional ? setAdditionalIngredients : setIngredients;
+        const list = isAdditional ? additionalIngredients : ingredients;
+        updater(list.map(ing => 
+            ing.stockItemId === stockItemId ? { ...ing, excludeFromCost: !ing.excludeFromCost } : ing
+        ));
+    };
+
     useEffect(() => {
         if (recipe) {
             setIngredients(recipe.ingredients);
@@ -325,6 +366,9 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
             let sCost = 0;
 
             list.forEach(ing => {
+                if (ing.excludeFromCost) {
+                    return; // Skip cost calculation for excluded items
+                }
                 const stockItem = stockItems.find(s => s.id === ing.stockItemId);
                 
                 // Manual Cost
@@ -410,6 +454,9 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
             let sCost = 0;
 
             list.forEach(ing => {
+                if (ing.excludeFromCost) {
+                    return; // Skip cost calculation for excluded items
+                }
                 const stockItem = stockItems.find(s => s.id === ing.stockItemId);
                 
                 // Manual Cost
@@ -484,7 +531,7 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
                                     <p className="text-gray-400 text-sm">ยังไม่มีการเพิ่มวัตถุดิบ</p>
                                 </div>
                             ) : (
-                                ingredients.map(ing => {
+                                ingredients.map((ing, index) => {
                                     const stockItem = stockItems.find(s => s.id === ing.stockItemId);
                                     const currentManualPrice = ing.unitPrice ?? stockItem?.unitPrice ?? 0;
                                     
@@ -518,7 +565,34 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
                                     const showInput = needsSync || forcingEdit.has(ing.stockItemId);
                                     
                                     return (
-                                        <div key={ing.stockItemId} className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                                        <div 
+                                            key={ing.stockItemId} 
+                                            draggable="true"
+                                            onDragStart={(e) => {
+                                                const target = e.target as HTMLElement;
+                                                if (target.closest('input') || target.closest('select') || target.closest('button')) {
+                                                    e.preventDefault();
+                                                    return;
+                                                }
+                                                handleDragStart(index, 'main');
+                                            }}
+                                            onDragOver={(e) => handleDragOver(e, index, 'main')}
+                                            onDrop={() => handleDrop(index, 'main')}
+                                            onDragEnd={() => { setDraggedIndex(null); setDraggedType(null); }}
+                                            className={`flex flex-col sm:flex-row sm:items-center gap-3 p-4 bg-gray-50 rounded-2xl border transition-all ${draggedIndex === index && draggedType === 'main' ? 'opacity-40 scale-95 border-dashed border-blue-400 bg-blue-50/20' : 'border-gray-100'}`}
+                                        >
+                                            {/* Drag Handle */}
+                                            <div className="flex-shrink-0 cursor-grab active:cursor-grabbing text-gray-350 hover:text-gray-500 transition-colors hidden sm:flex items-center justify-center p-1" title="ลากเพื่อเปลี่ยนลำดับ">
+                                                <svg width="12" height="20" viewBox="0 0 12 20" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-gray-400 select-none">
+                                                    <circle cx="3" cy="3" r="1.5" fill="currentColor"/>
+                                                    <circle cx="3" cy="10" r="1.5" fill="currentColor"/>
+                                                    <circle cx="3" cy="17" r="1.5" fill="currentColor"/>
+                                                    <circle cx="9" cy="3" r="1.5" fill="currentColor"/>
+                                                    <circle cx="9" cy="10" r="1.5" fill="currentColor"/>
+                                                    <circle cx="9" cy="17" r="1.5" fill="currentColor"/>
+                                                </svg>
+                                            </div>
+
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-center gap-1.5 min-w-0">
                                                     {needsSync && (
@@ -527,7 +601,7 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
                                                             <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span>
                                                         </span>
                                                     )}
-                                                    <p className="font-bold text-gray-900 truncate">{stockItem?.name}</p>
+                                                    <p className={`font-bold text-gray-900 truncate ${ing.excludeFromCost ? 'text-gray-400 italic line-through' : ''}`}>{stockItem?.name}</p>
                                                     {latestPrice && !needsSync && (
                                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 text-green-500 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
                                                             <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
@@ -622,8 +696,17 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
 
                                             <div className="flex items-center gap-3 sm:ml-auto">
                                                 <div className="text-right">
-                                                    <span className="text-[10px] text-gray-400 font-bold block mb-1">ต้นทุน</span>
-                                                    <p className="text-sm font-black text-gray-900">฿{rowManualCost.toLocaleString(undefined, { minimumFractionDigits: 3 })}</p>
+                                                    <div className="flex items-center gap-1.5 mb-1 justify-end">
+                                                        <span className="text-[10px] text-gray-400 font-bold">คิดต้นทุน</span>
+                                                        <input 
+                                                            type="checkbox"
+                                                            checked={!ing.excludeFromCost}
+                                                            onChange={() => toggleExcludeCost(ing.stockItemId, false)}
+                                                            className="h-3.5 w-3.5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
+                                                            title="รวมรายการวัตถุดิบนี้ในการคำนวณต้นทุนรวมของสูตร"
+                                                        />
+                                                    </div>
+                                                    <p className={`text-sm font-black text-gray-900 ${ing.excludeFromCost ? 'line-through text-gray-450 font-medium' : ''}`}>฿{rowManualCost.toLocaleString(undefined, { minimumFractionDigits: 3 })}</p>
                                                     {showInput ? (
                                                         <div className="mt-1 border-t border-red-200 pt-1">
                                                             <div className="flex items-center justify-end">
@@ -726,7 +809,7 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
 
                         {/* Selected Additional Items */}
                         <div className="space-y-2 mb-4">
-                            {additionalIngredients.map(ing => {
+                            {additionalIngredients.map((ing, index) => {
                                 const stockItem = stockItems.find(s => s.id === ing.stockItemId);
                                 const currentManualPrice = ing.unitPrice ?? stockItem?.unitPrice ?? 0;
                                 const rowManualCost = ing.quantity * currentManualPrice;
@@ -757,104 +840,141 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
                                 const showInput = needsSync || forcingEdit.has(ing.stockItemId);
 
                                 return (
-                                    <div key={ing.stockItemId} className="flex flex-col gap-2 p-3 bg-blue-50/50 rounded-2xl border border-blue-100/50">
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex items-center gap-1.5 min-w-0">
-                                                {needsSync && (
-                                                    <span className="relative flex h-2.5 w-2.5 mr-0.5">
-                                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                                                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span>
-                                                    </span>
-                                                )}
-                                                <p className="text-sm font-bold text-gray-800 truncate">{stockItem?.name}</p>
-                                                {latestPrice && !needsSync && (
-                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-green-500 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
-                                                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                                                    </svg>
-                                                )}
-                                                {latestPrice && (
-                                                    <div className="flex flex-col items-start">
-                                                        <div className="flex items-center gap-1">
-                                                            <button 
-                                                                onClick={() => handleSyncPrice(ing.stockItemId, true)}
-                                                                className={`flex-shrink-0 transition-colors ${needsSync ? 'p-1 bg-blue-500 text-white rounded-lg hover:bg-blue-600 shadow-sm animate-bounce' : 'text-blue-500 hover:text-blue-700'}`} 
-                                                                title="ซิงค์ราคาล่าสุดจากไฟล์ JSON"
-                                                            >
-                                                                <svg xmlns="http://www.w3.org/2000/svg" className={`${needsSync ? 'h-3' : 'h-3.5 w-3.5'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                                                </svg>
-                                                            </button>
-                                                            {latestPrice.date && (
-                                                                <div className="flex items-center gap-1">
-                                                                    <span className="text-[10px] text-blue-600 font-bold italic">
-                                                                        {latestPrice.date}
-                                                                    </span>
-                                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-2.5 w-2.5 text-green-500" viewBox="0 0 20 20" fill="currentColor">
-                                                                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                                                                    </svg>
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </div>
-                                            <button 
-                                                onClick={() => removeAdditionalIngredient(ing.stockItemId)}
-                                                className="p-1 px-2 text-red-500 hover:bg-red-50 rounded-lg text-[10px] font-black uppercase tracking-tighter transition-colors"
-                                            >
-                                                ลบทิ้ง
-                                            </button>
+                                    <div 
+                                        key={ing.stockItemId} 
+                                        draggable="true"
+                                        onDragStart={(e) => {
+                                            const target = e.target as HTMLElement;
+                                            if (target.closest('input') || target.closest('select') || target.closest('button')) {
+                                                e.preventDefault();
+                                                return;
+                                            }
+                                            handleDragStart(index, 'additional');
+                                        }}
+                                        onDragOver={(e) => handleDragOver(e, index, 'additional')}
+                                        onDrop={() => handleDrop(index, 'additional')}
+                                        onDragEnd={() => { setDraggedIndex(null); setDraggedType(null); }}
+                                        className={`flex gap-3 p-3 bg-blue-50/50 rounded-2xl border transition-all ${draggedIndex === index && draggedType === 'additional' ? 'opacity-40 scale-95 border-dashed border-blue-400 bg-blue-50/20' : 'border-blue-100/50 hover:border-blue-300'}`}
+                                    >
+                                        {/* Drag Handle */}
+                                        <div className="flex-shrink-0 cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 transition-colors hidden sm:flex items-center justify-center p-0.5" title="ลากเพื่อเปลี่ยนลำดับ">
+                                            <svg width="12" height="20" viewBox="0 0 12 20" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-blue-300 select-none">
+                                                <circle cx="3" cy="3" r="1.5" fill="currentColor"/>
+                                                <circle cx="3" cy="10" r="1.5" fill="currentColor"/>
+                                                <circle cx="3" cy="17" r="1.5" fill="currentColor"/>
+                                                <circle cx="9" cy="3" r="1.5" fill="currentColor"/>
+                                                <circle cx="9" cy="10" r="1.5" fill="currentColor"/>
+                                                <circle cx="9" cy="17" r="1.5" fill="currentColor"/>
+                                            </svg>
                                         </div>
-                                        <div className="flex items-center gap-3">
-                                            <div className="flex flex-col">
-                                                <span className="text-[9px] text-gray-400 font-bold mb-1 ml-0.5">ปริมาณ</span>
-                                                <input
-                                                    type="number"
-                                                    value={ing.quantity}
-                                                    onChange={(e) => updateQuantity(ing.stockItemId, parseFloat(e.target.value) || 0, true)}
-                                                    className="w-14 px-1.5 py-1 border border-blue-200 rounded-lg text-center font-bold text-xs focus:ring-1 focus:ring-blue-500 outline-none bg-white"
-                                                    step="0.01"
-                                                />
-                                            </div>
-                                            <div className="flex flex-col">
-                                                <span className="text-[9px] text-gray-400 font-bold mb-1 ml-0.5">หน่วย</span>
-                                                <div className="flex items-center gap-1">
-                                                    <select
-                                                        value={ing.unit}
-                                                        onChange={(e) => updateUnit(ing.stockItemId, e.target.value, true)}
-                                                        className="px-2 py-1 border border-blue-200 rounded-lg text-center font-black text-[10px] focus:ring-1 focus:ring-blue-500 outline-none bg-white min-w-[60px]"
-                                                    >
-                                                        {stockUnits.map(u => (
-                                                            <option key={u} value={u}>{u}</option>
-                                                        ))}
-                                                    </select>
-                                                    <button 
-                                                        onClick={handleAddUnit}
-                                                        className="p-1.5 bg-white border border-blue-100 hover:bg-blue-50 text-blue-400 rounded-lg transition-colors flex-shrink-0"
-                                                        title="เพิ่มหน่วยใหม่"
-                                                    >
-                                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={4} d="M12 4v16m8-8H4" />
+
+                                        <div className="flex-1 flex flex-col gap-2 min-w-0">
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-1.5 min-w-0">
+                                                    {needsSync && (
+                                                        <span className="relative flex h-2.5 w-2.5 mr-0.5">
+                                                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                                                            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span>
+                                                        </span>
+                                                    )}
+                                                    <p className={`text-sm font-bold text-gray-800 truncate ${ing.excludeFromCost ? 'text-gray-400 italic line-through' : ''}`}>{stockItem?.name}</p>
+                                                    {latestPrice && !needsSync && (
+                                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-green-500 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                                                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                                                         </svg>
-                                                    </button>
+                                                    )}
+                                                    {latestPrice && (
+                                                        <div className="flex flex-col items-start">
+                                                            <div className="flex items-center gap-1">
+                                                                <button 
+                                                                    onClick={() => handleSyncPrice(ing.stockItemId, true)}
+                                                                    className={`flex-shrink-0 transition-colors ${needsSync ? 'p-1 bg-blue-500 text-white rounded-lg hover:bg-blue-600 shadow-sm animate-bounce' : 'text-blue-500 hover:text-blue-700'}`} 
+                                                                    title="ซิงค์ราคาล่าสุดจากไฟล์ JSON"
+                                                                >
+                                                                    <svg xmlns="http://www.w3.org/2000/svg" className={`${needsSync ? 'h-3' : 'h-3.5 w-3.5'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                                                    </svg>
+                                                                </button>
+                                                                {latestPrice.date && (
+                                                                    <div className="flex items-center gap-1">
+                                                                        <span className="text-[10px] text-blue-600 font-bold italic">
+                                                                            {latestPrice.date}
+                                                                        </span>
+                                                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-2.5 w-2.5 text-green-500" viewBox="0 0 20 20" fill="currentColor">
+                                                                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                                                        </svg>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    )}
                                                 </div>
+                                                <button 
+                                                    onClick={() => removeAdditionalIngredient(ing.stockItemId)}
+                                                    className="p-1 px-2 text-red-500 hover:bg-red-50 rounded-lg text-[10px] font-black uppercase tracking-tighter transition-colors"
+                                                >
+                                                    ลบทิ้ง
+                                                </button>
                                             </div>
-                                            <div className="flex flex-col">
-                                                <span className="text-[9px] text-gray-400 font-bold mb-1 ml-0.5">ราคา/หน่วย</span>
-                                                <div className="relative">
-                                                    <span className="absolute left-1.5 top-1 text-[9px] text-gray-400">฿</span>
+                                            <div className="flex items-center gap-3">
+                                                <div className="flex flex-col">
+                                                    <span className="text-[9px] text-gray-400 font-bold mb-1 ml-0.5">ปริมาณ</span>
                                                     <input
                                                         type="number"
-                                                        value={currentManualPrice}
-                                                        onChange={(e) => updateUnitPrice(ing.stockItemId, parseFloat(e.target.value) || 0, true)}
-                                                        className="w-16 pl-4 pr-1 py-1 border border-blue-200 rounded-lg text-right font-bold text-xs focus:ring-1 focus:ring-blue-500 outline-none bg-white"
+                                                        value={ing.quantity}
+                                                        onChange={(e) => updateQuantity(ing.stockItemId, parseFloat(e.target.value) || 0, true)}
+                                                        className="w-14 px-1.5 py-1 border border-blue-200 rounded-lg text-center font-bold text-xs focus:ring-1 focus:ring-blue-500 outline-none bg-white"
                                                         step="0.01"
                                                     />
                                                 </div>
-                                            </div>
+                                                <div className="flex flex-col">
+                                                    <span className="text-[9px] text-gray-400 font-bold mb-1 ml-0.5">หน่วย</span>
+                                                    <div className="flex items-center gap-1">
+                                                        <select
+                                                            value={ing.unit}
+                                                            onChange={(e) => updateUnit(ing.stockItemId, e.target.value, true)}
+                                                            className="px-2 py-1 border border-blue-200 rounded-lg text-center font-black text-[10px] focus:ring-1 focus:ring-blue-500 outline-none bg-white min-w-[60px]"
+                                                        >
+                                                            {stockUnits.map(u => (
+                                                                <option key={u} value={u}>{u}</option>
+                                                            ))}
+                                                        </select>
+                                                        <button 
+                                                            onClick={handleAddUnit}
+                                                            className="p-1.5 bg-white border border-blue-100 hover:bg-blue-50 text-blue-400 rounded-lg transition-colors flex-shrink-0"
+                                                            title="เพิ่มหน่วยใหม่"
+                                                        >
+                                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={4} d="M12 4v16m8-8H4" />
+                                                            </svg>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                                <div className="flex flex-col">
+                                                    <span className="text-[9px] text-gray-400 font-bold mb-1 ml-0.5">ราคา/หน่วย</span>
+                                                    <div className="relative">
+                                                        <span className="absolute left-1.5 top-1 text-[9px] text-gray-400">฿</span>
+                                                        <input
+                                                            type="number"
+                                                            value={currentManualPrice}
+                                                            onChange={(e) => updateUnitPrice(ing.stockItemId, parseFloat(e.target.value) || 0, true)}
+                                                            className="w-16 pl-4 pr-1 py-1 border border-blue-200 rounded-lg text-right font-bold text-xs focus:ring-1 focus:ring-blue-500 outline-none bg-white"
+                                                            step="0.01"
+                                                        />
+                                                    </div>
+                                                </div>
                                                 <div className="flex-1 text-right">
-                                                    <span className="text-[9px] text-gray-400 font-bold block mb-1">ต้นทุนสุทธิ</span>
-                                                    <p className="text-sm font-black text-blue-900 leading-none">฿{rowManualCost.toLocaleString(undefined, { minimumFractionDigits: 3 })}</p>
+                                                    <div className="flex items-center gap-1 mb-1 justify-end">
+                                                        <span className="text-[9px] text-gray-400 font-bold">คิดต้นทุน</span>
+                                                        <input 
+                                                            type="checkbox"
+                                                            checked={!ing.excludeFromCost}
+                                                            onChange={() => toggleExcludeCost(ing.stockItemId, true)}
+                                                            className="h-3 w-3 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
+                                                            title="รวมรายการวัตถุดิบนี้ในการคำนวณต้นทุนรวมของสูตร"
+                                                        />
+                                                    </div>
+                                                    <p className={`text-sm font-black text-blue-900 leading-none ${ing.excludeFromCost ? 'line-through text-gray-400 font-medium' : ''}`}>฿{rowManualCost.toLocaleString(undefined, { minimumFractionDigits: 3 })}</p>
                                                     {showInput ? (
                                                         <div className="flex items-center justify-end mt-1 border-t border-red-100 pt-1">
                                                             <span className="text-[10px] font-black text-red-600 mr-0.5">฿</span>
@@ -888,6 +1008,7 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
                                                         )
                                                     )}
                                                 </div>
+                                            </div>
                                         </div>
                                     </div>
                                 );

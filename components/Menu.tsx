@@ -32,25 +32,25 @@ interface MenuProps {
 }
 
 export const Menu: React.FC<MenuProps> = ({ 
-    menuItems, 
-    setMenuItems,
-    categories, 
-    onSelectItem, 
-    isEditMode, 
-    onEditItem,
-    onAddNewItem,
-    onDeleteItem, 
-    onUpdateCategory, 
-    onDeleteCategory, 
-    onAddCategory, 
-    onImportMenu,
-    recommendedMenuItemIds,
-    onToggleVisibility,
+    menuItems = [], 
+    setMenuItems = () => {},
+    categories = [], 
+    onSelectItem = () => {}, 
+    isEditMode = false, 
+    onEditItem = () => {},
+    onAddNewItem = () => {},
+    onDeleteItem = () => {}, 
+    onUpdateCategory = () => {}, 
+    onDeleteCategory = () => {}, 
+    onAddCategory = () => {}, 
+    onImportMenu = () => {},
+    recommendedMenuItemIds = [],
+    onToggleVisibility = () => {},
     hideCategories = false,
     title = 'เมนูอาหาร',
     searchPlaceholder = 'ค้นหาเมนู...',
     onToggleOrderSidebar,
-    isOrderSidebarVisible,
+    isOrderSidebarVisible = false,
     cartItemCount = 0
 }) => {
     const [selectedCategory, setSelectedCategory] = useState('ทั้งหมด');
@@ -170,14 +170,17 @@ export const Menu: React.FC<MenuProps> = ({
     };
 
     const filteredItems = useMemo(() => {
+        const safeMenuItems = Array.isArray(menuItems) ? menuItems.filter(Boolean) : [];
+        const term = (searchTerm || '').trim();
+
         if (hideCategories) {
-             if (searchTerm.trim()) {
-                const searchParts = searchTerm.toLowerCase().trim().split(/\s+/);
-                return menuItems.filter(item => 
-                    searchParts.every(part => item.name.toLowerCase().includes(part))
+             if (term) {
+                const searchParts = term.toLowerCase().split(/\s+/);
+                return safeMenuItems.filter(item => 
+                    item && item.name && searchParts.every(part => (item.name || '').toLowerCase().includes(part))
                 );
             }
-            return menuItems;
+            return safeMenuItems;
         }
 
         const isSelectedValid = normalizedCategories.includes(selectedCategory);
@@ -193,18 +196,18 @@ export const Menu: React.FC<MenuProps> = ({
              }
         }
 
-        if (searchTerm.trim()) {
-            const searchParts = searchTerm.toLowerCase().trim().split(/\s+/);
-            return menuItems.filter(item => 
-                searchParts.every(part => item.name.toLowerCase().includes(part))
+        if (term) {
+            const searchParts = term.toLowerCase().split(/\s+/);
+            return safeMenuItems.filter(item => 
+                item && item.name && searchParts.every(part => (item.name || '').toLowerCase().includes(part))
             );
         }
 
         if (effectiveCategory === 'ทั้งหมด' || effectiveCategory === 'All') {
-            return menuItems;
+            return safeMenuItems;
         }
         
-        return menuItems.filter(item => item.category === effectiveCategory);
+        return safeMenuItems.filter(item => item && item.category === effectiveCategory);
 
     }, [menuItems, selectedCategory, searchTerm, normalizedCategories, hideCategories]);
     
@@ -220,7 +223,7 @@ export const Menu: React.FC<MenuProps> = ({
                 if (!value) {
                     return 'กรุณาใส่ชื่อหมวดหมู่!'
                 }
-                if (categories.some(c => c.toLowerCase() === value.toLowerCase() && c.toLowerCase() !== categoryName.toLowerCase())) {
+                if (normalizedCategories.some(c => c.toLowerCase() === value.toLowerCase() && c.toLowerCase() !== categoryName.toLowerCase())) {
                     return 'หมวดหมู่นี้มีอยู่แล้ว!'
                 }
             }
@@ -271,7 +274,7 @@ export const Menu: React.FC<MenuProps> = ({
                 if (!value) {
                     return 'กรุณาใส่ชื่อหมวดหมู่!'
                 }
-                if (categories.some(c => c.toLowerCase() === value.toLowerCase())) {
+                if (normalizedCategories.some(c => c.toLowerCase() === value.toLowerCase())) {
                     return 'หมวดหมู่นี้มีอยู่แล้ว!'
                 }
             }
