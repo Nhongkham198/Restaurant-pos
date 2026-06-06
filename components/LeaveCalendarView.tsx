@@ -64,7 +64,7 @@ export const LeaveCalendarView: React.FC<LeaveCalendarViewProps> = ({ leaveReque
         if (searchTerm) {
             const lowerSearch = searchTerm.toLowerCase();
             filtered = filtered.filter(req => 
-                req.username.toLowerCase().includes(lowerSearch)
+                (req.username || req.employeeName || '').toLowerCase().includes(lowerSearch)
             );
         }
 
@@ -293,9 +293,9 @@ export const LeaveCalendarView: React.FC<LeaveCalendarViewProps> = ({ leaveReque
                                         </span>
                                     </div>
                                     <div className="flex-1 overflow-y-auto space-y-1 custom-scrollbar">
-                                        {leaves.map(leave => (
+                                        {leaves.map((leave, index) => (
                                             <div 
-                                                key={leave.id}
+                                                key={leave.id || `${leave.userId}-${leave.startDate}-${index}`}
                                                 onClick={(e) => e.stopPropagation()} // Prevent triggering day click when clicking a badge
                                                 className={`text-xs px-2 py-1 rounded truncate cursor-help border ${
                                                     leave.status === 'pending' ? 'bg-yellow-100 text-yellow-800 border-yellow-200' :
@@ -381,7 +381,7 @@ export const LeaveCalendarView: React.FC<LeaveCalendarViewProps> = ({ leaveReque
                                             <div className="flex flex-col">
                                                 <span>ประเภท</span>
                                                 <div className="flex flex-wrap gap-1 mt-1 font-normal text-[10px]">
-                                                    {Object.entries(leaveTypeCounts).map(([type, count]) => count > 0 && (
+                                                    {Object.entries(leaveTypeCounts).filter(([_, count]) => count > 0).map(([type, count]) => (
                                                         <span key={type} className="bg-blue-50 text-blue-600 px-1 rounded border border-blue-100 flex items-center gap-1 shadow-sm">
                                                             {type}: <span className="font-bold">{count}</span>
                                                         </span>
@@ -396,8 +396,8 @@ export const LeaveCalendarView: React.FC<LeaveCalendarViewProps> = ({ leaveReque
                                     </tr>
                                 </thead>
                                 <tbody className="text-sm text-gray-800">
-                                    {[...visibleRequests].sort((a, b) => b.id - a.id).map(req => (
-                                        <tr key={req.id} className="border-b hover:bg-gray-50">
+                                                    {[...visibleRequests].sort((a, b) => b.id - a.id).map((req, index) => (
+                                                        <tr key={req.id || `req-${index}`} className="border-b hover:bg-gray-50">
                                             <td className="py-3 px-4 text-gray-500">
                                                 {/* FIX: Use submittedAt if available, otherwise show placeholder to avoid 2513 date */}
                                                 {req.submittedAt ? new Date(req.submittedAt).toLocaleDateString('th-TH', { timeZone: 'Asia/Bangkok' }) : '-'}
