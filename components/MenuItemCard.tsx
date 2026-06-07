@@ -90,7 +90,7 @@ export const MenuItemCard: React.FC<MenuItemCardProps> = ({
             </div>
 
             <div className="p-2 flex flex-col flex-auto justify-between">
-                <h3 className="font-semibold text-gray-800 text-base leading-tight min-h-[40px] line-clamp-2">{item.name || ''}</h3>
+                <h3 className="font-semibold text-gray-800 text-base leading-tight min-h-[40px] line-clamp-2 text-center">{item.name || ''}</h3>
                 <div className="flex justify-end items-baseline mt-1 pt-2 border-t border-gray-100">
                      <p className="text-lg font-bold text-blue-600">{(item.price ?? 0).toLocaleString()}<span className="text-sm font-medium"> ฿</span></p>
                 </div>
