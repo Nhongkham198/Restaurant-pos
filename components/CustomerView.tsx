@@ -140,6 +140,9 @@ interface CustomerViewProps {
     facebookPageUrl?: string;
     openingTime?: string | null;
     closingTime?: string | null;
+    qrPopupEnabled?: boolean;
+    qrPopupImageUrl?: string | null;
+    qrPopupMessage?: string;
 }
 
 export const CustomerView: React.FC<CustomerViewProps> = ({
@@ -161,7 +164,10 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     lineOaUrl,
     facebookPageUrl,
     openingTime,
-    closingTime
+    closingTime,
+    qrPopupEnabled,
+    qrPopupImageUrl,
+    qrPopupMessage
 }) => {
     // ... (Keep existing state hooks)
     const [lang, setLang] = useState<'TH' | 'EN'>('TH');
@@ -209,6 +215,13 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     // --- NEW: Loading Screen State ---
     const [isLoadingScreen, setIsLoadingScreen] = useState(false);
     const [loadingProgress, setLoadingProgress] = useState(0);
+    const [showQrPopup, setShowQrPopup] = useState(false);
+
+    useEffect(() => {
+        if (qrPopupEnabled) {
+            setShowQrPopup(true);
+        }
+    }, [qrPopupEnabled]);
 
     useEffect(() => {
         // No longer using artificial delay for "instant" feel
@@ -1685,6 +1698,60 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                             </svg>
                         </a>
                     )}
+                </div>
+            )}
+
+            {/* Pop-up แจ้งข่าวสารลูกค้า */}
+            {qrPopupEnabled && showQrPopup && (
+                <div id="customer-promo-popup" className="fixed inset-0 bg-black/65 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+                    <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl overflow-hidden relative border border-gray-100 flex flex-col max-h-[85vh] animate-scale-up">
+                        {/* Header details */}
+                        <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+                            <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                                <span className="text-xl">🔔</span>
+                                <span>{lang === 'TH' ? 'แจ้งข้อมูลข่าวสาร' : 'Information & Announcements'}</span>
+                            </h3>
+                            <button 
+                                id="close-promo-popup-btn"
+                                onClick={() => setShowQrPopup(false)}
+                                className="w-8 h-8 rounded-full bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold text-lg flex items-center justify-center transition-transform hover:scale-105 active:scale-95 shadow-sm"
+                                title="ปิดประกาศ"
+                            >
+                                ✕
+                            </button>
+                        </div>
+
+                        {/* Middle body containing message & image */}
+                        <div className="p-5 overflow-y-auto space-y-4 flex-1">
+                            {qrPopupImageUrl && (
+                                <div className="rounded-lg overflow-hidden border border-gray-100 bg-gray-50 flex justify-center">
+                                    <img 
+                                        src={qrPopupImageUrl} 
+                                        alt="Announcement logos" 
+                                        className="w-full h-auto max-h-72 object-contain hover:scale-[1.02] transition-transform duration-300" 
+                                        referrerPolicy="no-referrer"
+                                    />
+                                </div>
+                            )}
+                            
+                            {qrPopupMessage && (
+                                <p className="text-gray-700 leading-relaxed text-sm whitespace-pre-wrap break-words pr-1">
+                                    {qrPopupMessage}
+                                </p>
+                            )}
+                        </div>
+
+                        {/* Bottom action button */}
+                        <div className="p-4 bg-gray-50 border-t border-gray-100 flex justify-end">
+                            <button 
+                                id="accept-promo-popup-btn"
+                                onClick={() => setShowQrPopup(false)}
+                                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg text-sm transition-all shadow-md active:scale-95 flex items-center gap-2"
+                            >
+                                <span>{lang === 'TH' ? 'ตกลง' : 'OK'}</span>
+                            </button>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>

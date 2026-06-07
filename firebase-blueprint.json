@@ -28,7 +28,10 @@
         "lineUserId": { "type": "string" },
         "telegramBotToken": { "type": "string" },
         "telegramChatId": { "type": "string" },
-        "geminiApiKey": { "type": "string" }
+        "geminiApiKey": { "type": "string" },
+        "qrPopupEnabled": { "type": "boolean" },
+        "qrPopupImageUrl": { "type": "string" },
+        "qrPopupMessage": { "type": "string" }
       },
       "required": ["id", "name"]
     },

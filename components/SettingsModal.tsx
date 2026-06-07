@@ -28,7 +28,10 @@ interface SettingsModalProps {
         telegramBotToken: string | null,
         telegramChatId: string | null,
         lineOaUrl: string,
-        facebookPageUrl: string
+        facebookPageUrl: string,
+        qrPopupEnabled: boolean,
+        qrPopupImageUrl: string | null,
+        qrPopupMessage: string
     ) => void;
     currentLogoUrl: string | null;
     currentAppLogoUrl: string | null;
@@ -63,6 +66,9 @@ interface SettingsModalProps {
     onSaveTelegramBotToken: (token: string) => void;
     currentTelegramChatId: string;
     onSaveTelegramChatId: (id: string) => void;
+    currentQrPopupEnabled: boolean;
+    currentQrPopupImageUrl: string | null;
+    currentQrPopupMessage: string;
 }
 
 const DEFAULT_RECEIPT_OPTIONS: ReceiptPrintSettings = {
@@ -127,6 +133,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
         telegramChatId: props.currentTelegramChatId,
         lineOaUrl: props.currentLineOaUrl,
         facebookPageUrl: props.currentFacebookPageUrl,
+        qrPopupEnabled: props.currentQrPopupEnabled,
+        qrPopupImageUrl: props.currentQrPopupImageUrl,
+        qrPopupMessage: props.currentQrPopupMessage,
     });
 
     const [printerStatus, setPrinterStatus] = useState<{ kitchen: PrinterStatus; cashier: PrinterStatus }>({
@@ -223,12 +232,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
                 telegramChatId: props.currentTelegramChatId,
                 lineOaUrl: props.currentLineOaUrl,
                 facebookPageUrl: props.currentFacebookPageUrl,
+                qrPopupEnabled: props.currentQrPopupEnabled,
+                qrPopupImageUrl: props.currentQrPopupImageUrl,
+                qrPopupMessage: props.currentQrPopupMessage,
             });
             setTempRecommendedIds(props.currentRecommendedMenuItemIds || []);
             setTempDeliveryProviders(props.deliveryProviders || []);
             setPrinterStatus({ kitchen: 'idle', cashier: 'idle' });
         }
-    }, [props.isOpen, props.currentLogoUrl, props.currentAppLogoUrl, props.currentQrCodeUrl, props.currentPrinterConfig, props.currentOpeningTime, props.currentClosingTime, props.currentRecommendedMenuItemIds, props.deliveryProviders, props.currentFacebookAppId, props.currentFacebookAppSecret, props.currentLineNotifyToken, props.currentLineMessagingToken, props.currentLineUserId]);
+    }, [props.isOpen, props.currentLogoUrl, props.currentAppLogoUrl, props.currentQrCodeUrl, props.currentPrinterConfig, props.currentOpeningTime, props.currentClosingTime, props.currentRecommendedMenuItemIds, props.deliveryProviders, props.currentFacebookAppId, props.currentFacebookAppSecret, props.currentLineNotifyToken, props.currentLineMessagingToken, props.currentLineUserId, props.currentQrPopupEnabled, props.currentQrPopupImageUrl, props.currentQrPopupMessage]);
 
     const handleInputChange = (field: string, value: any) => {
         setSettingsForm(prev => ({ ...prev, [field]: value }));
@@ -580,7 +592,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
             settingsForm.telegramBotToken,
             settingsForm.telegramChatId,
             settingsForm.lineOaUrl,
-            settingsForm.facebookPageUrl
+            settingsForm.facebookPageUrl,
+            settingsForm.qrPopupEnabled,
+            settingsForm.qrPopupImageUrl,
+            settingsForm.qrPopupMessage
         );
         props.onSaveRecommendedItems(tempRecommendedIds);
         props.onSaveDeliveryProviders(tempDeliveryProviders);
@@ -1157,6 +1172,63 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700">เวลาปิด</label>
                                         <input type="time" value={settingsForm.closingTime || '22:00'} onChange={e => handleInputChange('closingTime', e.target.value)} className="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="bg-white p-6 rounded-lg shadow-sm space-y-4">
+                                <h3 className="text-lg font-bold text-gray-800 border-b pb-2 flex items-center gap-2">
+                                    <span>🔔</span> ตั้งค่า Pop-up แจ้งข่าวสารลูกค้า
+                                </h3>
+                                <div className="space-y-4">
+                                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-md border border-gray-100">
+                                        <div>
+                                            <span className="block font-medium text-gray-800 text-sm">แสดง Pop-up แจ้งข้อมูลข่าวสาร</span>
+                                            <span className="block text-xs text-gray-500">แสดง Pop-up ค้างไว้จนกว่าลูกค้าจะกดปิด เมื่อเข้าสู่โปรแกรมด้วยการสแกน QR Code</span>
+                                        </div>
+                                        <label className="relative inline-flex items-center cursor-pointer">
+                                            <input 
+                                                type="checkbox" 
+                                                checked={settingsForm.qrPopupEnabled} 
+                                                onChange={e => handleInputChange('qrPopupEnabled', e.target.checked)}
+                                                className="sr-only peer" 
+                                            />
+                                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                        </label>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">ลิงก์รูปภาพ Pop-up (URL)</label>
+                                        <input 
+                                            type="text" 
+                                            value={settingsForm.qrPopupImageUrl || ''} 
+                                            onChange={e => handleInputChange('qrPopupImageUrl', e.target.value)} 
+                                            placeholder="https://example.com/image.jpg (ใส่ลิงก์รูปภาพเพื่อแสดงใน Pop-up)"
+                                            className="w-full bg-gray-50 border border-gray-300 rounded-md p-2 text-sm focus:ring-blue-500 focus:border-blue-500" 
+                                        />
+                                        {settingsForm.qrPopupImageUrl && (
+                                            <div className="mt-2 border rounded-md p-2 bg-gray-50 flex justify-center">
+                                                <img 
+                                                    src={settingsForm.qrPopupImageUrl} 
+                                                    alt="Preview" 
+                                                    className="max-h-40 object-contain rounded" 
+                                                    onError={(e) => {
+                                                        (e.target as HTMLElement).style.display = 'none';
+                                                    }}
+                                                />
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">ข้อความรายละเอียดใน Pop-up</label>
+                                        <textarea 
+                                            value={settingsForm.qrPopupMessage || ''} 
+                                            onChange={e => handleInputChange('qrPopupMessage', e.target.value)} 
+                                            rows={3} 
+                                            placeholder="ใส่ข้อความประชาสัมพันธ์ เช่น ร้านเปิดโซนใหม่ หรือ มีโปรโมชั่นพิเศษวันนี้..."
+                                            className="w-full bg-gray-50 border border-gray-300 rounded-md p-2 text-sm focus:ring-blue-500 focus:border-blue-500" 
+                                        />
                                     </div>
                                 </div>
                             </div>

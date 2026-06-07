@@ -156,6 +156,12 @@ interface DataContextType {
     setTelegramBotToken: React.Dispatch<React.SetStateAction<string>>;
     telegramChatId: string;
     setTelegramChatId: React.Dispatch<React.SetStateAction<string>>;
+    qrPopupEnabled: boolean;
+    setQrPopupEnabled: React.Dispatch<React.SetStateAction<boolean>>;
+    qrPopupImageUrl: string | null;
+    setQrPopupImageUrl: React.Dispatch<React.SetStateAction<string | null>>;
+    qrPopupMessage: string;
+    setQrPopupMessage: React.Dispatch<React.SetStateAction<string>>;
     manualAdCosts: Record<string, number>;
     setManualAdCosts: (newValue: React.SetStateAction<Record<string, number>>) => void;
     latestIngredientPrices: IngredientPrice[];
@@ -608,6 +614,9 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     const [lineUserId, setLineUserId] = useFirestoreSync<string>(branchId, 'lineUserId', '');
     const [telegramBotToken, setTelegramBotToken] = useFirestoreSync<string>(branchId, 'telegramBotToken', '');
     const [telegramChatId, setTelegramChatId] = useFirestoreSync<string>(branchId, 'telegramChatId', '');
+    const [qrPopupEnabled, setQrPopupEnabled] = useFirestoreSync<boolean>(branchId, 'qrPopupEnabled', false);
+    const [qrPopupImageUrl, setQrPopupImageUrl] = useFirestoreSync<string | null>(branchId, 'qrPopupImageUrl', null);
+    const [qrPopupMessage, setQrPopupMessage] = useFirestoreSync<string>(branchId, 'qrPopupMessage', '');
     const [manualAdCosts, setManualAdCosts] = useFirestoreSync<Record<string, number>>(branchId, 'manualAdCosts', {});
 
     const [latestIngredientPrices, setLatestIngredientPrices] = useFirestoreSync<IngredientPrice[]>(branchId, 'latestIngredientPrices', []);
@@ -648,6 +657,9 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         lineUserId, setLineUserId,
         telegramBotToken, setTelegramBotToken,
         telegramChatId, setTelegramChatId,
+        qrPopupEnabled, setQrPopupEnabled,
+        qrPopupImageUrl, setQrPopupImageUrl,
+        qrPopupMessage, setQrPopupMessage,
         manualAdCosts, setManualAdCosts,
         latestIngredientPrices, setLatestIngredientPrices,
         latestImportFilename, setLatestImportFilename,
@@ -669,7 +681,9 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         printerConfig, openingTime, closingTime, isTaxEnabled, taxRate, 
         sendToKitchen, deliveryProviders, facebookAppId, facebookAppSecret,
         lineOaUrl, facebookPageUrl, lineNotifyToken, lineMessagingToken, 
-        lineUserId, telegramBotToken, telegramChatId, manualAdCosts, 
+        lineUserId, telegramBotToken, telegramChatId,
+        qrPopupEnabled, qrPopupImageUrl, qrPopupMessage,
+        manualAdCosts, 
         latestIngredientPrices, latestImportFilename, isDataLoading
     ]);
 

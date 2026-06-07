@@ -234,7 +234,10 @@ export const App: React.FC = () => {
         telegramBotToken, setTelegramBotToken,
         telegramChatId, setTelegramChatId,
         lineOaUrl, setLineOaUrl,
-        facebookPageUrl, setFacebookPageUrl
+        facebookPageUrl, setFacebookPageUrl,
+        qrPopupEnabled, setQrPopupEnabled,
+        qrPopupImageUrl, setQrPopupImageUrl,
+        qrPopupMessage, setQrPopupMessage
     } = useData();
 
     const handleChangeBranch = () => {
@@ -1745,6 +1748,9 @@ export const App: React.FC = () => {
                         facebookPageUrl={facebookPageUrl}
                         openingTime={openingTime}
                         closingTime={closingTime}
+                        qrPopupEnabled={qrPopupEnabled}
+                        qrPopupImageUrl={qrPopupImageUrl}
+                        qrPopupMessage={qrPopupMessage}
                     />
                 </Suspense>
              );
@@ -2181,7 +2187,7 @@ export const App: React.FC = () => {
                 <SettingsModal 
                     isOpen={modalState.isSettings} 
                     onClose={handleModalClose} 
-                    onSave={(newLogo, newAppLogo, qr, sound, staffSound, printer, open, close, address, phone, tax, signature, telToken, telChat, lineOa, fbPage) => { 
+                    onSave={(newLogo, newAppLogo, qr, sound, staffSound, printer, open, close, address, phone, tax, signature, telToken, telChat, lineOa, fbPage, popupEnabled, popupImgUrl, popupMsg) => { 
                         setLogoUrl(newLogo); 
                         setAppLogoUrl(newAppLogo); 
                         setQrCodeUrl(qr); 
@@ -2198,6 +2204,9 @@ export const App: React.FC = () => {
                         setTelegramChatId(telChat || '');
                         setLineOaUrl(lineOa);
                         setFacebookPageUrl(fbPage);
+                        setQrPopupEnabled(popupEnabled);
+                        setQrPopupImageUrl(popupImgUrl);
+                        setQrPopupMessage(popupMsg);
                         handleModalClose(); 
                     }} 
                     currentLogoUrl={logoUrl} 
@@ -2236,6 +2245,9 @@ export const App: React.FC = () => {
                     onSaveTelegramBotToken={setTelegramBotToken}
                     currentTelegramChatId={telegramChatId}
                     onSaveTelegramChatId={setTelegramChatId}
+                    currentQrPopupEnabled={qrPopupEnabled}
+                    currentQrPopupImageUrl={qrPopupImageUrl}
+                    currentQrPopupMessage={qrPopupMessage}
                 />
             </Suspense>
 

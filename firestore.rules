@@ -84,6 +84,12 @@ service cloud.firestore {
       allow read: if true;
       allow write: if isAdmin();
 
+      // Generic settings subcollection fallback/wildcard for primitives (e.g. logo, openingTime, qrPopup, etc.)
+      match /{settingsCollection}/data {
+        allow read: if true;
+        allow write: if isAdmin();
+      }
+
       // Tables (Collection style)
       match /tables/{tableId} {
         allow read: if true;
