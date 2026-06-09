@@ -4,9 +4,91 @@ import Swal from 'sweetalert2';
 
 interface IngredientPriceUploadProps {
     onUpload: (data: any[], filename: string) => void;
+    existingPrices?: any[];
 }
 
-export const IngredientPriceUpload: React.FC<IngredientPriceUploadProps> = ({ onUpload }) => {
+// Robust helper to parse and normalize date strings from Gregorian and Thai Buddhist era calendars
+const parseDateString = (dateStr: string): Date | null => {
+    if (!dateStr || typeof dateStr !== 'string') return null;
+    const trimmedStr = dateStr.trim();
+    
+    // 1. Try default system browser parsing
+    let d = new Date(trimmedStr);
+    if (!isNaN(d.getTime())) {
+        let year = d.getFullYear();
+        if (year > 2400) {
+            d.setFullYear(year - 543);
+        }
+        return d;
+    }
+    
+    // 2. Try parsing slash/dash formats like DD/MM/YYYY or DD-MM-YYYY
+    const cleanStr = trimmedStr.replace(/-/g, '/');
+    const slashMatch = cleanStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (slashMatch) {
+        const day = parseInt(slashMatch[1], 10);
+        const month = parseInt(slashMatch[2], 10) - 1;
+        let year = parseInt(slashMatch[3], 10);
+        if (year > 2400) {
+            year -= 543;
+        }
+        const parsedDate = new Date(year, month, day);
+        if (!isNaN(parsedDate.getTime())) return parsedDate;
+    }
+
+    // 3. Try parsing text month formats (Thai language support)
+    const thMonths = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+    const thMonthsFull = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+    
+    const parts = trimmedStr.split(/[\s,]+/);
+    if (parts.length >= 3) {
+        const day = parseInt(parts[0], 10);
+        const monthStr = parts[1];
+        const yearStr = parts[2];
+        
+        let monthIndex = -1;
+        monthIndex = thMonths.findIndex(m => monthStr.includes(m) || m.includes(monthStr));
+        if (monthIndex === -1) {
+            monthIndex = thMonthsFull.findIndex(m => monthStr.includes(m) || m.includes(monthStr));
+        }
+        
+        if (monthIndex !== -1 && !isNaN(day)) {
+            let year = parseInt(yearStr, 10);
+            if (year > 2400) {
+                year -= 543;
+            }
+            const parsedDate = new Date(year, monthIndex, day);
+            if (!isNaN(parsedDate.getTime())) return parsedDate;
+        }
+    }
+
+    return null;
+};
+
+// Find the newest date object and text in an array of ingredient prices
+const findNewestDate = (items: any[]): { dateStr: string; dateObj: Date } | null => {
+    let newestObj: Date | null = null;
+    let newestStr = '';
+    
+    for (const item of items) {
+        if (item && typeof item.date === 'string' && item.date.trim() !== '') {
+            const parsed = parseDateString(item.date);
+            if (parsed) {
+                if (!newestObj || parsed > newestObj) {
+                    newestObj = parsed;
+                    newestStr = item.date;
+                }
+            }
+        }
+    }
+    
+    if (newestObj && newestStr) {
+        return { dateStr: newestStr, dateObj: newestObj };
+    }
+    return null;
+};
+
+export const IngredientPriceUpload: React.FC<IngredientPriceUploadProps> = ({ onUpload, existingPrices }) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -21,6 +103,26 @@ export const IngredientPriceUpload: React.FC<IngredientPriceUploadProps> = ({ on
                     throw new Error('รูปแบบไฟล์ไม่ถูกต้อง (ต้องเป็น Array ของข้อมูล)');
                 }
                 
+                // Compare dates inside the files to alert if uploaded date is older than current date in program
+                const uploadedInfo = findNewestDate(json);
+                const existingInfo = findNewestDate(existingPrices || []);
+
+                if (uploadedInfo && existingInfo) {
+                    const uploadedTime = new Date(uploadedInfo.dateObj.getFullYear(), uploadedInfo.dateObj.getMonth(), uploadedInfo.dateObj.getDate()).getTime();
+                    const existingTime = new Date(existingInfo.dateObj.getFullYear(), existingInfo.dateObj.getMonth(), existingInfo.dateObj.getDate()).getTime();
+
+                    if (uploadedTime < existingTime) {
+                        Swal.fire({
+                            icon: 'warning',
+                            title: 'ตรวจพบวันที่เก่ากว่า',
+                            text: `ไฟล์ที่เลือกมีข้อมูลระบุวันที่ล่าสุดคือ (${uploadedInfo.dateStr}) ซึ่งเก่ากว่าข้อมูลราคาปัจจุบันในระบบ (${existingInfo.dateStr}) โดยระบบจะยังคงใช้ข้อมูลราคาเดิมในปัจจุบันเป็นตัวอ้างอิงและยกเลิกการแก้ไขนี้`,
+                            confirmButtonColor: '#e11d48'
+                        });
+                        if (fileInputRef.current) fileInputRef.current.value = '';
+                        return;
+                    }
+                }
+
                 // Basic validation and trimming
                 const uploadDate = new Date().toLocaleDateString('th-TH', { 
                     year: 'numeric', 

@@ -1184,10 +1184,13 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                 + เพิ่มรายการ
                             </button>
                             <div className="flex flex-col">
-                                <IngredientPriceUpload onUpload={(data, filename) => {
-                                    setLatestIngredientPrices(data);
-                                    setLatestImportFilename(filename);
-                                }} />
+                                <IngredientPriceUpload 
+                                    existingPrices={latestIngredientPrices}
+                                    onUpload={(data, filename) => {
+                                        setLatestIngredientPrices(data);
+                                        setLatestImportFilename(filename);
+                                    }} 
+                                />
                                 {latestImportFilename && (
                                     <div className="flex items-center gap-1 mt-1 px-2 py-0.5 bg-blue-50 border border-blue-100 rounded text-[10px] text-blue-600 font-bold whitespace-nowrap">
                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
