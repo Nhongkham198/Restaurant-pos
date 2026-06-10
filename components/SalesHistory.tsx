@@ -148,12 +148,12 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({
             }
 
             const searchMatch = !searchTerm || 
-                order.orderNumber.toString().includes(searchTerm) || 
+                (order.orderNumber != null ? order.orderNumber.toString() : '').includes(searchTerm) || 
                 (order.customerName && order.customerName.toLowerCase().includes(searchTerm.toLowerCase())) ||
                 (order.tableName && order.tableName.toLowerCase().includes(searchTerm.toLowerCase())) ||
                 (order.orderType && order.orderType.toLowerCase().includes(searchTerm.toLowerCase())) ||
                 (order.floor && order.floor.toLowerCase().includes(searchTerm.toLowerCase())) ||
-                order.items.some(item => item.name.toLowerCase().includes(searchTerm.toLowerCase()));
+                (order.items || []).some(item => item && item.name && item.name.toLowerCase().includes(searchTerm.toLowerCase()));
 
             return dateMatch && groupMatch && searchMatch;
         });
@@ -185,10 +185,10 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({
             }
 
             const searchMatch = !searchTerm || 
-                order.orderNumber.toString().includes(searchTerm) || 
+                (order.orderNumber != null ? order.orderNumber.toString() : '').includes(searchTerm) || 
                 (order.tableName && order.tableName.toLowerCase().includes(searchTerm.toLowerCase())) ||
                 (order.orderType && order.orderType.toLowerCase().includes(searchTerm.toLowerCase())) ||
-                order.items.some(item => item.name.toLowerCase().includes(searchTerm.toLowerCase()));
+                (order.items || []).some(item => item && item.name && item.name.toLowerCase().includes(searchTerm.toLowerCase()));
 
             return dateMatch && groupMatch && searchMatch;
         });
@@ -222,9 +222,9 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({
             }
 
             const searchMatch = !searchTerm || 
-                entry.orderNumber.toString().includes(searchTerm) ||
+                (entry.orderNumber != null ? entry.orderNumber.toString() : '').includes(searchTerm) ||
                 (entry.tableName && entry.tableName.toLowerCase().includes(searchTerm.toLowerCase())) ||
-                entry.orderItemsPreview.some(itemName => itemName.toLowerCase().includes(searchTerm.toLowerCase()));
+                (entry.orderItemsPreview || []).some(itemName => itemName && itemName.toLowerCase().includes(searchTerm.toLowerCase()));
 
             return dateMatch && groupMatch && searchMatch;
         });
