@@ -138,6 +138,8 @@ interface DataContextType {
     setSendToKitchen: React.Dispatch<React.SetStateAction<boolean>>;
     deliveryProviders: DeliveryProvider[];
     setDeliveryProviders: React.Dispatch<React.SetStateAction<DeliveryProvider[]>>;
+    recommendedItemsLimit: number;
+    setRecommendedItemsLimit: React.Dispatch<React.SetStateAction<number>>;
     facebookAppId: string;
     setFacebookAppId: React.Dispatch<React.SetStateAction<string>>;
     facebookAppSecret: string;
@@ -617,6 +619,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     const [qrPopupEnabled, setQrPopupEnabled] = useFirestoreSync<boolean>(branchId, 'qrPopupEnabled', false);
     const [qrPopupImageUrl, setQrPopupImageUrl] = useFirestoreSync<string | null>(branchId, 'qrPopupImageUrl', null);
     const [qrPopupMessage, setQrPopupMessage] = useFirestoreSync<string>(branchId, 'qrPopupMessage', '');
+    const [recommendedItemsLimit, setRecommendedItemsLimit] = useFirestoreSync<number>(branchId, 'recommendedItemsLimit', 10);
     const [manualAdCosts, setManualAdCosts] = useFirestoreSync<Record<string, number>>(branchId, 'manualAdCosts', {});
 
     const [latestIngredientPrices, setLatestIngredientPrices] = useFirestoreSync<IngredientPrice[]>(branchId, 'latestIngredientPrices', []);
@@ -660,6 +663,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         qrPopupEnabled, setQrPopupEnabled,
         qrPopupImageUrl, setQrPopupImageUrl,
         qrPopupMessage, setQrPopupMessage,
+        recommendedItemsLimit, setRecommendedItemsLimit,
         manualAdCosts, setManualAdCosts,
         latestIngredientPrices, setLatestIngredientPrices,
         latestImportFilename, setLatestImportFilename,
@@ -683,6 +687,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         lineOaUrl, facebookPageUrl, lineNotifyToken, lineMessagingToken, 
         lineUserId, telegramBotToken, telegramChatId,
         qrPopupEnabled, qrPopupImageUrl, qrPopupMessage,
+        recommendedItemsLimit,
         manualAdCosts, 
         latestIngredientPrices, latestImportFilename, isDataLoading
     ]);

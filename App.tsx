@@ -188,6 +188,7 @@ export const App: React.FC = () => {
         tables, setTables,
         floors, setFloors,
         recommendedMenuItemIds, setRecommendedMenuItemIds,
+        recommendedItemsLimit, setRecommendedItemsLimit,
         activeOrders, rawActiveOrders, activeOrdersActions,
         // Heavy Data
         legacyCompletedOrders, setLegacyCompletedOrders,
@@ -2221,6 +2222,8 @@ export const App: React.FC = () => {
                     menuItems={menuItems} 
                     currentRecommendedMenuItemIds={recommendedMenuItemIds} 
                     onSaveRecommendedItems={setRecommendedMenuItemIds} 
+                    recommendedItemsLimit={recommendedItemsLimit}
+                    onSaveRecommendedItemsLimit={setRecommendedItemsLimit}
                     deliveryProviders={deliveryProviders} 
                     onSaveDeliveryProviders={setDeliveryProviders}
                     currentRestaurantAddress={restaurantAddress}

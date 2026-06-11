@@ -45,6 +45,8 @@ interface SettingsModalProps {
     menuItems: MenuItem[];
     currentRecommendedMenuItemIds: number[];
     onSaveRecommendedItems: (ids: number[]) => void;
+    recommendedItemsLimit: number;
+    onSaveRecommendedItemsLimit: (limit: number) => void;
     deliveryProviders: DeliveryProvider[];
     onSaveDeliveryProviders: (providers: DeliveryProvider[]) => void;
     currentRestaurantAddress: string;
@@ -144,6 +146,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
     });
 
     const [tempRecommendedIds, setTempRecommendedIds] = useState<number[]>(props.currentRecommendedMenuItemIds || []);
+    const [tempRecommendedItemsLimit, setTempRecommendedItemsLimit] = useState<number>(props.recommendedItemsLimit || 10);
     const [tempDeliveryProviders, setTempDeliveryProviders] = useState<DeliveryProvider[]>(props.deliveryProviders || []);
     const [isUploading, setIsUploading] = useState(false);
 
@@ -237,10 +240,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
                 qrPopupMessage: props.currentQrPopupMessage,
             });
             setTempRecommendedIds(props.currentRecommendedMenuItemIds || []);
+            setTempRecommendedItemsLimit(props.recommendedItemsLimit || 10);
             setTempDeliveryProviders(props.deliveryProviders || []);
             setPrinterStatus({ kitchen: 'idle', cashier: 'idle' });
         }
-    }, [props.isOpen, props.currentLogoUrl, props.currentAppLogoUrl, props.currentQrCodeUrl, props.currentPrinterConfig, props.currentOpeningTime, props.currentClosingTime, props.currentRecommendedMenuItemIds, props.deliveryProviders, props.currentFacebookAppId, props.currentFacebookAppSecret, props.currentLineNotifyToken, props.currentLineMessagingToken, props.currentLineUserId, props.currentQrPopupEnabled, props.currentQrPopupImageUrl, props.currentQrPopupMessage]);
+    }, [props.isOpen, props.currentLogoUrl, props.currentAppLogoUrl, props.currentQrCodeUrl, props.currentPrinterConfig, props.currentOpeningTime, props.currentClosingTime, props.currentRecommendedMenuItemIds, props.deliveryProviders, props.currentFacebookAppId, props.currentFacebookAppSecret, props.currentLineNotifyToken, props.currentLineMessagingToken, props.currentLineUserId, props.currentQrPopupEnabled, props.currentQrPopupImageUrl, props.currentQrPopupMessage, props.recommendedItemsLimit]);
 
     const handleInputChange = (field: string, value: any) => {
         setSettingsForm(prev => ({ ...prev, [field]: value }));
@@ -598,6 +602,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
             settingsForm.qrPopupMessage
         );
         props.onSaveRecommendedItems(tempRecommendedIds);
+        props.onSaveRecommendedItemsLimit(tempRecommendedItemsLimit);
         props.onSaveDeliveryProviders(tempDeliveryProviders);
         props.onSaveFacebookConfig(settingsForm.facebookAppId, settingsForm.facebookAppSecret);
         props.onSaveLineNotifyToken(settingsForm.lineNotifyToken); // Deprecated
@@ -620,8 +625,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
             if (prev.includes(itemId)) {
                 return prev.filter(id => id !== itemId);
             } else {
-                if (prev.length >= 10) {
-                    Swal.fire('เต็มแล้ว', 'แนะนำเมนูได้สูงสุด 10 รายการ', 'warning');
+                if (prev.length >= tempRecommendedItemsLimit) {
+                    Swal.fire('เต็มแล้ว', `แนะนำเมนูได้สูงสุด ${tempRecommendedItemsLimit} รายการ`, 'warning');
                     return prev;
                 }
                 return [...prev, itemId];
@@ -1254,7 +1259,34 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
 
                     {activeTab === 'menu' && (
                         <div className="bg-white p-6 rounded-lg shadow-sm max-w-4xl mx-auto">
-                            <h3 className="text-lg font-bold text-gray-800 mb-4">เลือกเมนูแนะนำ (สูงสุด 10 รายการ)</h3>
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-4 border-b border-gray-100">
+                                <div>
+                                    <h3 className="text-lg font-bold text-gray-800">เลือกเมนูแนะนำ</h3>
+                                    <p className="text-xs text-gray-500 mt-1">เลือกเมนูเด่นเพื่อแสดงในหน้าแนะนำของร้าน</p>
+                                </div>
+                                <div className="flex flex-wrap items-center gap-4">
+                                    <div className="flex items-center gap-2 bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-200">
+                                        <span className="text-xs font-semibold text-gray-600">ตั้งค่าจำนวนสูงสุด:</span>
+                                        <input
+                                            type="number"
+                                            min="1"
+                                            value={tempRecommendedItemsLimit}
+                                            onChange={(e) => {
+                                                const val = Math.max(1, parseInt(e.target.value) || 1);
+                                                setTempRecommendedItemsLimit(val);
+                                            }}
+                                            className="w-16 text-center text-sm font-bold bg-white border border-gray-300 rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500 text-gray-800"
+                                        />
+                                    </div>
+                                    <div className="flex items-center gap-2 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100 text-sm font-bold text-blue-700">
+                                        <span>เหลือเลือกได้อีก:</span>
+                                        <span className={`px-2 py-0.5 rounded text-white text-xs font-black min-w-[24px] text-center ${tempRecommendedItemsLimit - tempRecommendedIds.length <= 0 ? 'bg-red-500' : 'bg-blue-600'}`}>
+                                            {Math.max(0, tempRecommendedItemsLimit - tempRecommendedIds.length)}
+                                        </span>
+                                        <span>รายการ</span>
+                                    </div>
+                                </div>
+                            </div>
                             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                                 {props.menuItems.map(item => {
                                     const isSelected = tempRecommendedIds.includes(item.id);
