@@ -67,7 +67,7 @@ export const Menu: React.FC<MenuProps> = ({
 
     const normalizedCategories = useMemo(() => {
         if (!Array.isArray(categories)) return [];
-        return categories.map(cat => {
+        const cats = categories.map(cat => {
             if (typeof cat === 'object' && cat !== null && 'name' in cat && typeof (cat as any).name === 'string') {
                 return (cat as any).name;
             }
@@ -76,6 +76,14 @@ export const Menu: React.FC<MenuProps> = ({
             }
             return null;
         }).filter((catName): catName is string => typeof catName === 'string');
+
+        if (cats.length > 0) {
+            const hasAll = cats.includes('ทั้งหมด') || cats.includes('All');
+            if (!hasAll) {
+                return ['ทั้งหมด', ...cats];
+            }
+        }
+        return cats;
     }, [categories]);
 
     useEffect(() => {
@@ -387,20 +395,27 @@ export const Menu: React.FC<MenuProps> = ({
     
                 for (const row of json) {
                     const id = Number(row.id);
-                    if (isNaN(id) || !row.name || row.price === undefined || !row.category) {
+                    if (isNaN(id) || !row.name || !row.category) {
                         errorCount++;
                         continue; // Skip rows with essential missing data
                     }
     
-                    newCategories.add(row.category);
+                    const categoryCleaned = String(row.category).trim();
+                    if (!categoryCleaned) {
+                        errorCount++;
+                        continue;
+                    }
+                    newCategories.add(categoryCleaned);
+    
+                    const parsedPrice = row.price !== undefined && !isNaN(Number(row.price)) ? Number(row.price) : 0;
     
                     if (!menuItemsMap.has(id)) {
                         menuItemsMap.set(id, {
                             id: id,
                             name: String(row.name),
                             nameEn: String(row.name_en || ''),
-                            price: Number(row.price),
-                            category: String(row.category),
+                            price: parsedPrice,
+                            category: categoryCleaned,
                             imageUrl: String(row.image_url || ''),
                             cookingTime: row.cooking_time ? Number(row.cooking_time) : undefined,
                             isAvailable: row.is_available === 'FALSE' ? false : true,
