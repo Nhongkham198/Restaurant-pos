@@ -2067,6 +2067,7 @@ export const App: React.FC = () => {
                                                 <ClosingChecklistView 
                                                     currentUser={currentUser}
                                                     selectedBranch={selectedBranch}
+                                                    branches={branches}
                                                 />
                                             )}
                                             {currentView === 'maintenance' && (
@@ -2147,6 +2148,7 @@ export const App: React.FC = () => {
                                 <ClosingChecklistView 
                                     currentUser={currentUser}
                                     selectedBranch={selectedBranch}
+                                    branches={branches}
                                 />
                             )}
                             {currentView === 'maintenance' && (

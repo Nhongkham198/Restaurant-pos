@@ -3,6 +3,9 @@ import type { User, Branch } from '../types';
 import { useFirestoreSync } from '../hooks/useFirestoreSync';
 import { sendTelegramMessage } from '../src/services/telegramService';
 import Swal from 'sweetalert2';
+import imageCompression from 'browser-image-compression';
+import { db } from '../firebaseConfig';
+
 
 export interface ClosingChecklistItem {
     id: string;
@@ -107,9 +110,37 @@ const AttachedImagePreview: React.FC<AttachedImagePreviewProps> = ({ url, index,
     );
 };
 
+// Helper to compress image (optimizing for WebP exactly as done with payment slips)
+const compressImage = async (file: File): Promise<File> => {
+    const options = {
+        maxSizeMB: 0.1, // 100KB max
+        maxWidthOrHeight: 800, // max width/height
+        useWebWorker: true,
+        fileType: 'image/webp' as any,
+        initialQuality: 0.6
+    };
+    try {
+        return await imageCompression(file, options);
+    } catch (error) {
+        console.error("Compression failed, using original file", error);
+        return file;
+    }
+};
+
+// Helper to convert File to Base64 String
+const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = error => reject(error);
+    });
+};
+
 interface ClosingChecklistViewProps {
     currentUser: User;
     selectedBranch: Branch | null;
+    branches?: Branch[];
 }
 
 // 7 Standard Closing Tasks for Restaurants to auto-seed if empty
@@ -153,7 +184,8 @@ const DEFAULT_CHECKLIST_ITEMS: ClosingChecklistItem[] = [
 
 export const ClosingChecklistView: React.FC<ClosingChecklistViewProps> = ({
     currentUser,
-    selectedBranch
+    selectedBranch,
+    branches = []
 }) => {
     // Determine active branchId as string or null
     const branchIdStr = selectedBranch ? selectedBranch.id.toString() : null;
@@ -195,6 +227,9 @@ export const ClosingChecklistView: React.FC<ClosingChecklistViewProps> = ({
     const [checklistState, setChecklistState] = useState<Record<string, { checked: boolean; staffPhotoUrl: string }>>({});
     const [generalNotes, setGeneralNotes] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
+    
+    // Tracking image compression state for each item (id: boolean)
+    const [compressingItems, setCompressingItems] = useState<Record<string, boolean>>({});
 
     // Settings / Custom Templates Edit State
     const [newTitle, setNewTitle] = useState('');
@@ -232,8 +267,8 @@ export const ClosingChecklistView: React.FC<ClosingChecklistViewProps> = ({
         }));
     };
 
-    // Handle Uploading a photo / image selection (converts to base64)
-    const handlePhotoFileChange = (id: string, file: File | undefined) => {
+    // Handle Uploading a photo / image selection (converts to base64 with compression mirroring payment slips)
+    const handlePhotoFileChange = async (id: string, file: File | undefined) => {
         if (!file) return;
 
         if (!file.type.startsWith('image/')) {
@@ -241,9 +276,15 @@ export const ClosingChecklistView: React.FC<ClosingChecklistViewProps> = ({
             return;
         }
 
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            const base64 = e.target?.result as string;
+        setCompressingItems(prev => ({ ...prev, [id]: true }));
+        try {
+            console.log(`[Checklist Image] Compressing image for item ${id}...`);
+            // Compress image before setting to state
+            const compressedFile = await compressImage(file);
+            console.log(`[Checklist Image] Compression complete. Converting to Base64...`);
+            const base64 = await fileToBase64(compressedFile);
+            console.log(`[Checklist Image] Base64 conversion complete. Length:`, base64.length);
+            
             setChecklistState(prev => ({
                 ...prev,
                 [id]: {
@@ -251,8 +292,12 @@ export const ClosingChecklistView: React.FC<ClosingChecklistViewProps> = ({
                     staffPhotoUrl: base64
                 }
             }));
-        };
-        reader.readAsDataURL(file);
+        } catch (error) {
+            console.error("Image compression failed for checklist item:", error);
+            Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถบีบอัดรูปภาพได้สำเร็จ กรุณาลองใหม่อีกครั้ง', 'error');
+        } finally {
+            setCompressingItems(prev => ({ ...prev, [id]: false }));
+        }
     };
 
     // Handle pasting/typing direct image URL
@@ -470,6 +515,119 @@ export const ClosingChecklistView: React.FC<ClosingChecklistViewProps> = ({
         });
     };
 
+    // Configuration Manager: Copy template items from another branch
+    const handleCopyFromBranch = async () => {
+        if (!branches || branches.length <= 1) {
+            Swal.fire('คำเตือน', 'คุณไม่มีสาขาอื่นในระบบที่จะดึงข้อมูลมาคัดลอกได้', 'warning');
+            return;
+        }
+
+        const otherBranches = branches.filter(b => b.id.toString() !== branchIdStr);
+        
+        if (otherBranches.length === 0) {
+            Swal.fire('คำเตือน', 'ไม่พบสาขาอื่นสำหรับทำการคัดลอก', 'warning');
+            return;
+        }
+
+        // Build branch options for SweetAlert2
+        const inputOptions: Record<string, string> = {};
+        otherBranches.forEach(b => {
+            inputOptions[b.id.toString()] = b.name;
+        });
+
+        const { value: targetBranchId } = await Swal.fire({
+            title: 'คัดลอกเช็คลิสต์จากสาขาอื่น',
+            text: 'กรุณาเลือกสาขาต้นทางที่ต้องการดึงข้อมูลหัวข้อการตรวจ',
+            input: 'select',
+            inputOptions: inputOptions,
+            inputPlaceholder: 'เลือกสาขาต้นทาง...',
+            showCancelButton: true,
+            confirmButtonText: 'ถัดไป',
+            cancelButtonText: 'ยกเลิก',
+            confirmButtonColor: '#16a34a',
+            inputValidator: (value) => {
+                if (!value) {
+                    return 'กรุณาเลือกสาขาต้นทาง!';
+                }
+                return null;
+            }
+        });
+
+        if (targetBranchId) {
+            const sourceBranch = otherBranches.find(b => b.id.toString() === targetBranchId);
+            
+            Swal.fire({
+                title: 'กำลังดึงข้อมูลหัวข้อเช็คลิสต์...',
+                html: `โปรดรอสักครู่ ระบบกำลังดึงข้อมูลจากสาขา "<strong>${sourceBranch?.name}</strong>"`,
+                allowOutsideClick: false,
+                didOpen: () => {
+                    Swal.showLoading();
+                }
+            });
+
+            try {
+                // Fetch checklist items from target branch
+                const collectionPath = `branches/${targetBranchId}/closingChecklistItems`;
+                const snapshot = await db.collection(collectionPath).get();
+                const sourceChecklist: ClosingChecklistItem[] = [];
+                snapshot.forEach(docSnap => {
+                    if (docSnap.exists) {
+                        const data = docSnap.data() as ClosingChecklistItem;
+                        sourceChecklist.push(data);
+                    }
+                });
+
+                if (sourceChecklist.length === 0) {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'ไม่พบรายการเช็คลิสต์',
+                        text: `สาขา "${sourceBranch?.name}" ยังไม่มีการกำหนดหัวข้อการตรวจใดๆ`,
+                        confirmButtonColor: '#3b82f6'
+                    });
+                    return;
+                }
+
+                // Show confirmation before replacing everything
+                const confirmResult = await Swal.fire({
+                    title: 'ยืนยันการคัดลอกและเขียนทับ?',
+                    html: `คุณแน่ใจหรือไม่ว่าต้องการคัดลอกเช็คลิสต์จำนวน <strong>${sourceChecklist.length} รายการ</strong> จากสาขา "<strong>${sourceBranch?.name}</strong>" มายังสาขา "<strong>${selectedBranch?.name || 'ทั่วไป'}</strong>"?<br/><br/><span class="text-red-600 font-semibold text-sm block bg-red-50 p-2.5 border border-red-200 rounded-lg">⚠️ คำเตือน: ข้อมูลเช็คลิสต์ของสาขาปัจจุบัน "<strong>${selectedBranch?.name || 'ทั่วไป'}</strong>" จะถูกลบและเขียนทับด้วยข้อมูลจาก "<strong>${sourceBranch?.name}</strong>" ทันที!</span>`,
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonText: 'ยืนยันคัดลอก',
+                    cancelButtonText: 'ยกเลิก',
+                    confirmButtonColor: '#d33',
+                    cancelButtonColor: '#3085d6'
+                });
+
+                if (confirmResult.isConfirmed) {
+                    // Update state and write clean entries to current branch
+                    const cleanSourceList = sourceChecklist.map((item, index) => {
+                        const uniqueId = `template_${Date.now()}_${index}_${Math.random().toString(36).substr(2, 5)}`;
+                        return {
+                            id: uniqueId,
+                            title: item.title,
+                            referenceImageUrl: item.referenceImageUrl || undefined,
+                            lastUpdated: Date.now()
+                        };
+                    });
+
+                    await setTemplates(cleanSourceList);
+
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'คัดลอกเช็คลิสต์สำเร็จแล้ว!',
+                        text: `คัดลอกเช็คลิสต์ ${cleanSourceList.length} ข้อ มายัง สาขา "${selectedBranch?.name || 'ทั่วไป'}" เรียบร้อยค่ะ`,
+                        timer: 2000,
+                        showConfirmButton: false
+                    });
+                }
+            } catch (error: any) {
+                console.error("Error copy branch templates:", error);
+                Swal.fire('ดึงข้อมูลล้มเหลว', 'เกิดข้อผิดพลาดทำให้ไม่สามารถคัดลอกข้อมูลได้: ' + (error.message || error), 'error');
+            }
+        }
+    };
+
     // Open zoom view of reference image
     const showReferenceZoom = (item: ClosingChecklistItem) => {
         Swal.fire({
@@ -622,12 +780,29 @@ export const ClosingChecklistView: React.FC<ClosingChecklistViewProps> = ({
                                                                     id={`camera-upload-${item.id}`}
                                                                     className="hidden"
                                                                     onChange={(e) => handlePhotoFileChange(item.id, e.target.files?.[0])}
+                                                                    disabled={compressingItems[item.id]}
                                                                 />
                                                                 <label 
-                                                                    htmlFor={`camera-upload-${item.id}`}
-                                                                    className="flex items-center gap-1.5 text-xs font-bold text-white bg-green-600 hover:bg-green-700 px-3 py-1.5 rounded-lg shadow-sm cursor-pointer transition-all hover:scale-[1.02]"
+                                                                    htmlFor={compressingItems[item.id] ? undefined : `camera-upload-${item.id}`}
+                                                                    className={`flex items-center gap-1.5 text-xs font-bold text-white px-3 py-1.5 rounded-lg shadow-sm cursor-pointer transition-all hover:scale-[1.02] ${
+                                                                        compressingItems[item.id] 
+                                                                            ? 'bg-amber-600 cursor-not-allowed opacity-85' 
+                                                                            : 'bg-green-600 hover:bg-green-700'
+                                                                    }`}
                                                                 >
-                                                                    📷 ถ่ายรูป/อัปโหลดจริง
+                                                                    {compressingItems[item.id] ? (
+                                                                        <span className="flex items-center gap-1">
+                                                                            <svg className="animate-spin h-3.5 w-3.5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                                                            </svg>
+                                                                            กำลังบีบอัดรูป...
+                                                                        </span>
+                                                                    ) : (
+                                                                        <>
+                                                                            📷 ถ่ายรูป/อัปโหลดจริง
+                                                                        </>
+                                                                    )}
                                                                 </label>
                                                             </div>
 
@@ -820,7 +995,18 @@ export const ClosingChecklistView: React.FC<ClosingChecklistViewProps> = ({
                             </div>
 
                             {/* Current checklist configs */}
-                            <h3 className="text-base font-bold text-gray-800 mt-6 mb-3">📋 รายการเช็คลิสต์ปัจจุบันในสาขานี้ ({templates.length} ข้อ):</h3>
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mt-6 mb-3 border-t border-gray-100 pt-5">
+                                <h3 className="text-base font-bold text-gray-800">📋 รายการเช็คลิสต์ปัจจุบันในสาขานี้ ({templates.length} ข้อ):</h3>
+                                {branches && branches.length > 1 && (
+                                    <button
+                                        type="button"
+                                        onClick={handleCopyFromBranch}
+                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200 hover:bg-blue-100 rounded-lg shadow-sm transition-all"
+                                    >
+                                        📋 คัดลอกเช็คลิสต์จากสาขาอื่น
+                                    </button>
+                                )}
+                            </div>
                             <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1">
                                 {templates.map((item, index) => (
                                     <div key={item.id} className="p-3 bg-white rounded-xl border border-gray-200 flex justify-between items-center gap-4 hover:border-gray-300">
