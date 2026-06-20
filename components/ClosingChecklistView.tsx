@@ -29,6 +29,84 @@ export interface ClosingChecklistLog {
     _firestoreId?: string;
 }
 
+interface AttachedImagePreviewProps {
+    url: string;
+    index: number;
+    title: string;
+    onDelete: () => void;
+}
+
+const AttachedImagePreview: React.FC<AttachedImagePreviewProps> = ({ url, index, title, onDelete }) => {
+    const [loadState, setLoadState] = useState<'loading' | 'success' | 'error'>('loading');
+
+    useEffect(() => {
+        setLoadState('loading');
+    }, [url]);
+
+    return (
+        <div className="mt-3 relative inline-block transition-all duration-300 transform origin-top hover:scale-[1.01]">
+            <p className="text-xs text-green-700 font-bold mb-1.5 flex items-center gap-1">
+                <span>🖼️</span> รูปตัวอย่างแสดงผลทันที (คลิกซูมดูรูปใหญ่ได้):
+            </p>
+            <div className="relative group max-w-xs rounded-xl overflow-hidden border-2 border-green-500 shadow-md cursor-pointer bg-gray-50 transition-all hover:shadow-lg hover:border-green-600">
+                {loadState === 'loading' && (
+                    <div className="w-48 h-32 flex flex-col items-center justify-center bg-gray-100 text-gray-400 gap-1 rounded-lg">
+                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-green-600"></div>
+                        <span className="text-[10px] font-semibold">กำลังโหลดรูปภาพ...</span>
+                    </div>
+                )}
+                {loadState === 'error' && (
+                    <div className="w-48 h-32 flex flex-col items-center justify-center bg-red-50 text-red-500 gap-1 rounded-lg border border-red-100 p-2 text-center">
+                        <span className="text-lg">⚠️</span>
+                        <span className="text-[10px] font-bold">ไม่สามารถดึงรูปจากลิงก์นี้ได้</span>
+                        <span className="text-[9px] text-gray-400 font-medium">กรุณาตรวจสอบ URL อีกครั้ง</span>
+                    </div>
+                )}
+                <img 
+                    src={url} 
+                    alt={`ภาพจริงของข้อ ${index + 1}`} 
+                    onLoad={() => setLoadState('success')}
+                    onError={() => setLoadState('error')}
+                    className={`w-full h-auto max-h-56 object-cover object-center bg-gray-100 transition-opacity duration-300 ${
+                        loadState === 'success' ? 'opacity-100' : 'opacity-0 absolute top-0 left-0 w-0 h-0 pointer-events-none'
+                    }`}
+                    onClick={() => {
+                        if (loadState !== 'success') return;
+                        Swal.fire({
+                            title: `ตัวอย่างรูปถ่ายของข้อที่ ${index + 1}`,
+                            text: title,
+                            imageUrl: url,
+                            imageAlt: `ภาพจริงของข้อ ${index + 1}`,
+                            confirmButtonText: 'ปิด',
+                            confirmButtonColor: '#16a34a',
+                            customClass: {
+                                popup: 'rounded-2xl shadow-xl'
+                            }
+                        });
+                    }}
+                />
+                {loadState === 'success' && (
+                    <div className="absolute inset-x-0 bottom-0 bg-black/60 text-white text-[10px] text-center py-1 font-bold opacity-0 group-hover:opacity-100 transition-opacity">
+                        🔍 คลิกเพื่อดูขนาดจริง
+                    </div>
+                )}
+                {/* Delete button */}
+                <button
+                    type="button"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onDelete();
+                    }}
+                    className="absolute top-2 right-2 bg-red-600/90 hover:bg-red-700 text-white rounded-full p-1.5 shadow-md hover:scale-110 transition-transform flex items-center justify-center z-10"
+                    title="ลบรูปภาพนี้"
+                >
+                    <svg xmlns="http://www.w3.org/2500/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+            </div>
+        </div>
+    );
+};
+
 interface ClosingChecklistViewProps {
     currentUser: User;
     selectedBranch: Branch | null;
@@ -567,25 +645,12 @@ export const ClosingChecklistView: React.FC<ClosingChecklistViewProps> = ({
 
                                                         {/* STAFF PHOTO PREVIEW (Render directly inside each checklists so it is easy to view!) */}
                                                         {state.staffPhotoUrl && (
-                                                            <div className="mt-3 relative inline-block">
-                                                                <p className="text-xs text-green-700 font-semibold mb-1">📸 ภาพถ่ายจริงของพนักงานสำหรับข้อนี้:</p>
-                                                                <div className="relative group max-w-xs rounded-lg overflow-hidden border-2 border-green-500 shadow-md">
-                                                                    <img 
-                                                                        src={state.staffPhotoUrl} 
-                                                                        alt={`ภาพจริงของข้อ ${index + 1}`} 
-                                                                        className="w-full h-auto max-h-48 object-cover object-center bg-gray-100"
-                                                                    />
-                                                                    {/* Simple button to delete photo */}
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={() => handlePhotoUrlChange(item.id, '')}
-                                                                        className="absolute top-1.5 right-1.5 bg-red-600/90 hover:bg-red-700 text-white rounded-full p-1 shadow-md hover:scale-115 transition-transform"
-                                                                        title="ลบรูปภาพนี้"
-                                                                    >
-                                                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
-                                                                    </button>
-                                                                </div>
-                                                            </div>
+                                                            <AttachedImagePreview 
+                                                                url={state.staffPhotoUrl}
+                                                                index={index}
+                                                                title={item.title}
+                                                                onDelete={() => handlePhotoUrlChange(item.id, '')}
+                                                            />
                                                         )}
                                                     </div>
                                                 </div>

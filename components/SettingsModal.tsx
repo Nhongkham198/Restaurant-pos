@@ -149,6 +149,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
     const [tempRecommendedItemsLimit, setTempRecommendedItemsLimit] = useState<number>(props.recommendedItemsLimit || 10);
     const [tempDeliveryProviders, setTempDeliveryProviders] = useState<DeliveryProvider[]>(props.deliveryProviders || []);
     const [isUploading, setIsUploading] = useState(false);
+    const [showTelegramToken, setShowTelegramToken] = useState(false);
+    const [showLineToken, setShowLineToken] = useState(false);
 
     const [isPriceHistoryOpen, setIsPriceHistoryOpen] = useState(false);
     const [priceHistory, setPriceHistory] = useState<DeliveryPriceHistoryEntry[]>([]);
@@ -1008,14 +1010,76 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
                                         <label className="block text-sm font-bold text-blue-600 mb-1">Telegram Bot (สำหรับแจ้งเตือนออเดอร์/เรียกพนักงาน)</label>
                                         <div className="space-y-3">
                                             <div>
-                                                <label className="block text-xs text-gray-600">Bot Token (จาก @BotFather)</label>
-                                                <input 
-                                                    type="password" 
-                                                    value={settingsForm.telegramBotToken || ''} 
-                                                    onChange={e => handleInputChange('telegramBotToken', e.target.value)} 
-                                                    placeholder="เช่น 123456789:ABCdef..."
-                                                    className="w-full bg-white border border-gray-300 rounded-md shadow-sm p-2 focus:ring-blue-500 focus:border-blue-500" 
-                                                />
+                                                <label className="block text-xs text-gray-600 mb-1">Bot Token (จาก @BotFather)</label>
+                                                <div className="flex gap-2">
+                                                    <input 
+                                                        type={showTelegramToken ? "text" : "password"} 
+                                                        value={settingsForm.telegramBotToken || ''} 
+                                                        onChange={e => handleInputChange('telegramBotToken', e.target.value)} 
+                                                        placeholder="เช่น 123456789:ABCdef..."
+                                                        className="flex-1 bg-white border border-gray-300 rounded-md shadow-sm p-2 focus:ring-blue-500 focus:border-blue-500 text-sm font-mono" 
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setShowTelegramToken(!showTelegramToken)}
+                                                        className="px-3 py-2 bg-gray-50 border border-gray-300 rounded-md hover:bg-gray-100 text-gray-600 transition-colors flex items-center justify-center text-sm"
+                                                        title={showTelegramToken ? "ซ่อนพาสเวิร์ด" : "แสดงพาสเวิร์ด"}
+                                                    >
+                                                        {showTelegramToken ? '🙈' : '👁️'}
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={async () => {
+                                                            if (!settingsForm.telegramBotToken) {
+                                                                Swal.fire({
+                                                                    icon: 'warning',
+                                                                    title: 'ไม่มีข้อมูลคัดลอก',
+                                                                    text: 'กรุณากรอก Bot Token ก่อนคัดลอก',
+                                                                    confirmButtonColor: '#3b82f6'
+                                                                });
+                                                                return;
+                                                            }
+                                                            try {
+                                                                await navigator.clipboard.writeText(settingsForm.telegramBotToken);
+                                                                Swal.fire({
+                                                                    icon: 'success',
+                                                                    title: 'คัดลอกสำเร็จ!',
+                                                                    text: 'คัดลอก Bot Token ไปยังคลิปบอร์ดแล้ว นำไปวางในระบบตั้งค่าสาขาอื่นได้เลย',
+                                                                    timer: 2000,
+                                                                    showConfirmButton: false
+                                                                });
+                                                            } catch (err) {
+                                                                console.error(err);
+                                                                const textarea = document.createElement("textarea");
+                                                                textarea.value = settingsForm.telegramBotToken;
+                                                                document.body.appendChild(textarea);
+                                                                textarea.select();
+                                                                try {
+                                                                    document.execCommand("copy");
+                                                                    Swal.fire({
+                                                                        icon: 'success',
+                                                                        title: 'คัดลอกสำเร็จ!',
+                                                                        text: 'คัดลอก Bot Token ไปยังคลิปบอร์ดแล้ว นำไปวางในระบบตั้งค่าสาขาอื่นได้เลย',
+                                                                        timer: 2000,
+                                                                        showConfirmButton: false
+                                                                    });
+                                                                } catch (e) {
+                                                                    Swal.fire({
+                                                                        icon: 'error',
+                                                                        title: 'คัดลอกไม่สำเร็จ',
+                                                                        text: 'กรุณาลองเลือกครอบข้อความแล้วคัดลอกด้วยตัวเอง',
+                                                                        confirmButtonColor: '#3b82f6'
+                                                                    });
+                                                                }
+                                                                document.body.removeChild(textarea);
+                                                            }
+                                                        }}
+                                                        className="px-4 py-2 bg-blue-100 border border-blue-200 text-blue-700 font-bold rounded-md hover:bg-blue-200 transition-colors flex items-center gap-1.5 text-sm"
+                                                        title="คัดลอก Token"
+                                                    >
+                                                        📋 คัดลอก
+                                                    </button>
+                                                </div>
                                             </div>
                                             <div>
                                                 <label className="block text-xs text-gray-600">Chat ID / Group ID (ผู้รับแจ้งเตือน)</label>
@@ -1042,14 +1106,76 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
                                         <label className="block text-sm font-bold text-green-600 mb-1">LINE Messaging API (สำหรับแจ้งเตือนออเดอร์)</label>
                                         <div className="space-y-3">
                                             <div>
-                                                <label className="block text-xs text-gray-600">Channel Access Token (Long-lived)</label>
-                                                <input 
-                                                    type="password" 
-                                                    value={settingsForm.lineMessagingToken || ''} 
-                                                    onChange={e => handleInputChange('lineMessagingToken', e.target.value)} 
-                                                    placeholder="วาง Channel Access Token ที่นี่..."
-                                                    className="w-full bg-white border border-gray-300 rounded-md shadow-sm p-2 focus:ring-green-500 focus:border-green-500" 
-                                                />
+                                                <label className="block text-xs text-gray-600 mb-1">Channel Access Token (Long-lived)</label>
+                                                <div className="flex gap-2">
+                                                    <input 
+                                                        type={showLineToken ? "text" : "password"} 
+                                                        value={settingsForm.lineMessagingToken || ''} 
+                                                        onChange={e => handleInputChange('lineMessagingToken', e.target.value)} 
+                                                        placeholder="วาง Channel Access Token ที่นี่..."
+                                                        className="flex-1 bg-white border border-gray-300 rounded-md shadow-sm p-2 focus:ring-green-500 focus:border-green-500 text-sm font-mono" 
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setShowLineToken(!showLineToken)}
+                                                        className="px-3 py-2 bg-gray-50 border border-gray-300 rounded-md hover:bg-gray-100 text-gray-600 transition-colors flex items-center justify-center text-sm"
+                                                        title={showLineToken ? "ซ่อนพาสเวิร์ด" : "แสดงพาสเวิร์ด"}
+                                                    >
+                                                        {showLineToken ? '🙈' : '👁️'}
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={async () => {
+                                                            if (!settingsForm.lineMessagingToken) {
+                                                                Swal.fire({
+                                                                    icon: 'warning',
+                                                                    title: 'ไม่มีข้อมูลคัดลอก',
+                                                                    text: 'กรุณากรอก LINE Messaging Channel Access Token ก่อนคัดลอก',
+                                                                    confirmButtonColor: '#16a34a'
+                                                                });
+                                                                return;
+                                                            }
+                                                            try {
+                                                                await navigator.clipboard.writeText(settingsForm.lineMessagingToken);
+                                                                Swal.fire({
+                                                                    icon: 'success',
+                                                                    title: 'คัดลอกสำเร็จ!',
+                                                                    text: 'คัดลอก LINE Channel Access Token ไปยังคลิปบอร์ดแล้ว นำไปวางในระบบตั้งค่าสาขาอื่นได้เลย',
+                                                                    timer: 2000,
+                                                                    showConfirmButton: false
+                                                                });
+                                                            } catch (err) {
+                                                                console.error(err);
+                                                                const textarea = document.createElement("textarea");
+                                                                textarea.value = settingsForm.lineMessagingToken;
+                                                                document.body.appendChild(textarea);
+                                                                textarea.select();
+                                                                try {
+                                                                    document.execCommand("copy");
+                                                                    Swal.fire({
+                                                                        icon: 'success',
+                                                                        title: 'คัดลอกสำเร็จ!',
+                                                                        text: 'คัดลอก LINE Channel Access Token ไปยังคลิปบอร์ดแล้ว นำไปวางในระบบตั้งค่าสาขาอื่นได้เลย',
+                                                                        timer: 2000,
+                                                                        showConfirmButton: false
+                                                                    });
+                                                                } catch (e) {
+                                                                    Swal.fire({
+                                                                        icon: 'error',
+                                                                        title: 'คัดลอกไม่สำเร็จ',
+                                                                        text: 'กรุณาลองเลือกครอบข้อความแล้วคัดลอกด้วยตัวเอง',
+                                                                        confirmButtonColor: '#16a34a'
+                                                                    });
+                                                                }
+                                                                document.body.removeChild(textarea);
+                                                            }
+                                                        }}
+                                                        className="px-4 py-2 bg-green-100 border border-green-200 text-green-700 font-bold rounded-md hover:bg-green-200 transition-colors flex items-center gap-1.5 text-sm"
+                                                        title="คัดลอก Token"
+                                                    >
+                                                        📋 คัดลอก
+                                                    </button>
+                                                </div>
                                             </div>
                                             <div>
                                                 <label className="block text-xs text-gray-600">User ID / Group ID (ผู้รับแจ้งเตือน)</label>
