@@ -610,7 +610,7 @@ export const ClosingChecklistView: React.FC<ClosingChecklistViewProps> = ({
                                                                     onClick={() => showReferenceZoom(item)}
                                                                     className="flex items-center gap-1.5 text-xs font-bold text-gray-500 hover:text-green-600 bg-gray-100 hover:bg-green-50 px-2.5 py-1.5 rounded-lg border border-gray-200 transition-colors"
                                                                 >
-                                                                    ℹ️ ดูตัวอย่างท่ถูกต้อง
+                                                                    ℹ️ ดูตัวอย่างที่ถูกต้อง
                                                                 </button>
                                                             )}
 
