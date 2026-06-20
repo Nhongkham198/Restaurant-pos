@@ -5,6 +5,7 @@ import { sendTelegramMessage } from '../src/services/telegramService';
 import Swal from 'sweetalert2';
 import imageCompression from 'browser-image-compression';
 import { db } from '../firebaseConfig';
+import * as XLSX from 'xlsx';
 
 
 export interface ClosingChecklistItem {
@@ -205,6 +206,18 @@ export const ClosingChecklistView: React.FC<ClosingChecklistViewProps> = ({
         []
     );
 
+    // Fetch and Sync branch configurations for Telegram Notifications dynamically
+    const [telegramBotToken] = useFirestoreSync<string>(
+        branchIdStr,
+        'telegramBotToken',
+        ''
+    );
+    const [telegramChatId] = useFirestoreSync<string>(
+        branchIdStr,
+        'telegramChatId',
+        ''
+    );
+
     // Auto-cleanup logs older than 2 days (48 hours) to save database space
     useEffect(() => {
         if (!isLogsLoading && logs.length > 0) {
@@ -374,8 +387,8 @@ export const ClosingChecklistView: React.FC<ClosingChecklistViewProps> = ({
 
             // Broadcast to Telegram Bot configured in Settings
             const branchName = selectedBranch ? selectedBranch.name : 'ทั่วไป';
-            const botToken = selectedBranch?.telegramBotToken;
-            const chatId = selectedBranch?.telegramChatId;
+            const botToken = telegramBotToken;
+            const chatId = telegramChatId;
 
             if (botToken && chatId) {
                 // Build a brilliant Telegram formatted HTML report
@@ -442,6 +455,197 @@ export const ClosingChecklistView: React.FC<ClosingChecklistViewProps> = ({
             Swal.fire('ล้มเหลว', 'ไม่สามารถบันทึกข้อมูลเข้าฐานข้อมูลได้ชั่วคราว', 'error');
         } finally {
             setIsSubmitting(false);
+        }
+    };
+
+    // Export checklist templates to an Excel (.xlsx) file
+    const handleExportExcel = () => {
+        try {
+            if (!templates || templates.length === 0) {
+                Swal.fire({
+                    icon: 'info',
+                    title: 'ไม่มีข้อมูล',
+                    text: 'ไม่มีข้อมูลหัวข้อเช็คลิสต์ในสาขานี้สำหรับส่งออก'
+                });
+                return;
+            }
+
+            // Prepare data elegantly for Excel sheets
+            const data = templates.map((item, index) => ({
+                'ลำดับที่ (No.)': index + 1,
+                'หัวข้อเช็คลิสต์ (Topic)': item.title,
+                'ลิงก์รูปภาพอ้างอิง (Reference Image URL)': item.referenceImageUrl || ''
+            }));
+
+            // Create worksheet and workbook structure
+            const worksheet = XLSX.utils.json_to_sheet(data);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, 'Checklist Templates');
+
+            // Apply column widths to look like professional handcrafted sheets
+            worksheet['!cols'] = [
+                { wch: 15 }, // ID/No
+                { wch: 50 }, // Topic
+                { wch: 60 }  // Reference Image URL
+            ];
+
+            const branchName = selectedBranch?.name || 'General';
+            const fileName = `Checklist_${branchName}.xlsx`;
+
+            // Write out the file and trigger automatic browser download
+            XLSX.writeFile(workbook, fileName);
+
+            Swal.fire({
+                icon: 'success',
+                title: 'ส่งออกไฟล์สำรองสำเร็จ!',
+                text: `บันทึกหัวข้อเช็คลิสต์ ${templates.length} หัวข้อลงไฟล์ ${fileName} เรียบร้อยแล้วค่ะ`,
+                timer: 2000,
+                showConfirmButton: false
+            });
+        } catch (error: any) {
+            console.error('Error exporting Excel:', error);
+            Swal.fire('จัดระบบล้มเหลว', 'เกิดข้อผิดพลาดในการสร้างไฟล์ Excel: ' + (error.message || error), 'error');
+        }
+    };
+
+    // Import checklist templates from an Excel (.xlsx / .xls / .csv) file
+    const handleImportExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        // Reset target value so users can choose the same file again if desired
+        e.target.value = '';
+
+        try {
+            const reader = new FileReader();
+            reader.onload = async (evt) => {
+                try {
+                    const bstr = evt.target?.result;
+                    const workbook = XLSX.read(bstr, { type: 'binary' });
+                    const worksheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[worksheetName];
+                    const rawData = XLSX.utils.sheet_to_json<any>(worksheet);
+
+                    if (!rawData || rawData.length === 0) {
+                        Swal.fire('ตารางว่างเปล่า', 'ไม่พบรายชื่อในหัวตารางหรือเนื้อหา ข้อมูลว่างเกินไป', 'warning');
+                        return;
+                    }
+
+                    const importedItems: { title: string; referenceImageUrl?: string }[] = [];
+
+                    for (const row of rawData) {
+                        let title = '';
+                        let refUrl = '';
+
+                        // Read header fields or content flexibly 
+                        if (row['หัวข้อเช็คลิสต์'] !== undefined) title = String(row['หัวข้อเช็คลิสต์']);
+                        else if (row['หัวข้อเช็คลิสต์ (Topic)'] !== undefined) title = String(row['หัวข้อเช็คลิสต์ (Topic)']);
+                        else if (row['Topic'] !== undefined) title = String(row['Topic']);
+                        else if (row['topic'] !== undefined) title = String(row['topic']);
+                        else if (row['title'] !== undefined) title = String(row['title']);
+                        else if (row['หัวข้อ'] !== undefined) title = String(row['หัวข้อ']);
+
+                        if (row['ลิงก์รูปภาพอ้างอิง'] !== undefined) refUrl = String(row['ลิงก์รูปภาพอ้างอิง']);
+                        else if (row['ลิงก์รูปภาพอ้างอิง (Reference Image URL)'] !== undefined) refUrl = String(row['ลิงก์รูปภาพอ้างอิง (Reference Image URL)']);
+                        else if (row['Reference Image URL'] !== undefined) refUrl = String(row['Reference Image URL']);
+                        else if (row['Image URL'] !== undefined) refUrl = String(row['Image URL']);
+                        else if (row['referenceImageUrl'] !== undefined) refUrl = String(row['referenceImageUrl']);
+                        else if (row['ลิงก์รูปอ้างอิง'] !== undefined) refUrl = String(row['ลิงก์รูปอ้างอิง']);
+                        else if (row['รูปภาพอ้างอิง'] !== undefined) refUrl = String(row['รูปภาพอ้างอิง']);
+
+                        // Alternate fallback with column values by index
+                        if (!title) {
+                            const values = Object.values(row);
+                            if (values.length >= 2) {
+                                title = String(values[1] || '').trim();
+                                refUrl = String(values[2] || '').trim();
+                            } else if (values.length === 1) {
+                                title = String(values[0] || '').trim();
+                            }
+                        }
+
+                        title = title.trim();
+                        refUrl = refUrl.trim();
+
+                        if (title) {
+                            importedItems.push({
+                                title,
+                                referenceImageUrl: refUrl || undefined
+                            });
+                        }
+                    }
+
+                    if (importedItems.length === 0) {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'ไม่สามารถอ่านข้อเช็คลิสต์ได้',
+                            text: 'กรุณาตรวจสอบให้แน่ใจว่าแถวในตารางมีคอลัมน์ชื่อ "หัวข้อเช็คลิสต์ (Topic)" หรือระบุข้อมูลให้ชัดเจน'
+                        });
+                        return;
+                    }
+
+                    // Render gorgeous preview dialog
+                    const confirmResult = await Swal.fire({
+                        title: 'ยืนยันการนำเข้าหัวข้อเช็คลิสต์?',
+                        html: `
+                            <div class="text-left font-sans text-sm">
+                                <p class="mb-2">พบเช็คลิสต์ทั้งหมด <strong class="text-green-600">${importedItems.length} รายการ</strong> ในไฟล์นำเข้า:</p>
+                                <div class="max-h-48 overflow-y-auto bg-gray-50 border border-gray-200 rounded-xl p-3 space-y-1 font-mono text-xs text-gray-700">
+                                    ${importedItems.map((item, idx) => `
+                                        <div class="border-b border-gray-100 pb-1 last:border-0">
+                                            <span class="font-bold text-gray-800">${idx + 1}.</span> ${item.title}
+                                            ${item.referenceImageUrl ? `<span class="text-blue-500 ml-1">🔗</span>` : ''}
+                                        </div>
+                                    `).join('')}
+                                </div>
+                                <p class="mt-4 text-xs text-red-600 font-bold p-3 bg-red-50 border border-red-200 rounded-xl">
+                                    ⚠️ คำเตือน: ข้อมูลเช็คลิสต์ของสาขา "${selectedBranch?.name || 'ทั่วไป'}" จะถูกเขียนทับด้วยข้อมูลนำเข้านี้ทั้งหมดทันที!
+                                </p>
+                            </div>
+                        `,
+                        icon: 'warning',
+                        showCancelButton: true,
+                        confirmButtonText: 'ยืนยันนำเข้าและเขียนทับ',
+                        cancelButtonText: 'ยกเลิก',
+                        confirmButtonColor: '#16a34a',
+                        cancelButtonColor: '#d33',
+                        customClass: {
+                            popup: 'rounded-2xl shadow-xl'
+                        }
+                    });
+
+                    if (confirmResult.isConfirmed) {
+                        // Create unique template items with unique random template IDs
+                        const cleanImportedList = importedItems.map((item, idx) => {
+                            const uniqueId = `template_${Date.now()}_${idx}_${Math.random().toString(36).substr(2, 5)}`;
+                            return {
+                                id: uniqueId,
+                                title: item.title,
+                                referenceImageUrl: item.referenceImageUrl,
+                                lastUpdated: Date.now()
+                            };
+                        });
+
+                        await setTemplates(cleanImportedList);
+
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'นำเข้าเรียบร้อย!',
+                            text: `ทำการตั้งค่าเช็คลิสต์ ${cleanImportedList.length} รายการมายังสาขานี้สำเร็จเรียบร้อยค่ะ`,
+                            timer: 2500,
+                            showConfirmButton: false
+                        });
+                    }
+
+                } catch (err: any) {
+                    console.error('Error file parse:', err);
+                    Swal.fire('ประมวลผลไฟล์ไม่สำเร็จ', 'โปรดตรวจสอบความถูกต้องของตารางหรือข้อมูล: ' + (err.message || err), 'error');
+                }
+            };
+            reader.readAsBinaryString(file);
+        } catch (err: any) {
+            console.error('FileReader failed:', err);
+            Swal.fire('ข้อผิดพลาด', 'ไม่สามารถอ่านข้อมูลดิบของไฟล์ได้สำเร็จ', 'error');
         }
     };
 
@@ -653,40 +857,73 @@ export const ClosingChecklistView: React.FC<ClosingChecklistViewProps> = ({
                     </p>
                 </div>
 
-                {/* Navigation Tabs */}
-                <div className="flex bg-white rounded-xl shadow-sm border border-gray-200 p-1 w-full md:w-auto">
-                    <button
-                        onClick={() => { setActiveTab('checklist'); setSelectedLog(null); }}
-                        className={`flex-1 md:flex-initial px-4 py-2 text-sm font-semibold rounded-lg transition-all ${
-                            activeTab === 'checklist' 
-                                ? 'bg-green-600 text-white shadow-sm' 
-                                : 'text-gray-600 hover:bg-gray-100'
-                        }`}
-                    >
-                        📝 ทำเช็คลิสต์
-                    </button>
-                    <button
-                        onClick={() => { setActiveTab('history'); setSelectedLog(null); }}
-                        className={`flex-1 md:flex-initial px-4 py-2 text-sm font-semibold rounded-lg transition-all ${
-                            activeTab === 'history' 
-                                ? 'bg-green-600 text-white shadow-sm' 
-                                : 'text-gray-600 hover:bg-gray-100'
-                        }`}
-                    >
-                        🕒 ประวัติรายงาน
-                    </button>
+                <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
                     {canConfigure && (
+                        <div className="flex items-center gap-2">
+                            {/* Hidden File Input for Excel Import */}
+                            <input
+                                type="file"
+                                id="excel-import-file-input"
+                                accept=".xlsx, .xls, .csv"
+                                onChange={handleImportExcel}
+                                className="hidden"
+                            />
+                            
+                            {/* Import Button */}
+                            <button
+                                onClick={() => document.getElementById('excel-import-file-input')?.click()}
+                                className="px-4 py-2 text-sm font-semibold text-gray-700 bg-white border border-gray-300 rounded-xl shadow-sm hover:bg-gray-50 flex items-center gap-1.5 transition-all hover:scale-[1.01]"
+                                title="นำเข้าแบบฟอร์มหัวข้อเช็คลิสต์จากไฟล์ Excel"
+                            >
+                                <span className="text-green-600">📥</span> นำเข้า Excel
+                            </button>
+
+                            {/* Export Button */}
+                            <button
+                                onClick={handleExportExcel}
+                                className="px-4 py-2 text-sm font-semibold text-gray-700 bg-white border border-gray-300 rounded-xl shadow-sm hover:bg-gray-50 flex items-center gap-1.5 transition-all hover:scale-[1.01]"
+                                title="ส่งออกแบบฟอร์มหัวข้อเช็คลิสต์เป็นไฟล์ Excel สำรอง"
+                            >
+                                <span className="text-emerald-600">📤</span> ส่งออก Excel
+                            </button>
+                        </div>
+                    )}
+
+                    {/* Navigation Tabs */}
+                    <div className="flex bg-white rounded-xl shadow-sm border border-gray-200 p-1 w-full md:w-auto">
                         <button
-                            onClick={() => { setActiveTab('settings'); setSelectedLog(null); }}
+                            onClick={() => { setActiveTab('checklist'); setSelectedLog(null); }}
                             className={`flex-1 md:flex-initial px-4 py-2 text-sm font-semibold rounded-lg transition-all ${
-                                activeTab === 'settings' 
+                                activeTab === 'checklist' 
                                     ? 'bg-green-600 text-white shadow-sm' 
                                     : 'text-gray-600 hover:bg-gray-100'
                             }`}
                         >
-                            ⚙️ ตั้งค่าหัวข้อเช็คลิสต์
+                            📝 ทำเช็คลิสต์
                         </button>
-                    )}
+                        <button
+                            onClick={() => { setActiveTab('history'); setSelectedLog(null); }}
+                            className={`flex-1 md:flex-initial px-4 py-2 text-sm font-semibold rounded-lg transition-all ${
+                                activeTab === 'history' 
+                                    ? 'bg-green-600 text-white shadow-sm' 
+                                    : 'text-gray-600 hover:bg-gray-100'
+                            }`}
+                        >
+                            🕒 ประวัติรายงาน
+                        </button>
+                        {canConfigure && (
+                            <button
+                                onClick={() => { setActiveTab('settings'); setSelectedLog(null); }}
+                                className={`flex-1 md:flex-initial px-4 py-2 text-sm font-semibold rounded-lg transition-all ${
+                                    activeTab === 'settings' 
+                                        ? 'bg-green-600 text-white shadow-sm' 
+                                        : 'text-gray-600 hover:bg-gray-100'
+                                }`}
+                            >
+                                ⚙️ ตั้งค่าหัวข้อเช็คลิสต์
+                            </button>
+                        )}
+                    </div>
                 </div>
             </div>
 
@@ -724,7 +961,7 @@ export const ClosingChecklistView: React.FC<ClosingChecklistViewProps> = ({
                                     <p className="text-gray-400 text-sm">ยังไม่มีการตั้งค่าหัวข้อเช็คลิสต์ในระบบ</p>
                                 </div>
                             ) : (
-                                <div className="space-y-4">
+                                <div className="space-y-4 max-h-[650px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent">
                                     {templates.map((item, index) => {
                                         const state = checklistState[item.id] || { checked: false, staffPhotoUrl: '' };
                                         return (
