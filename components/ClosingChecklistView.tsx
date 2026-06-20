@@ -805,17 +805,6 @@ export const ClosingChecklistView: React.FC<ClosingChecklistViewProps> = ({
                                                                     )}
                                                                 </label>
                                                             </div>
-
-                                                            {/* Or Link Input block */}
-                                                            <div className="flex items-center gap-2 flex-1 min-w-[200px]">
-                                                                <input 
-                                                                    type="text"
-                                                                    placeholder="วางลิงก์รูปถ่าย (สลับกับการถ่ายรูป)"
-                                                                    value={state.staffPhotoUrl.startsWith('data:image') ? '' : state.staffPhotoUrl}
-                                                                    onChange={(e) => handlePhotoUrlChange(item.id, e.target.value)}
-                                                                    className="bg-gray-50 border border-gray-200 text-xs rounded-lg px-2.5 py-1.5 focus:ring-1 focus:ring-green-500 focus:outline-none w-full"
-                                                                />
-                                                            </div>
                                                         </div>
 
                                                         {/* STAFF PHOTO PREVIEW (Render directly inside each checklists so it is easy to view!) */}
