@@ -2068,6 +2068,7 @@ export const App: React.FC = () => {
                                                     currentUser={currentUser}
                                                     selectedBranch={selectedBranch}
                                                     branches={branches}
+                                                    isEditMode={isEditMode}
                                                 />
                                             )}
                                             {currentView === 'maintenance' && (
@@ -2149,6 +2150,7 @@ export const App: React.FC = () => {
                                     currentUser={currentUser}
                                     selectedBranch={selectedBranch}
                                     branches={branches}
+                                    isEditMode={isEditMode}
                                 />
                             )}
                             {currentView === 'maintenance' && (

@@ -142,6 +142,7 @@ interface ClosingChecklistViewProps {
     currentUser: User;
     selectedBranch: Branch | null;
     branches?: Branch[];
+    isEditMode?: boolean;
 }
 
 // 7 Standard Closing Tasks for Restaurants to auto-seed if empty
@@ -186,7 +187,8 @@ const DEFAULT_CHECKLIST_ITEMS: ClosingChecklistItem[] = [
 export const ClosingChecklistView: React.FC<ClosingChecklistViewProps> = ({
     currentUser,
     selectedBranch,
-    branches = []
+    branches = [],
+    isEditMode = false
 }) => {
     // Determine active branchId as string or null
     const branchIdStr = selectedBranch ? selectedBranch.id.toString() : null;
@@ -506,6 +508,41 @@ export const ClosingChecklistView: React.FC<ClosingChecklistViewProps> = ({
             console.error('Error exporting Excel:', error);
             Swal.fire('จัดระบบล้มเหลว', 'เกิดข้อผิดพลาดในการสร้างไฟล์ Excel: ' + (error.message || error), 'error');
         }
+    };
+
+    // Delete checklist log history (requires Edit Mode confirmation)
+    const handleDeleteLog = (logId: string) => {
+        Swal.fire({
+            title: 'ยืนยันการลบประวัติเช็คลิสต์?',
+            text: 'เมื่อลบแล้วจะไม่สามารถกู้คืนรายงานเช็คลิสต์และรูปภาพหลักฐานข้อตรวจของรอบนี้ได้อีก!',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'ใช่, ฉันต้องการลบ',
+            cancelButtonText: 'ยกเลิก',
+            confirmButtonColor: '#ef4444',
+            cancelButtonColor: '#6b7280',
+            customClass: {
+                popup: 'rounded-2xl shadow-xl'
+            }
+        }).then((result) => {
+            if (result.isConfirmed) {
+                const updatedLogs = logs.filter(log => log.id !== logId);
+                setLogs(updatedLogs);
+                if (selectedLog?.id === logId) {
+                    setSelectedLog(null);
+                }
+                Swal.fire({
+                    icon: 'success',
+                    title: 'ลบประวัติสำเร็จ!',
+                    text: 'ลบรายการประวัติรายงานนี้เรียบร้อยแล้วค่ะ',
+                    timer: 1500,
+                    showConfirmButton: false,
+                    customClass: {
+                        popup: 'rounded-2xl'
+                    }
+                });
+            }
+        });
     };
 
     // Import checklist templates from an Excel (.xlsx / .xls / .csv) file
@@ -1127,13 +1164,13 @@ export const ClosingChecklistView: React.FC<ClosingChecklistViewProps> = ({
                                         const dateStr = date.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' });
                                         const timeStr = date.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
                                         return (
-                                            <button
+                                            <div
                                                 key={log.id}
                                                 onClick={() => setSelectedLog(log)}
-                                                className={`w-full text-left p-4 hover:bg-gray-50 rounded-xl transition-all flex justify-between items-center my-1 border ${
+                                                className={`w-full text-left p-4 hover:bg-gray-50 rounded-xl transition-all flex justify-between items-center my-1 border cursor-pointer ${
                                                     selectedLog?.id === log.id 
                                                         ? 'bg-green-50 border-green-200' 
-                                                        : 'border-transparent'
+                                                        : 'border-transparent hover:border-gray-300'
                                                 }`}
                                             >
                                                 <div className="space-y-1.5">
@@ -1148,18 +1185,32 @@ export const ClosingChecklistView: React.FC<ClosingChecklistViewProps> = ({
                                                     )}
                                                 </div>
                                                 <div className="text-right flex flex-col items-end gap-2">
-                                                    <span className={`px-3 py-1 text-xs font-bold rounded-full ${
-                                                        doneCount === log.items.length 
-                                                            ? 'bg-green-100 text-green-800' 
-                                                            : 'bg-yellow-105 bg-yellow-100 text-yellow-800'
-                                                    }`}>
-                                                        สถานะ: {doneCount}/{log.items.length} เรียบร้อย
-                                                    </span>
+                                                    <div className="flex items-center gap-2">
+                                                        {isEditMode && (
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    handleDeleteLog(log.id);
+                                                                }}
+                                                                className="px-2.5 py-1 text-xs font-bold bg-rose-50 border border-rose-200 text-rose-600 hover:bg-rose-100 rounded-lg transition-all flex items-center gap-1 shadow-sm self-center"
+                                                                title="ลบรายการประวัติชีตนี้"
+                                                            >
+                                                                🗑️ ลบรายการ
+                                                            </button>
+                                                        )}
+                                                        <span className={`px-3 py-1 text-xs font-bold rounded-full ${
+                                                            doneCount === log.items.length 
+                                                                ? 'bg-green-100 text-green-800' 
+                                                                : 'bg-yellow-105 bg-yellow-100 text-yellow-800'
+                                                        }`}>
+                                                            สถานะ: {doneCount}/{log.items.length} เรียบร้อย
+                                                        </span>
+                                                    </div>
                                                     <span className="text-xs font-bold text-green-600 flex items-center">
                                                         กดเปิดดูรูปถ่ายจริง 👉
                                                     </span>
                                                 </div>
-                                            </button>
+                                            </div>
                                         );
                                     })}
                                 </div>
