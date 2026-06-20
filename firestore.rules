@@ -210,6 +210,24 @@ service cloud.firestore {
         allow read: if isSignedIn() || isAdmin();
         allow write: if isSignedIn() || isAdmin();
       }
+
+      // Closing Checklist Templates and Submissions
+      match /closingChecklistItems/{id} {
+        allow read: if isSignedIn() || isAdmin();
+        allow write: if isAdmin();
+      }
+      match /closingChecklistItems/data {
+        allow read: if isSignedIn() || isAdmin();
+        allow write: if isAdmin();
+      }
+      match /closingChecklistLog/{id} {
+        allow read: if isSignedIn() || isAdmin();
+        allow write: if isSignedIn() || isAdmin();
+      }
+      match /closingChecklistLog/data {
+        allow read: if isSignedIn() || isAdmin();
+        allow write: if isSignedIn() || isAdmin();
+      }
     }
 
     // Connection testing

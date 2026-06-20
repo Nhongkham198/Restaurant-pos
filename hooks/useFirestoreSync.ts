@@ -57,7 +57,9 @@ const MIGRATED_COLLECTIONS = [
     'timeRecords',
     'payrollRecords',
     'stockTags',
-    'maintenanceItems'
+    'maintenanceItems',
+    'closingChecklistItems',
+    'closingChecklistLog'
 ];
 
 // Helper to reliably retrieve or generate a unique ID string from any item

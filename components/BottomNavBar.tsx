@@ -75,16 +75,28 @@ const BottomNavItem: React.FC<{ item: NavItem; isActive: boolean; onClick: () =>
                     )}
                 </motion.div>
                 
-                <motion.span 
-                    className="text-[10px] font-bold leading-none tracking-tight whitespace-nowrap"
-                    animate={{ 
-                        color: isActive ? "#ffffff" : "#9ca3af",
-                        fontWeight: isActive ? 700 : 500
-                    }}
-                    transition={{ duration: 0.15 }}
-                >
-                    {item.label}
-                </motion.span>
+                <div className="relative w-[64px] h-[12px] overflow-hidden flex items-center">
+                    {(item.view === 'closing-checklist' || item.label === 'เช็คลิสต์ก่อนกลับบ้าน') ? (
+                        <span 
+                            className={`absolute whitespace-nowrap text-[10px] font-bold leading-none tracking-tight animate-marquee-text ${
+                                isActive ? "text-white" : "text-gray-400"
+                            }`}
+                        >
+                            {item.label}
+                        </span>
+                    ) : (
+                        <motion.span 
+                            className="w-full text-[10px] font-bold leading-none tracking-tight whitespace-nowrap text-center"
+                            animate={{ 
+                                color: isActive ? "#ffffff" : "#9ca3af",
+                                fontWeight: isActive ? 700 : 500
+                            }}
+                            transition={{ duration: 0.15 }}
+                        >
+                            {item.label}
+                        </motion.span>
+                    )}
+                </div>
             </div>
         </motion.button>
     );
@@ -136,6 +148,13 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({ items, currentView, 
                 }
                 .pb-safe {
                     padding-bottom: calc(0.5rem + env(safe-area-inset-bottom));
+                }
+                @keyframes marquee-slide {
+                    0% { transform: translate3d(64px, 0, 0); }
+                    100% { transform: translate3d(-100%, 0, 0); }
+                }
+                .animate-marquee-text {
+                    animation: marquee-slide 8s linear infinite;
                 }
             `}</style>
             {items.map((item) => (

@@ -111,6 +111,7 @@ const RecipeManagement = lazy(() => import('./components/RecipeManagement').then
 const LeaveCalendarView = lazy(() => import('./components/LeaveCalendarView').then(m => ({ default: m.LeaveCalendarView })));
 const LeaveAnalytics = lazy(() => import('./components/LeaveAnalytics').then(m => ({ default: m.LeaveAnalytics })));
 const MaintenanceView = lazy(() => import('./components/MaintenanceView').then(m => ({ default: m.MaintenanceView })));
+const ClosingChecklistView = lazy(() => import('./components/ClosingChecklistView').then(m => ({ default: m.ClosingChecklistView })));
 const CustomerView = lazy(() => import('./components/CustomerView').then(m => ({ default: m.CustomerView })));
 const QueueDisplay = lazy(() => import('./components/QueueDisplay').then(m => ({ default: m.QueueDisplay })));
 const HRManagementView = lazy(() => import('./components/HRManagementView'));
@@ -719,6 +720,14 @@ export const App: React.FC = () => {
                 badge: payrollBadgeCount
             });
         }
+
+        // Add Closing Checklist Tab for everyone on smartphone screen
+        items.push({
+            id: 'closing-checklist-mobile',
+            label: 'เช็คลิสต์ก่อนกลับบ้าน',
+            icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>,
+            view: 'closing-checklist'
+        });
 
         items.push({
             id: 'maintenance',
@@ -2054,6 +2063,12 @@ export const App: React.FC = () => {
                                             {currentView === 'recipes' && <RecipeManagement menuItems={menuItems} setMenuItems={setMenuItems} recipes={recipes} setRecipes={setRecipes} stockItems={stockItems} currentUser={currentUser} />}
                                             {currentView === 'stock-analytics' && <StockAnalytics stockItems={stockItems} />}
                                             {currentView === 'leave-analytics' && <LeaveAnalytics leaveRequests={visibleLeaveRequests} users={users} />}
+                                            {currentView === 'closing-checklist' && (
+                                                <ClosingChecklistView 
+                                                    currentUser={currentUser}
+                                                    selectedBranch={selectedBranch}
+                                                />
+                                            )}
                                             {currentView === 'maintenance' && (
                                                 <MaintenanceView 
                                                     maintenanceItems={maintenanceItems}
@@ -2128,6 +2143,12 @@ export const App: React.FC = () => {
                                 />
                             )}
                             {currentView === 'leave-analytics' && <LeaveAnalytics leaveRequests={visibleLeaveRequests} users={users} />}
+                            {currentView === 'closing-checklist' && (
+                                <ClosingChecklistView 
+                                    currentUser={currentUser}
+                                    selectedBranch={selectedBranch}
+                                />
+                            )}
                             {currentView === 'maintenance' && (
                                 <MaintenanceView 
                                     maintenanceItems={maintenanceItems}

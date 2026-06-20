@@ -111,6 +111,30 @@
         "totalAmount": { "type": "number" }
       },
       "required": ["id", "customerName", "items", "status", "timestamp", "branchId"]
+    },
+    "ClosingChecklistItem": {
+      "title": "Closing Checklist Item",
+      "description": "Represents an equipment check template before closing / going home.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "referenceImageUrl": { "type": "string" }
+      },
+      "required": ["id", "title"]
+    },
+    "ClosingChecklistLog": {
+      "title": "Closing Checklist Log",
+      "description": "Represents a submitted equipment checklist report by staff before going home.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "submittedAt": { "type": "number" },
+        "submittedBy": { "type": "string" },
+        "branchId": { "type": "number" },
+        "items": { "type": "array" }
+      },
+      "required": ["id", "submittedAt", "submittedBy", "branchId", "items"]
     }
   },
   "firestore": {
@@ -177,6 +201,14 @@
     "branches/{branchId}/maintenanceItems/{id}": {
       "schema": "object",
       "description": "Repair/maintenance tracking items."
+    },
+    "branches/{branchId}/closingChecklistItems/{id}": {
+      "schema": "ClosingChecklistItem",
+      "description": "Templates for daily equipment closing checklists."
+    },
+    "branches/{branchId}/closingChecklistLog/{id}": {
+      "schema": "ClosingChecklistLog",
+      "description": "Historical submissions of daily equipment closing checklists."
     }
   }
 }

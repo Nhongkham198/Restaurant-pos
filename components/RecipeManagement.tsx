@@ -1107,6 +1107,12 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
                                             <span className="text-gray-500">ต้นทุนวัตถุดิบ:</span>
                                             <span className="font-medium text-gray-900">฿{cost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                                         </div>
+                                        {recipe && recipe.smartTotalCost !== undefined && recipe.smartTotalCost > 0 && (
+                                            <div className="flex justify-between text-sm p-1 bg-red-50/75 rounded border border-red-100">
+                                                <span className="text-red-600 font-bold">ต้นทุนล่าสุด (JSON):</span>
+                                                <span className="font-extrabold text-red-600">฿{recipe.smartTotalCost.toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3 })}</span>
+                                            </div>
+                                        )}
                                         <div className="flex justify-between text-sm">
                                             <span className="text-gray-500 font-bold">หน้าร้าน:</span>
                                             <div className="text-right">

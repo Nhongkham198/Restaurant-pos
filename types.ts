@@ -371,7 +371,7 @@ export interface PreOrder {
     orderType?: 'dine-in' | 'takeaway'; // Added: Type of order
 }
 
-export type View = 'pos' | 'kitchen' | 'tables' | 'dashboard' | 'history' | 'stock' | 'stock-analytics' | 'recipes' | 'leave' | 'leave-analytics' | 'maintenance' | 'hr' | 'hr-payroll' | 'expense-analysis' | 'pre-order-management' | 'pre-order-customer';
+export type View = 'pos' | 'kitchen' | 'tables' | 'dashboard' | 'history' | 'stock' | 'stock-analytics' | 'recipes' | 'leave' | 'leave-analytics' | 'maintenance' | 'closing-checklist' | 'hr' | 'hr-payroll' | 'expense-analysis' | 'pre-order-management' | 'pre-order-customer';
 
 export interface NavItem {
     id: string;
