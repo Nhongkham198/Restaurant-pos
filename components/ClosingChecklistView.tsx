@@ -4,6 +4,7 @@ import { useFirestoreSync } from '../hooks/useFirestoreSync';
 import { sendTelegramMessage } from '../src/services/telegramService';
 import Swal from 'sweetalert2';
 import imageCompression from 'browser-image-compression';
+import heic2any from 'heic2any';
 import { db } from '../firebaseConfig';
 import * as XLSX from 'xlsx';
 
@@ -39,9 +40,10 @@ interface AttachedImagePreviewProps {
     title: string;
     onDelete: () => void;
     isCompressing?: boolean;
+    compressProgress?: number;
 }
 
-const AttachedImagePreview: React.FC<AttachedImagePreviewProps> = ({ url, index, title, onDelete, isCompressing }) => {
+const AttachedImagePreview: React.FC<AttachedImagePreviewProps> = ({ url, index, title, onDelete, isCompressing, compressProgress = 0 }) => {
     const [loadState, setLoadState] = useState<'loading' | 'success' | 'error'>('loading');
 
     useEffect(() => {
@@ -51,14 +53,14 @@ const AttachedImagePreview: React.FC<AttachedImagePreviewProps> = ({ url, index,
     return (
         <div className="mt-3 relative inline-block transition-all duration-300 transform origin-top hover:scale-[1.01]">
             <p className="text-xs text-green-700 font-bold mb-1.5 flex items-center gap-1">
-                <span>🖼️</span> {isCompressing ? '⚡ กำลังลดขนาดรูปภาพในเบื้องหลังเพื่อประหยัดข้อมูล... (รอข้อความหาย)' : '✅ แนบรูปเรียบร้อย (คลิกซูมดูรูปใหญ่ได้):'}
+                <span>🖼️</span> {isCompressing ? `⚡ กำลังลดขนาดและอัปโหลดรูปภาพในเบื้องหลัง... (${compressProgress}%)` : '✅ แนบรูปเรียบร้อย (คลิกซูมดูรูปใหญ่ได้):'}
             </p>
             <div className="relative group max-w-xs rounded-xl overflow-hidden border-2 border-green-500 shadow-md cursor-pointer bg-gray-50 transition-all hover:shadow-lg hover:border-green-600">
                 {isCompressing && (
-                    <div className="absolute inset-0 bg-black/40 backdrop-blur-[1px] flex flex-col items-center justify-center text-white p-2 text-center z-10 pointer-events-none">
-                        <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent mb-1.5"></div>
-                        <span className="text-[10px] font-bold tracking-wide">⚡ กำลังบีบอัดภาพในเบื้องหลัง...</span>
-                        <span className="text-[9px] text-gray-200">คุณสามารถติ๊กข้อถัดไปต่อได้เลยค่ะ</span>
+                    <div className="absolute inset-0 bg-black/60 backdrop-blur-[1px] flex flex-col items-center justify-center text-white p-2 text-center z-10 pointer-events-none">
+                        <div className="animate-spin rounded-full h-6 w-6 border-2 border-white border-t-transparent mb-1.5"></div>
+                        <span className="text-[11px] font-bold tracking-wide">กำลังบีบอัดภาพ {compressProgress}%</span>
+                        <span className="text-[9px] text-gray-205 text-gray-200 mt-1">คุณสามารถทำข้อถัดไปต่อได้เลยค่ะ</span>
                     </div>
                 )}
                 {loadState === 'loading' && (
@@ -119,14 +121,15 @@ const AttachedImagePreview: React.FC<AttachedImagePreviewProps> = ({ url, index,
     );
 };
 
-// Helper to compress image (optimizing for WebP exactly as done with payment slips)
-const compressImage = async (file: File): Promise<File> => {
+// Helper to compress image (optimizing for WebP exactly as done with payment slips with live progress callback)
+const compressImage = async (file: File, onProgress?: (p: number) => void): Promise<File> => {
     const options = {
         maxSizeMB: 0.1, // 100KB max
         maxWidthOrHeight: 800, // max width/height
         useWebWorker: true,
         fileType: 'image/webp' as any,
-        initialQuality: 0.6
+        initialQuality: 0.6,
+        onProgress: onProgress
     };
     try {
         return await imageCompression(file, options);
@@ -253,6 +256,8 @@ export const ClosingChecklistView: React.FC<ClosingChecklistViewProps> = ({
     
     // Tracking image compression state for each item (id: boolean)
     const [compressingItems, setCompressingItems] = useState<Record<string, boolean>>({});
+    // Tracking image compression percentage for each item (id: number 0-100)
+    const [compressProgress, setCompressProgress] = useState<Record<string, number>>({});
 
     // Settings / Custom Templates Edit State
     const [newTitle, setNewTitle] = useState('');
@@ -290,99 +295,157 @@ export const ClosingChecklistView: React.FC<ClosingChecklistViewProps> = ({
         }));
     };
 
-    // Handle Uploading a photo / image selection (converts to base64 with non-blocking background compression)
+    // Handle Uploading a photo / image selection (converts to base64 with non-blocking background compression & iOS HEIC support)
     const handlePhotoFileChange = async (id: string, file: File | undefined) => {
         if (!file) return;
 
-        if (!file.type.startsWith('image/')) {
+        // Detect HEIC / HEIF files from iPhones
+        const isHeic = file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif') || file.type.includes('heic') || file.type.includes('heif');
+
+        // Check file types (accept standard image types or HEIC)
+        if (!file.type.startsWith('image/') && !isHeic) {
             Swal.fire('ข้อผิดพลาด', 'กรุณาใส่ไฟล์รูปภาพเท่านั้น', 'error');
             return;
         }
 
-        // 1. Create a lightweight local preview object URL instantly (takes 0 milliseconds!)
-        const localPreviewUrl = URL.createObjectURL(file);
-
-        // 2. Instantly display the preview in the UI and automatically check the checklist item
-        // to provide a lightning-fast responsive feel for the staff member checks.
-        setChecklistState(prev => ({
-            ...prev,
-            [id]: {
-                checked: true, // auto-check when photo is added for fluent UX
-                staffPhotoUrl: localPreviewUrl
-            }
-        }));
-
-        // 3. Set the background loading state for this specific item
+        // Set state to compressing and start progress tracking
         setCompressingItems(prev => ({ ...prev, [id]: true }));
+        setCompressProgress(prev => ({ ...prev, [id]: 5 })); // Start at 5%
 
-        // 4. Start low-priority background compression asynchronously without blocking the main render thread
-        (async () => {
-            try {
-                console.log(`[Checklist Image] [Background Async] Compressing image for item ${id}...`);
-                const compressedFile = await compressImage(file);
-                
-                console.log(`[Checklist Image] [Background Async] Converting to WebP Base64...`);
-                const base64 = await fileToBase64(compressedFile);
-                
-                console.log(`[Checklist Image] [Background Async] Complete! Length:`, base64.length);
+        // Declare variables for the async worker
+        let processedFile = file;
+        let previewUrl = '';
 
-                // Seamlessly swap the huge temporary Object URL with the highly optimized Base64 representation
-                setChecklistState(prev => {
-                    const currentItem = prev[id];
-                    // Clean up and revoke temporary blob URL safely to prevent browser memory leaks
-                    if (currentItem?.staffPhotoUrl && currentItem.staffPhotoUrl.startsWith('blob:')) {
-                        try {
-                            URL.revokeObjectURL(currentItem.staffPhotoUrl);
-                        } catch (e) {
-                            console.error("Failed to revoke object URL:", e);
-                        }
-                    }
+        try {
+            if (isHeic) {
+                console.log(`[Checklist Image] [HEIC] Detected HEIC/HEIF from iPhone: ${file.name}`);
+                setCompressProgress(prev => ({ ...prev, [id]: 15 })); // Progress for conversion initiation
 
-                    return {
-                        ...prev,
-                        [id]: {
-                            checked: true,
-                            staffPhotoUrl: base64
-                        }
-                    };
+                // Convert HEIC file to JPEG blob using client-side heic2any
+                // heic2any returns a Blob or array of Blobs
+                const converted = await heic2any({
+                    blob: file,
+                    toType: 'image/jpeg',
+                    quality: 0.7
                 });
-            } catch (error) {
-                console.error("[Checklist Image] Background preparation failed:", error);
+
+                const singleBlob = Array.isArray(converted) ? converted[0] : converted;
+                processedFile = new File([singleBlob], file.name.replace(/\.(heic|heif)$/i, '.jpg'), {
+                    type: 'image/jpeg'
+                });
+
+                console.log(`[Checklist Image] [HEIC] Transformed successfully to JPEG. Size: ${processedFile.size} bytes`);
+                setCompressProgress(prev => ({ ...prev, [id]: 35 })); // Conversion finished step
                 
-                // Fallback: If compression fails on low-spec devices, convert original file directly to make sure we don't lose the photo
+                // Now create a valid standard JPEG preview URL that works on ALL browsers
+                previewUrl = URL.createObjectURL(processedFile);
+            } else {
+                // Non-HEIC: standard image format, can preview immediately!
+                previewUrl = URL.createObjectURL(file);
+            }
+
+            // 1. Instantly display the preview in the UI and automatically check the checklist item
+            // to provide a lightning-fast responsive feel for the staff member checks.
+            setChecklistState(prev => ({
+                ...prev,
+                [id]: {
+                    checked: true, // auto-check when photo is added for fluent UX
+                    staffPhotoUrl: previewUrl
+                }
+            }));
+
+            // 2. Start low-priority background compression asynchronously without blocking the main render thread
+            (async () => {
                 try {
-                    console.log(`[Checklist Image] Falling back to converting original image direct to Base64...`);
-                    const originalBase64 = await fileToBase64(file);
+                    console.log(`[Checklist Image] [Background Async] Compressing image for item ${id}...`);
+                    
+                    const startProgress = isHeic ? 40 : 15;
+                    const compressedFile = await compressImage(processedFile, (progressPercentage: number) => {
+                        // browser-image-compression progress ranges from 0 to 100
+                        // Map it nicely from the current stage to 85%
+                        const delta = 85 - startProgress;
+                        const mappedProgress = Math.round(startProgress + (progressPercentage * (delta / 100)));
+                        setCompressProgress(prev => ({ ...prev, [id]: mappedProgress }));
+                    });
+                    
+                    setCompressProgress(prev => ({ ...prev, [id]: 88 }));
+                    console.log(`[Checklist Image] [Background Async] Converting to WebP Base64...`);
+                    const base64 = await fileToBase64(compressedFile);
+                    
+                    setCompressProgress(prev => ({ ...prev, [id]: 97 }));
+                    console.log(`[Checklist Image] [Background Async] Complete! Length:`, base64.length);
+
+                    // Seamlessly swap the huge temporary Object URL with the highly optimized Base64 representation
                     setChecklistState(prev => {
                         const currentItem = prev[id];
+                        // Clean up and revoke temporary blob URL safely to prevent browser memory leaks
                         if (currentItem?.staffPhotoUrl && currentItem.staffPhotoUrl.startsWith('blob:')) {
-                            try { URL.revokeObjectURL(currentItem.staffPhotoUrl); } catch (e) {}
+                            try {
+                                URL.revokeObjectURL(currentItem.staffPhotoUrl);
+                            } catch (e) {
+                                console.error("Failed to revoke object URL:", e);
+                            }
                         }
+
                         return {
                             ...prev,
                             [id]: {
                                 checked: true,
-                                staffPhotoUrl: originalBase64
+                                staffPhotoUrl: base64
                             }
                         };
                     });
-                } catch (fallbackError) {
-                    console.error("[Checklist Image] Original conversion fallback failed as well:", fallbackError);
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'อัปโหลดรูปภาพไม่สำเร็จ',
-                        text: 'ไม่สามารถประมวลผลไฟล์รูปภาพที่เลือกได้ กรุณาลองอัปโหลดไฟล์ใหม่อีกครั้งค่ะ',
-                        toast: true,
-                        position: 'top-end',
-                        showConfirmButton: false,
-                        timer: 3500
-                    });
+                    
+                    setCompressProgress(prev => ({ ...prev, [id]: 100 }));
+                } catch (error) {
+                    console.error("[Checklist Image] Background preparation failed:", error);
+                    
+                    // Fallback: If compression fails on low-spec devices, convert original file directly to make sure we don't lose the photo
+                    try {
+                        console.log(`[Checklist Image] Falling back to converting original image direct to Base64...`);
+                        const originalBase64 = await fileToBase64(processedFile);
+                        setChecklistState(prev => {
+                            const currentItem = prev[id];
+                            if (currentItem?.staffPhotoUrl && currentItem.staffPhotoUrl.startsWith('blob:')) {
+                                try { URL.revokeObjectURL(currentItem.staffPhotoUrl); } catch (e) {}
+                            }
+                            return {
+                                ...prev,
+                                [id]: {
+                                    checked: true,
+                                    staffPhotoUrl: originalBase64
+                                }
+                            };
+                        });
+                        setCompressProgress(prev => ({ ...prev, [id]: 100 }));
+                    } catch (fallbackError) {
+                        console.error("[Checklist Image] Original conversion fallback failed as well:", fallbackError);
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'อัปโหลดรูปภาพไม่สำเร็จ',
+                            text: 'ไม่สามารถประมวลผลไฟล์รูปภาพที่เลือกได้ กรุณาลองอัปโหลดไฟล์ใหม่อีกครั้งค่ะ',
+                            toast: true,
+                            position: 'top-end',
+                            showConfirmButton: false,
+                            timer: 3500
+                        });
+                    }
+                } finally {
+                    // Background compression complete
+                    setCompressingItems(prev => ({ ...prev, [id]: false }));
                 }
-            } finally {
-                // Background compression complete
-                setCompressingItems(prev => ({ ...prev, [id]: false }));
-            }
-        })();
+            })();
+
+        } catch (conversionError) {
+            console.error("[Checklist Image] HEIC Conversion or initialization stage failed:", conversionError);
+            setCompressingItems(prev => ({ ...prev, [id]: false }));
+            Swal.fire({
+                icon: 'error',
+                title: 'ประมวลผลรูปภาพไม่สำเร็จ',
+                text: 'ไม่สามารถแปลงรูปภาพจาก iPhone ได้ กรุณาลองถ่ายใหม่อีกครั้ง หรือเช็กการอนุญาตการเข้าถึงรูปภาพค่ะ',
+                confirmButtonColor: '#ef4444'
+            });
+        }
     };
 
     // Handle pasting/typing direct image URL
@@ -1167,7 +1230,7 @@ export const ClosingChecklistView: React.FC<ClosingChecklistViewProps> = ({
                                                                                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                                                                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                                                             </svg>
-                                                                            กำลังบีบอัดรูป...
+                                                                            กำลังบีบอัด ({compressProgress[item.id] || 0}%)
                                                                         </span>
                                                                     ) : (
                                                                         <>
@@ -1186,6 +1249,7 @@ export const ClosingChecklistView: React.FC<ClosingChecklistViewProps> = ({
                                                                 title={item.title}
                                                                 onDelete={() => handlePhotoUrlChange(item.id, '')}
                                                                 isCompressing={compressingItems[item.id]}
+                                                                compressProgress={compressProgress[item.id] || 0}
                                                             />
                                                         )}
                                                     </div>
