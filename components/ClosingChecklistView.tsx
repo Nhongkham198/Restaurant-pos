@@ -38,9 +38,10 @@ interface AttachedImagePreviewProps {
     index: number;
     title: string;
     onDelete: () => void;
+    isCompressing?: boolean;
 }
 
-const AttachedImagePreview: React.FC<AttachedImagePreviewProps> = ({ url, index, title, onDelete }) => {
+const AttachedImagePreview: React.FC<AttachedImagePreviewProps> = ({ url, index, title, onDelete, isCompressing }) => {
     const [loadState, setLoadState] = useState<'loading' | 'success' | 'error'>('loading');
 
     useEffect(() => {
@@ -50,9 +51,16 @@ const AttachedImagePreview: React.FC<AttachedImagePreviewProps> = ({ url, index,
     return (
         <div className="mt-3 relative inline-block transition-all duration-300 transform origin-top hover:scale-[1.01]">
             <p className="text-xs text-green-700 font-bold mb-1.5 flex items-center gap-1">
-                <span>🖼️</span> รูปตัวอย่างแสดงผลทันที (คลิกซูมดูรูปใหญ่ได้):
+                <span>🖼️</span> {isCompressing ? '⚡ กำลังลดขนาดรูปภาพในเบื้องหลังเพื่อประหยัดข้อมูล... (รอข้อความหาย)' : '✅ แนบรูปเรียบร้อย (คลิกซูมดูรูปใหญ่ได้):'}
             </p>
             <div className="relative group max-w-xs rounded-xl overflow-hidden border-2 border-green-500 shadow-md cursor-pointer bg-gray-50 transition-all hover:shadow-lg hover:border-green-600">
+                {isCompressing && (
+                    <div className="absolute inset-0 bg-black/40 backdrop-blur-[1px] flex flex-col items-center justify-center text-white p-2 text-center z-10 pointer-events-none">
+                        <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent mb-1.5"></div>
+                        <span className="text-[10px] font-bold tracking-wide">⚡ กำลังบีบอัดภาพในเบื้องหลัง...</span>
+                        <span className="text-[9px] text-gray-200">คุณสามารถติ๊กข้อถัดไปต่อได้เลยค่ะ</span>
+                    </div>
+                )}
                 {loadState === 'loading' && (
                     <div className="w-48 h-32 flex flex-col items-center justify-center bg-gray-100 text-gray-400 gap-1 rounded-lg">
                         <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-green-600"></div>
@@ -89,7 +97,7 @@ const AttachedImagePreview: React.FC<AttachedImagePreviewProps> = ({ url, index,
                         });
                     }}
                 />
-                {loadState === 'success' && (
+                {loadState === 'success' && !isCompressing && (
                     <div className="absolute inset-x-0 bottom-0 bg-black/60 text-white text-[10px] text-center py-1 font-bold opacity-0 group-hover:opacity-100 transition-opacity">
                         🔍 คลิกเพื่อดูขนาดจริง
                     </div>
@@ -282,7 +290,7 @@ export const ClosingChecklistView: React.FC<ClosingChecklistViewProps> = ({
         }));
     };
 
-    // Handle Uploading a photo / image selection (converts to base64 with compression mirroring payment slips)
+    // Handle Uploading a photo / image selection (converts to base64 with non-blocking background compression)
     const handlePhotoFileChange = async (id: string, file: File | undefined) => {
         if (!file) return;
 
@@ -291,28 +299,90 @@ export const ClosingChecklistView: React.FC<ClosingChecklistViewProps> = ({
             return;
         }
 
+        // 1. Create a lightweight local preview object URL instantly (takes 0 milliseconds!)
+        const localPreviewUrl = URL.createObjectURL(file);
+
+        // 2. Instantly display the preview in the UI and automatically check the checklist item
+        // to provide a lightning-fast responsive feel for the staff member checks.
+        setChecklistState(prev => ({
+            ...prev,
+            [id]: {
+                checked: true, // auto-check when photo is added for fluent UX
+                staffPhotoUrl: localPreviewUrl
+            }
+        }));
+
+        // 3. Set the background loading state for this specific item
         setCompressingItems(prev => ({ ...prev, [id]: true }));
-        try {
-            console.log(`[Checklist Image] Compressing image for item ${id}...`);
-            // Compress image before setting to state
-            const compressedFile = await compressImage(file);
-            console.log(`[Checklist Image] Compression complete. Converting to Base64...`);
-            const base64 = await fileToBase64(compressedFile);
-            console.log(`[Checklist Image] Base64 conversion complete. Length:`, base64.length);
-            
-            setChecklistState(prev => ({
-                ...prev,
-                [id]: {
-                    ...prev[id],
-                    staffPhotoUrl: base64
+
+        // 4. Start low-priority background compression asynchronously without blocking the main render thread
+        (async () => {
+            try {
+                console.log(`[Checklist Image] [Background Async] Compressing image for item ${id}...`);
+                const compressedFile = await compressImage(file);
+                
+                console.log(`[Checklist Image] [Background Async] Converting to WebP Base64...`);
+                const base64 = await fileToBase64(compressedFile);
+                
+                console.log(`[Checklist Image] [Background Async] Complete! Length:`, base64.length);
+
+                // Seamlessly swap the huge temporary Object URL with the highly optimized Base64 representation
+                setChecklistState(prev => {
+                    const currentItem = prev[id];
+                    // Clean up and revoke temporary blob URL safely to prevent browser memory leaks
+                    if (currentItem?.staffPhotoUrl && currentItem.staffPhotoUrl.startsWith('blob:')) {
+                        try {
+                            URL.revokeObjectURL(currentItem.staffPhotoUrl);
+                        } catch (e) {
+                            console.error("Failed to revoke object URL:", e);
+                        }
+                    }
+
+                    return {
+                        ...prev,
+                        [id]: {
+                            checked: true,
+                            staffPhotoUrl: base64
+                        }
+                    };
+                });
+            } catch (error) {
+                console.error("[Checklist Image] Background preparation failed:", error);
+                
+                // Fallback: If compression fails on low-spec devices, convert original file directly to make sure we don't lose the photo
+                try {
+                    console.log(`[Checklist Image] Falling back to converting original image direct to Base64...`);
+                    const originalBase64 = await fileToBase64(file);
+                    setChecklistState(prev => {
+                        const currentItem = prev[id];
+                        if (currentItem?.staffPhotoUrl && currentItem.staffPhotoUrl.startsWith('blob:')) {
+                            try { URL.revokeObjectURL(currentItem.staffPhotoUrl); } catch (e) {}
+                        }
+                        return {
+                            ...prev,
+                            [id]: {
+                                checked: true,
+                                staffPhotoUrl: originalBase64
+                            }
+                        };
+                    });
+                } catch (fallbackError) {
+                    console.error("[Checklist Image] Original conversion fallback failed as well:", fallbackError);
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'อัปโหลดรูปภาพไม่สำเร็จ',
+                        text: 'ไม่สามารถประมวลผลไฟล์รูปภาพที่เลือกได้ กรุณาลองอัปโหลดไฟล์ใหม่อีกครั้งค่ะ',
+                        toast: true,
+                        position: 'top-end',
+                        showConfirmButton: false,
+                        timer: 3500
+                    });
                 }
-            }));
-        } catch (error) {
-            console.error("Image compression failed for checklist item:", error);
-            Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถบีบอัดรูปภาพได้สำเร็จ กรุณาลองใหม่อีกครั้ง', 'error');
-        } finally {
-            setCompressingItems(prev => ({ ...prev, [id]: false }));
-        }
+            } finally {
+                // Background compression complete
+                setCompressingItems(prev => ({ ...prev, [id]: false }));
+            }
+        })();
     };
 
     // Handle pasting/typing direct image URL
@@ -331,6 +401,33 @@ export const ClosingChecklistView: React.FC<ClosingChecklistViewProps> = ({
         if (!branchIdStr) {
             Swal.fire('ข้อผิดพลาด', 'ไม่พบรหัสสาขาสำหรับการบันทึก', 'error');
             return;
+        }
+
+        // Check if there are any active background compressions still running
+        const activeCompressingKeys = Object.keys(compressingItems).filter(key => compressingItems[key]);
+        if (activeCompressingKeys.length > 0) {
+            Swal.fire({
+                title: 'กรุณารอสักครู่ขณะบันทึก...',
+                text: 'ระบบกำลังลดขนาดและเตรียมรูปถ่ายในเบื้องหลังให้เรียบร้อยเพื่อประหยัดข้อมูลอินเทอร์เน็ตของร้านค้า กรุณารออีกเพียงครู่เดียวค่ะ ⚡',
+                icon: 'info',
+                showConfirmButton: false,
+                allowOutsideClick: false,
+                didOpen: () => {
+                    Swal.showLoading();
+                }
+            });
+
+            // Loop check every 300ms (max 15 attempts / 4.5 seconds safety watch block)
+            let attempts = 0;
+            while (attempts < 15) {
+                await new Promise(resolve => setTimeout(resolve, 300));
+                const stillActive = Object.keys(compressingItems).filter(key => compressingItems[key]);
+                if (stillActive.length === 0) {
+                    Swal.close();
+                    break;
+                }
+                attempts++;
+            }
         }
 
         // Validate: Ensure they are logged in and confirmed
@@ -1088,6 +1185,7 @@ export const ClosingChecklistView: React.FC<ClosingChecklistViewProps> = ({
                                                                 index={index}
                                                                 title={item.title}
                                                                 onDelete={() => handlePhotoUrlChange(item.id, '')}
+                                                                isCompressing={compressingItems[item.id]}
                                                             />
                                                         )}
                                                     </div>
