@@ -51,11 +51,11 @@ const AttachedImagePreview: React.FC<AttachedImagePreviewProps> = ({ url, index,
     }, [url]);
 
     return (
-        <div className="mt-3 relative inline-block transition-all duration-300 transform origin-top hover:scale-[1.01]">
+        <div className="mt-3 relative inline-block transition-transform duration-200 transform origin-top hover:scale-[1.01]">
             <p className="text-xs text-green-700 font-bold mb-1.5 flex items-center gap-1">
                 <span>🖼️</span> {isCompressing ? `⚡ กำลังลดขนาดและอัปโหลดรูปภาพในเบื้องหลัง... (${compressProgress}%)` : '✅ แนบรูปเรียบร้อย (คลิกซูมดูรูปใหญ่ได้):'}
             </p>
-            <div className="relative group max-w-xs rounded-xl overflow-hidden border-2 border-green-500 shadow-md cursor-pointer bg-gray-50 transition-all hover:shadow-lg hover:border-green-600">
+            <div className="relative group max-w-xs rounded-xl overflow-hidden border-2 border-green-500 shadow-md cursor-pointer bg-gray-50 transition-[border-color,box-shadow] duration-200 hover:shadow-lg hover:border-green-600">
                 {isCompressing && (
                     <div className="absolute inset-0 bg-black/60 backdrop-blur-[1px] flex flex-col items-center justify-center text-white p-2 text-center z-10 pointer-events-none">
                         <div className="animate-spin rounded-full h-6 w-6 border-2 border-white border-t-transparent mb-1.5"></div>
@@ -378,8 +378,14 @@ export const ClosingChecklistView: React.FC<ClosingChecklistViewProps> = ({
                     // Seamlessly swap the huge temporary Object URL with the highly optimized Base64 representation
                     setChecklistState(prev => {
                         const currentItem = prev[id];
+                        // If the user cleared the photo while we were compressing, DO NOT restore it!
+                        if (!currentItem || !currentItem.staffPhotoUrl) {
+                            console.log(`[Checklist Image] [Background Async] Item was cleared by user during compression. Aborting state restore.`);
+                            return prev;
+                        }
+
                         // Clean up and revoke temporary blob URL safely to prevent browser memory leaks
-                        if (currentItem?.staffPhotoUrl && currentItem.staffPhotoUrl.startsWith('blob:')) {
+                        if (currentItem.staffPhotoUrl.startsWith('blob:')) {
                             try {
                                 URL.revokeObjectURL(currentItem.staffPhotoUrl);
                             } catch (e) {
@@ -406,7 +412,11 @@ export const ClosingChecklistView: React.FC<ClosingChecklistViewProps> = ({
                         const originalBase64 = await fileToBase64(processedFile);
                         setChecklistState(prev => {
                             const currentItem = prev[id];
-                            if (currentItem?.staffPhotoUrl && currentItem.staffPhotoUrl.startsWith('blob:')) {
+                            if (!currentItem || !currentItem.staffPhotoUrl) {
+                                console.log(`[Checklist Image] Item was cleared by user during fallback. Aborting.`);
+                                return prev;
+                            }
+                            if (currentItem.staffPhotoUrl.startsWith('blob:')) {
                                 try { URL.revokeObjectURL(currentItem.staffPhotoUrl); } catch (e) {}
                             }
                             return {
@@ -448,15 +458,41 @@ export const ClosingChecklistView: React.FC<ClosingChecklistViewProps> = ({
         }
     };
 
-    // Handle pasting/typing direct image URL
+    // Handle pasting/typing direct image URL or deleting the photo (when url is empty)
     const handlePhotoUrlChange = (id: string, url: string) => {
-        setChecklistState(prev => ({
-            ...prev,
-            [id]: {
-                ...prev[id],
-                staffPhotoUrl: url
+        setChecklistState(prev => {
+            const currentItem = prev[id];
+            // Immediately revoke temporary blob URLs when deleted/replaced to free memory and prevent leaks
+            if (currentItem?.staffPhotoUrl && currentItem.staffPhotoUrl.startsWith('blob:')) {
+                try {
+                    URL.revokeObjectURL(currentItem.staffPhotoUrl);
+                    console.log(`[Checklist Image] [Cleanup] Revoked blob URL on manual change/deletion for item ${id}`);
+                } catch (e) {
+                    console.error("Failed to revoke object URL:", e);
+                }
             }
-        }));
+            return {
+                ...prev,
+                [id]: {
+                    ...prev[id],
+                    staffPhotoUrl: url
+                }
+            };
+        });
+
+        // If cleared, also clear compressing states entirely so no loaders hang
+        if (!url) {
+            setCompressingItems(prev => {
+                const copy = { ...prev };
+                delete copy[id];
+                return copy;
+            });
+            setCompressProgress(prev => {
+                const copy = { ...prev };
+                delete copy[id];
+                return copy;
+            });
+        }
     };
 
     // Submit checklist report
@@ -1164,7 +1200,7 @@ export const ClosingChecklistView: React.FC<ClosingChecklistViewProps> = ({
                                         return (
                                             <div 
                                                 key={item.id}
-                                                className={`p-5 rounded-2xl border-2 transition-all ${
+                                                className={`p-5 rounded-2xl border-2 transition-colors duration-200 shadow-sm ${
                                                     state.checked 
                                                         ? 'border-green-200 bg-green-50/40 shadow-sm' 
                                                         : 'border-gray-200 bg-white'
