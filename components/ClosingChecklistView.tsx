@@ -1125,7 +1125,7 @@ export const ClosingChecklistView: React.FC<ClosingChecklistViewProps> = ({
 
                 <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
                     {canConfigure && (
-                        <div className="flex items-center gap-2">
+                        <div className="hidden md:flex items-center gap-2">
                             {/* Hidden File Input for Excel Import */}
                             <input
                                 type="file"
