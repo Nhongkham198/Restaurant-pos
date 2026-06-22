@@ -258,6 +258,8 @@ export const ClosingChecklistView: React.FC<ClosingChecklistViewProps> = ({
     const [compressingItems, setCompressingItems] = useState<Record<string, boolean>>({});
     // Tracking image compression percentage for each item (id: number 0-100)
     const [compressProgress, setCompressProgress] = useState<Record<string, number>>({});
+    // Track job transaction IDs to cancel/abort outdated pipeline processes instantly
+    const activeUploads = useRef<Record<string, number>>({});
 
     // Settings / Custom Templates Edit State
     const [newTitle, setNewTitle] = useState('');
@@ -299,6 +301,10 @@ export const ClosingChecklistView: React.FC<ClosingChecklistViewProps> = ({
     const handlePhotoFileChange = async (id: string, file: File | undefined) => {
         if (!file) return;
 
+        // Assign a unique job transaction ID to this upload to support fail-fast cancellation
+        const jobId = Date.now();
+        activeUploads.current[id] = jobId;
+
         // Detect HEIC / HEIF files from iPhones
         const isHeic = file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif') || file.type.includes('heic') || file.type.includes('heif');
 
@@ -329,6 +335,11 @@ export const ClosingChecklistView: React.FC<ClosingChecklistViewProps> = ({
                     quality: 0.7
                 });
 
+                if (activeUploads.current[id] !== jobId) {
+                    console.log(`[Checklist Image] [HEIC] Job has been canceled during conversion. Exiting.`);
+                    return;
+                }
+
                 const singleBlob = Array.isArray(converted) ? converted[0] : converted;
                 processedFile = new File([singleBlob], file.name.replace(/\.(heic|heif)$/i, '.jpg'), {
                     type: 'image/jpeg'
@@ -344,6 +355,14 @@ export const ClosingChecklistView: React.FC<ClosingChecklistViewProps> = ({
                 previewUrl = URL.createObjectURL(file);
             }
 
+            if (activeUploads.current[id] !== jobId) {
+                // If the job was cancelled or replaced during HEIC conversion, release blob and abort
+                if (previewUrl && previewUrl.startsWith('blob:')) {
+                    URL.revokeObjectURL(previewUrl);
+                }
+                return;
+            }
+
             // 1. Instantly display the preview in the UI and automatically check the checklist item
             // to provide a lightning-fast responsive feel for the staff member checks.
             setChecklistState(prev => ({
@@ -357,10 +376,12 @@ export const ClosingChecklistView: React.FC<ClosingChecklistViewProps> = ({
             // 2. Start low-priority background compression asynchronously without blocking the main render thread
             (async () => {
                 try {
+                    if (activeUploads.current[id] !== jobId) return;
                     console.log(`[Checklist Image] [Background Async] Compressing image for item ${id}...`);
                     
                     const startProgress = isHeic ? 40 : 15;
                     const compressedFile = await compressImage(processedFile, (progressPercentage: number) => {
+                        if (activeUploads.current[id] !== jobId) return;
                         // browser-image-compression progress ranges from 0 to 100
                         // Map it nicely from the current stage to 85%
                         const delta = 85 - startProgress;
@@ -368,10 +389,12 @@ export const ClosingChecklistView: React.FC<ClosingChecklistViewProps> = ({
                         setCompressProgress(prev => ({ ...prev, [id]: mappedProgress }));
                     });
                     
+                    if (activeUploads.current[id] !== jobId) return;
                     setCompressProgress(prev => ({ ...prev, [id]: 88 }));
                     console.log(`[Checklist Image] [Background Async] Converting to WebP Base64...`);
                     const base64 = await fileToBase64(compressedFile);
                     
+                    if (activeUploads.current[id] !== jobId) return;
                     setCompressProgress(prev => ({ ...prev, [id]: 97 }));
                     console.log(`[Checklist Image] [Background Async] Complete! Length:`, base64.length);
 
@@ -402,8 +425,11 @@ export const ClosingChecklistView: React.FC<ClosingChecklistViewProps> = ({
                         };
                     });
                     
-                    setCompressProgress(prev => ({ ...prev, [id]: 100 }));
+                    if (activeUploads.current[id] === jobId) {
+                        setCompressProgress(prev => ({ ...prev, [id]: 100 }));
+                    }
                 } catch (error) {
+                    if (activeUploads.current[id] !== jobId) return;
                     console.error("[Checklist Image] Background preparation failed:", error);
                     
                     // Fallback: If compression fails on low-spec devices, convert original file directly to make sure we don't lose the photo
@@ -429,6 +455,7 @@ export const ClosingChecklistView: React.FC<ClosingChecklistViewProps> = ({
                         });
                         setCompressProgress(prev => ({ ...prev, [id]: 100 }));
                     } catch (fallbackError) {
+                        if (activeUploads.current[id] !== jobId) return;
                         console.error("[Checklist Image] Original conversion fallback failed as well:", fallbackError);
                         Swal.fire({
                             icon: 'error',
@@ -442,11 +469,14 @@ export const ClosingChecklistView: React.FC<ClosingChecklistViewProps> = ({
                     }
                 } finally {
                     // Background compression complete
-                    setCompressingItems(prev => ({ ...prev, [id]: false }));
+                    if (activeUploads.current[id] === jobId) {
+                        setCompressingItems(prev => ({ ...prev, [id]: false }));
+                    }
                 }
             })();
 
         } catch (conversionError) {
+            if (activeUploads.current[id] !== jobId) return;
             console.error("[Checklist Image] HEIC Conversion or initialization stage failed:", conversionError);
             setCompressingItems(prev => ({ ...prev, [id]: false }));
             Swal.fire({
@@ -460,6 +490,9 @@ export const ClosingChecklistView: React.FC<ClosingChecklistViewProps> = ({
 
     // Handle pasting/typing direct image URL or deleting the photo (when url is empty)
     const handlePhotoUrlChange = (id: string, url: string) => {
+        // Invalidation of any active upload/compression job immediately
+        activeUploads.current[id] = Date.now(); // bump transaction ID so active jobs instantly fail validation checks
+
         setChecklistState(prev => {
             const currentItem = prev[id];
             // Immediately revoke temporary blob URLs when deleted/replaced to free memory and prevent leaks
@@ -1245,6 +1278,7 @@ export const ClosingChecklistView: React.FC<ClosingChecklistViewProps> = ({
                                                             {/* File upload camera link */}
                                                             <div className="relative">
                                                                 <input 
+                                                                    key={`camera-upload-${item.id}-${state.staffPhotoUrl ? 'active' : 'vacant'}`}
                                                                     type="file" 
                                                                     accept="image/*"
                                                                     id={`camera-upload-${item.id}`}
