@@ -7,6 +7,8 @@ import imageCompression from 'browser-image-compression';
 import heic2any from 'heic2any';
 import { db } from '../firebaseConfig';
 import * as XLSX from 'xlsx';
+import { useData } from '../contexts/DataContext';
+import { motion } from 'framer-motion';
 
 
 export interface ClosingChecklistItem {
@@ -203,6 +205,10 @@ export const ClosingChecklistView: React.FC<ClosingChecklistViewProps> = ({
 }) => {
     // Determine active branchId as string or null
     const branchIdStr = selectedBranch ? selectedBranch.id.toString() : null;
+
+    // Get branch logo and styling from general DataContext
+    const { logoUrl, appLogoUrl, restaurantName } = useData();
+    const actualLogo = appLogoUrl || logoUrl;
 
     // Fetch and Sync templates (closingChecklistItems)
     const [templates, setTemplates, isTemplatesLoading] = useFirestoreSync<ClosingChecklistItem[]>(
@@ -1218,10 +1224,62 @@ export const ClosingChecklistView: React.FC<ClosingChecklistViewProps> = ({
 
                             {/* Loading State templates */}
                             {isTemplatesLoading ? (
-                                <div className="text-center py-12">
-                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto mb-2"></div>
-                                    <p className="text-gray-500 text-sm font-medium">กำลังโหลดแบบฟอร์ม...</p>
-                                </div>
+                                <motion.div 
+                                    initial={{ opacity: 0.6 }}
+                                    animate={{ opacity: 1 }}
+                                    exit={{ opacity: 0 }}
+                                    transition={{ duration: 0.3 }}
+                                    className="flex flex-col items-center justify-center py-16 px-4 bg-white rounded-3xl border border-gray-100 shadow-sm"
+                                >
+                                    {/* Pulsing logo container */}
+                                    <motion.div 
+                                        animate={{ 
+                                            opacity: [0.5, 1, 0.5],
+                                            scale: [0.97, 1.03, 0.97]
+                                        }}
+                                        transition={{ 
+                                            repeat: Infinity, 
+                                            duration: 2,
+                                            ease: "easeInOut"
+                                        }}
+                                        className="relative flex items-center justify-center w-28 h-28 mb-4 cursor-wait"
+                                    >
+                                        {/* Outer glowing ripple */}
+                                        <div className="absolute inset-0 rounded-full bg-green-500/10 blur-xl animate-pulse"></div>
+                                        
+                                        {/* Clean Card containing the Logo */}
+                                        <div className="relative z-10 w-24 h-24 rounded-2xl bg-white border border-gray-100 shadow-md p-1.5 flex items-center justify-center overflow-hidden">
+                                            {actualLogo ? (
+                                                <img 
+                                                    src={actualLogo} 
+                                                    alt="Branch Logo" 
+                                                    className="w-full h-full object-contain rounded-xl select-none"
+                                                    referrerPolicy="no-referrer"
+                                                />
+                                            ) : (
+                                                <div className="w-full h-full rounded-xl bg-gradient-to-tr from-emerald-500 to-green-600 flex items-center justify-center shadow-inner">
+                                                    <span className="text-white text-3xl font-extrabold font-mono select-none">
+                                                        {(selectedBranch?.name || restaurantName || 'SG').substring(0, 2).toUpperCase()}
+                                                    </span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </motion.div>
+
+                                    {/* Smooth shimmering text detail */}
+                                    <h3 className="text-gray-800 text-base font-semibold mb-1 tracking-tight text-center">
+                                        กำลังโหลดข้อมูล {selectedBranch?.name || restaurantName}
+                                    </h3>
+                                    <div className="flex items-center gap-1.5 justify-center">
+                                        <span className="flex h-2 w-2 relative">
+                                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                                        </span>
+                                        <p className="text-gray-400 text-xs font-mono tracking-widest uppercase">
+                                            Synchronizing database...
+                                        </p>
+                                    </div>
+                                </motion.div>
                             ) : templates.length === 0 ? (
                                 <div className="text-center py-12 bg-gray-50 rounded-xl border border-dashed border-gray-200">
                                     <p className="text-gray-400 text-sm">ยังไม่มีการตั้งค่าหัวข้อเช็คลิสต์ในระบบ</p>
