@@ -44,12 +44,12 @@ service cloud.firestore {
     // Global Collections
     match /users/data {
       allow read: if true;
-      allow write: if isAdmin();
+      allow write: if true;
     }
 
     match /users/{userId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow write: if true;
     }
 
     match /branches/data {
