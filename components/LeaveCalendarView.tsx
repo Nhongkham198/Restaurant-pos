@@ -45,6 +45,8 @@ export const LeaveCalendarView: React.FC<LeaveCalendarViewProps> = ({ leaveReque
     const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
     const [selectedDayDetails, setSelectedDayDetails] = useState<{ date: Date, leaves: LeaveRequest[] } | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
+    const [selectedBranchId, setSelectedBranchId] = useState<string>('all');
+    const [selectedEmployeeName, setSelectedEmployeeName] = useState<string>('all');
 
     const getEmployeeName = (req: LeaveRequest) => {
         if (users) {
@@ -60,6 +62,31 @@ export const LeaveCalendarView: React.FC<LeaveCalendarViewProps> = ({ leaveReque
         }
         return req.username || req.employeeName;
     };
+
+    const availableBranches = useMemo(() => {
+        if (!branches) return [];
+        if (!currentUser) return [];
+        if (currentUser.role === 'admin') {
+            return branches;
+        }
+        return branches.filter(b => currentUser.allowedBranchIds?.includes(b.id));
+    }, [branches, currentUser]);
+
+    const availableEmployees = useMemo(() => {
+        if (!currentUser) return [];
+        let baseRequests = leaveRequests;
+        if (currentUser.role !== 'admin') {
+            baseRequests = leaveRequests.filter(req => currentUser.allowedBranchIds?.includes(req.branchId));
+        }
+        
+        const names = new Set<string>();
+        baseRequests.forEach(req => {
+            const name = getEmployeeName(req);
+            if (name) names.add(name);
+        });
+        
+        return Array.from(names).sort();
+    }, [leaveRequests, currentUser, users]);
 
     const visibleRequests = useMemo(() => {
         if (!currentUser) return [];
@@ -97,6 +124,16 @@ export const LeaveCalendarView: React.FC<LeaveCalendarViewProps> = ({ leaveReque
             });
         }
 
+        // Apply Branch filter
+        if (selectedBranchId !== 'all') {
+            filtered = filtered.filter(req => req.branchId.toString() === selectedBranchId);
+        }
+
+        // Apply Employee filter
+        if (selectedEmployeeName !== 'all') {
+            filtered = filtered.filter(req => getEmployeeName(req) === selectedEmployeeName);
+        }
+
         if (searchTerm) {
             const lowerSearch = searchTerm.toLowerCase();
             filtered = filtered.filter(req => 
@@ -106,7 +143,7 @@ export const LeaveCalendarView: React.FC<LeaveCalendarViewProps> = ({ leaveReque
 
         return filtered;
 
-    }, [leaveRequests, currentUser, searchTerm, users]);
+    }, [leaveRequests, currentUser, searchTerm, selectedBranchId, selectedEmployeeName, users]);
 
     const daysInMonth = useMemo(() => {
         const year = currentDate.getFullYear();
@@ -385,20 +422,57 @@ export const LeaveCalendarView: React.FC<LeaveCalendarViewProps> = ({ leaveReque
 
                 {/* Leave History List & Approval Section */}
                 <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 w-full">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between mb-4 border-b pb-2 gap-4">
+                    <div className="flex flex-col xl:flex-row xl:items-center justify-between mb-4 border-b pb-4 gap-4">
                         <h3 className="text-xl font-bold text-gray-800">ประวัติการลา & การอนุมัติ</h3>
-                        <div className="relative">
-                            <input 
-                                type="text"
-                                placeholder="ค้นหาชื่อพนักงาน..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className="pl-9 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none w-full md:w-64 text-sm"
-                            />
-                            <div className="absolute left-3 top-2.5 text-gray-400">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                                </svg>
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full xl:w-auto">
+                            {/* Filter by Branch */}
+                            {(currentUser?.role === 'admin' || currentUser?.role === 'branch-admin' || currentUser?.role === 'auditor') && (
+                                <div className="flex items-center gap-2 flex-1 sm:flex-none">
+                                    <span className="text-xs font-bold text-gray-500 whitespace-nowrap">สาขา:</span>
+                                    <select
+                                        value={selectedBranchId}
+                                        onChange={(e) => setSelectedBranchId(e.target.value)}
+                                        className="bg-white border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none w-full sm:w-auto min-w-[120px]"
+                                    >
+                                        <option value="all">ทั้งหมด</option>
+                                        {availableBranches.map(b => (
+                                            <option key={b.id} value={b.id.toString()}>{b.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
+
+                            {/* Filter by Employee */}
+                            {(currentUser?.role === 'admin' || currentUser?.role === 'branch-admin' || currentUser?.role === 'auditor') && (
+                                <div className="flex items-center gap-2 flex-1 sm:flex-none">
+                                    <span className="text-xs font-bold text-gray-500 whitespace-nowrap">พนักงาน:</span>
+                                    <select
+                                        value={selectedEmployeeName}
+                                        onChange={(e) => setSelectedEmployeeName(e.target.value)}
+                                        className="bg-white border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none w-full sm:w-auto min-w-[140px]"
+                                    >
+                                        <option value="all">ทั้งหมด</option>
+                                        {availableEmployees.map(name => (
+                                            <option key={name} value={name}>{name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
+
+                            {/* Search Input */}
+                            <div className="relative flex-1 sm:flex-none">
+                                <input 
+                                    type="text"
+                                    placeholder="ค้นหาชื่อพนักงาน..."
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    className="pl-9 pr-4 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none w-full sm:w-48 text-xs"
+                                />
+                                <div className="absolute left-3 top-2 text-gray-400">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                    </svg>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -411,8 +485,26 @@ export const LeaveCalendarView: React.FC<LeaveCalendarViewProps> = ({ leaveReque
                                 <thead>
                                     <tr className="text-gray-600 border-b">
                                         <th className="py-2 px-4">วันที่ยื่น</th>
-                                        <th className="py-2 px-4">พนักงาน</th>
-                                        <th className="py-2 px-4">สาขา</th>
+                                        <th className="py-2 px-4">
+                                            <div className="flex items-center gap-1.5">
+                                                <span>พนักงาน</span>
+                                                {selectedEmployeeName !== 'all' && (
+                                                    <span className="inline-flex items-center justify-center px-1.5 py-0.5 text-[9px] font-bold rounded bg-blue-100 text-blue-700 animate-pulse border border-blue-200">
+                                                        กรองอยู่
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </th>
+                                        <th className="py-2 px-4">
+                                            <div className="flex items-center gap-1.5">
+                                                <span>สาขา</span>
+                                                {selectedBranchId !== 'all' && (
+                                                    <span className="inline-flex items-center justify-center px-1.5 py-0.5 text-[9px] font-bold rounded bg-blue-100 text-blue-700 animate-pulse border border-blue-200">
+                                                        กรองอยู่
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </th>
                                         <th className="py-2 px-4 whitespace-nowrap">
                                             <div className="flex flex-col">
                                                 <span>ประเภท</span>
