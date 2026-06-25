@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import type { User, Branch, Table } from '../types';
 import Swal from 'sweetalert2';
 
@@ -29,6 +29,51 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
     const [isAdding, setIsAdding] = useState(false);
     const [editingUser, setEditingUser] = useState<User | null>(null);
     const [formData, setFormData] = useState<Omit<User, 'id'>>(initialFormState);
+
+    const containerRef = useRef<HTMLDivElement>(null);
+    const [bottomPanelHeight, setBottomPanelHeight] = useState(350);
+    const [isDraggingPanel, setIsDraggingPanel] = useState(false);
+
+    useEffect(() => {
+        if (!isDraggingPanel) return;
+
+        const handleMove = (clientY: number) => {
+            if (!containerRef.current) return;
+            const containerRect = containerRef.current.getBoundingClientRect();
+            const newHeight = containerRect.bottom - clientY;
+            // Keep height between 150px and 75% of modal's current height
+            const maxHeightAllowed = Math.floor(containerRect.height * 0.75);
+            const minHeightAllowed = 150;
+            const constrainedHeight = Math.max(minHeightAllowed, Math.min(newHeight, maxHeightAllowed));
+            setBottomPanelHeight(constrainedHeight);
+        };
+
+        const onMouseMove = (e: MouseEvent) => {
+            handleMove(e.clientY);
+        };
+
+        const onTouchMove = (e: TouchEvent) => {
+            if (e.touches.length > 0) {
+                handleMove(e.touches[0].clientY);
+            }
+        };
+
+        const onMouseUp = () => {
+            setIsDraggingPanel(false);
+        };
+
+        window.addEventListener('mousemove', onMouseMove);
+        window.addEventListener('touchmove', onTouchMove, { passive: false });
+        window.addEventListener('mouseup', onMouseUp);
+        window.addEventListener('touchend', onMouseUp);
+
+        return () => {
+            window.removeEventListener('mousemove', onMouseMove);
+            window.removeEventListener('touchmove', onTouchMove);
+            window.removeEventListener('mouseup', onMouseUp);
+            window.removeEventListener('touchend', onMouseUp);
+        };
+    }, [isDraggingPanel]);
 
 
     useEffect(() => {
@@ -339,7 +384,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl transform transition-all flex flex-col" style={{maxHeight: '90vh'}} onClick={e => e.stopPropagation()}>
+            <div ref={containerRef} className="bg-white rounded-lg shadow-xl w-full max-w-2xl transform transition-all flex flex-col" style={{maxHeight: '90vh'}} onClick={e => e.stopPropagation()}>
                 <div className="p-6 border-b flex justify-between items-center">
                     <h3 className="text-2xl font-bold text-gray-900">จัดการผู้ใช้งาน</h3>
                     <button 
@@ -439,7 +484,26 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
                 </div>
 
                 {(isAdding || editingUser) && (
-                    <div className="p-6 border-t bg-gray-50 space-y-4 rounded-b-lg overflow-y-auto max-h-[45vh] sm:max-h-[60vh]">
+                    <>
+                        {/* Draggable Divider */}
+                        <div 
+                            onMouseDown={(e) => { e.preventDefault(); setIsDraggingPanel(true); }}
+                            onTouchStart={(e) => { setIsDraggingPanel(true); }}
+                            className={`h-4 bg-gray-100 hover:bg-blue-100 active:bg-blue-200 cursor-row-resize flex flex-col items-center justify-center transition-colors border-t border-b border-gray-200 relative z-20 select-none ${isDraggingPanel ? 'bg-blue-150 border-blue-300' : ''}`}
+                            title="ลากขึ้น-ลงเพื่อปรับขนาดพื้นที่แก้ไข"
+                        >
+                            <div className="w-12 h-1 bg-gray-300 rounded-full flex items-center justify-center gap-0.5">
+                                <span className="w-1 h-1 rounded-full bg-gray-500"></span>
+                                <span className="w-1 h-1 rounded-full bg-gray-500"></span>
+                                <span className="w-1 h-1 rounded-full bg-gray-500"></span>
+                            </div>
+                            <span className="text-[9px] text-gray-400 select-none -mt-0.5 font-semibold">เลื่อนปรับขนาด / Drag to resize</span>
+                        </div>
+
+                        <div 
+                            style={{ height: `${bottomPanelHeight}px` }}
+                            className="p-6 bg-gray-50 space-y-4 rounded-b-lg overflow-y-auto flex-shrink-0"
+                        >
                         <h4 className="text-lg font-semibold text-gray-800">
                             {editingUser ? `แก้ไขผู้ใช้: ${editingUser.username}` : 'เพิ่มผู้ใช้ใหม่'}
                         </h4>
@@ -651,6 +715,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
                             <button onClick={handleSave} className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 font-semibold transition-colors">บันทึก</button>
                         </div>
                     </div>
+                </>
                 )}
 
 
