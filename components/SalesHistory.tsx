@@ -120,6 +120,124 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({
         return filterType;
     }, [filterType, selectedDate]);
 
+    // Helper to extract provider name from delivery orders
+    const getDeliveryProviderName = (order: { orderType: string; customerName?: string; tableName?: string }) => {
+        if (order.orderType !== 'lineman' && order.orderType !== 'shopeefood') return null;
+        if (order.tableName && order.tableName !== 'Delivery' && order.tableName !== 'Unknown') {
+            return order.tableName;
+        }
+        if (order.customerName && order.customerName.includes('#')) {
+            return order.customerName.split('#')[0].trim();
+        }
+        if (order.customerName && isNaN(Number(order.customerName))) {
+            return order.customerName;
+        }
+        return order.orderType === 'lineman' ? 'LineMan' : 'ShopeeFood';
+    };
+
+    // Count Delivery orders dynamically
+    const deliveryCounts = useMemo(() => {
+        let ordersList: any[] = [];
+        if (activeTab === 'completed') {
+            let items = completedOrders;
+            if (!['admin', 'auditor'].includes(currentUser?.role || '')) {
+                items = items.filter(o => !o.isDeleted);
+            }
+            ordersList = items.filter(order => {
+                const date = new Date(order.completionTime);
+                let dateMatch = false;
+                if (filterType === 'daily') dateMatch = isSameDay(date, selectedDate);
+                else if (filterType === 'monthly') dateMatch = isSameMonth(date, selectedDate);
+                else if (filterType === 'year') dateMatch = isSameYear(date, selectedDate);
+                else if (filterType === 'all') dateMatch = true;
+                
+                const searchMatch = !searchTerm || 
+                    (order.orderNumber != null ? order.orderNumber.toString() : '').includes(searchTerm) || 
+                    (order.customerName && order.customerName.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                    (order.tableName && order.tableName.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                    (order.orderType && order.orderType.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                    (order.floor && order.floor.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                    (order.items || []).some(item => item && item.name && item.name.toLowerCase().includes(searchTerm.toLowerCase()));
+                return dateMatch && searchMatch;
+            });
+        } else if (activeTab === 'cancelled') {
+            let items = cancelledOrders;
+            if (!['admin', 'auditor'].includes(currentUser?.role || '')) {
+                items = items.filter(o => !o.isDeleted);
+            }
+            ordersList = items.filter(order => {
+                const date = new Date(order.cancellationTime);
+                let dateMatch = false;
+                if (filterType === 'daily') dateMatch = isSameDay(date, selectedDate);
+                else if (filterType === 'monthly') dateMatch = isSameMonth(date, selectedDate);
+                else if (filterType === 'year') dateMatch = isSameYear(date, selectedDate);
+                else if (filterType === 'all') dateMatch = true;
+                
+                const searchMatch = !searchTerm || 
+                    (order.orderNumber != null ? order.orderNumber.toString() : '').includes(searchTerm) || 
+                    (order.tableName && order.tableName.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                    (order.orderType && order.orderType.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                    (order.items || []).some(item => item && item.name && item.name.toLowerCase().includes(searchTerm.toLowerCase()));
+                return dateMatch && searchMatch;
+            });
+        } else {
+            let items = printHistory;
+            if (!['admin', 'auditor'].includes(currentUser?.role || '')) {
+                items = items.filter(o => !o.isDeleted);
+            }
+            ordersList = items.filter(entry => {
+                const date = new Date(entry.timestamp);
+                let dateMatch = false;
+                if (filterType === 'daily') dateMatch = isSameDay(date, selectedDate);
+                else if (filterType === 'monthly') dateMatch = isSameMonth(date, selectedDate);
+                else if (filterType === 'year') dateMatch = isSameYear(date, selectedDate);
+                else if (filterType === 'all') dateMatch = true;
+                
+                const searchMatch = !searchTerm || 
+                    (entry.orderNumber != null ? entry.orderNumber.toString() : '').includes(searchTerm) ||
+                    (entry.tableName && entry.tableName.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                    (entry.orderItemsPreview || []).some(itemName => itemName && itemName.toLowerCase().includes(searchTerm.toLowerCase()));
+                return dateMatch && searchMatch;
+            });
+        }
+
+        let totalDelivery = 0;
+        let linemanCount = 0;
+        let shopeefoodCount = 0;
+
+        ordersList.forEach(order => {
+            const isCompletedOrCancelled = activeTab === 'completed' || activeTab === 'cancelled';
+            if (isCompletedOrCancelled) {
+                const isDeliv = order.orderType === 'lineman' || order.orderType === 'shopeefood' || order.floor === 'Online';
+                if (isDeliv) {
+                    totalDelivery++;
+                    const provider = getDeliveryProviderName(order);
+                    if (order.orderType === 'shopeefood' || (provider && (provider.toLowerCase().includes('shopeefood') || provider.toLowerCase().includes('shopee')))) {
+                        shopeefoodCount++;
+                    } else {
+                        linemanCount++;
+                    }
+                }
+            } else {
+                const isDeliv = order.tableName?.includes('LineMan') || order.tableName?.includes('Delivery') || order.tableName?.includes('ShopeeFood');
+                if (isDeliv) {
+                    totalDelivery++;
+                    if (order.tableName?.includes('ShopeeFood')) {
+                        shopeefoodCount++;
+                    } else {
+                        linemanCount++;
+                    }
+                }
+            }
+        });
+
+        return {
+            total: totalDelivery,
+            lineman: linemanCount,
+            shopeefood: shopeefoodCount
+        };
+    }, [activeTab, completedOrders, cancelledOrders, printHistory, filterType, selectedDate, searchTerm, currentUser]);
+
     // ... Filtering logic ...
     const filteredCompleted = useMemo(() => {
         let items = completedOrders;
@@ -140,9 +258,13 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({
             if (selectedGroup === 'Delivery') {
                 groupMatch = order.orderType === 'lineman' || order.orderType === 'shopeefood' || order.floor === 'Online';
             } else if (selectedGroup === 'LineMan') {
-                groupMatch = order.orderType === 'lineman';
+                const provider = getDeliveryProviderName(order);
+                groupMatch = (order.orderType === 'lineman' || order.orderType === 'shopeefood') && 
+                             (!provider || provider.toLowerCase().includes('lineman') || provider === 'Delivery');
             } else if (selectedGroup === 'ShopeeFood') {
-                groupMatch = order.orderType === 'shopeefood';
+                const provider = getDeliveryProviderName(order);
+                groupMatch = (order.orderType === 'lineman' || order.orderType === 'shopeefood') && 
+                             (provider && (provider.toLowerCase().includes('shopeefood') || provider.toLowerCase().includes('shopee')));
             } else if (selectedGroup !== 'All') {
                 groupMatch = order.floor === selectedGroup;
             }
@@ -177,9 +299,13 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({
             if (selectedGroup === 'Delivery') {
                 groupMatch = order.orderType === 'lineman' || order.orderType === 'shopeefood' || order.floor === 'Online';
             } else if (selectedGroup === 'LineMan') {
-                groupMatch = order.orderType === 'lineman';
+                const provider = getDeliveryProviderName(order);
+                groupMatch = (order.orderType === 'lineman' || order.orderType === 'shopeefood') && 
+                             (!provider || provider.toLowerCase().includes('lineman') || provider === 'Delivery');
             } else if (selectedGroup === 'ShopeeFood') {
-                groupMatch = order.orderType === 'shopeefood';
+                const provider = getDeliveryProviderName(order);
+                groupMatch = (order.orderType === 'lineman' || order.orderType === 'shopeefood') && 
+                             (provider && (provider.toLowerCase().includes('shopeefood') || provider.toLowerCase().includes('shopee')));
             } else if (selectedGroup !== 'All') {
                 groupMatch = order.floor === selectedGroup;
             }
@@ -214,7 +340,7 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({
             if (selectedGroup === 'Delivery') {
                 groupMatch = entry.tableName?.includes('LineMan') || entry.tableName?.includes('Delivery') || entry.tableName?.includes('ShopeeFood');
             } else if (selectedGroup === 'LineMan') {
-                groupMatch = entry.tableName?.includes('LineMan');
+                groupMatch = (entry.tableName?.includes('LineMan') || entry.tableName?.includes('Delivery')) && !entry.tableName?.includes('ShopeeFood');
             } else if (selectedGroup === 'ShopeeFood') {
                 groupMatch = entry.tableName?.includes('ShopeeFood');
             } else if (selectedGroup !== 'All') {
@@ -819,7 +945,7 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
                                     <path fillRule="evenodd" d="M10 2a4 4 0 00-4 4v1H5a1 1 0 00-.994.89l-1 9A1 1 0 004 18h12a1 1 0 00.994-1.11l-1-9A1 1 0 0015 7h-1V6a4 4 0 00-4-4zm2 5V6a2 2 0 10-4 0v1h4zm-6 3a1 1 0 112 0 1 1 0 01-2 0zm7-1a1 1 0 100 2 1 1 0 000-2z" clipRule="evenodd" />
                                 </svg>
-                                เดลิเวอรี่
+                                เดลิเวอรี่ ({deliveryCounts.total})
                                 <svg xmlns="http://www.w3.org/2000/svg" className={`h-3 w-3 transition-transform ${isDeliveryOpen ? 'rotate-180' : ''}`} viewBox="0 0 20 20" fill="currentColor">
                                     <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
                                 </svg>
@@ -832,19 +958,19 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({
                                         onClick={() => setSelectedGroup('Delivery')}
                                         className={`px-3 py-1 rounded-lg text-[10px] font-black transition-all ${selectedGroup === 'Delivery' ? 'bg-white text-rose-500 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
                                     >
-                                        ทั้งหมด
+                                        ทั้งหมด ({deliveryCounts.total})
                                     </button>
                                     <button
                                         onClick={() => setSelectedGroup('LineMan')}
                                         className={`px-3 py-1 rounded-lg text-[10px] font-black transition-all ${selectedGroup === 'LineMan' ? 'bg-[#00B14F] text-white shadow-sm' : 'text-gray-400 hover:text-emerald-500'}`}
                                     >
-                                        LineMan
+                                        LineMan ({deliveryCounts.lineman})
                                     </button>
                                     <button
                                         onClick={() => setSelectedGroup('ShopeeFood')}
                                         className={`px-3 py-1 rounded-lg text-[10px] font-black transition-all ${selectedGroup === 'ShopeeFood' ? 'bg-[#EE4D2D] text-white shadow-sm' : 'text-gray-400 hover:text-orange-500'}`}
                                     >
-                                        ShopeeFood
+                                        ShopeeFood ({deliveryCounts.shopeefood})
                                     </button>
                                 </div>
                             )}
