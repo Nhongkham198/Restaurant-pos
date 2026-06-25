@@ -18,6 +18,7 @@ interface LeaveCalendarViewProps {
     onDeleteRequest?: (requestId: number) => Promise<boolean>;
     selectedBranch?: Branch | null;
     isEditMode?: boolean;
+    users?: User[];
 }
 
 // Move helper functions outside the component to avoid re-creation and ensure they are available
@@ -39,11 +40,26 @@ const getTypeLabel = (type: string) => {
     }
 };
 
-export const LeaveCalendarView: React.FC<LeaveCalendarViewProps> = ({ leaveRequests, currentUser, onOpenRequestModal, branches, onUpdateStatus, onUpdateType, onDeleteRequest, selectedBranch, isEditMode }) => {
+export const LeaveCalendarView: React.FC<LeaveCalendarViewProps> = ({ leaveRequests, currentUser, onOpenRequestModal, branches, onUpdateStatus, onUpdateType, onDeleteRequest, selectedBranch, isEditMode, users }) => {
     const [currentDate, setCurrentDate] = useState(new Date());
     const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
     const [selectedDayDetails, setSelectedDayDetails] = useState<{ date: Date, leaves: LeaveRequest[] } | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
+
+    const getEmployeeName = (req: LeaveRequest) => {
+        if (users) {
+            const foundUser = users.find(u => Number(u.id) === Number(req.userId));
+            if (foundUser && 
+                foundUser.role !== 'pos' && 
+                foundUser.role !== 'kitchen' && 
+                foundUser.role !== 'table' && 
+                foundUser.username.toLowerCase() !== 'pos' && 
+                foundUser.username.toLowerCase() !== 'kitchen') {
+                return foundUser.username;
+            }
+        }
+        return req.username || req.employeeName;
+    };
 
     const visibleRequests = useMemo(() => {
         if (!currentUser) return [];
@@ -57,20 +73,40 @@ export const LeaveCalendarView: React.FC<LeaveCalendarViewProps> = ({ leaveReque
             // Branch Admin and Auditors see requests for their assigned branches.
             filtered = leaveRequests.filter(req => currentUser.allowedBranchIds?.includes(req.branchId));
         } else {
-            // Staff (POS/Kitchen) ALWAYS see only their own requests.
-            filtered = leaveRequests.filter(req => req.userId === currentUser.id);
+            // Staff (POS/Kitchen) ALWAYS see only their own requests, mapping by userId or username.
+            filtered = leaveRequests.filter(req => {
+                const usernameLower = currentUser.username.toLowerCase();
+                const reqUsernameLower = req.username ? req.username.toLowerCase() : '';
+                const reqEmployeeNameLower = req.employeeName ? req.employeeName.toLowerCase() : '';
+                
+                // 1. Check if the usernames match directly
+                const isUsernameMatch = reqUsernameLower === usernameLower || reqEmployeeNameLower === usernameLower;
+                
+                // 2. Check if the user ID matches
+                const isIdMatch = Number(req.userId) === Number(currentUser.id);
+                
+                // If it's an ID match, we must make sure it doesn't belong to another user with a different name
+                if (isIdMatch) {
+                    if (reqUsernameLower && reqUsernameLower !== usernameLower) {
+                        return false;
+                    }
+                    return true;
+                }
+                
+                return isUsernameMatch;
+            });
         }
 
         if (searchTerm) {
             const lowerSearch = searchTerm.toLowerCase();
             filtered = filtered.filter(req => 
-                (req.username || req.employeeName || '').toLowerCase().includes(lowerSearch)
+                (getEmployeeName(req) || '').toLowerCase().includes(lowerSearch)
             );
         }
 
         return filtered;
 
-    }, [leaveRequests, currentUser, searchTerm]);
+    }, [leaveRequests, currentUser, searchTerm, users]);
 
     const daysInMonth = useMemo(() => {
         const year = currentDate.getFullYear();
@@ -164,7 +200,7 @@ export const LeaveCalendarView: React.FC<LeaveCalendarViewProps> = ({ leaveReque
 
         const data = visibleRequests.map(req => ({
             'วันที่ยื่น': req.submittedAt ? new Date(req.submittedAt).toLocaleDateString('th-TH', { timeZone: 'Asia/Bangkok' }) : '-',
-            'พนักงาน': req.username,
+            'พนักงาน': getEmployeeName(req),
             'สาขา': getBranchName(req.branchId),
             'ประเภท': getTypeLabel(req.type),
             'วันที่เริ่มลา': new Date(req.startDate).toLocaleDateString('th-TH', { timeZone: 'Asia/Bangkok' }),
@@ -402,7 +438,7 @@ export const LeaveCalendarView: React.FC<LeaveCalendarViewProps> = ({ leaveReque
                                                 {/* FIX: Use submittedAt if available, otherwise show placeholder to avoid 2513 date */}
                                                 {req.submittedAt ? new Date(req.submittedAt).toLocaleDateString('th-TH', { timeZone: 'Asia/Bangkok' }) : '-'}
                                             </td>
-                                            <td className="py-3 px-4 font-medium">{req.username}</td>
+                                            <td className="py-3 px-4 font-medium">{getEmployeeName(req)}</td>
                                             <td className="py-3 px-4 text-gray-600">{getBranchName(req.branchId)}</td>
                                             <td className="py-3 px-4">
                                                 {isEditMode && onUpdateType ? (

@@ -259,8 +259,28 @@ export const App: React.FC = () => {
             // Branch Admin and Auditors see requests for their assigned branches.
             filtered = leaveRequests.filter(req => currentUser.allowedBranchIds?.includes(req.branchId));
         } else {
-            // Staff (POS/Kitchen) ALWAYS see only their own requests.
-            filtered = leaveRequests.filter(req => req.userId === currentUser.id);
+            // Staff (POS/Kitchen) ALWAYS see only their own requests, mapping by userId or username.
+            filtered = leaveRequests.filter(req => {
+                const usernameLower = currentUser.username.toLowerCase();
+                const reqUsernameLower = req.username ? req.username.toLowerCase() : '';
+                const reqEmployeeNameLower = req.employeeName ? req.employeeName.toLowerCase() : '';
+                
+                // 1. Check if the usernames match directly
+                const isUsernameMatch = reqUsernameLower === usernameLower || reqEmployeeNameLower === usernameLower;
+                
+                // 2. Check if the user ID matches
+                const isIdMatch = Number(req.userId) === Number(currentUser.id);
+                
+                // If it's an ID match, we must make sure it doesn't belong to another user with a different name
+                if (isIdMatch) {
+                    if (reqUsernameLower && reqUsernameLower !== usernameLower) {
+                        return false;
+                    }
+                    return true;
+                }
+                
+                return isUsernameMatch;
+            });
         }
         
         return filtered;
@@ -2062,6 +2082,7 @@ export const App: React.FC = () => {
                                                 <LeaveCalendarView 
                                                     leaveRequests={visibleLeaveRequests} 
                                                     currentUser={currentUser} 
+                                                    users={users} 
                                                     onOpenRequestModal={(date) => { 
                                                         setLeaveRequestInitialDate(date); 
                                                         setModalState(prev => ({...prev, isLeaveRequest: true})); 
@@ -2150,6 +2171,7 @@ export const App: React.FC = () => {
                                 <LeaveCalendarView 
                                     leaveRequests={visibleLeaveRequests} 
                                     currentUser={currentUser} 
+                                    users={users} 
                                     onOpenRequestModal={(date) => { 
                                         setLeaveRequestInitialDate(date); 
                                         setModalState(prev => ({...prev, isLeaveRequest: true})); 
