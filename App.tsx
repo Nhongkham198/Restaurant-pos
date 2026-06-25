@@ -1014,7 +1014,10 @@ export const App: React.FC = () => {
         // Wait for initial load
         if (leaveRequests.length === 0) return;
 
-        const currentMaxId = Math.max(0, ...leaveRequests.map(r => r.id));
+        const validIds = leaveRequests
+            .map(r => r && typeof r.id === 'number' && !isNaN(r.id) ? r.id : 0)
+            .filter(id => id > 0);
+        const currentMaxId = validIds.length > 0 ? Math.max(...validIds) : 0;
 
         // Initial set to avoid alerting on existing data (first load)
         if (maxKnownLeaveIdRef.current === -1) {
@@ -1511,7 +1514,10 @@ export const App: React.FC = () => {
     };
 
     const handleSaveLeaveRequest = (req: Omit<LeaveRequest, 'id' | 'status' | 'branchId'>) => {
-        const newId = Math.max(0, ...leaveRequests.map(r => r.id)) + 1;
+        const validIds = leaveRequests
+            .map(r => r && typeof r.id === 'number' && !isNaN(r.id) ? r.id : 0)
+            .filter(id => id > 0);
+        const newId = (validIds.length > 0 ? Math.max(...validIds) : 0) + 1;
         const newRequest: LeaveRequest = {
             ...req,
             id: newId,

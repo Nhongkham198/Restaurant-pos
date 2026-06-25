@@ -226,7 +226,10 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
                 return;
             }
 
-            const newId = users.length > 0 ? Math.max(...users.map(u => u.id)) + 1 : 1;
+            const numericIds = users
+                .map(u => u && typeof u.id === 'number' && !isNaN(u.id) ? u.id : 0)
+                .filter(id => id > 0);
+            const newId = numericIds.length > 0 ? Math.max(...numericIds) + 1 : 1;
             
             const newUser: Omit<User, 'id'> & { id: number } = {
                 id: newId,
@@ -618,7 +621,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
                                                 />
                                             </div>
                                             <div>
-                                                <label className="block text-xs text-gray-500 mb-1">ลาพักร้อน</label>
+                                                <label className="block text-xs text-gray-500 mb-1">ลาไม่รับเงินเดือน</label>
                                                 <input 
                                                     type="number" 
                                                     value={formData.leaveQuotas?.vacation ?? 6} 
