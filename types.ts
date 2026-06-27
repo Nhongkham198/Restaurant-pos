@@ -298,6 +298,12 @@ export interface StockItem {
     lastOrderedQuantity?: number; // Added: Preserved ordered quantity after receipt for history display
     orderedBy?: string; // User who placed the last PO
     quantityBeforeOrder?: number; // Quantity remaining before the last order was placed
+    receiveEditHistory?: {
+        updatedBy: string;
+        updatedAt: number;
+        previousQuantity: number;
+        newQuantity: number;
+    }[];
 }
 
 export interface LeaveRequest {

@@ -54,6 +54,8 @@ export const StockManagement: React.FC<StockManagementProps> = ({
     const [selectedCategory, setSelectedCategory] = useState('ทั้งหมด');
     const [activeTab, setActiveTab] = useState<'inventory' | 'comparison'>('inventory');
     const [isBulkReceiveOpen, setIsBulkReceiveOpen] = useState(false);
+    const [bulkEditingItemIds, setBulkEditingItemIds] = useState<{[key: string]: boolean}>({});
+    const [bulkEditQuantities, setBulkEditQuantities] = useState<{[key: string]: string}>({});
     const [searchTerm, setSearchTerm] = useState('');
     const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
     const [isItemModalOpen, setIsItemModalOpen] = useState(false);
@@ -89,6 +91,14 @@ export const StockManagement: React.FC<StockManagementProps> = ({
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
+
+    // Reset bulk receive edit state when modal is closed
+    useEffect(() => {
+        if (!isBulkReceiveOpen) {
+            setBulkEditingItemIds({});
+            setBulkEditQuantities({});
+        }
+    }, [isBulkReceiveOpen]);
 
     const { latestIngredientPrices, setLatestIngredientPrices, latestImportFilename, setLatestImportFilename } = useData();
 
@@ -1919,7 +1929,7 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                                 <div className="bg-gray-50 px-4 py-2 border-b border-gray-100 flex justify-between items-center">
                                                     <span className="text-sm font-bold text-gray-600 flex items-center gap-2">
                                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2-2v12a2 2 0 002 2z" />
                                                         </svg>
                                                         รอบวันที่: {dateKey}
                                                     </span>
@@ -1947,6 +1957,8 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                                                 .map((item, index) => {
                                                                     const receivedDateObj = parseDateValue(item.receivedDate);
                                                                     const isVerifiedToday = !!((receivedDateObj && receivedDateObj.toDateString() === new Date().toDateString()) || (item.orderedQuantity === 0 && item.lastUpdatedBy));
+                                                                    const isEditingThisItem = !!bulkEditingItemIds[item.id];
+                                                                    const isInputDisabled = isVerifiedToday && !isEditingThisItem;
                                                                     
                                                                     return (
                                                                         <tr key={`received-stock-${item.id}-${index}`} className={`transition-colors ${isVerifiedToday ? 'bg-gray-50/30' : 'hover:bg-gray-50/50'}`}>
@@ -1977,7 +1989,7 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                                                             </td>
                                                                             <td className="px-4 py-2 font-medium min-w-[220px]">
                                                                                 <div className="w-full max-w-[200px] mx-auto relative">
-                                                                                    {isVerifiedToday && (
+                                                                                    {isVerifiedToday && !isEditingThisItem && (
                                                                                         <div className="absolute -top-2.5 -left-2.5 z-20">
                                                                                             <div className="bg-green-500 text-white rounded-full p-1 shadow-lg ring-2 ring-white">
                                                                                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
@@ -1992,14 +2004,15 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                                                                         id={`bulk-qty-${item.id}`}
                                                                                         step="0.01"
                                                                                         className={`w-full px-3 py-2.5 border border-gray-300 rounded-xl text-center font-black outline-none transition-all placeholder:text-gray-300 placeholder:font-normal text-xl [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
-                                                                                            isVerifiedToday
+                                                                                            isInputDisabled
                                                                                             ? 'bg-green-50 text-green-700 cursor-not-allowed border-green-200' 
                                                                                             : 'text-orange-600 focus:ring-4 focus:ring-orange-100 focus:border-orange-500 shadow-md bg-white'
                                                                                         }`}
                                                                                         placeholder="0.00"
-                                                                                        value={isVerifiedToday ? (item.lastReceivedQuantity ?? 0) : undefined}
-                                                                                        defaultValue={!isVerifiedToday ? "" : undefined}
-                                                                                        disabled={isVerifiedToday}
+                                                                                        value={isEditingThisItem ? (bulkEditQuantities[item.id] ?? "") : (isVerifiedToday ? (item.lastReceivedQuantity ?? 0) : undefined)}
+                                                                                        onChange={isEditingThisItem ? (e) => setBulkEditQuantities(prev => ({...prev, [item.id]: e.target.value})) : undefined}
+                                                                                        defaultValue={!isVerifiedToday && !isEditingThisItem ? "" : undefined}
+                                                                                        disabled={isInputDisabled}
                                                                                     />
                                                                                     
                                                                                     <input 
@@ -2007,11 +2020,173 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                                                                         id={`bulk-date-${item.id}`}
                                                                                         defaultValue={new Date().toISOString().split('T')[0]}
                                                                                     />
-    
+                                                                                    
+                                                                                    {isEditingThisItem && (
+                                                                                        <div className="mt-2 flex gap-1.5 w-full">
+                                                                                            <button
+                                                                                                type="button"
+                                                                                                onClick={async () => {
+                                                                                                    const valStr = bulkEditQuantities[item.id];
+                                                                                                    if (!valStr || isNaN(Number(valStr)) || Number(valStr) < 0) {
+                                                                                                        Swal.fire('ข้อผิดพลาด', 'กรุณาระบุจำนวนที่ถูกต้อง', 'error');
+                                                                                                        return;
+                                                                                                    }
+                                                                                                    const newQty = Number(valStr);
+                                                                                                    const prevLastReceived = item.lastReceivedQuantity ?? 0;
+                                                                                                    const diff = newQty - prevLastReceived;
+                                                                                                    
+                                                                                                    const confirmed = await Swal.fire({
+                                                                                                        title: 'แก้ไขจำนวนรับสินค้า',
+                                                                                                        html: `
+                                                                                                            <div class="text-left space-y-2.5 p-2 text-sm text-gray-700">
+                                                                                                                <div class="flex justify-between border-b pb-1.5">
+                                                                                                                    <span class="font-medium">ชื่อวัตถุดิบ:</span>
+                                                                                                                    <span class="font-bold text-gray-900">${item.name}</span>
+                                                                                                                </div>
+                                                                                                                <div class="flex justify-between border-b pb-1.5 bg-blue-50/50 p-1.5 rounded-lg">
+                                                                                                                    <span class="font-bold text-blue-800">คงเหลือในโปรแกรมปัจจุบัน:</span>
+                                                                                                                    <span class="font-extrabold text-blue-700">${item.quantity} ${item.unit}</span>
+                                                                                                                </div>
+                                                                                                                <div class="flex justify-between border-b pb-1.5">
+                                                                                                                    <span class="font-medium">จำนวนรับเดิม:</span>
+                                                                                                                    <span class="font-bold text-gray-800">${prevLastReceived} ${item.unit}</span>
+                                                                                                                </div>
+                                                                                                                <div class="flex justify-between border-b pb-1.5 bg-orange-50/50 p-1.5 rounded-lg">
+                                                                                                                    <span class="font-bold text-orange-800">จำนวนรับใหม่:</span>
+                                                                                                                    <span class="font-extrabold text-orange-700">${newQty} ${item.unit}</span>
+                                                                                                                </div>
+                                                                                                                <div class="flex justify-between text-xs text-gray-500 mt-2">
+                                                                                                                    <span>ส่วนต่างที่จะคำนวณ:</span>
+                                                                                                                    <span class="font-black ${diff >= 0 ? 'text-green-600' : 'text-red-600'}">
+                                                                                                                        ${diff >= 0 ? '+' : ''}${diff} ${item.unit}
+                                                                                                                    </span>
+                                                                                                                </div>
+                                                                                                                <div class="mt-4 font-bold text-center text-gray-900 text-base">
+                                                                                                                    ต้องการนับจำนวนที่รับใหม่นี้ รวมเข้ากับยอดคงเหลือในโปรแกรมด้วยหรือไม่?
+                                                                                                                </div>
+                                                                                                            </div>
+                                                                                                        `,
+                                                                                                        icon: 'question',
+                                                                                                        showCancelButton: true,
+                                                                                                        showDenyButton: true,
+                                                                                                        confirmButtonColor: '#16a34a',
+                                                                                                        denyButtonColor: '#ea580c',
+                                                                                                        cancelButtonColor: '#94a3b8',
+                                                                                                        confirmButtonText: '✓ นับรวม (อัปเดตสต็อก)',
+                                                                                                        denyButtonText: '✗ ไม่นับรวม (แก้ไขเฉพาะจำนวนรับ)',
+                                                                                                        cancelButtonText: 'ยกเลิก'
+                                                                                                    });
+
+                                                                                                    if (confirmed.isConfirmed || confirmed.isDenied) {
+                                                                                                        const shouldCombine = confirmed.isConfirmed;
+                                                                                                        const now = Date.now();
+                                                                                                        const activeUsername = currentUser?.username || 'Unknown Staff';
+                                                                                                        const diffToApply = shouldCombine ? diff : 0;
+
+                                                                                                        setStockItems(prev => {
+                                                                                                            const nextItems = [...prev];
+                                                                                                            const itemIndex = nextItems.findIndex(i => i.id === item.id);
+                                                                                                            if (itemIndex !== -1) {
+                                                                                                                const targetItem = nextItems[itemIndex];
+                                                                                                                
+                                                                                                                const editRecord = {
+                                                                                                                    updatedBy: activeUsername,
+                                                                                                                    updatedAt: now,
+                                                                                                                    previousQuantity: prevLastReceived,
+                                                                                                                    newQuantity: newQty
+                                                                                                                };
+
+                                                                                                                nextItems[itemIndex] = {
+                                                                                                                    ...targetItem,
+                                                                                                                    quantity: targetItem.quantity + diffToApply,
+                                                                                                                    lastReceivedQuantity: newQty,
+                                                                                                                    lastUpdated: now,
+                                                                                                                    lastUpdatedBy: activeUsername,
+                                                                                                                    receiveEditHistory: [...(targetItem.receiveEditHistory || []), editRecord]
+                                                                                                                };
+                                                                                                            }
+                                                                                                            return nextItems;
+                                                                                                        });
+
+                                                                                                        addLog(item, 'adjust', `แก้ไขจำนวนรับแบบกลุ่ม: เปลี่ยนจาก ${prevLastReceived} เป็น ${newQty} ${item.unit} (รวมยอด: ${shouldCombine ? 'ใช่' : 'ไม่'}) โดย ${activeUsername}`);
+
+                                                                                                        Swal.fire({
+                                                                                                            title: 'แก้ไขสำเร็จ!',
+                                                                                                            text: `แก้ไขรายการรับสินค้า "${item.name}" เรียบร้อยแล้ว (${shouldCombine ? 'อัปเดตยอดสต็อกแล้ว' : 'ไม่ได้ปรับยอดสต็อก'})`,
+                                                                                                            icon: 'success',
+                                                                                                            timer: 2000,
+                                                                                                            showConfirmButton: false
+                                                                                                        });
+
+                                                                                                        setBulkEditingItemIds(prev => ({...prev, [item.id]: false}));
+                                                                                                    }
+                                                                                                }}
+                                                                                                className="flex-1 py-1 px-1.5 bg-green-600 hover:bg-green-700 text-white text-[10px] font-bold rounded-lg transition-all active:scale-95 cursor-pointer text-center"
+                                                                                            >
+                                                                                                บันทึก
+                                                                                            </button>
+                                                                                            <button
+                                                                                                type="button"
+                                                                                                onClick={() => {
+                                                                                                    setBulkEditingItemIds(prev => ({...prev, [item.id]: false}));
+                                                                                                }}
+                                                                                                className="flex-1 py-1 px-1.5 bg-gray-200 hover:bg-gray-300 text-gray-700 text-[10px] font-bold rounded-lg transition-all active:scale-95 cursor-pointer text-center"
+                                                                                            >
+                                                                                                ยกเลิก
+                                                                                            </button>
+                                                                                        </div>
+                                                                                    )}
+                                                                                    
                                                                                     {isVerifiedToday && item.lastUpdatedBy && (
-                                                                                        <div className="mt-1 text-[10px] text-gray-500 font-medium text-center bg-green-50/50 py-1 rounded-lg">
-                                                                                            <span className="text-green-700 font-bold block mb-0.5">บันทึกโดย: {item.lastUpdatedBy}</span>
+                                                                                        <div className="mt-1 text-[10px] text-gray-500 font-medium text-center bg-green-50/50 py-1.5 px-2 rounded-lg flex flex-col items-center gap-1">
+                                                                                            <span className="text-green-700 font-bold block">บันทึกโดย: {item.lastUpdatedBy}</span>
                                                                                             <span className="text-gray-400 opacity-80">{parseDateValue(item.lastUpdated)?.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) || '-'} น.</span>
+                                                                                            
+                                                                                            {item.receiveEditHistory && item.receiveEditHistory.length > 0 && (
+                                                                                                <div className="w-full mt-1.5 pt-1.5 border-t border-dashed border-green-200 text-left">
+                                                                                                    <div className="text-[9px] font-bold text-gray-500 mb-1 flex items-center gap-1">
+                                                                                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-2.5 w-2.5 text-orange-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                                                                        </svg>
+                                                                                                        ประวัติการแก้ไข ({item.receiveEditHistory.length}):
+                                                                                                    </div>
+                                                                                                    <div className="max-h-[80px] overflow-y-auto space-y-1 pr-1">
+                                                                                                        {item.receiveEditHistory.map((hist, hIdx) => {
+                                                                                                            const editDateObj = parseDateValue(hist.updatedAt);
+                                                                                                            const dateString = editDateObj ? editDateObj.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' }) : '-';
+                                                                                                            const timeString = editDateObj ? editDateObj.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) : '-';
+                                                                                                            return (
+                                                                                                                <div key={hIdx} className="bg-orange-50/50 rounded p-1 text-[8px] text-gray-600 flex flex-col gap-0.5 border border-orange-100/30">
+                                                                                                                    <div className="flex justify-between font-semibold text-gray-700">
+                                                                                                                        <span className="truncate max-w-[60px]">{hist.updatedBy}</span>
+                                                                                                                        <span className="text-orange-700 font-bold">{hist.previousQuantity} → {hist.newQuantity} {item.unit}</span>
+                                                                                                                    </div>
+                                                                                                                    <div className="text-gray-400 text-[7px] flex justify-between">
+                                                                                                                        <span>วันที่: {dateString}</span>
+                                                                                                                        <span>เวลา: {timeString} น.</span>
+                                                                                                                    </div>
+                                                                                                                </div>
+                                                                                                            );
+                                                                                                        })}
+                                                                                                    </div>
+                                                                                                </div>
+                                                                                            )}
+                                                                                            
+                                                                                            {!isEditingThisItem && (
+                                                                                                <button
+                                                                                                    type="button"
+                                                                                                    onClick={() => {
+                                                                                                        setBulkEditingItemIds(prev => ({...prev, [item.id]: true}));
+                                                                                                        setBulkEditQuantities(prev => ({...prev, [item.id]: (item.lastReceivedQuantity ?? 0).toString()}));
+                                                                                                    }}
+                                                                                                    className="mt-1.5 w-full flex items-center justify-center gap-1 py-1 px-1.5 bg-white hover:bg-orange-50 border border-orange-200 text-orange-700 hover:text-orange-800 text-[10px] font-bold rounded-lg transition-all active:scale-95 cursor-pointer"
+                                                                                                >
+                                                                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                                                                                    </svg>
+                                                                                                    แก้ไขจำนวนรับ
+                                                                                                </button>
+                                                                                            )}
                                                                                         </div>
                                                                                     )}
                                                                                 </div>
