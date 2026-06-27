@@ -120,11 +120,9 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
             if (!existing) {
                 priceMap.set(key, p);
             } else {
-                if (p.date && existing.date) {
-                    if (p.date > existing.date) {
-                        priceMap.set(key, p);
-                    }
-                } else if (p.date) {
+                const pDateVal = p.date ? parseThaiDateToTimestamp(p.date) : 0;
+                const existingDateVal = existing.date ? parseThaiDateToTimestamp(existing.date) : 0;
+                if (pDateVal > existingDateVal) {
                     priceMap.set(key, p);
                 }
             }
@@ -550,14 +548,22 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
                                     const expectedSmartPrice = calculateSmartUnitPrice(ing, latestPrice, currentManualPrice);
                                     
                                     // Criteria for Red Warning:
-                                    // 1. There is a price in JSON and it is part of the most recently uploaded JSON batch
-                                    // 2. The price date is strictly newer than the recipe's last updated date
+                                    // 1. There is a price in JSON
+                                    // 2. The price date is strictly newer than or equal to the recipe's last updated date (by calendar date)
                                     // 3. The price in JSON is different from what's currently marked as smart price in recipe
                                     // 4. User hasn't touched it in this session
-                                    const isLatestUpload = latestPrice && latestPrice.updatedAt && Math.abs(latestPrice.updatedAt - latestImportTime) < 5000;
                                     const priceDateVal = latestPrice?.date ? parseThaiDateToTimestamp(latestPrice.date) : 0;
                                     const recipeLastUpdatedVal = recipe ? getVal(recipe.lastUpdated) : 0;
-                                    const isNewUpdate = isLatestUpload && (recipeLastUpdatedVal === 0 || priceDateVal > recipeLastUpdatedVal);
+                                    
+                                    const getMidnight = (ms: number): number => {
+                                        if (ms === 0) return 0;
+                                        const d = new Date(ms);
+                                        return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+                                    };
+
+                                    const priceMidnight = getMidnight(priceDateVal);
+                                    const recipeMidnight = getMidnight(recipeLastUpdatedVal);
+                                    const isNewUpdate = latestPrice !== undefined && (recipeLastUpdatedVal === 0 || priceMidnight >= recipeMidnight);
                                     
                                     const isMismatched = isNewUpdate && Math.abs(expectedSmartPrice - (ing.smartUnitPrice ?? 0)) > 0.0001;
                                     const needsSync = isMismatched && !touchedIngredients.has(ing.stockItemId) && !ing.isSmartPriceLocked;
@@ -826,13 +832,21 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
                                 const expectedSmartPrice = calculateSmartUnitPrice(ing, latestPrice, currentManualPrice);
                                 
                                 // Criteria for Red Warning (Additional items)
-                                // 1. There is a price in JSON and it is part of the most recently uploaded JSON batch
-                                // 2. The price date is strictly newer than the recipe's last updated date
+                                // 1. There is a price in JSON
+                                // 2. The price date is strictly newer than or equal to the recipe's last updated date (by calendar date)
                                 // 3. The price is mismatched
-                                const isLatestUpload = latestPrice && latestPrice.updatedAt && Math.abs(latestPrice.updatedAt - latestImportTime) < 5000;
                                 const priceDateVal = latestPrice?.date ? parseThaiDateToTimestamp(latestPrice.date) : 0;
                                 const recipeLastUpdatedVal = recipe ? getVal(recipe.lastUpdated) : 0;
-                                const isNewUpdate = isLatestUpload && (recipeLastUpdatedVal === 0 || priceDateVal > recipeLastUpdatedVal);
+                                
+                                const getMidnight = (ms: number): number => {
+                                    if (ms === 0) return 0;
+                                    const d = new Date(ms);
+                                    return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+                                };
+
+                                const priceMidnight = getMidnight(priceDateVal);
+                                const recipeMidnight = getMidnight(recipeLastUpdatedVal);
+                                const isNewUpdate = latestPrice !== undefined && (recipeLastUpdatedVal === 0 || priceMidnight >= recipeMidnight);
                                 
                                 const isMismatched = isNewUpdate && Math.abs(expectedSmartPrice - (ing.smartUnitPrice ?? 0)) > 0.0001;
                                 const needsSync = isMismatched && !touchedIngredients.has(ing.stockItemId) && !ing.isSmartPriceLocked;

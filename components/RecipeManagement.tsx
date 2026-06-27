@@ -113,8 +113,14 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
             const key = (p.name || '').trim();
             if (!key) return;
             const existing = pMap.get(key);
-            if (!existing || (p.date && existing.date && p.date > existing.date) || (p.date && !existing.date)) {
+            if (!existing) {
                 pMap.set(key, p);
+            } else {
+                const pDateVal = p.date ? parseThaiDateToTimestamp(p.date) : 0;
+                const existingDateVal = existing.date ? parseThaiDateToTimestamp(existing.date) : 0;
+                if (pDateVal > existingDateVal) {
+                    pMap.set(key, p);
+                }
             }
         });
         return pMap;
@@ -980,9 +986,7 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
                             return isNaN(t) ? 0 : t;
                         };
 
-                        const isAfterImport = recipe && recipe.lastUpdated && getVal(recipe.lastUpdated) >= latestImportTime;
-
-                        const hasUpdate = (recipe && !isAfterImport) ? [...(recipe.ingredients || []), ...(recipe.additionalIngredients || [])].some(ing => {
+                        const hasUpdate = recipe ? [...(recipe.ingredients || []), ...(recipe.additionalIngredients || [])].some(ing => {
                             if (ing.isSmartPriceLocked) return false;
                             
                             const stockItem = stockMap.get(String(ing.stockItemId));
@@ -991,13 +995,18 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
                             const latestPrice = priceMap.get(itemName);
                             if (!latestPrice) return false;
 
-                            // Check if this latestPrice is part of the most recently uploaded JSON file
-                            const isLatestUpload = latestPrice.updatedAt && Math.abs(latestPrice.updatedAt - latestImportTime) < 5000;
-                            if (!isLatestUpload) return false;
-
                             const priceDateVal = latestPrice.date ? parseThaiDateToTimestamp(latestPrice.date) : 0;
                             const recipeLastUpdatedVal = recipe ? getVal(recipe.lastUpdated) : 0;
-                            const isNewUpdate = isLatestUpload && (recipeLastUpdatedVal === 0 || priceDateVal > recipeLastUpdatedVal);
+                            
+                            const getMidnight = (ms: number): number => {
+                                if (ms === 0) return 0;
+                                const d = new Date(ms);
+                                return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+                            };
+
+                            const priceMidnight = getMidnight(priceDateVal);
+                            const recipeMidnight = getMidnight(recipeLastUpdatedVal);
+                            const isNewUpdate = recipeLastUpdatedVal === 0 || priceMidnight >= recipeMidnight;
                             if (!isNewUpdate) return false;
 
                             // Use calculateSmartUnitPrice to get the correctly converted latest price
