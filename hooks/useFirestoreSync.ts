@@ -72,6 +72,10 @@ function getItemDocId(item: any): string {
     return fallbackId ? fallbackId.toString() : '';
 }
 
+// Global memory caches to allow instant rendering (SWR pattern) and keep UI 100% responsive when switching branches
+const globalFirestoreCache = new Map<string, any>();
+const globalLoadedCacheKeys = new Set<string>();
+
 // Hook for Highly Scalable Sync (Legacy single document for config/primitives; modern multi-document collections for bulk list data)
 export function useFirestoreSync<T>(
     branchId: string | null,
@@ -79,7 +83,16 @@ export function useFirestoreSync<T>(
     initialValue: T,
     fallbackValue?: T // NEW: Optional fallback value to seed DB if empty
 ): [T, React.Dispatch<React.SetStateAction<T>>, boolean] {
-    const [value, setValue] = useState<T>(initialValue);
+    const activeCacheKey = `${collectionKey}_${branchId || 'global'}`;
+
+    // Initialize state with cached value if available, or fallback to initialValue
+    const [value, setValue] = useState<T>(() => {
+        if (globalFirestoreCache.has(activeCacheKey)) {
+            return globalFirestoreCache.get(activeCacheKey) as T;
+        }
+        return initialValue;
+    });
+
     const [isLoading, setIsLoading] = useState(false); // Start as false to prevent immediate flash
     const initialValueRef = useRef(initialValue);
     const fallbackValueRef = useRef(fallbackValue);
@@ -94,6 +107,22 @@ export function useFirestoreSync<T>(
     const isInitialLoadDoneRef = useRef(false);
 
     useEffect(() => {
+        const currentCacheKey = `${collectionKey}_${branchId || 'global'}`;
+        
+        // Reset loading status flag for the current query
+        isInitialLoadDoneRef.current = false;
+
+        if (globalFirestoreCache.has(currentCacheKey)) {
+            // Instant load from cache! UI remains 100% responsive with zero wait.
+            const cached = globalFirestoreCache.get(currentCacheKey);
+            setValue(cached as T);
+            setIsLoading(false);
+        } else {
+            // No cache yet, fallback to initial and show progress indicator if needed
+            setValue(initialValueRef.current);
+            setIsLoading(false);
+        }
+
         if (!db) {
             console.error("Firestore is not initialized.");
             setIsLoading(false);
@@ -113,7 +142,7 @@ export function useFirestoreSync<T>(
         // Optimization: Only show loading if it takes more than 150ms 
         if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
         loadingTimeoutRef.current = setTimeout(() => {
-            if (!isInitialLoadDoneRef.current) {
+            if (!isInitialLoadDoneRef.current && !globalLoadedCacheKeys.has(currentCacheKey)) {
                 setIsLoading(true);
             }
         }, 150);
@@ -141,6 +170,7 @@ export function useFirestoreSync<T>(
                         loadingTimeoutRef.current = null;
                     }
                     isInitialLoadDoneRef.current = true;
+                    globalLoadedCacheKeys.add(currentCacheKey);
 
                     const items: any[] = [];
                     snapshot.forEach(docSnap => {
@@ -193,6 +223,8 @@ export function useFirestoreSync<T>(
                         });
                         batch.commit().catch(err => console.error(`[Firestore Sync] Seeding failed for ${collectionKey}:`, err));
                     } else {
+                        // Update cache & React state
+                        globalFirestoreCache.set(currentCacheKey, finalValueToSet);
                         setValue(finalValueToSet as unknown as T);
                     }
                     setIsLoading(false);
@@ -264,6 +296,8 @@ export function useFirestoreSync<T>(
                     }
                     
                     isInitialLoadDoneRef.current = true;
+                    globalLoadedCacheKeys.add(currentCacheKey);
+
                     if (docSnapshot.exists) {
                         const data = docSnapshot.data();
                         if (data && typeof data.value !== 'undefined') {
@@ -297,11 +331,14 @@ export function useFirestoreSync<T>(
                                 }
                             }
 
+                            // Update cache & React state
+                            globalFirestoreCache.set(currentCacheKey, valueToSet);
                             setValue(valueToSet as T);
                         } else {
                             if (fallbackValueRef.current !== undefined) {
                                 console.log(`[Firestore] Seeding missing value for ${collectionKey}`);
                                 docRef.set({ value: fallbackValueRef.current }, { merge: true });
+                                globalFirestoreCache.set(currentCacheKey, fallbackValueRef.current);
                                 setValue(fallbackValueRef.current);
                             } else {
                                 setValue(currentInitialValue);
@@ -311,6 +348,7 @@ export function useFirestoreSync<T>(
                         if (fallbackValueRef.current !== undefined) {
                             console.log(`[Firestore] Seeding new document for ${collectionKey}`);
                             docRef.set({ value: fallbackValueRef.current });
+                            globalFirestoreCache.set(currentCacheKey, fallbackValueRef.current);
                             setValue(fallbackValueRef.current);
                         } else {
                             setValue(currentInitialValue);
@@ -335,103 +373,122 @@ export function useFirestoreSync<T>(
     }, [branchId, collectionKey]);
 
     const setAndSyncValue = useCallback((newValue: React.SetStateAction<T>) => {
-        if (!isInitialLoadDoneRef.current) {
-            setValue(newValue);
-            return;
-        }
+        // Capture specific branch and collection keys in scope closure to isolate this save task
+        const boundBranchId = branchId;
+        const boundCollectionKey = collectionKey;
+        const boundCacheKey = `${boundCollectionKey}_${boundBranchId || 'global'}`;
+
         if (!db) return;
 
-        const isBranchSpecific = !['users', 'branches', 'leaveRequests'].includes(collectionKey);
-        const isMigrated = MIGRATED_COLLECTIONS.includes(collectionKey);
+        const isBranchSpecific = !['users', 'branches', 'leaveRequests'].includes(boundCollectionKey);
+        const isMigrated = MIGRATED_COLLECTIONS.includes(boundCollectionKey);
         
-        if (isBranchSpecific && !branchId) {
+        if (isBranchSpecific && !boundBranchId) {
              setValue(newValue);
              return;
         }
 
-        const pathSegments = isBranchSpecific && branchId
-            ? ['branches', branchId, collectionKey, 'data']
-            : [collectionKey, 'data'];
+        const pathSegments = isBranchSpecific && boundBranchId
+            ? ['branches', boundBranchId, boundCollectionKey, 'data']
+            : [boundCollectionKey, 'data'];
         
         const docRef = db.doc(pathSegments.join('/'));
 
-        const collectionPath = isBranchSpecific && branchId
-            ? `branches/${branchId}/${collectionKey}`
-            : collectionKey;
+        const collectionPath = isBranchSpecific && boundBranchId
+            ? `branches/${boundBranchId}/${boundCollectionKey}`
+            : boundCollectionKey;
 
-        setValue((prevValue) => {
-            const resolvedValue = newValue instanceof Function ? newValue(prevValue) : newValue;
-            
-            // SANITIZATION: Firestore fails on 'undefined' values. 
-            const sanitizedValue = JSON.parse(JSON.stringify({ value: resolvedValue }, (key, val) => {
-                return val === undefined ? null : val;
-            }));
+        // Retrieve the cached state for the bound branch/collection to operate on
+        const cachedValue = globalFirestoreCache.has(boundCacheKey)
+            ? globalFirestoreCache.get(boundCacheKey)
+            : initialValueRef.current;
 
-            if (isMigrated && Array.isArray(prevValue) && Array.isArray(resolvedValue)) {
-                // High-performance direct sub-document sync
-                const prevMap = new Map<string, any>();
-                prevValue.forEach(item => {
-                    const di = getItemDocId(item);
-                    if (di) prevMap.set(di, item);
-                });
+        // Apply state updates using the isolated cache instead of general react value state (which might be updated by a branch change)
+        const resolvedValue = newValue instanceof Function ? newValue(cachedValue) : newValue;
 
-                const newMap = new Map<string, any>();
-                resolvedValue.forEach(item => {
-                    const di = getItemDocId(item);
-                    if (di) newMap.set(di, item);
-                });
+        // Optimistically update memory cache instantly
+        globalFirestoreCache.set(boundCacheKey, resolvedValue);
 
-                // Batch up writes and deletions
-                const batch = db.batch();
-                let opCount = 0;
+        // Only update active hook state if we are still viewing the same branch
+        const currentActiveCacheKey = `${collectionKey}_${branchId || 'global'}`;
+        if (boundCacheKey === currentActiveCacheKey) {
+            setValue(resolvedValue);
+        }
 
-                resolvedValue.forEach(item => {
-                    if (!item) return;
-                    const docId = getItemDocId(item);
-                    if (!docId) return;
+        // Check if the query has completed its first load from Firestore to prevent overwriting with local blank state
+        const isLoaded = globalLoadedCacheKeys.has(boundCacheKey);
+        if (!isLoaded) {
+            // Keep update in memory cache only; don't sync to Firestore yet as it's still fetching
+            return;
+        }
 
-                    const prevItem = prevMap.get(docId);
-                    const sanitizedItem = JSON.parse(JSON.stringify(item, (key, val) => val === undefined ? null : val));
+        // SANITIZATION: Firestore fails on 'undefined' values. 
+        const sanitizedValue = JSON.parse(JSON.stringify({ value: resolvedValue }, (key, val) => {
+            return val === undefined ? null : val;
+        }));
 
-                    if (!prevItem || JSON.stringify(sanitizedItem) !== JSON.stringify(prevItem)) {
-                        const targetRef = db.collection(collectionPath).doc(docId);
-                        batch.set(targetRef, {
-                            ...sanitizedItem,
-                            lastUpdated: firebase.firestore.FieldValue.serverTimestamp() // Timestamp guard
-                        }, { merge: true });
-                        opCount++;
-                    }
-                });
+        if (isMigrated && Array.isArray(cachedValue) && Array.isArray(resolvedValue)) {
+            // High-performance direct sub-document sync
+            const prevMap = new Map<string, any>();
+            cachedValue.forEach(item => {
+                const di = getItemDocId(item);
+                if (di) prevMap.set(di, item);
+            });
 
-                prevValue.forEach(item => {
-                    if (!item) return;
-                    const docId = getItemDocId(item);
-                    if (!docId) return;
+            const newMap = new Map<string, any>();
+            resolvedValue.forEach(item => {
+                const di = getItemDocId(item);
+                if (di) newMap.set(di, item);
+            });
 
-                    if (!newMap.has(docId)) {
-                        const targetRef = db.collection(collectionPath).doc(docId);
-                        batch.delete(targetRef);
-                        opCount++;
-                    }
-                });
+            // Batch up writes and deletions
+            const batch = db.batch();
+            let opCount = 0;
 
-                if (opCount > 0) {
-                    batch.commit().catch(err => {
-                        console.error(`Failed to commit scalability changes batch for ${collectionKey}:`, err);
-                        handleFirestoreError(err, 'write', collectionPath);
-                    });
+            resolvedValue.forEach(item => {
+                if (!item) return;
+                const docId = getItemDocId(item);
+                if (!docId) return;
+
+                const prevItem = prevMap.get(docId);
+                const sanitizedItem = JSON.parse(JSON.stringify(item, (key, val) => val === undefined ? null : val));
+
+                if (!prevItem || JSON.stringify(sanitizedItem) !== JSON.stringify(prevItem)) {
+                    const targetRef = db.collection(collectionPath).doc(docId);
+                    batch.set(targetRef, {
+                        ...sanitizedItem,
+                        lastUpdated: firebase.firestore.FieldValue.serverTimestamp() // Timestamp guard
+                    }, { merge: true });
+                    opCount++;
                 }
-            } else {
-                // Fallback traditional single document write
-                docRef.set(sanitizedValue)
-                    .catch(err => {
-                        console.error(`Failed to write ${collectionKey} to Firestore:`, err);
-                        handleFirestoreError(err, 'write', pathSegments.join('/'));
-                    });
-            }
+            });
 
-            return resolvedValue;
-        });
+            cachedValue.forEach(item => {
+                if (!item) return;
+                const docId = getItemDocId(item);
+                if (!docId) return;
+
+                if (!newMap.has(docId)) {
+                    const targetRef = db.collection(collectionPath).doc(docId);
+                    batch.delete(targetRef);
+                    opCount++;
+                }
+            });
+
+            if (opCount > 0) {
+                batch.commit().catch(err => {
+                    console.error(`Failed to commit scalability changes batch for ${boundCollectionKey}:`, err);
+                    handleFirestoreError(err, 'write', collectionPath);
+                });
+            }
+        } else {
+            // Fallback traditional single document write
+            docRef.set(sanitizedValue)
+                .catch(err => {
+                    console.error(`Failed to write ${boundCollectionKey} to Firestore:`, err);
+                    handleFirestoreError(err, 'write', pathSegments.join('/'));
+                });
+        }
     }, [branchId, collectionKey]);
 
     return [value, setAndSyncValue, isLoading];
