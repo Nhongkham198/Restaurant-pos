@@ -1203,7 +1203,9 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                                 </span>
                             )}
                         </div>
-                        <p className="text-xs text-gray-400 pl-1">{t('คุณ')}{customerName}</p>
+                        <div className="flex items-center gap-1.5 pl-1">
+                            <p className="text-xs text-gray-400">{t('คุณ')}{customerName}</p>
+                        </div>
                         <button 
                             onClick={handleChangePeopleCount}
                             className="mt-1 flex items-center gap-1.5 text-[10px] font-bold text-gray-500 bg-white border border-gray-100 px-2 py-0.5 rounded-full hover:bg-gray-50 transition-colors"

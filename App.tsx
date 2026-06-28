@@ -93,6 +93,8 @@ import 'firebase/compat/firestore';
 import { isFirebaseConfigured, db, messaging } from './firebaseConfig';
 import { requestNotificationPermission } from './src/services/fcmService';
 import { onMessage } from 'firebase/messaging';
+import { sendLineMessage } from './src/services/lineService';
+import { sendTelegramMessage } from './src/services/telegramService';
 
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
@@ -1782,7 +1784,50 @@ export const App: React.FC = () => {
                         allBranchOrders={activeOrders}
                         completedOrders={completedOrders}
                         onPlaceOrder={(items, name, count, slipUrl, phone, lat, lng, nearby) => handlePlaceOrder(items, name, count, customerTable, false, undefined, undefined, slipUrl, phone, lat, lng, nearby)}
-                        onStaffCall={(table, custName, msg) => setStaffCalls(prev => [...prev, {id: Date.now(), tableId: table.id, tableName: `${table.name} (${table.floor})`, customerName: custName, message: msg, branchId: selectedBranch ? selectedBranch.id : Number(branchId || 0), timestamp: Date.now()}])}
+                        onStaffCall={(table, custName, msg) => {
+                            const now = Date.now();
+                            const currentBranchId = selectedBranch ? selectedBranch.id : Number(branchId || 0);
+                            const tableNameWithFloor = `${table.name} (${table.floor})`;
+                            
+                            // 1. Save to local/Firestore staffCalls state
+                            setStaffCalls(prev => [...prev, {
+                                id: now, 
+                                tableId: table.id, 
+                                tableName: tableNameWithFloor, 
+                                customerName: custName, 
+                                message: msg, 
+                                branchId: currentBranchId, 
+                                timestamp: now
+                            }]);
+
+                            // 2. Client-side fallback send notifications to Telegram for this branch
+                            try {
+                                if (telegramBotToken && telegramChatId) {
+                                    const timeStr = new Date(now).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                                    const messageText = `<b>🙋 ลูกค้าเรียกพนักงาน!</b>\n` +
+                                                        `📍 โต๊ะ: ${tableNameWithFloor}\n` +
+                                                        `👤 ลูกค้า: ${custName}\n` +
+                                                        `🕒 เวลา: ${timeStr}` +
+                                                        (msg ? `\n💬 ข้อความเพิ่มเติม: <b>${msg}</b>` : '');
+                                    sendTelegramMessage({ botToken: telegramBotToken, chatId: telegramChatId }, messageText).catch(console.error);
+                                }
+                            } catch (e) {
+                                console.error('Error sending staff call Telegram notification:', e);
+                            }
+
+                            // 3. Client-side fallback send notifications to LINE for this branch
+                            try {
+                                if (lineMessagingToken && lineUserId) {
+                                    const text = `🔔 ลูกค้าเรียกพนักงาน!\nโต๊ะ: ${tableNameWithFloor}\nคุณ: ${custName}` + (msg ? `\nข้อความเพิ่มเติม: ${msg}` : '\nต้องการความช่วยเหลือ');
+                                    sendLineMessage({ messagingToken: lineMessagingToken, userId: lineUserId }, text).catch(console.error);
+                                } else if (lineNotifyToken) {
+                                    const text = `🔔 ลูกค้าเรียกพนักงาน!\nโต๊ะ: ${tableNameWithFloor}\nคุณ: ${custName}` + (msg ? `\nข้อความเพิ่มเติม: ${msg}` : '\nต้องการความช่วยเหลือ');
+                                    sendLineMessage({ notifyToken: lineNotifyToken }, text).catch(console.error);
+                                }
+                            } catch (e) {
+                                console.error('Error sending staff call LINE notification:', e);
+                            }
+                        }}
                         recommendedMenuItemIds={recommendedMenuItemIds}
                         logoUrl={appLogoUrl || logoUrl}
                         qrCodeUrl={qrCodeUrl}
