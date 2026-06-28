@@ -1942,7 +1942,7 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                                                 <th className="px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-wider min-w-[180px] sticky left-0 bg-gray-50/90 backdrop-blur-sm z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">สินค้า</th>
                                                                 <th className="px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-wider text-center min-w-[100px]">สั่งโดย</th>
                                                                 <th className="px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-wider text-center min-w-[100px]">จำนวนที่สั่ง</th>
-                                                                <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider text-center min-w-[220px]">ระบุจำนวนที่ได้รับ</th>
+                                                                <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider text-center min-w-[280px]">ระบุจำนวนที่ได้รับ</th>
                                                             </tr>
                                                         </thead>
                                                         <tbody className="divide-y divide-gray-100">
@@ -1992,49 +1992,155 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                                                                     {item.orderedQuantity || item.lastOrderedQuantity || 0}
                                                                                 </span>
                                                                             </td>
-                                                                            <td className="px-4 py-2 font-medium min-w-[220px]">
-                                                                                <div className="w-full max-w-[200px] mx-auto relative">
-                                                                                    {isVerifiedToday && !isEditingThisItem && (
-                                                                                        <div className="absolute -top-2.5 -left-2.5 z-20">
-                                                                                            {isReceivedComplete ? (
-                                                                                                <div className="bg-green-500 text-white rounded-full p-1 shadow-lg ring-2 ring-white">
-                                                                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
-                                                                                                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                                                                                    </svg>
-                                                                                                </div>
-                                                                                            ) : (
-                                                                                                <div className="bg-red-500 text-white rounded-full p-1 shadow-lg ring-2 ring-white">
-                                                                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
-                                                                                                        <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                                                                                                    </svg>
+                                                                            <td className="px-4 py-2 font-medium min-w-[280px]">
+                                                                                <div className="w-full max-w-[280px] mx-auto">
+                                                                                    <div className="flex items-center gap-2 relative">
+                                                                                        <div className="relative flex-1">
+                                                                                            {isVerifiedToday && !isEditingThisItem && (
+                                                                                                <div className="absolute -top-2.5 -left-2.5 z-20">
+                                                                                                    {isReceivedComplete ? (
+                                                                                                        <div className="bg-green-500 text-white rounded-full p-1 shadow-lg ring-2 ring-white">
+                                                                                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                                                                                                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                                                                                            </svg>
+                                                                                                        </div>
+                                                                                                    ) : (
+                                                                                                        <div className="bg-red-500 text-white rounded-full p-1 shadow-lg ring-2 ring-white">
+                                                                                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                                                                                                                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                                                                                                            </svg>
+                                                                                                        </div>
+                                                                                                    )}
                                                                                                 </div>
                                                                                             )}
+                                                                                            
+                                                                                            <input 
+                                                                                                type="number"
+                                                                                                id={`bulk-qty-${item.id}`}
+                                                                                                step="0.01"
+                                                                                                className={`w-full px-3 py-2.5 border border-gray-300 rounded-xl text-center font-black outline-none transition-all placeholder:text-gray-300 placeholder:font-normal text-xl [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
+                                                                                                    isInputDisabled
+                                                                                                    ? (isReceivedComplete 
+                                                                                                        ? 'bg-green-50 text-green-700 cursor-not-allowed border-green-200' 
+                                                                                                        : 'bg-red-50 text-red-700 cursor-not-allowed border-red-200')
+                                                                                                    : 'text-orange-600 focus:ring-4 focus:ring-orange-100 focus:border-orange-500 shadow-md bg-white'
+                                                                                                }`}
+                                                                                                placeholder="0.00"
+                                                                                                value={isEditingThisItem ? (bulkEditQuantities[item.id] ?? "") : (isVerifiedToday ? (item.lastReceivedQuantity ?? 0) : undefined)}
+                                                                                                onChange={isEditingThisItem ? (e) => setBulkEditQuantities(prev => ({...prev, [item.id]: e.target.value})) : undefined}
+                                                                                                defaultValue={!isVerifiedToday && !isEditingThisItem ? "" : undefined}
+                                                                                                disabled={isInputDisabled}
+                                                                                            />
+                                                                                            
+                                                                                            <input 
+                                                                                                type="hidden"
+                                                                                                id={`bulk-date-${item.id}`}
+                                                                                                defaultValue={new Date().toISOString().split('T')[0]}
+                                                                                            />
                                                                                         </div>
-                                                                                    )}
-                                                                                    
-                                                                                    <input 
-                                                                                        type="number"
-                                                                                        id={`bulk-qty-${item.id}`}
-                                                                                        step="0.01"
-                                                                                        className={`w-full px-3 py-2.5 border border-gray-300 rounded-xl text-center font-black outline-none transition-all placeholder:text-gray-300 placeholder:font-normal text-xl [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
-                                                                                            isInputDisabled
-                                                                                            ? (isReceivedComplete 
-                                                                                                ? 'bg-green-50 text-green-700 cursor-not-allowed border-green-200' 
-                                                                                                : 'bg-red-50 text-red-700 cursor-not-allowed border-red-200')
-                                                                                            : 'text-orange-600 focus:ring-4 focus:ring-orange-100 focus:border-orange-500 shadow-md bg-white'
-                                                                                        }`}
-                                                                                        placeholder="0.00"
-                                                                                        value={isEditingThisItem ? (bulkEditQuantities[item.id] ?? "") : (isVerifiedToday ? (item.lastReceivedQuantity ?? 0) : undefined)}
-                                                                                        onChange={isEditingThisItem ? (e) => setBulkEditQuantities(prev => ({...prev, [item.id]: e.target.value})) : undefined}
-                                                                                        defaultValue={!isVerifiedToday && !isEditingThisItem ? "" : undefined}
-                                                                                        disabled={isInputDisabled}
-                                                                                    />
-                                                                                    
-                                                                                    <input 
-                                                                                        type="hidden"
-                                                                                        id={`bulk-date-${item.id}`}
-                                                                                        defaultValue={new Date().toISOString().split('T')[0]}
-                                                                                    />
+
+                                                                                        {!isVerifiedToday && !isEditingThisItem && (
+                                                                                            <button
+                                                                                                type="button"
+                                                                                                onClick={async () => {
+                                                                                                    const qtyInput = document.getElementById(`bulk-qty-${item.id}`) as HTMLInputElement;
+                                                                                                    if (!qtyInput || !qtyInput.value || isNaN(Number(qtyInput.value)) || Number(qtyInput.value) <= 0) {
+                                                                                                        Swal.fire('คำเตือน', 'กรุณาระบุจำนวนสินค้าที่ได้รับให้ถูกต้อง (มากกว่า 0)', 'warning');
+                                                                                                        return;
+                                                                                                    }
+                                                                                                    
+                                                                                                    const receivedQty = Number(qtyInput.value);
+                                                                                                    const currentQty = Number(item.quantity || 0);
+                                                                                                    const newCombinedQty = currentQty + receivedQty;
+                                                                                                    const now = Date.now();
+                                                                                                    const activeUsername = currentUser?.username || 'Unknown Staff';
+
+                                                                                                    const itemConfirm = await Swal.fire({
+                                                                                                        title: `บันทึกรับของ "${item.name}"`,
+                                                                                                        html: `
+                                                                                                            <div class="text-left space-y-2.5 p-2 text-sm text-gray-700 font-sans">
+                                                                                                                ${item.imageUrl ? `
+                                                                                                                <div class="flex justify-center mb-3">
+                                                                                                                    <img src="${item.imageUrl}" class="w-20 h-20 object-cover rounded-xl border border-gray-100 shadow-xs" referrerPolicy="no-referrer" />
+                                                                                                                </div>
+                                                                                                                ` : ''}
+                                                                                                                <div class="flex justify-between border-b pb-1.5">
+                                                                                                                    <span class="font-medium">ชื่อวัตถุดิบ:</span>
+                                                                                                                    <span class="font-bold text-gray-900">${item.name}</span>
+                                                                                                                </div>
+                                                                                                                <div class="flex justify-between border-b pb-1.5 bg-blue-50/50 p-1.5 rounded-lg">
+                                                                                                                    <span class="font-bold text-blue-800">จำนวนคงเหลือเดิมในโปรแกรม:</span>
+                                                                                                                    <span class="font-extrabold text-blue-700">${currentQty} ${item.unit}</span>
+                                                                                                                </div>
+                                                                                                                <div class="flex justify-between border-b pb-1.5 bg-orange-50/50 p-1.5 rounded-lg">
+                                                                                                                    <span class="font-bold text-orange-800">จำนวนที่ระบุรับเข้าครั้งนี้:</span>
+                                                                                                                    <span class="font-extrabold text-orange-700">${receivedQty} ${item.unit}</span>
+                                                                                                                </div>
+                                                                                                                <div class="flex justify-between text-xs text-gray-500 mt-2 bg-green-50/30 p-1.5 rounded-lg border border-dashed border-green-200">
+                                                                                                                    <span class="font-semibold text-green-800">ถ้านับรวม ยอดสต็อกใหม่จะเป็น:</span>
+                                                                                                                    <span class="font-black text-green-700">${newCombinedQty} ${item.unit}</span>
+                                                                                                                </div>
+                                                                                                                <div class="mt-4 font-bold text-center text-gray-900 text-base">
+                                                                                                                    ต้องการนำจำนวนที่รับเข้าใหม่นี้ รวมเข้ากับยอดคงเหลือในโปรแกรมเดิมหรือไม่?
+                                                                                                                </div>
+                                                                                                            </div>
+                                                                                                        `,
+                                                                                                        icon: 'question',
+                                                                                                        showCancelButton: true,
+                                                                                                        showDenyButton: true,
+                                                                                                        confirmButtonColor: '#16a34a',
+                                                                                                        denyButtonColor: '#ea580c',
+                                                                                                        cancelButtonColor: '#94a3b8',
+                                                                                                        confirmButtonText: '✓ นับรวม (บวกเพิ่มสต็อก)',
+                                                                                                        denyButtonText: '✗ ไม่นับรวม (บันทึกเฉพาะจำนวนรับ)',
+                                                                                                        cancelButtonText: 'ยกเลิก'
+                                                                                                    });
+
+                                                                                                    if (itemConfirm.isDismissed && itemConfirm.dismiss === Swal.DismissReason.cancel) {
+                                                                                                        return; // Abort
+                                                                                                    }
+
+                                                                                                    const shouldCombine = itemConfirm.isConfirmed;
+                                                                                                    const currentStockQty = Number(item.quantity || 0);
+                                                                                                    const addedQty = shouldCombine ? receivedQty : 0;
+
+                                                                                                    setStockItems(prev => {
+                                                                                                        return prev.map(i => {
+                                                                                                            if (i.id === item.id) {
+                                                                                                                return {
+                                                                                                                    ...i,
+                                                                                                                    quantity: currentStockQty + addedQty,
+                                                                                                                    receivedDate: now,
+                                                                                                                    lastReceivedQuantity: receivedQty,
+                                                                                                                    lastOrderedQuantity: Number(i.orderedQuantity) || 0,
+                                                                                                                    orderedQuantity: Math.max(0, (Number(i.orderedQuantity) || 0) - receivedQty),
+                                                                                                                    lastUpdated: now,
+                                                                                                                    lastUpdatedBy: activeUsername
+                                                                                                                };
+                                                                                                            }
+                                                                                                            return i;
+                                                                                                        });
+                                                                                                    });
+
+                                                                                                    addLog(item, 'receive', `รับสินค้าเข้า: ${receivedQty} ${item.unit} (รวมยอด: ${shouldCombine ? 'ใช่' : 'ไม่'}) โดย ${activeUsername}`);
+
+                                                                                                    Swal.fire({
+                                                                                                        title: 'สำเร็จ!',
+                                                                                                        text: `บันทึกรายการรับสินค้า "${item.name}" เรียบร้อยแล้ว`,
+                                                                                                        icon: 'success',
+                                                                                                        timer: 2000,
+                                                                                                        showConfirmButton: false
+                                                                                                    });
+                                                                                                }}
+                                                                                                className="px-4 py-2.5 bg-orange-600 hover:bg-orange-700 text-white font-bold rounded-xl shadow-md shadow-orange-100 transition-all active:scale-95 text-xs whitespace-nowrap cursor-pointer flex items-center justify-center gap-1 self-stretch"
+                                                                                            >
+                                                                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                                                                                </svg>
+                                                                                                บันทึก
+                                                                                            </button>
+                                                                                        )}
+                                                                                    </div>
                                                                                     
                                                                                     {isEditingThisItem && (
                                                                                         <div className="mt-2 flex gap-1.5 w-full">
@@ -2224,170 +2330,8 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                 onClick={() => setIsBulkReceiveOpen(false)}
                                 className="px-6 py-2.5 bg-white border border-gray-200 text-gray-700 font-bold rounded-xl hover:bg-gray-50 transition-all active:scale-95"
                             >
-                                ยกเลิก
+                                ปิดหน้าต่าง
                             </button>
-                            {stockItems.filter(item => (Number(item.orderedQuantity) || 0) > 0).length > 0 && (
-                                <button 
-                                    onClick={async () => {
-                                        const itemsToUpdate = stockItems.filter(item => (Number(item.orderedQuantity) || 0) > 0);
-                                        const results: any[] = [];
-                                        
-                                        itemsToUpdate.forEach(item => {
-                                            const qtyInput = document.getElementById(`bulk-qty-${item.id}`) as HTMLInputElement;
-                                            const dateInput = document.getElementById(`bulk-date-${item.id}`) as HTMLInputElement;
-                                            
-                                            if (qtyInput && dateInput && qtyInput.value) {
-                                                results.push({
-                                                    item,
-                                                    qty: Number(qtyInput.value),
-                                                    date: dateInput.value
-                                                });
-                                            }
-                                        });
-
-                                        if (results.length === 0) {
-                                            Swal.fire('คำเตือน', 'กรุณาระบุจำนวนสินค้าที่ได้รับ', 'warning');
-                                            // TEST_MARKER_SUCCESS
-                                            // LINE_MARK_1
-                                            return;
-                                        }
-
-                                        const now = Date.now();
-                                        const activeUsername = currentUser?.username || 'Unknown Staff';
-                                        const finalUpdates: { res: any; shouldCombine: boolean }[] = [];
-                                        for (let i = 0; i < results.length; i++) {
-                                            const res = results[i];
-                                            const item = res.item;
-                                            const currentQty = Number(item.quantity || 0);
-                                            const receivedQty = Number(res.qty || 0);
-                                            const newCombinedQty = currentQty + receivedQty;
-
-                                            const itemConfirm = await Swal.fire({
-                                                title: `บันทึกรับของ (${i + 1}/${results.length})`,
-                                                html: `
-                                                    <div class="text-left space-y-2.5 p-2 text-sm text-gray-700 font-sans">
-                                                        ${item.imageUrl ? `
-                                                        <div class="flex justify-center mb-3">
-                                                            <img src="${item.imageUrl}" class="w-20 h-20 object-cover rounded-xl border border-gray-100 shadow-xs" referrerPolicy="no-referrer" />
-                                                        </div>
-                                                        ` : ''}
-                                                        <div class="flex justify-between border-b pb-1.5">
-                                                            <span class="font-medium">ชื่อวัตถุดิบ:</span>
-                                                            <span class="font-bold text-gray-900">${item.name}</span>
-                                                        </div>
-                                                        <div class="flex justify-between border-b pb-1.5 bg-blue-50/50 p-1.5 rounded-lg">
-                                                            <span class="font-bold text-blue-800">จำนวนคงเหลือเดิมในโปรแกรม:</span>
-                                                            <span class="font-extrabold text-blue-700">${currentQty} ${item.unit}</span>
-                                                        </div>
-                                                        <div class="flex justify-between border-b pb-1.5 bg-orange-50/50 p-1.5 rounded-lg">
-                                                            <span class="font-bold text-orange-800">จำนวนที่ระบุรับเข้าครั้งนี้:</span>
-                                                            <span class="font-extrabold text-orange-700">${receivedQty} ${item.unit}</span>
-                                                        </div>
-                                                        <div class="flex justify-between text-xs text-gray-500 mt-2 bg-green-50/30 p-1.5 rounded-lg border border-dashed border-green-200">
-                                                            <span class="font-semibold text-green-800">ถ้านับรวม ยอดสต็อกใหม่จะเป็น:</span>
-                                                            <span class="font-black text-green-700">${newCombinedQty} ${item.unit}</span>
-                                                        </div>
-                                                        <div class="mt-4 font-bold text-center text-gray-900 text-base">
-                                                            ต้องการนำจำนวนที่รับเข้าใหม่นี้ รวมเข้ากับยอดคงเหลือในโปรแกรมเดิมหรือไม่?
-                                                        </div>
-                                                    </div>
-                                                `,
-                                                icon: 'question',
-                                                showCancelButton: true,
-                                                showDenyButton: true,
-                                                confirmButtonColor: '#16a34a',
-                                                denyButtonColor: '#ea580c',
-                                                cancelButtonColor: '#94a3b8',
-                                                confirmButtonText: '✓ นับรวม (บวกเพิ่มสต็อก)',
-                                                denyButtonText: '✗ ไม่นับรวม (บันทึกเฉพาะจำนวนรับ)',
-                                                cancelButtonText: 'ยกเลิกทั้งหมด'
-                                            });
-
-                                            if (itemConfirm.isDismissed && itemConfirm.dismiss === Swal.DismissReason.cancel) {
-                                                return; // Abort entire process
-                                            }
-
-                                            finalUpdates.push({
-                                                res,
-                                                shouldCombine: itemConfirm.isConfirmed
-                                            });
-                                        }
-
-                                        // Apply updates
-                                        setStockItems(prev => {
-                                            let nextItems = [...prev];
-                                            for (const update of finalUpdates) {
-                                                const res = update.res;
-                                                const currentStockQty = Number(res.item.quantity || 0);
-                                                const addedQty = update.shouldCombine ? res.qty : 0;
-                                                
-                                                const updatedItem = {
-                                                    ...res.item,
-                                                    quantity: currentStockQty + addedQty,
-                                                    receivedDate: new Date(res.date).getTime(),
-                                                    lastReceivedQuantity: Number(res.qty),
-                                                    lastOrderedQuantity: Number(res.item.orderedQuantity) || 0,
-                                                    orderedQuantity: Math.max(0, (Number(res.item.orderedQuantity) || 0) - res.qty),
-                                                    lastUpdated: now,
-                                                    lastUpdatedBy: activeUsername
-                                                };
-                                                nextItems = nextItems.map(i => i.id === res.item.id ? updatedItem : i);
-                                                addLog(res.item, 'receive', `รับสินค้าเข้าแบบกลุ่ม: ${res.qty} ${res.item.unit} (รวมยอด: ${update.shouldCombine ? 'ใช่' : 'ไม่'}) โดย ${activeUsername}`);
-                                            }
-                                            return nextItems;
-                                        });
-
-                                        Swal.fire({
-                                            title: 'สำเร็จ!',
-                                            text: `บันทึกรายการรับสินค้า ${results.length} รายการเรียบร้อยแล้ว`,
-                                            icon: 'success',
-                                            timer: 2000,
-                                            showConfirmButton: false
-                                        });
-                                        setIsBulkReceiveOpen(false);
-                                        /* if (false) {
-
-                                        if (confirmed.isConfirmed) {
-                                            const now = Date.now();
-                                            const activeUsername = currentUser?.username || 'Unknown Staff';
-                                            
-                                            setStockItems(prev => {
-                                                let nextItems = [...prev];
-                                                for (const res of results) {
-                                                    const updatedItem = {
-                                                        ...res.item,
-                                                        quantity: res.item.quantity + res.qty,
-                                                        receivedDate: new Date(res.date).getTime(),
-                                                        lastReceivedQuantity: Number(res.qty),
-                                                        lastOrderedQuantity: Number(res.item.orderedQuantity) || 0,
-                                                        orderedQuantity: Math.max(0, (Number(res.item.orderedQuantity) || 0) - res.qty),
-                                                        lastUpdated: now,
-                                                        lastUpdatedBy: activeUsername
-                                                    };
-                                                    nextItems = nextItems.map(i => i.id === res.item.id ? updatedItem : i);
-                                                    addLog(res.item, 'receive', `รับสินค้าเข้าแบบกลุ่ม: ${res.qty} ${res.item.unit} (รวมยอด: ใช่) โดย ${activeUsername}`);
-                                                }
-                                                return nextItems;
-                                            });
-
-                                            Swal.fire({
-                                                title: 'สำเร็จ!',
-                                                text: `บันทึกรายการรับสินค้า ${results.length} รายการเรียบร้อยแล้ว`,
-                                                icon: 'success',
-                                                timer: 2000,
-                                                showConfirmButton: false
-                                            });
-                                            setIsBulkReceiveOpen(false);
-                                        } */
-                                    }}
-                                    className="px-8 py-2.5 bg-orange-600 text-white font-bold rounded-xl hover:bg-orange-700 shadow-lg shadow-orange-200 transition-all active:scale-95 flex items-center gap-2"
-                                >
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                    </svg>
-                                    บันทึกทั้งหมด
-                                </button>
-                            )}
                         </div>
                     </div>
                 </div>
