@@ -1136,7 +1136,7 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
 
                                         {deliveryProfits.length > 0 && (
                                             <div className="pt-2 border-t border-gray-200 space-y-2">
-                                                <p className="text-xs font-bold text-gray-500 uppercase">Delivery Profit (หักค่าโฆษณาแล้ว)</p>
+                                                <p className="text-xs font-bold text-gray-500 uppercase">Delivery Profit</p>
                                                 {deliveryProfits.map(dp => (
                                                     <div 
                                                         key={dp.providerId} 
