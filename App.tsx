@@ -2361,6 +2361,7 @@ export const App: React.FC = () => {
                     currentQrPopupEnabled={qrPopupEnabled}
                     currentQrPopupImageUrl={qrPopupImageUrl}
                     currentQrPopupMessage={qrPopupMessage}
+                    branches={branches}
                 />
             </Suspense>
 

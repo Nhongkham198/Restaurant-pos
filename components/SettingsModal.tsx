@@ -71,6 +71,7 @@ interface SettingsModalProps {
     currentQrPopupEnabled: boolean;
     currentQrPopupImageUrl: string | null;
     currentQrPopupMessage: string;
+    branches: any[];
 }
 
 const DEFAULT_RECEIPT_OPTIONS: ReceiptPrintSettings = {
@@ -110,9 +111,169 @@ const StatusIndicator: React.FC<{ status: PrinterStatus; label: string }> = ({ s
 };
 
 export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
-    const [activeTab, setActiveTab] = useState<'general' | 'printer' | 'menu' | 'delivery' | 'integrations'>('general');
+    const [activeTab, setActiveTab] = useState<'general' | 'printer' | 'menu' | 'delivery' | 'integrations' | 'database'>('general');
     
     // State initialization
+    const [storageUsage, setStorageUsage] = useState<Record<string, any> | null>(() => {
+        try {
+            const cached = localStorage.getItem('cached_db_storage_usage');
+            return cached ? JSON.parse(cached) : null;
+        } catch {
+            return null;
+        }
+    });
+    const [isCalculatingStorage, setIsCalculatingStorage] = useState(false);
+    const [calculationProgressBranch, setCalculationProgressBranch] = useState<string>('');
+    const [selectedDetailBranchId, setSelectedDetailBranchId] = useState<string>('');
+
+    useEffect(() => {
+        if (storageUsage && !selectedDetailBranchId) {
+            const firstBranchId = Object.keys(storageUsage)[0];
+            if (firstBranchId) {
+                setSelectedDetailBranchId(firstBranchId);
+            }
+        }
+    }, [storageUsage, selectedDetailBranchId]);
+
+    const formatBytes = (bytes: number) => {
+        if (bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    };
+
+    const handleCalculateStorage = async () => {
+        setIsCalculatingStorage(true);
+        try {
+            const branchesToUse = props.branches || [];
+            if (branchesToUse.length === 0) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'ไม่พบข้อมูลสาขา',
+                    text: 'ระบบไม่สามารถดึงข้อมูลสาขาเพื่อคำนวณพื้นที่จัดเก็บได้'
+                });
+                return;
+            }
+
+            const usageData: Record<string, {
+                branchName: string;
+                totalSize: number;
+                totalDocs: number;
+                collections: Array<{
+                    key: string;
+                    label: string;
+                    docCount: number;
+                    estimatedSize: number;
+                }>
+            }> = {};
+
+            const collectionsToMeasure = [
+                { key: 'tables', label: 'ผังโต๊ะอาหาร' },
+                { key: 'menuItems', label: 'รายการเมนูอาหาร' },
+                { key: 'recipes', label: 'สูตรอาหาร/ส่วนผสม' },
+                { key: 'stockItems', label: 'วัตถุดิบ/สต็อกสินค้า' },
+                { key: 'stockLogs', label: 'บันทึกการปรับสต็อก' },
+                { key: 'printHistory', label: 'ประวัติการพิมพ์ใบเสร็จ' },
+                { key: 'timeRecords', label: 'บันทึกเวลาเข้า-ออกงาน' },
+                { key: 'payrollRecords', label: 'บันทึกการจ่ายเงินเดือน' },
+                { key: 'stockTags', label: 'แท็กระบุประเภทวัตถุดิบ' },
+                { key: 'maintenanceItems', label: 'รายการซ่อมบำรุง' },
+                { key: 'closingChecklistItems', label: 'รายการเช็คลิสต์ปิดร้าน' },
+                { key: 'closingChecklistLog', label: 'บันทึกการเช็คลิสต์ปิดร้าน' },
+                { key: 'activeOrders', label: 'ออเดอร์ที่กำลังดำเนินอยู่' },
+                { key: 'preOrders', label: 'ออเดอร์จองล่วงหน้า' },
+                { key: 'completedOrders_v2', label: 'ออเดอร์ที่เสร็จสิ้นแล้ว' },
+                { key: 'cancelledOrders_v2', label: 'ออเดอร์ที่ยกเลิกแล้ว' },
+                { key: 'deliveryPriceHistory', label: 'ประวัติการปรับราคาค่าส่ง' }
+            ];
+
+            for (let i = 0; i < branchesToUse.length; i++) {
+                const branch = branchesToUse[i];
+                const branchIdStr = branch.id.toString();
+                setCalculationProgressBranch(branch.name);
+
+                let branchTotalSize = 0;
+                let branchTotalDocs = 0;
+                const measuredCollections: any[] = [];
+
+                const fetchPromises = collectionsToMeasure.map(async (col) => {
+                    try {
+                        const snap = await db.collection(`branches/${branchIdStr}/${col.key}`).get();
+                        let colSize = 0;
+                        const colDocs = snap.size || 0;
+
+                        snap.docs.forEach((doc: any) => {
+                            const data = doc.data();
+                            const docStr = JSON.stringify(data);
+                            colSize += (docStr.length + 100);
+                        });
+
+                        return {
+                            key: col.key,
+                            label: col.label,
+                            docCount: colDocs,
+                            estimatedSize: colSize
+                        };
+                    } catch (err) {
+                        console.error(`Error calculating storage for ${col.key} in branch ${branchIdStr}:`, err);
+                        return {
+                            key: col.key,
+                            label: col.label,
+                            docCount: 0,
+                            estimatedSize: 0
+                        };
+                    }
+                });
+
+                const results = await Promise.all(fetchPromises);
+
+                results.forEach(res => {
+                    branchTotalSize += res.estimatedSize;
+                    branchTotalDocs += res.docCount;
+                    measuredCollections.push(res);
+                });
+
+                measuredCollections.sort((a, b) => b.estimatedSize - a.estimatedSize);
+
+                usageData[branchIdStr] = {
+                    branchName: branch.name,
+                    totalSize: branchTotalSize,
+                    totalDocs: branchTotalDocs,
+                    collections: measuredCollections
+                };
+            }
+
+            setStorageUsage(usageData);
+            localStorage.setItem('cached_db_storage_usage', JSON.stringify(usageData));
+            localStorage.setItem('cached_db_storage_usage_time', Date.now().toString());
+
+            const firstBranchId = Object.keys(usageData)[0];
+            if (firstBranchId) {
+                setSelectedDetailBranchId(firstBranchId);
+            }
+
+            Swal.fire({
+                toast: true,
+                position: 'top-end',
+                icon: 'success',
+                title: 'คำนวณการใช้หน่วยความจำเสร็จสมบูรณ์',
+                showConfirmButton: false,
+                timer: 2000
+            });
+        } catch (error) {
+            console.error("Error calculating storage usage:", error);
+            Swal.fire({
+                icon: 'error',
+                title: 'เกิดข้อผิดพลาด',
+                text: 'ไม่สามารถคำนวณการใช้หน่วยความจำฐานข้อมูลได้'
+            });
+        } finally {
+            setIsCalculatingStorage(false);
+            setCalculationProgressBranch('');
+        }
+    };
+
     const [settingsForm, setSettingsForm] = useState({
         logoUrl: props.currentLogoUrl,
         appLogoUrl: props.currentAppLogoUrl,
@@ -921,12 +1082,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
                     </button>
                 </div>
 
-                <div className="flex border-b bg-white">
-                    {['general', 'printer', 'menu', 'delivery', 'integrations'].map(tab => (
+                <div className="flex border-b bg-white overflow-x-auto scrollbar-hide">
+                    {['general', 'printer', 'menu', 'delivery', 'integrations', 'database'].map(tab => (
                         <button
                             key={tab}
                             onClick={() => setActiveTab(tab as any)}
-                            className={`px-6 py-3 font-semibold text-sm transition-colors border-b-2 ${
+                            className={`px-6 py-3 font-semibold text-sm transition-colors border-b-2 whitespace-nowrap ${
                                 activeTab === tab ? 'border-blue-600 text-blue-600 bg-blue-50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'
                             }`}
                         >
@@ -935,6 +1096,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
                             {tab === 'menu' && 'เมนูแนะนำ'}
                             {tab === 'delivery' && 'Delivery'}
                             {tab === 'integrations' && 'การเชื่อมต่อ'}
+                            {tab === 'database' && 'ความจำฐานข้อมูล 💾'}
                         </button>
                     ))}
                 </div>
@@ -1569,6 +1731,262 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
                                     </div>
                                 </div>
                             </div>
+                        </div>
+                    )}
+
+                    {activeTab === 'database' && (
+                        <div className="space-y-6 max-w-4xl mx-auto">
+                            {/* Header Intro Card */}
+                            <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-3 bg-blue-50 text-blue-600 rounded-lg">
+                                        <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <h3 className="text-xl font-bold text-gray-800">หน่วยความจำและการใช้งานฐานข้อมูล (Firestore Storage)</h3>
+                                        <p className="text-sm text-gray-500">
+                                            คำนวณและวิเคราะห์ขนาดพื้นที่จัดเก็บข้อมูลของแต่ละสาขา โดยไม่คำนวณประวัติการเรียกพนักงาน
+                                        </p>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={handleCalculateStorage}
+                                    disabled={isCalculatingStorage}
+                                    className={`px-5 py-2.5 rounded-lg text-sm font-semibold flex items-center gap-2 shadow-sm transition-all ${
+                                        isCalculatingStorage 
+                                        ? 'bg-blue-100 text-blue-400 cursor-not-allowed' 
+                                        : 'bg-blue-600 text-white hover:bg-blue-700'
+                                    }`}
+                                >
+                                    {isCalculatingStorage ? (
+                                        <>
+                                            <svg className="animate-spin h-4 w-4 text-blue-400" fill="none" viewBox="0 0 24 24">
+                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                            </svg>
+                                            กำลังประมวลผล...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 15H19" />
+                                            </svg>
+                                            คำนวณพื้นที่ความจำใหม่
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+
+                            {/* Loading State with Progress */}
+                            {isCalculatingStorage && (
+                                <div className="bg-white p-8 rounded-lg shadow-sm border border-gray-100 flex flex-col items-center justify-center text-center space-y-4">
+                                    <div className="relative flex items-center justify-center">
+                                        <div className="animate-ping absolute inline-flex h-12 w-12 rounded-full bg-blue-400 opacity-25"></div>
+                                        <div className="rounded-full bg-blue-100 p-4">
+                                            <svg className="w-8 h-8 text-blue-600 animate-spin" fill="none" viewBox="0 0 24 24">
+                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                            </svg>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <p className="font-bold text-gray-800 text-lg">กำลังรวบรวมข้อมูลเอกสารของแต่ละตาราง</p>
+                                        <p className="text-sm text-gray-500 mt-1">
+                                            กำลังคำนวณสาขา: <span className="font-semibold text-blue-600">{calculationProgressBranch || '...'}</span>
+                                        </p>
+                                    </div>
+                                    <div className="w-64 bg-gray-200 rounded-full h-2 overflow-hidden">
+                                        <div className="bg-blue-600 h-2 rounded-full animate-pulse w-3/4 mx-auto"></div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* No Cache Screen */}
+                            {!isCalculatingStorage && !storageUsage && (
+                                <div className="bg-white p-12 rounded-lg shadow-sm border border-gray-100 flex flex-col items-center justify-center text-center space-y-4">
+                                    <div className="p-4 bg-gray-50 text-gray-400 rounded-full">
+                                        <svg className="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <h4 className="text-lg font-bold text-gray-800">ยังไม่มีข้อมูลการใช้หน่วยความจำ</h4>
+                                        <p className="text-sm text-gray-500 max-w-md mx-auto mt-1">
+                                            การคำนวณพื้นที่ความจำจะสแกนจำนวนเอกสารและคำนวณไบต์ของแต่ละชุดข้อมูลแยกตามสาขาแบบเรียลไทม์
+                                        </p>
+                                    </div>
+                                    <button
+                                        onClick={handleCalculateStorage}
+                                        className="px-6 py-2.5 bg-blue-600 text-white hover:bg-blue-700 font-semibold rounded-lg shadow transition-all"
+                                    >
+                                        เริ่มประมวลผลการใช้ความจำ
+                                    </button>
+                                </div>
+                            )}
+
+                            {/* Main Storage Usage Dashboard */}
+                            {!isCalculatingStorage && storageUsage && (
+                                <div className="space-y-6">
+                                    {/* Summary Cards Row */}
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        {/* Total Size */}
+                                        <div className="bg-white p-5 rounded-lg shadow-sm border border-gray-100 flex items-center gap-4">
+                                            <div className="p-3 bg-indigo-50 text-indigo-600 rounded-lg">
+                                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                                                </svg>
+                                            </div>
+                                            <div>
+                                                <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">ขนาดฐานข้อมูลรวม</p>
+                                                <p className="text-2xl font-bold text-gray-800">
+                                                    {formatBytes(Object.values(storageUsage).reduce((acc: number, b: any) => acc + (b.totalSize || 0), 0))}
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        {/* Total Docs */}
+                                        <div className="bg-white p-5 rounded-lg shadow-sm border border-gray-100 flex items-center gap-4">
+                                            <div className="p-3 bg-teal-50 text-teal-600 rounded-lg">
+                                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                                </svg>
+                                            </div>
+                                            <div>
+                                                <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">จำนวนเอกสารรวม</p>
+                                                <p className="text-2xl font-bold text-gray-800">
+                                                    {Object.values(storageUsage).reduce((acc: number, b: any) => acc + (b.totalDocs || 0), 0).toLocaleString('th-TH')} <span className="text-sm font-normal text-gray-500">เอกสาร</span>
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        {/* Largest Branch */}
+                                        <div className="bg-white p-5 rounded-lg shadow-sm border border-gray-100 flex items-center gap-4">
+                                            <div className="p-3 bg-amber-50 text-amber-600 rounded-lg">
+                                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                                </svg>
+                                            </div>
+                                            <div>
+                                                <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">สาขาที่ข้อมูลเยอะที่สุด</p>
+                                                <p className="text-lg font-bold text-gray-800 truncate">
+                                                    {(() => {
+                                                        const sorted = Object.entries(storageUsage).sort((a: any, b: any) => b[1].totalSize - a[1].totalSize);
+                                                        return sorted[0] ? sorted[0][1].branchName : 'ไม่มีข้อมูล';
+                                                    })()}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Branch Storage Visual Comparison Chart */}
+                                    <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100 space-y-4">
+                                        <h4 className="text-md font-bold text-gray-800">📊 แผนภูมิเปรียบเทียบขนาดหน่วยความจำระหว่างสาขา</h4>
+                                        <div className="space-y-4 pt-2">
+                                            {Object.entries(storageUsage).map(([branchId, bData]: any) => {
+                                                const totalOfAll = Object.values(storageUsage).reduce((acc: number, b: any) => acc + (b.totalSize || 0), 0) || 1;
+                                                const percentageOfTotal = ((bData.totalSize / totalOfAll) * 100).toFixed(1);
+                                                
+                                                return (
+                                                    <div key={branchId} className="space-y-1.5">
+                                                        <div className="flex justify-between text-sm">
+                                                            <span className="font-semibold text-gray-700">{bData.branchName}</span>
+                                                            <div className="space-x-2 text-xs font-medium">
+                                                                <span className="text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">{percentageOfTotal}% ของทั้งหมด</span>
+                                                                <span className="text-gray-500">{formatBytes(bData.totalSize)} ({bData.totalDocs.toLocaleString('th-TH')} เอกสาร)</span>
+                                                            </div>
+                                                        </div>
+                                                        <div className="w-full bg-gray-100 rounded-full h-3 overflow-hidden">
+                                                            <div 
+                                                                className="bg-blue-600 h-3 rounded-full transition-all duration-1000"
+                                                                style={{ width: `${percentageOfTotal}%` }}
+                                                            ></div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+
+                                    {/* Detailed Collection Breakdown */}
+                                    <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100 space-y-4">
+                                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 border-b pb-4">
+                                            <div>
+                                                <h4 className="text-md font-bold text-gray-800">🔍 รายละเอียดพื้นที่จัดเก็บแต่ละตารางข้อมูล</h4>
+                                                <p className="text-xs text-gray-500 mt-0.5">เลือกสาขาด้านขวาเพื่อดูโครงสร้างหน่วยความจำแบบเจาะลึก</p>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-sm text-gray-600 font-medium">สาขา:</span>
+                                                <select
+                                                    value={selectedDetailBranchId}
+                                                    onChange={e => setSelectedDetailBranchId(e.target.value)}
+                                                    className="bg-gray-50 border border-gray-300 rounded-md shadow-sm px-3 py-1.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                >
+                                                    {Object.entries(storageUsage).map(([branchId, bData]: any) => (
+                                                        <option key={branchId} value={branchId}>{bData.branchName}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                        </div>
+
+                                        {/* Collection breakdown list */}
+                                        {selectedDetailBranchId && storageUsage[selectedDetailBranchId] && (
+                                            <div className="space-y-4 pt-2">
+                                                <div className="grid grid-cols-12 gap-2 text-xs font-bold text-gray-500 uppercase tracking-wider pb-2 border-b">
+                                                    <div className="col-span-6">ตารางข้อมูล (Collection Name)</div>
+                                                    <div className="col-span-3 text-right">จำนวนเอกสาร</div>
+                                                    <div className="col-span-3 text-right">ขนาดพื้นที่โดยประมาณ</div>
+                                                </div>
+
+                                                <div className="space-y-3 divide-y divide-gray-50 max-h-[400px] overflow-y-auto pr-2">
+                                                    {storageUsage[selectedDetailBranchId].collections.map((col: any) => {
+                                                        const branchTotal = storageUsage[selectedDetailBranchId].totalSize || 1;
+                                                        const colPercentage = ((col.estimatedSize / branchTotal) * 100).toFixed(1);
+
+                                                        return (
+                                                            <div key={col.key} className="grid grid-cols-12 gap-2 text-sm pt-3 items-center">
+                                                                <div className="col-span-6 space-y-1">
+                                                                    <div className="flex items-center gap-1.5">
+                                                                        <span className="font-semibold text-gray-800">{col.label}</span>
+                                                                        <span className="text-xs font-mono bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">
+                                                                            {col.key}
+                                                                        </span>
+                                                                    </div>
+                                                                    {/* Miniature progress bar inside table */}
+                                                                    <div className="w-full max-w-xs bg-gray-100 rounded-full h-1">
+                                                                        <div 
+                                                                            className="bg-indigo-500 h-1 rounded-full"
+                                                                            style={{ width: `${colPercentage}%` }}
+                                                                        ></div>
+                                                                    </div>
+                                                                </div>
+                                                                <div className="col-span-3 text-right font-semibold text-gray-700">
+                                                                    {col.docCount.toLocaleString('th-TH')} <span className="text-xs text-gray-400 font-normal">รายการ</span>
+                                                                </div>
+                                                                <div className="col-span-3 text-right">
+                                                                    <div className="font-bold text-gray-900">{formatBytes(col.estimatedSize)}</div>
+                                                                    <div className="text-xs text-gray-400">{colPercentage}% ของสาขา</div>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                    
+                                    {/* Exclude notice */}
+                                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-xs text-amber-800 flex items-start gap-2.5">
+                                        <svg className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                        </svg>
+                                        <div>
+                                            <span className="font-bold">ข้อมูลอ้างอิง:</span> ขนาดความจุจัดเก็บถูกวิเคราะห์เชิงพื้นที่ของวัตถุ JSON และค่าขนาด Firestore (ประมาณ +100 ไบต์ต่อเอกสารตามสเปก) เพื่อจำลองผลที่ใกล้เคียงการใช้งานจริง โดยไม่นำข้อมูล <span className="font-bold text-red-600">ประวัติการเรียกพนักงาน (staffCalls/staffMessages)</span> มาร่วมประมวลผลตามเงื่อนไขความสำคัญของคุณเรียบร้อยแล้ว
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>
