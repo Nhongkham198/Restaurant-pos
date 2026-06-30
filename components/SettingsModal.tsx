@@ -454,7 +454,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
                 const batch = db.batch();
 
                 chunk.forEach(op => {
-                    const ref = db.collection(`branches/${targetBranchId}/${op.collectionKey}`).doc(op.docId);
+                    const docIdStr = op.docId !== undefined && op.docId !== null ? String(op.docId) : undefined;
+                    const ref = docIdStr
+                        ? db.collection(`branches/${targetBranchId}/${op.collectionKey}`).doc(docIdStr)
+                        : db.collection(`branches/${targetBranchId}/${op.collectionKey}`).doc();
                     batch.set(ref, op.data);
                 });
 
