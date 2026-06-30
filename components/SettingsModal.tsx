@@ -2027,12 +2027,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
                                             {currentProcessName || 'กำลังดาวน์โหลด/อัปโหลด...'}
                                         </p>
                                     </div>
-                                    <div className="w-full max-w-md bg-gray-100 rounded-full h-4 overflow-hidden shadow-inner relative flex items-center justify-center">
+                                    <div className="w-full max-w-md bg-gray-100 rounded-full h-5 overflow-hidden shadow-inner relative flex items-center justify-center">
                                         <div 
-                                            className="bg-gradient-to-r from-indigo-500 to-blue-600 h-4 rounded-full transition-all duration-300 absolute left-0 top-0"
+                                            className="bg-gradient-to-r from-red-500 to-rose-600 h-5 rounded-full transition-all duration-300 absolute left-0 top-0"
                                             style={{ width: `${isBackingUp ? backupProgress : importProgress}%` }}
                                         ></div>
-                                        <span className="relative z-10 text-[10px] font-bold text-gray-700 drop-shadow">
+                                        <span className="relative z-10 text-xs font-extrabold text-white drop-shadow-sm">
                                             {isBackingUp ? backupProgress : importProgress}%
                                         </span>
                                     </div>
