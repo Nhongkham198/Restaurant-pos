@@ -126,6 +126,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
     const [calculationProgressBranch, setCalculationProgressBranch] = useState<string>('');
     const [selectedDetailBranchId, setSelectedDetailBranchId] = useState<string>('');
 
+    const [lastCalculatedTime, setLastCalculatedTime] = useState<string | null>(() => {
+        try {
+            return localStorage.getItem('cached_db_storage_usage_time');
+        } catch {
+            return null;
+        }
+    });
+
+    const [isBackingUp, setIsBackingUp] = useState(false);
+    const [backupProgress, setBackupProgress] = useState(0);
+    const [isImporting, setIsImporting] = useState(false);
+    const [importProgress, setImportProgress] = useState(0);
+    const [currentProcessName, setCurrentProcessName] = useState('');
+
     useEffect(() => {
         if (storageUsage && !selectedDetailBranchId) {
             const firstBranchId = Object.keys(storageUsage)[0];
@@ -246,7 +260,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
 
             setStorageUsage(usageData);
             localStorage.setItem('cached_db_storage_usage', JSON.stringify(usageData));
-            localStorage.setItem('cached_db_storage_usage_time', Date.now().toString());
+            const nowTimeStr = Date.now().toString();
+            localStorage.setItem('cached_db_storage_usage_time', nowTimeStr);
+            setLastCalculatedTime(nowTimeStr);
 
             const firstBranchId = Object.keys(usageData)[0];
             if (firstBranchId) {
@@ -271,6 +287,205 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
         } finally {
             setIsCalculatingStorage(false);
             setCalculationProgressBranch('');
+        }
+    };
+
+    const handleBackupBranch = async (branchId: string, branchName: string) => {
+        setIsBackingUp(true);
+        setBackupProgress(0);
+        setCurrentProcessName('เริ่มกระบวนการดึงข้อมูลเพื่อสำรอง...');
+        try {
+            const backupData: Record<string, any[]> = {};
+            const collectionsToBackup = [
+                { key: 'tables', label: 'ผังโต๊ะอาหาร' },
+                { key: 'menuItems', label: 'รายการเมนูอาหาร' },
+                { key: 'recipes', label: 'สูตรอาหาร/ส่วนผสม' },
+                { key: 'stockItems', label: 'วัตถุดิบ/สต็อกสินค้า' },
+                { key: 'stockLogs', label: 'บันทึกการปรับสต็อก' },
+                { key: 'printHistory', label: 'ประวัติการพิมพ์ใบเสร็จ' },
+                { key: 'timeRecords', label: 'บันทึกเวลาเข้า-ออกงาน' },
+                { key: 'payrollRecords', label: 'บันทึกการจ่ายเงินเดือน' },
+                { key: 'stockTags', label: 'แท็กระบุประเภทวัตถุดิบ' },
+                { key: 'maintenanceItems', label: 'รายการซ่อมบำรุง' },
+                { key: 'closingChecklistItems', label: 'รายการเช็คลิสต์ปิดร้าน' },
+                { key: 'closingChecklistLog', label: 'บันทึกการเช็คลิสต์ปิดร้าน' },
+                { key: 'activeOrders', label: 'ออเดอร์ที่กำลังดำเนินอยู่' },
+                { key: 'preOrders', label: 'ออเดอร์จองล่วงหน้า' },
+                { key: 'completedOrders_v2', label: 'ออเดอร์ที่เสร็จสิ้นแล้ว' },
+                { key: 'cancelledOrders_v2', label: 'ออเดอร์ที่ยกเลิกแล้ว' },
+                { key: 'deliveryPriceHistory', label: 'ประวัติการปรับราคาค่าส่ง' }
+            ];
+
+            for (let i = 0; i < collectionsToBackup.length; i++) {
+                const col = collectionsToBackup[i];
+                setCurrentProcessName(`กำลังดึงข้อมูลตาราง: ${col.label}`);
+                
+                const snap = await db.collection(`branches/${branchId}/${col.key}`).get();
+                const docs: any[] = [];
+                snap.forEach((doc: any) => {
+                    docs.push({
+                        id: doc.id,
+                        ...doc.data()
+                    });
+                });
+                backupData[col.key] = docs;
+
+                const percent = Math.round(((i + 1) / collectionsToBackup.length) * 100);
+                setBackupProgress(percent);
+            }
+
+            // Generate JSON blob and download
+            const fullBackup = {
+                backupVersion: "1.0",
+                timestamp: new Date().toISOString(),
+                branchId: branchId,
+                branchName: branchName,
+                data: backupData
+            };
+
+            const blob = new Blob([JSON.stringify(fullBackup, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `backup_${branchName.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            Swal.fire({
+                icon: 'success',
+                title: 'สำรองข้อมูลสำเร็จ',
+                text: `บันทึกข้อมูลของสาขา ${branchName} ขนาด ${formatBytes(JSON.stringify(fullBackup).length)} เรียบร้อยแล้ว`,
+                confirmButtonColor: '#2563eb'
+            });
+        } catch (error) {
+            console.error("Backup error:", error);
+            Swal.fire({
+                icon: 'error',
+                title: 'เกิดข้อผิดพลาด',
+                text: 'ไม่สามารถสำรองข้อมูลสาขาได้',
+                confirmButtonColor: '#ef4444'
+            });
+        } finally {
+            setIsBackingUp(false);
+            setBackupProgress(0);
+            setCurrentProcessName('');
+        }
+    };
+
+    const handleImportBranch = async (e: React.ChangeEvent<HTMLInputElement>, targetBranchId: string, targetBranchName: string) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        // Reset file input value so same file can be selected again
+        e.target.value = '';
+
+        try {
+            const text = await file.text();
+            const backup = JSON.parse(text);
+
+            if (!backup.backupVersion || !backup.data) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'ไฟล์ไม่ถูกต้อง',
+                    text: 'โครงสร้างไฟล์สำรองข้อมูลไม่ถูกต้อง กรุณาเลือกไฟล์สำรองข้อมูล JSON ที่ถูกต้อง',
+                    confirmButtonColor: '#ef4444'
+                });
+                return;
+            }
+
+            const confirmResult = await Swal.fire({
+                title: 'ยืนยันการนำเข้าข้อมูล?',
+                html: `คุณกำลังจะนำเข้าข้อมูลสำรองไปยังสาขา <strong>${targetBranchName}</strong><br/><br/>
+                       <span class="text-sm text-red-600 font-semibold">⚠️ คำเตือน: เอกสารเก่าที่มี ID ตรงกันในฐานข้อมูลสาขาปลายทางจะถูกเขียนทับทันที</span>`,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#ef4444',
+                cancelButtonColor: '#d33',
+                confirmButtonText: 'ยืนยันการนำเข้า',
+                cancelButtonText: 'ยกเลิก'
+            });
+
+            if (!confirmResult.isConfirmed) return;
+
+            setIsImporting(true);
+            setImportProgress(0);
+            setCurrentProcessName('กำลังเตรียมนำเข้าข้อมูล...');
+
+            // Build flat operations list
+            const operations: Array<{
+                collectionKey: string;
+                docId: string;
+                data: any;
+            }> = [];
+
+            Object.entries(backup.data).forEach(([colKey, docs]: any) => {
+                if (Array.isArray(docs)) {
+                    docs.forEach((doc: any) => {
+                        const { id, ...data } = doc;
+                        operations.push({
+                            collectionKey: colKey,
+                            docId: id,
+                            data
+                        });
+                    });
+                }
+            });
+
+            const totalCount = operations.length;
+            if (totalCount === 0) {
+                Swal.fire({
+                    icon: 'info',
+                    title: 'ไม่มีข้อมูล',
+                    text: 'ไม่พบเอกสารใด ๆ ในไฟล์สำรองข้อมูลนี้',
+                    confirmButtonColor: '#2563eb'
+                });
+                setIsImporting(false);
+                return;
+            }
+
+            // Write in batches of 300 to be fast and safe
+            const chunkSize = 300;
+            let completedCount = 0;
+
+            for (let i = 0; i < operations.length; i += chunkSize) {
+                const chunk = operations.slice(i, i + chunkSize);
+                const batch = db.batch();
+
+                chunk.forEach(op => {
+                    const ref = db.collection(`branches/${targetBranchId}/${op.collectionKey}`).doc(op.docId);
+                    batch.set(ref, op.data);
+                });
+
+                await batch.commit();
+                completedCount += chunk.length;
+                const percent = Math.round((completedCount / totalCount) * 100);
+                setImportProgress(percent);
+                setCurrentProcessName(`กำลังนำเข้าข้อมูล: ${completedCount}/${totalCount} รายการ...`);
+            }
+
+            Swal.fire({
+                icon: 'success',
+                title: 'นำเข้าข้อมูลสำเร็จ',
+                text: `อัปเดตข้อมูลจำนวน ${totalCount} รายการ ลงในสาขา ${targetBranchName} เรียบร้อยแล้ว`,
+                confirmButtonColor: '#2563eb'
+            });
+
+            // Trigger storage recalculation to show updated size
+            handleCalculateStorage();
+        } catch (error) {
+            console.error("Import error:", error);
+            Swal.fire({
+                icon: 'error',
+                title: 'เกิดข้อผิดพลาด',
+                text: 'ไม่สามารถนำเข้าข้อมูลได้ ไฟล์อาจจะชำรุดเสียหาย หรือมีปัญหาเครือข่าย',
+                confirmButtonColor: '#ef4444'
+            });
+        } finally {
+            setIsImporting(false);
+            setImportProgress(0);
+            setCurrentProcessName('');
         }
     };
 
@@ -1753,9 +1968,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
                                 </div>
                                 <button
                                     onClick={handleCalculateStorage}
-                                    disabled={isCalculatingStorage}
+                                    disabled={isCalculatingStorage || isBackingUp || isImporting}
                                     className={`px-5 py-2.5 rounded-lg text-sm font-semibold flex items-center gap-2 shadow-sm transition-all ${
-                                        isCalculatingStorage 
+                                        isCalculatingStorage || isBackingUp || isImporting
                                         ? 'bg-blue-100 text-blue-400 cursor-not-allowed' 
                                         : 'bg-blue-600 text-white hover:bg-blue-700'
                                     }`}
@@ -1778,6 +1993,52 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
                                     )}
                                 </button>
                             </div>
+
+                            {/* Last Calculated Timestamp Notice */}
+                            {lastCalculatedTime && !isCalculatingStorage && !isBackingUp && !isImporting && (
+                                <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-2.5 text-xs text-blue-800 flex items-center justify-between gap-2 shadow-sm">
+                                    <div className="flex items-center gap-1.5">
+                                        <svg className="w-4 h-4 text-blue-600 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                        <span>วิเคราะห์และจำลองการคำนวณพื้นที่จัดเก็บข้อมูลสำเร็จเมื่อ: <span className="font-bold">{new Date(Number(lastCalculatedTime)).toLocaleString('th-TH')} น.</span></span>
+                                    </div>
+                                    <span className="text-[10px] font-mono bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full uppercase">Cached</span>
+                                </div>
+                            )}
+
+                            {/* Backup / Import Progress Screen with Percentage */}
+                            {(isBackingUp || isImporting) && (
+                                <div className="bg-white p-8 rounded-lg shadow-sm border border-gray-100 flex flex-col items-center justify-center text-center space-y-4">
+                                    <div className="relative flex items-center justify-center">
+                                        <div className="animate-ping absolute inline-flex h-12 w-12 rounded-full bg-indigo-400 opacity-25"></div>
+                                        <div className="rounded-full bg-indigo-100 p-4">
+                                            <svg className="w-8 h-8 text-indigo-600 animate-spin" fill="none" viewBox="0 0 24 24">
+                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                            </svg>
+                                        </div>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <p className="font-bold text-gray-800 text-lg">
+                                            {isBackingUp ? 'กำลังดำเนินการสำรองข้อมูลสาขา...' : 'กำลังนำเข้าข้อมูลกลับสู่สาขา...'}
+                                        </p>
+                                        <p className="text-sm font-medium text-indigo-600 animate-pulse">
+                                            {currentProcessName || 'กำลังดาวน์โหลด/อัปโหลด...'}
+                                        </p>
+                                    </div>
+                                    <div className="w-full max-w-md bg-gray-100 rounded-full h-4 overflow-hidden shadow-inner relative flex items-center justify-center">
+                                        <div 
+                                            className="bg-gradient-to-r from-indigo-500 to-blue-600 h-4 rounded-full transition-all duration-300 absolute left-0 top-0"
+                                            style={{ width: `${isBackingUp ? backupProgress : importProgress}%` }}
+                                        ></div>
+                                        <span className="relative z-10 text-[10px] font-bold text-gray-700 drop-shadow">
+                                            {isBackingUp ? backupProgress : importProgress}%
+                                        </span>
+                                    </div>
+                                    <p className="text-xs text-gray-400">กรุณาอย่าปิดหน้านี้หรือโปรแกรมในขณะที่ระบบกำลังซิงก์ข้อมูล</p>
+                                </div>
+                            )}
 
                             {/* Loading State with Progress */}
                             {isCalculatingStorage && (
@@ -1889,17 +2150,46 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
                                                 const percentageOfTotal = ((bData.totalSize / totalOfAll) * 100).toFixed(1);
                                                 
                                                 return (
-                                                    <div key={branchId} className="space-y-1.5">
-                                                        <div className="flex justify-between text-sm">
-                                                            <span className="font-semibold text-gray-700">{bData.branchName}</span>
-                                                            <div className="space-x-2 text-xs font-medium">
+                                                    <div key={branchId} className="space-y-1.5 p-3 rounded-lg border border-gray-50 hover:border-gray-100 hover:bg-gray-50/50 transition-all">
+                                                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-sm">
+                                                            <span className="font-bold text-gray-800">{bData.branchName}</span>
+                                                            <div className="flex items-center gap-2.5 text-xs font-medium flex-wrap">
                                                                 <span className="text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">{percentageOfTotal}% ของทั้งหมด</span>
                                                                 <span className="text-gray-500">{formatBytes(bData.totalSize)} ({bData.totalDocs.toLocaleString('th-TH')} เอกสาร)</span>
+                                                                
+                                                                {/* Backup & Import Buttons */}
+                                                                <div className="flex items-center gap-1.5 ml-1 border-l pl-2.5">
+                                                                    <button
+                                                                        onClick={() => handleBackupBranch(branchId, bData.branchName)}
+                                                                        disabled={isBackingUp || isImporting || isCalculatingStorage}
+                                                                        className="flex items-center gap-1 px-2.5 py-1 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 active:bg-indigo-200 text-xs font-semibold rounded-md border border-indigo-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                                                        title="สำรองข้อมูลสาขานี้เป็นไฟล์ JSON"
+                                                                    >
+                                                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                                                                        </svg>
+                                                                        <span>Backup</span>
+                                                                    </button>
+
+                                                                    <label className={`flex items-center gap-1 px-2.5 py-1 bg-teal-50 text-teal-600 hover:bg-teal-100 active:bg-teal-200 text-xs font-semibold rounded-md border border-teal-200 transition-colors cursor-pointer ${(isBackingUp || isImporting || isCalculatingStorage) ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                                                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                                                        </svg>
+                                                                        <span>Import</span>
+                                                                        <input
+                                                                            type="file"
+                                                                            accept=".json"
+                                                                            className="hidden"
+                                                                            disabled={isBackingUp || isImporting || isCalculatingStorage}
+                                                                            onChange={(e) => handleImportBranch(e, branchId, bData.branchName)}
+                                                                        />
+                                                                    </label>
+                                                                </div>
                                                             </div>
                                                         </div>
-                                                        <div className="w-full bg-gray-100 rounded-full h-3 overflow-hidden">
+                                                        <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden mt-1">
                                                             <div 
-                                                                className="bg-blue-600 h-3 rounded-full transition-all duration-1000"
+                                                                className="bg-gradient-to-r from-blue-500 to-blue-600 h-2 rounded-full transition-all duration-1000"
                                                                 style={{ width: `${percentageOfTotal}%` }}
                                                             ></div>
                                                         </div>
