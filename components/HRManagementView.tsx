@@ -125,7 +125,7 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
         setActiveTab(initialTab);
     }, [initialTab]);
 
-    const [selectedItems, setSelectedItems] = useState<number[]>([]);
+    const [selectedItems, setSelectedItems] = useState<(number | string)[]>([]);
 
     const handleOpenLeaveQuotaModal = () => {
         const employeeOptions = users
@@ -164,7 +164,7 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
         setSelectedItems([]);
     }, [activeTab]);
 
-    const toggleSelection = (id: number) => {
+    const toggleSelection = (id: number | string) => {
         setSelectedItems(prev => 
             prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
         );
@@ -190,10 +190,10 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                         selectedItems.forEach(id => employmentContractsActions.remove(id));
                         break;
                     case 'time':
-                        setTimeRecords(prev => prev.filter(item => !selectedItems.includes(item.id)));
+                        setTimeRecords(prev => prev.filter(item => !selectedItems.includes(item.id as any)));
                         break;
                     case 'payroll':
-                        setPayrollRecords(prev => prev.filter(item => !selectedItems.includes(item.id)));
+                        setPayrollRecords(prev => prev.filter(item => !selectedItems.includes(item.id as any)));
                         break;
                     case 'leave':
                         // Restore quotas for approved leaves being deleted
@@ -214,7 +214,7 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                 }
                             }
                         });
-                        setLeaveRequests(prev => prev.filter(item => !selectedItems.includes(item.id)));
+                        setLeaveRequests(prev => prev.filter(item => !selectedItems.includes(item.id as any)));
                         break;
                 }
                 setSelectedItems([]);
@@ -376,7 +376,7 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
             reader.onload = (e) => {
                 try {
                     const data = e.target?.result;
-                    const workbook = XLSX.read(data, { type: 'binary' });
+                    const workbook = XLSX.read(data, { type: 'array' });
                     const sheetName = workbook.SheetNames[0];
                     const sheet = workbook.Sheets[sheetName];
                     const json = XLSX.utils.sheet_to_json(sheet);
@@ -403,7 +403,7 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                     Swal.fire('ผิดพลาด', 'เกิดข้อผิดพลาดในการอ่านไฟล์', 'error');
                 }
             };
-            reader.readAsBinaryString(file);
+            reader.readAsArrayBuffer(file);
         }
     };
 
@@ -1156,9 +1156,7 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                 <button onClick={handleImportExcel} className="bg-yellow-600 hover:bg-yellow-700 px-4 py-2 rounded-lg text-sm flex items-center gap-2">
                                     📥 Import Excel
                                 </button>
-                                <button onClick={handleLoadExampleApps} className="bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded-lg text-sm flex items-center gap-2">
-                                    📂 โหลดตัวอย่าง
-                                </button>
+
                                 <button onClick={() => onOpenUserManager?.({})} className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm flex items-center gap-2">
                                     👤 เพิ่มผู้ใช้ใหม่
                                 </button>
@@ -1265,6 +1263,29 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                                             </button>
                                                         );
                                                     })()}
+                                                    {isEditMode && (
+                                                        <button 
+                                                            onClick={() => {
+                                                                Swal.fire({
+                                                                    title: 'ยืนยันการลบ?',
+                                                                    text: `คุณต้องการลบใบสมัครของ ${app.fullName || 'ไม่มีชื่อ'} ใช่หรือไม่?`,
+                                                                    icon: 'warning',
+                                                                    showCancelButton: true,
+                                                                    confirmButtonText: 'ลบ',
+                                                                    cancelButtonText: 'ยกเลิก'
+                                                                }).then((result) => {
+                                                                    if (result.isConfirmed) {
+                                                                        jobApplicationsActions.remove(app.id);
+                                                                        Swal.fire('สำเร็จ', 'ลบใบสมัครเรียบร้อย', 'success');
+                                                                    }
+                                                                });
+                                                            }}
+                                                            className="text-red-500 hover:text-red-400 p-1 font-semibold text-xs border border-red-500/30 rounded hover:bg-red-500/10 transition-colors ml-auto flex items-center justify-center shrink-0 h-7 px-2"
+                                                            title="ลบรายการนี้"
+                                                        >
+                                                            🗑️ ลบ
+                                                        </button>
+                                                    )}
                                                 </td>
                                             </tr>
                                         ))
@@ -1368,15 +1389,38 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                                             ดูสัญญา
                                                         </button>
                                                         {isEditMode ? (
-                                                            <input 
-                                                                type="url" 
-                                                                placeholder="ลิงก์เอกสาร (URL)" 
-                                                                value={c.documentUrl || ''} 
-                                                                onChange={(e) => {
-                                                                    employmentContractsActions.update(c.id, { documentUrl: e.target.value });
-                                                                }}
-                                                                className="bg-gray-700 text-white border border-gray-600 rounded px-2 py-1 text-xs focus:outline-none focus:border-blue-500 w-32"
-                                                            />
+                                                            <>
+                                                                <input 
+                                                                    type="url" 
+                                                                    placeholder="ลิงก์เอกสาร (URL)" 
+                                                                    value={c.documentUrl || ''} 
+                                                                    onChange={(e) => {
+                                                                        employmentContractsActions.update(c.id, { documentUrl: e.target.value });
+                                                                    }}
+                                                                    className="bg-gray-700 text-white border border-gray-600 rounded px-2 py-1 text-xs focus:outline-none focus:border-blue-500 w-32"
+                                                                />
+                                                                <button 
+                                                                    onClick={() => {
+                                                                        Swal.fire({
+                                                                            title: 'ยืนยันการลบ?',
+                                                                            text: `คุณต้องการลบสัญญาของ ${c.employeeName || 'ไม่มีชื่อ'} ใช่หรือไม่?`,
+                                                                            icon: 'warning',
+                                                                            showCancelButton: true,
+                                                                            confirmButtonText: 'ลบ',
+                                                                            cancelButtonText: 'ยกเลิก'
+                                                                        }).then((result) => {
+                                                                            if (result.isConfirmed) {
+                                                                                employmentContractsActions.remove(c.id);
+                                                                                Swal.fire('สำเร็จ', 'ลบสัญญาเรียบร้อย', 'success');
+                                                                            }
+                                                                        });
+                                                                    }}
+                                                                    className="text-red-500 hover:text-red-400 px-2 py-1 font-semibold text-xs border border-red-500/30 rounded hover:bg-red-500/10 transition-colors shrink-0"
+                                                                    title="ลบรายการนี้"
+                                                                >
+                                                                    🗑️ ลบ
+                                                                </button>
+                                                            </>
                                                         ) : (
                                                             c.documentUrl && (
                                                                 <>

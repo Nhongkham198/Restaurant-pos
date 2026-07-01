@@ -179,8 +179,8 @@ const DataContext = createContext<DataContextType | undefined>(undefined);
 
 export const DataProvider = ({ children }: { children: ReactNode }) => {
     // --- AUTH & BRANCH STATE ---
-    const [users, setUsers] = useFirestoreSync<User[]>(null, 'users', []);
-    const [rawBranches, setRawBranches, isBranchesLoading] = useFirestoreSync<Branch[]>(null, 'branches', []);
+    const [users, setUsers] = useFirestoreSync<User[]>(null, 'users', [], DEFAULT_USERS);
+    const [rawBranches, setRawBranches, isBranchesLoading] = useFirestoreSync<Branch[]>(null, 'branches', [], DEFAULT_BRANCHES);
 
     // Sanitize branches to filter out any corrupted/empty entries
     const branches = useMemo(() => {

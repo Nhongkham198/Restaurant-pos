@@ -520,7 +520,15 @@ export function useFirestoreCollection<T extends { id: number | string }>(
         const unsubscribe = collectionRef.onSnapshot(snapshot => {
             const items: T[] = [];
             snapshot.forEach(doc => {
-                items.push(doc.data() as T);
+                const item = doc.data() as T;
+                if (item) {
+                    if (item.id === undefined || item.id === null || item.id === '') {
+                        const parsedId = Number(doc.id);
+                        item.id = isNaN(parsedId) ? doc.id : parsedId;
+                    }
+                    (item as any)._firestoreId = doc.id;
+                    items.push(item);
+                }
             });
             setData(items);
         }, error => {
