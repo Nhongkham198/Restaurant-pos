@@ -1883,9 +1883,9 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                             {(() => {
                                 const filtered = stockItems.filter(item => {
                                     const receivedDateObj = parseDateValue(item.receivedDate);
-                                    const isReceivedToday = !!(receivedDateObj && receivedDateObj.toDateString() === new Date().toDateString());
+                                    const isReceivedWithin24Hours = !!(receivedDateObj && (Date.now() - receivedDateObj.getTime() < 24 * 60 * 60 * 1000));
                                     const isPending = (Number(item.orderedQuantity) || 0) > 0;
-                                    return isReceivedToday || isPending;
+                                    return isReceivedWithin24Hours || isPending;
                                 });
 
                                 if (filtered.length === 0) {
@@ -1956,7 +1956,7 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                                                 })
                                                                 .map((item, index) => {
                                                                     const receivedDateObj = parseDateValue(item.receivedDate);
-                                                                    const isVerifiedToday = !!((receivedDateObj && receivedDateObj.toDateString() === new Date().toDateString()) || (item.orderedQuantity === 0 && item.lastUpdatedBy));
+                                                                    const isVerifiedToday = !!((receivedDateObj && (Date.now() - receivedDateObj.getTime() < 24 * 60 * 60 * 1000)) || (item.orderedQuantity === 0 && item.lastUpdatedBy));
                                                                     const isEditingThisItem = !!bulkEditingItemIds[item.id];
                                                                     const isInputDisabled = isVerifiedToday && !isEditingThisItem;
                                                                     
