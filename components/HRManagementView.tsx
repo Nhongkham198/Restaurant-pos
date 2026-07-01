@@ -469,11 +469,12 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                 <input id="swal-emp-name" class="swal2-input" placeholder="ชื่อพนักงาน" style="display:none;">
                 <input id="swal-emp-pos" class="swal2-input" placeholder="ตำแหน่ง">
                 <input id="swal-emp-salary" type="number" class="swal2-input" placeholder="เงินเดือน">
-                <select id="swal-contract-type" class="swal2-input">
+                <select id="swal-contract-type" class="swal2-input mb-3">
                     <option value="full-time">Full-time</option>
                     <option value="part-time">Part-time</option>
                     <option value="temporary">ชั่วคราว</option>
                 </select>
+                <input id="swal-contract-doc-url" type="url" class="swal2-input" placeholder="ลิงก์เอกสารสัญญา (เช่น Google Drive, PDF)">
             `,
             didOpen: () => {
                 const select = document.getElementById('swal-emp-select') as HTMLSelectElement;
@@ -541,7 +542,8 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                     employeeName: finalName,
                     position: (document.getElementById('swal-emp-pos') as HTMLInputElement).value,
                     salary: Number((document.getElementById('swal-emp-salary') as HTMLInputElement).value),
-                    contractType: (document.getElementById('swal-contract-type') as HTMLSelectElement).value as any
+                    contractType: (document.getElementById('swal-contract-type') as HTMLSelectElement).value as any,
+                    documentUrl: (document.getElementById('swal-contract-doc-url') as HTMLInputElement).value || ''
                 }
             }
         }).then((result) => {
@@ -1290,9 +1292,6 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                 <button onClick={handleCreateContract} className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm">
                                     + สร้างสัญญา
                                 </button>
-                                <button onClick={handleLoadExampleContracts} className="bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded-lg text-sm flex items-center gap-2">
-                                    📂 โหลดตัวอย่าง
-                                </button>
                                 <button onClick={() => exportToExcel(employmentContracts, 'Contracts')} className="bg-green-800 hover:bg-green-900 px-4 py-2 rounded-lg text-sm flex items-center gap-2">
                                     📊 Export Excel
                                 </button>
@@ -1361,12 +1360,40 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                                 <td className="p-3">{c.contractType}</td>
                                                 <td className="p-3">{(c.salary || 0).toLocaleString()}</td>
                                                 <td className="p-3">
-                                                    <button 
-                                                        onClick={() => handleViewContract(c)}
-                                                        className="text-blue-400 hover:text-blue-300 text-sm underline"
-                                                    >
-                                                        ดูสัญญา
-                                                    </button>
+                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                        <button 
+                                                            onClick={() => handleViewContract(c)}
+                                                            className="text-blue-400 hover:text-blue-300 text-sm underline shrink-0"
+                                                        >
+                                                            ดูสัญญา
+                                                        </button>
+                                                        {isEditMode ? (
+                                                            <input 
+                                                                type="url" 
+                                                                placeholder="ลิงก์เอกสาร (URL)" 
+                                                                value={c.documentUrl || ''} 
+                                                                onChange={(e) => {
+                                                                    employmentContractsActions.update(c.id, { documentUrl: e.target.value });
+                                                                }}
+                                                                className="bg-gray-700 text-white border border-gray-600 rounded px-2 py-1 text-xs focus:outline-none focus:border-blue-500 w-32"
+                                                            />
+                                                        ) : (
+                                                            c.documentUrl && (
+                                                                <>
+                                                                    <span className="text-gray-600">|</span>
+                                                                    <a 
+                                                                        href={c.documentUrl.startsWith('http') ? c.documentUrl : `https://${c.documentUrl}`} 
+                                                                        target="_blank" 
+                                                                        rel="noopener noreferrer" 
+                                                                        className="text-teal-400 hover:text-teal-300 text-sm underline flex items-center gap-0.5 whitespace-nowrap"
+                                                                        title={c.documentUrl}
+                                                                    >
+                                                                        🔗 เอกสารสัญญา
+                                                                    </a>
+                                                                </>
+                                                            )
+                                                        )}
+                                                    </div>
                                                 </td>
                                             </tr>
                                         ))

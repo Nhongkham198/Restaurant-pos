@@ -465,6 +465,7 @@ export interface EmploymentContract {
     contractType: 'full-time' | 'part-time' | 'temporary';
     content: string; // The generated contract text
     createdDate: number; // timestamp
+    documentUrl?: string; // Optional contract document URL (e.g., Google Drive)
 }
 
 export interface TimeRecord {
