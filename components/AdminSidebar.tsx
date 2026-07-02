@@ -53,20 +53,33 @@ const NavItem: React.FC<{
 
     const baseClasses = "flex items-center p-3 my-1 rounded-lg transition-colors duration-200 w-full text-left relative";
     const activeClasses = isActive && !hasChildren ? "bg-green-600 text-white" : "text-gray-300 hover:bg-gray-700 hover:text-white";
-    // Modified content render to handle children better
+    // Modified content render to handle children better and avoid badge overlap
     const content = (
         <>
             <span className="flex-shrink-0 w-6 h-6">{icon}</span>
             <span className={`flex-1 ml-3 text-sm transition-opacity duration-200 ${isCollapsed ? 'opacity-0' : 'opacity-100'} ${isCollapsed ? 'whitespace-nowrap' : 'whitespace-pre-line leading-tight'}`}>{text}</span>
-            {hasChildren && !isCollapsed && (
-                <svg className={`w-4 h-4 transition-transform duration-200 ${isOpen ? 'rotate-90' : ''}`} fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                </svg>
-            )}
-             {badge !== undefined && badge > 0 && (
-                 <span className={`absolute top-2 right-2 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-red-500 px-1 text-xs font-bold text-white transition-opacity duration-200 ${isCollapsed ? 'opacity-100' : 'opacity-100'}`}>
-                    {badge > 99 ? '99+' : badge}
-                </span>
+            
+            {!isCollapsed ? (
+                <div className="flex items-center gap-2 z-10 shrink-0 pr-1">
+                    {badge !== undefined && badge > 0 && (
+                        <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-black text-white shadow-sm">
+                            {badge > 99 ? '99+' : badge}
+                        </span>
+                    )}
+                    <div className="w-4 h-4 flex items-center justify-center shrink-0">
+                        {hasChildren && (
+                            <svg className={`w-4 h-4 transition-transform duration-200 text-gray-400 ${isOpen ? 'rotate-90' : ''}`} fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                            </svg>
+                        )}
+                    </div>
+                </div>
+            ) : (
+                badge !== undefined && badge > 0 && (
+                    <span className="absolute top-2 right-2 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-red-500 px-1 text-xs font-bold text-white">
+                        {badge > 99 ? '99+' : badge}
+                    </span>
+                )
             )}
         </>
     );
@@ -173,7 +186,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({
     onExpenseBranchChange
 }) => {
     const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({
-      'stock': true,
+      'stock': false,
       'leave': false,
       'expense': true
     });

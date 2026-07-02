@@ -1176,44 +1176,52 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                 ตรวจรับสินค้า
                             </button>
 
-                            <button onClick={handleExport} className="px-4 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 whitespace-nowrap text-sm shadow transition-all hover:shadow-md">
-                                Export Excel
-                            </button>
-                            {currentUser?.role === 'admin' && (
-                                <button onClick={handleExportLogs} className="px-4 py-2 bg-teal-600 text-white font-semibold rounded-lg hover:bg-teal-700 whitespace-nowrap text-sm shadow transition-all hover:shadow-md flex items-center gap-2">
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                    </svg>
-                                    Export ประวัติ
-                                </button>
+                            {(currentUser?.role === 'admin' || currentUser?.role === 'branch-admin') && (
+                                <>
+                                    <button onClick={handleExport} className="px-4 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 whitespace-nowrap text-sm shadow transition-all hover:shadow-md">
+                                        Export Excel
+                                    </button>
+                                    {currentUser?.role === 'admin' && (
+                                        <button onClick={handleExportLogs} className="px-4 py-2 bg-teal-600 text-white font-semibold rounded-lg hover:bg-teal-700 whitespace-nowrap text-sm shadow transition-all hover:shadow-md flex items-center gap-2">
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                            </svg>
+                                            Export ประวัติ
+                                        </button>
+                                    )}
+                                    <button onClick={() => fileInputRef.current?.click()} className="px-4 py-2 bg-purple-600 text-white font-semibold rounded-lg hover:bg-purple-700 whitespace-nowrap text-sm shadow transition-all hover:shadow-md">
+                                        Import Excel
+                                    </button>
+                                </>
                             )}
-                             <button onClick={() => fileInputRef.current?.click()} className="px-4 py-2 bg-purple-600 text-white font-semibold rounded-lg hover:bg-purple-700 whitespace-nowrap text-sm shadow transition-all hover:shadow-md">
-                                Import Excel
-                            </button>
                             <button onClick={() => handleOpenItemModal(null)} className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 whitespace-nowrap text-sm shadow transition-all hover:shadow-md">
                                 + เพิ่มรายการ
                             </button>
-                            <div className="flex flex-col">
-                                <IngredientPriceUpload 
-                                    existingPrices={latestIngredientPrices}
-                                    onUpload={(data, filename) => {
-                                        setLatestIngredientPrices(data);
-                                        setLatestImportFilename(filename);
-                                    }} 
-                                />
-                                {latestImportFilename && (
-                                    <div className="flex items-center gap-1 mt-1 px-2 py-0.5 bg-blue-50 border border-blue-100 rounded text-[10px] text-blue-600 font-bold whitespace-nowrap">
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                                        </svg>
-                                        SYNCED: {latestImportFilename}
+                            {(currentUser?.role === 'admin' || currentUser?.role === 'branch-admin') && (
+                                <>
+                                    <div className="flex flex-col">
+                                        <IngredientPriceUpload 
+                                            existingPrices={latestIngredientPrices}
+                                            onUpload={(data, filename) => {
+                                                setLatestIngredientPrices(data);
+                                                setLatestImportFilename(filename);
+                                            }} 
+                                        />
+                                        {latestImportFilename && (
+                                            <div className="flex items-center gap-1 mt-1 px-2 py-0.5 bg-blue-50 border border-blue-100 rounded text-[10px] text-blue-600 font-bold whitespace-nowrap">
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                                </svg>
+                                                SYNCED: {latestImportFilename}
+                                            </div>
+                                        )}
                                     </div>
-                                )}
-                            </div>
-                            <button onClick={onOpenTagModal} className="px-4 py-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 whitespace-nowrap text-sm shadow transition-all hover:shadow-md flex items-center gap-2">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>
-                                🏷️ ลงทะเบียน Tag
-                            </button>
+                                    <button onClick={onOpenTagModal} className="px-4 py-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 whitespace-nowrap text-sm shadow transition-all hover:shadow-md flex items-center gap-2">
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>
+                                        🏷️ ลงทะเบียน Tag
+                                    </button>
+                                </>
+                            )}
                         </div>
                     </div>
                      <div className="mt-4 flex flex-col sm:flex-row justify-between sm:items-center gap-4">
