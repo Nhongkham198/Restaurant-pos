@@ -119,7 +119,7 @@ export const PreOrderManagement: React.FC = () => {
                     <h1 className="text-xl md:text-2xl font-black text-gray-900 tracking-tight">หน้าจัดการออเดอร์ล่วงหน้า</h1>
                     <p className="text-[10px] md:text-xs font-bold text-gray-400 mt-1 uppercase tracking-widest">Pre-Order Management (Staff View)</p>
                 </div>
-                <div className="flex items-center gap-2 sm:gap-3">
+                <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
                     <button 
                         onClick={() => {
                             const url = `${window.location.origin}${window.location.pathname}?branchId=${branchId}&mode=pre-order`;
@@ -140,6 +140,36 @@ export const PreOrderManagement: React.FC = () => {
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
                         </svg>
                         <span className="md:inline">คัดลอกลิงก์สำหรับลูกค้า</span>
+                    </button>
+                    <button 
+                        onClick={() => {
+                            const url = `${window.location.origin}${window.location.pathname}?branchId=${branchId}&mode=pre-order&readonly=true`;
+                            navigator.clipboard.writeText(url).then(() => {
+                                Swal.fire({
+                                    title: 'คัดลอกลิงก์ดูเมนูสำเร็จ!',
+                                    text: 'ระบบได้คัดลอกลิงก์สำหรับดูรายการอาหาร (สั่งไม่ได้) ลงในคลิปบอร์ดแล้ว คุณต้องการเปิดดูเมนูทันทีในแท็บใหม่ด้วยหรือไม่?',
+                                    icon: 'success',
+                                    showCancelButton: true,
+                                    confirmButtonText: 'เปิดดูเมนูทันที',
+                                    cancelButtonText: 'ปิดหน้านี้',
+                                    confirmButtonColor: '#3b82f6',
+                                    cancelButtonColor: '#9ca3af',
+                                }).then((result) => {
+                                    if (result.isConfirmed) {
+                                        window.open(url, '_blank');
+                                    }
+                                });
+                            }).catch(() => {
+                                window.open(url, '_blank');
+                            });
+                        }}
+                        className="flex-1 md:flex-none bg-blue-600 border border-blue-700 text-white px-4 md:px-6 py-2.5 rounded-xl text-[12px] md:text-sm font-black hover:bg-blue-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-100 whitespace-nowrap active:scale-95"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 md:h-5 md:w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                        <span className="md:inline">ดูรายการอาหาร (สั่งไม่ได้)</span>
                     </button>
                     <span className="bg-blue-100 text-blue-700 px-6 md:px-8 py-2.5 rounded-xl text-[12px] md:text-sm font-black whitespace-nowrap shadow-sm">
                         รอดำเนินการ: {pendingPreOrders.length}

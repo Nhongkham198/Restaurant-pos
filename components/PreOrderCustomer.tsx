@@ -128,6 +128,11 @@ export const PreOrderCustomer: React.FC = () => {
     const [hasSetCustomerCount, setHasSetCustomerCount] = useState(false);
     const [showQrPopup, setShowQrPopup] = useState(false);
     const isMonday = new Date().getDay() === 1;
+    const isReadOnlyMode = useMemo(() => {
+        const params = new URLSearchParams(window.location.search);
+        return params.get('readonly') === 'true';
+    }, []);
+    const isViewOnly = isMonday || isReadOnlyMode;
 
     useEffect(() => {
         if (qrPopupEnabled) {
@@ -135,7 +140,7 @@ export const PreOrderCustomer: React.FC = () => {
         }
     }, [qrPopupEnabled]);
 
-    // NEW: Check for Monday closure
+    // NEW: Check for Monday closure or View Only Mode
     useEffect(() => {
         if (isMonday) {
             Swal.fire({
@@ -146,8 +151,17 @@ export const PreOrderCustomer: React.FC = () => {
                 confirmButtonColor: '#3b82f6',
                 allowOutsideClick: false,
             });
+        } else if (isReadOnlyMode) {
+            Swal.fire({
+                title: t('โหมดดูเมนูอาหารเท่านั้น'),
+                text: t('คุณกำลังดูเมนูอาหารในโหมดแสดงผลเท่านั้น (ไม่สามารถกดส่งออเดอร์ได้)'),
+                icon: 'info',
+                confirmButtonText: t('ตกลงและเลือกชมเมนู'),
+                confirmButtonColor: '#3b82f6',
+                allowOutsideClick: false,
+            });
         }
-    }, [isMonday, lang]);
+    }, [isMonday, isReadOnlyMode, lang]);
     const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
     const [itemQuantity, setItemQuantity] = useState(1);
     const [selectedOptions, setSelectedOptions] = useState<MenuOption[]>([]);
@@ -182,7 +196,7 @@ export const PreOrderCustomer: React.FC = () => {
 
     // NEW: Prompt for Order Type and Customer Count on initial menu view
     useEffect(() => {
-        if (!selectedBranch || hasSetCustomerCount || isMonday) return;
+        if (!selectedBranch || hasSetCustomerCount || isViewOnly) return;
 
         const timer = setTimeout(async () => {
             const { value: type } = await Swal.fire({
@@ -325,11 +339,13 @@ export const PreOrderCustomer: React.FC = () => {
     };
 
     const handleSubmitPreOrder = async () => {
-        if (isMonday) {
+        if (isViewOnly) {
             Swal.fire({
                 icon: 'error',
                 title: t('ไม่สามารถสั่งอาหารได้'),
-                text: t('ขออภัยค่ะ วันจันทร์ร้านปิดทำการ ลูกค้าสามารถดูเมนูได้เท่านั้นค่ะ'),
+                text: isMonday 
+                    ? t('ขออภัยค่ะ วันจันทร์ร้านปิดทำการ ลูกค้าสามารถดูเมนูได้เท่านั้นค่ะ')
+                    : t('ขออภัยค่ะ คุณอยู่ในโหมดดูเมนูเท่านั้น ไม่สามารถส่งรายการสั่งซื้อได้ค่ะ'),
                 confirmButtonColor: '#3b82f6'
             });
             return;
@@ -471,7 +487,7 @@ export const PreOrderCustomer: React.FC = () => {
                     </button>
                 </div>
 
-                {isMonday && (
+                {isViewOnly && (
                     <div className="w-full max-w-sm mb-4 bg-rose-50 border border-rose-100 p-3 rounded-2xl flex items-center gap-3 animate-pulse">
                         <div className="bg-rose-500 text-white p-1.5 rounded-lg">
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -479,8 +495,14 @@ export const PreOrderCustomer: React.FC = () => {
                             </svg>
                         </div>
                         <div className="flex-1 text-left">
-                            <p className="text-[10px] font-black text-rose-600 uppercase tracking-wider">{t('วันจันทร์ร้านปิดทำการ')}</p>
-                            <p className="text-[11px] font-bold text-rose-455 leading-tight">{t('ขออภัยค่ะ วันนี้รับชมเพื่อดูเมนูเท่านั้น ไม่สามารถส่งออเดอร์ได้ค่ะ')}</p>
+                            <p className="text-[10px] font-black text-rose-600 uppercase tracking-wider">
+                                {isMonday ? t('วันจันทร์ร้านปิดทำการ') : t('โหมดดูรายการอาหาร')}
+                            </p>
+                            <p className="text-[11px] font-bold text-rose-455 leading-tight">
+                                {isMonday 
+                                    ? t('ขออภัยค่ะ วันนี้รับชมเพื่อดูเมนูเท่านั้น ไม่สามารถส่งออเดอร์ได้ค่ะ')
+                                    : t('คุณเข้าชมในโหมดดูเมนูเท่านั้น ไม่สามารถส่งออเดอร์ได้ค่ะ')}
+                            </p>
                         </div>
                     </div>
                 )}
@@ -528,7 +550,7 @@ export const PreOrderCustomer: React.FC = () => {
                 >
                     {t('ทั้งหมด')}
                 </button>
-                {categories.map(cat => (
+                {categories.filter(cat => cat !== 'ทั้งหมด' && cat !== 'All').map(cat => (
                     <button 
                         key={cat}
                         onClick={() => setActiveCategory(cat)}
@@ -865,9 +887,9 @@ export const PreOrderCustomer: React.FC = () => {
                                 </button>
                                 <button 
                                     onClick={handleSubmitPreOrder}
-                                    className={`flex-[2] py-5 rounded-3xl text-white font-black text-sm uppercase tracking-widest shadow-xl flex items-center justify-center gap-3 active:scale-95 transition-all ${isMonday ? 'bg-gray-300 shadow-none cursor-not-allowed' : 'bg-blue-600 shadow-blue-100'}`}
+                                    className={`flex-[2] py-5 rounded-3xl text-white font-black text-sm uppercase tracking-widest shadow-xl flex items-center justify-center gap-3 active:scale-95 transition-all ${isViewOnly ? 'bg-gray-300 shadow-none cursor-not-allowed' : 'bg-blue-600 shadow-blue-100'}`}
                                 >
-                                    {isMonday ? t('ร้านปิดทำการ (ดูเมนูได้อย่างเดียว)') : t('ส่งรายการสั่งซื้อ')}
+                                    {isViewOnly ? (isMonday ? t('ร้านปิดทำการ (ดูเมนูได้อย่างเดียว)') : t('โหมดดูเมนูเท่านั้น (สั่งไม่ได้)')) : t('ส่งรายการสั่งซื้อ')}
                                 </button>
                             </div>
                         </motion.div>
