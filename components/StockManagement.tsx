@@ -593,7 +593,7 @@ export const StockManagement: React.FC<StockManagementProps> = ({
     const [selectedLogItem, setSelectedLogItem] = useState<StockItem | null>(null);
 
     // Helper to add log
-    const addLog = (item: StockItem, action: StockLog['action'], details: string) => {
+    const addLog = (item: StockItem, action: StockLog['action'], details: string, incompleteReason?: string) => {
         const logId = Date.now().toString() + Math.random().toString(36).substr(2, 9);
         
         // Ensure stockItemId is a valid number to prevent Firebase errors
@@ -611,7 +611,8 @@ export const StockManagement: React.FC<StockManagementProps> = ({
             action,
             changeDetails: details,
             performedBy: currentUser?.username || 'System',
-            timestamp: Date.now()
+            timestamp: Date.now(),
+            incompleteReason: incompleteReason || undefined
         };
         stockLogsActions.add(newLog);
     };
@@ -1017,7 +1018,7 @@ export const StockManagement: React.FC<StockManagementProps> = ({
         };
         
         // Log the receive action
-        addLog(item, 'receive', `รับสินค้าเข้า: ${receivedData.qty} ${item.unit} (รวมยอด: ${shouldMerge ? 'ใช่' : 'ไม่'}) ${receivedData.note ? `หมายเหตุ: ${receivedData.note}` : ''}`);
+        addLog(item, 'receive', `รับสินค้าเข้า: ${receivedData.qty} ${item.unit} (รวมยอด: ${shouldMerge ? 'ใช่' : 'ไม่'}) ${receivedData.note ? `หมายเหตุ: ${receivedData.note}` : ''}`, receivedData.note);
 
         setStockItems(prev => prev.map(i => i.id === item.id ? updatedItem : i));
         Swal.fire('สำเร็จ', 'รับสินค้าเรียบร้อย', 'success');
@@ -1461,12 +1462,24 @@ export const StockManagement: React.FC<StockManagementProps> = ({
             else if (log.action === 'adjust') actionType = 'ปรับสต็อก (Adjust)';
             else if (log.action === 'ignore') actionType = 'ปฏิเสธ/เคลียร์รายการสั่งของ (Ignore)';
 
+            let reason = log.incompleteReason || '';
+            if (!reason && log.changeDetails) {
+                const matchIncomplete = log.changeDetails.match(/เหตุผลไม่ครบ:\s*(.*)$/);
+                const matchNote = log.changeDetails.match(/หมายเหตุ:\s*(.*)$/);
+                if (matchIncomplete) {
+                    reason = matchIncomplete[1].trim();
+                } else if (matchNote) {
+                    reason = matchNote[1].trim();
+                }
+            }
+
             return {
                 'วันที่/เวลา': new Date(log.timestamp).toLocaleString('th-TH'),
                 'ผู้ทำรายการ': log.performedBy,
                 'สินค้า': log.stockItemName,
                 'ประเภทการกระทำ': actionType,
-                'รายละเอียดการเปลี่ยนแปลง': log.changeDetails
+                'รายละเอียดการเปลี่ยนแปลง': log.changeDetails,
+                'เหตุผลที่ได้รับไม่ครบ': reason
             };
         });
 
@@ -2583,7 +2596,7 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                                                                                             return nextItems;
                                                                                                         });
 
-                                                                                                        addLog(item, 'adjust', `บันทึกรับของแบบกลุ่ม: จำนวน ${receivedQty} ${item.unit} (รวมยอด: ${shouldCombine ? 'ใช่' : 'ไม่'}) โดย ${activeUsername}${incompleteReason ? ` เหตุผลไม่ครบ: ${incompleteReason}` : ''}`);
+                                                                                                        addLog(item, 'adjust', `บันทึกรับของแบบกลุ่ม: จำนวน ${receivedQty} ${item.unit} (รวมยอด: ${shouldCombine ? 'ใช่' : 'ไม่'}) โดย ${activeUsername}${incompleteReason ? ` เหตุผลไม่ครบ: ${incompleteReason}` : ''}`, incompleteReason);
 
                                                                                                         Swal.fire({
                                                                                                             title: 'บันทึกสำเร็จ!',
@@ -2711,7 +2724,7 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                                                                                                 return nextItems;
                                                                                                             });
 
-                                                                                                            addLog(item, 'adjust', `แก้ไขจำนวนรับแบบกลุ่ม: เปลี่ยนจาก ${prevLastReceived} เป็น ${newQty} ${item.unit} (รวมยอด: ${shouldCombine ? 'ใช่' : 'ไม่'}) โดย ${activeUsername}`);
+                                                                                                            addLog(item, 'adjust', `แก้ไขจำนวนรับแบบกลุ่ม: เปลี่ยนจาก ${prevLastReceived} เป็น ${newQty} ${item.unit} (รวมยอด: ${shouldCombine ? 'ใช่' : 'ไม่'}) โดย ${activeUsername}${incompleteReason ? ` เหตุผลไม่ครบ: ${incompleteReason}` : ''}`, incompleteReason);
 
                                                                                                             Swal.fire({
                                                                                                                 title: 'แก้ไขสำเร็จ!',

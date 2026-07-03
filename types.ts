@@ -437,6 +437,7 @@ export interface StockLog {
     changeDetails: string; // e.g., "Quantity: 10 -> 5"
     performedBy: string;
     timestamp: number;
+    incompleteReason?: string;
 }
 
 export interface JobApplication {
