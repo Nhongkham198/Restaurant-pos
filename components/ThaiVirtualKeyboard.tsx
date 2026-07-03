@@ -242,7 +242,7 @@ export const ThaiVirtualKeyboard: React.FC<ThaiVirtualKeyboardProps> = ({ onKeyP
                     <button
                         type="button"
                         onClick={onBackspace}
-                        className="w-18 sm:w-26 h-11 sm:h-12 bg-[#cbd2da] hover:bg-[#b8c1cc] border border-gray-300 rounded-lg sm:rounded-xl transition-all flex items-center justify-center cursor-pointer active:scale-95 font-bold text-slate-800"
+                        className="w-28 sm:w-40 h-11 sm:h-12 bg-[#cbd2da] hover:bg-[#b8c1cc] border border-gray-300 rounded-lg sm:rounded-xl transition-all flex items-center justify-center cursor-pointer active:scale-95 font-bold text-slate-800 shadow-xs"
                     >
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-[18px] w-[18px] sm:h-5 sm:w-5 stroke-[2.5]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M12 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2M3 12l6.414 6.414A2 2 0 0010.828 19H19a2 2 0 002-2V7a2 2 0 00-2-2h-8.172a2 2 0 00-1.414.586L3 12z" />

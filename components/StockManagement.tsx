@@ -18,6 +18,440 @@ declare var XLSX: any;
 // Declare html2canvas for potential direct usage if needed, though mainly used in modal
 declare var html2canvas: any;
 
+const askForIncompleteReason = async (
+    title: string,
+    label: string,
+    initialValue: string = ''
+): Promise<string | undefined> => {
+    const thKeys = [
+        [
+            { normal: 'ๅ', shift: '+' }, { normal: '/', shift: '1' }, { normal: '-', shift: '2' }, { normal: 'ภ', shift: '3' },
+            { normal: 'ถ', shift: '4' }, { normal: 'ุ', shift: 'ู' }, { normal: 'ึ', shift: '฿' }, { normal: 'ค', shift: '5' },
+            { normal: 'ต', shift: '6' }, { normal: 'จ', shift: '7' }, { normal: 'ข', shift: '8' }, { normal: 'ช', shift: '9' }
+        ],
+        [
+            { normal: 'ๆ', shift: '0' }, { normal: 'ไ', shift: '๊' }, { normal: 'ำ', shift: 'ฎ' }, { normal: 'พ', shift: 'ฑ' },
+            { normal: 'ะ', shift: 'ธ' }, { normal: 'ั', shift: 'ํ' }, { normal: 'ี', shift: '๊' }, { normal: 'ร', shift: 'ณ' },
+            { normal: 'น', shift: 'ฯ' }, { normal: 'ย', shift: 'ญ' }, { normal: 'บ', shift: 'ฐ' }, { normal: 'ล', shift: 'ฅ' }
+        ],
+        [
+            { normal: 'ฟ', shift: 'ฤ' }, { normal: 'ห', shift: 'ฆ' }, { normal: 'ก', shift: 'ฏ' }, { normal: 'ด', shift: 'โ' },
+            { normal: 'เ', shift: 'ฌ' }, { normal: '้', shift: '็' }, { normal: '่', shift: '๋' }, { normal: 'า', shift: 'ษ' },
+            { normal: 'ส', shift: 'ศ' }, { normal: 'ว', shift: 'ซ' }, { normal: 'ง', shift: '.' }
+        ],
+        [
+            { normal: 'ผ', shift: '(' }, { normal: 'ป', shift: ')' }, { normal: 'แ', shift: 'ฉ' }, { normal: 'อ', shift: 'ฮ' },
+            { normal: 'ิ', shift: 'ฺ' }, { normal: 'ื', shift: '์' }, { normal: 'ท', shift: '?' }, { normal: 'ม', shift: 'ฒ' },
+            { normal: 'ใ', shift: 'ฬ' }, { normal: 'ฝ', shift: 'ฦ' }
+        ]
+    ];
+
+    const enKeys = [
+        [
+            { normal: "1", shift: "!" }, { normal: "2", shift: "@" }, { normal: "3", shift: "#" }, { normal: "4", shift: "$" },
+            { normal: "5", shift: "%" }, { normal: "6", shift: "^" }, { normal: "7", shift: "&" }, { normal: "8", shift: "*" },
+            { normal: "9", shift: "(" }, { normal: "0", shift: ")" }, { normal: "-", shift: "_" }, { normal: "=", shift: "+" }
+        ],
+        [
+            { normal: "q", shift: "Q" }, { normal: "w", shift: "W" }, { normal: "e", shift: "E" }, { normal: "r", shift: "R" },
+            { normal: "t", shift: "T" }, { normal: "y", shift: "Y" }, { normal: "u", shift: "U" }, { normal: "i", shift: "I" },
+            { normal: "o", shift: "O" }, { normal: "p", shift: "P" }, { normal: "[", shift: "{" }, { normal: "]", shift: "}" }
+        ],
+        [
+            { normal: "a", shift: "A" }, { normal: "s", shift: "S" }, { normal: "d", shift: "D" }, { normal: "f", shift: "F" },
+            { normal: "g", shift: "G" }, { normal: "h", shift: "H" }, { normal: "j", shift: "J" }, { normal: "k", shift: "K" },
+            { normal: "l", shift: "L" }, { normal: ";", shift: ":" }, { normal: "'", shift: "\"" }
+        ],
+        [
+            { normal: "z", shift: "Z" }, { normal: "x", shift: "X" }, { normal: "c", shift: "C" }, { normal: "v", shift: "V" },
+            { normal: "b", shift: "B" }, { normal: "n", shift: "N" }, { normal: "m", shift: "M" }, { normal: ",", shift: "<" },
+            { normal: ".", shift: ">" }, { normal: "/", shift: "?" }
+        ]
+    ];
+
+    const getDisplayChar = (char: string) => {
+        if (!char) return '';
+        const code = char.charCodeAt(0);
+        const isThaiCombining = (code >= 0x0e31 && code <= 0x0e3a) || (code >= 0x0e47 && code <= 0x0e4e);
+        return isThaiCombining ? '◌' + char : char;
+    };
+
+    let onMouseMoveGlobal: ((e: MouseEvent | TouchEvent) => void) | null = null;
+    let onMouseUpGlobal: (() => void) | null = null;
+
+    const { value: reasonText, dismiss } = await Swal.fire({
+        title: title,
+        html: `
+            <div class="space-y-4 text-left font-sans">
+                <div class="text-sm font-bold text-gray-700 mb-1.5">${label}</div>
+                <div class="relative flex items-center gap-2">
+                    <input 
+                        id="swal-reason-input" 
+                        type="text" 
+                        class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl font-bold text-lg outline-none focus:border-orange-500 focus:ring-4 focus:ring-orange-100 transition-all placeholder:font-normal" 
+                        placeholder="กรุณากรอกเหตุผลที่นี่..." 
+                        value="${initialValue}"
+                        autocomplete="off"
+                    />
+                    <button 
+                        id="swal-keyboard-toggle" 
+                        type="button" 
+                        class="p-3 bg-orange-50 hover:bg-orange-100 active:scale-95 text-orange-600 rounded-xl border border-orange-200 flex items-center justify-center transition-all cursor-pointer h-[50px] w-[50px] shrink-0" 
+                        title="เปิด/ปิด แป้นพิมพ์จำลอง"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <rect width="20" height="16" x="2" y="4" rx="2" ry="2"/>
+                            <path d="M6 8h.01"/>
+                            <path d="M10 8h.01"/>
+                            <path d="M14 8h.01"/>
+                            <path d="M18 8h.01"/>
+                            <path d="M6 12h.01"/>
+                            <path d="M18 12h.01"/>
+                            <path d="M7 16h10"/>
+                        </svg>
+                    </button>
+                </div>
+
+                <!-- Quick Reasons Section -->
+                <div class="space-y-2 mt-2">
+                    <span class="text-xs font-black text-gray-400 uppercase tracking-wider">เหตุผลด่วน (Quick Reasons)</span>
+                    <div class="flex flex-wrap gap-2">
+                        <button type="button" class="swal-quick-btn text-xs bg-gray-50 hover:bg-gray-100 active:scale-95 text-gray-700 font-bold px-3 py-2 rounded-xl border border-gray-200 transition-all cursor-pointer">
+                            ของหมด/ไม่มีสินค้า
+                        </button>
+                        <button type="button" class="swal-quick-btn text-xs bg-gray-50 hover:bg-gray-100 active:scale-95 text-gray-700 font-bold px-3 py-2 rounded-xl border border-gray-200 transition-all cursor-pointer">
+                            สินค้าชำรุดเสียหาย
+                        </button>
+                        <button type="button" class="swal-quick-btn text-xs bg-gray-50 hover:bg-gray-100 active:scale-95 text-gray-700 font-bold px-3 py-2 rounded-xl border border-gray-200 transition-all cursor-pointer">
+                            ผู้จัดส่งลืมส่งของ
+                        </button>
+                        <button type="button" class="swal-quick-btn text-xs bg-gray-50 hover:bg-gray-100 active:scale-95 text-gray-700 font-bold px-3 py-2 rounded-xl border border-gray-200 transition-all cursor-pointer">
+                            สินค้าไม่ได้มาตรฐาน
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Virtual Keyboard Area -->
+                <div id="swal-keyboard-panel" class="hidden fixed p-4 bg-[#dee2e6] border border-gray-300 rounded-3xl shadow-2xl z-[9999] select-none font-sans" style="width: max-content; max-width: 95vw;">
+                    <div id="swal-keyboard-drag-handle" class="flex justify-between items-center bg-[#cfd4da]/40 border border-gray-300/25 px-4 py-2 rounded-2xl mb-3 cursor-move hover:bg-[#cfd4da]/60 transition-colors">
+                        <span class="text-[11px] sm:text-xs text-[#495057] font-black uppercase flex items-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 stroke-[2.5]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+                            </svg>
+                            <span id="keyboard-lang-title">THAI KEYBOARD (KEDMANEE)</span>
+                        </span>
+                        <div class="flex items-center gap-2">
+                            <button id="swal-keyboard-close" type="button" class="p-1 text-gray-500 hover:text-red-600 hover:bg-gray-200/80 rounded-full cursor-pointer transition-colors" title="ปิดคีย์บอร์ด">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 stroke-[2.5]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                            <button id="swal-keyboard-lang-toggle" type="button" class="text-xs px-2.5 py-1 bg-white hover:bg-[#cfd4da]/60 text-gray-700 font-bold rounded-lg border border-gray-300 transition-colors cursor-pointer">
+                                EN / ไทย
+                            </button>
+                        </div>
+                    </div>
+                    <div id="swal-keyboard-keys" class="flex flex-col gap-1 sm:gap-1.5">
+                        <!-- Dynamic keys are inserted here -->
+                    </div>
+                </div>
+            </div>
+        `,
+        showCancelButton: true,
+        showCloseButton: true,
+        allowOutsideClick: false,
+        confirmButtonText: 'บันทึกเหตุผล',
+        cancelButtonText: 'ยกเลิก',
+        confirmButtonColor: '#ea580c',
+        cancelButtonColor: '#94a3b8',
+        didOpen: () => {
+            let currentLang = 'th';
+            let isShift = false;
+            let isDragging = false;
+            let startX = 0, startY = 0;
+            let currentX = 0, currentY = 0;
+
+            const panel = document.getElementById('swal-keyboard-panel');
+            const dragHandle = document.getElementById('swal-keyboard-drag-handle');
+
+            const clamp = (x: number, y: number) => {
+                if (!panel) return { x, y };
+                const rect = panel.getBoundingClientRect();
+                const width = rect.width || 580;
+                const height = rect.height || 280;
+                const maxX = Math.max(0, window.innerWidth - width);
+                const maxY = Math.max(0, window.innerHeight - height);
+                return {
+                    x: Math.max(0, Math.min(x, maxX)),
+                    y: Math.max(0, Math.min(y, maxY))
+                };
+            };
+
+            const onMouseDown = (e: MouseEvent | TouchEvent) => {
+                isDragging = true;
+                const clientX = 'touches' in e ? e.touches[0].clientX : (e as MouseEvent).clientX;
+                const clientY = 'touches' in e ? e.touches[0].clientY : (e as MouseEvent).clientY;
+                startX = clientX - currentX;
+                startY = clientY - currentY;
+                if (dragHandle) {
+                    dragHandle.style.cursor = 'grabbing';
+                }
+            };
+
+            const onMouseMove = (e: MouseEvent | TouchEvent) => {
+                if (!isDragging || !panel) return;
+                
+                // Prevent scrolling on touch screens while dragging
+                if (e.cancelable) {
+                    e.preventDefault();
+                }
+                
+                const clientX = 'touches' in e ? e.touches[0].clientX : (e as MouseEvent).clientX;
+                const clientY = 'touches' in e ? e.touches[0].clientY : (e as MouseEvent).clientY;
+                const targetX = clientX - startX;
+                const targetY = clientY - startY;
+                const clamped = clamp(targetX, targetY);
+                currentX = clamped.x;
+                currentY = clamped.y;
+                panel.style.left = `${currentX}px`;
+                panel.style.top = `${currentY}px`;
+            };
+
+            const onMouseUp = () => {
+                isDragging = false;
+                if (dragHandle) {
+                    dragHandle.style.cursor = 'grab';
+                }
+            };
+
+            onMouseMoveGlobal = onMouseMove;
+            onMouseUpGlobal = onMouseUp;
+
+            if (dragHandle) {
+                dragHandle.addEventListener('mousedown', onMouseDown);
+                dragHandle.addEventListener('touchstart', onMouseDown, { passive: false });
+            }
+
+            window.addEventListener('mousemove', onMouseMove);
+            window.addEventListener('mouseup', onMouseUp);
+            window.addEventListener('touchmove', onMouseMove, { passive: false });
+            window.addEventListener('touchend', onMouseUp);
+
+            const renderKeyboard = () => {
+                const keysContainer = document.getElementById('swal-keyboard-keys');
+                if (!keysContainer) return;
+                keysContainer.innerHTML = '';
+
+                const activeKeys = currentLang === 'th' ? thKeys : enKeys;
+
+                const langTitle = document.getElementById('keyboard-lang-title');
+                if (langTitle) {
+                    langTitle.innerText = currentLang === 'th' 
+                        ? (isShift ? 'THAI KEYBOARD (SHIFT)' : 'THAI KEYBOARD (KEDMANEE)') 
+                        : (isShift ? 'ENGLISH KEYBOARD (SHIFT)' : 'ENGLISH KEYBOARD (QWERTY)');
+                }
+
+                activeKeys.forEach(row => {
+                    const rowDiv = document.createElement('div');
+                    rowDiv.className = 'flex justify-center gap-1 sm:gap-1.5';
+                    
+                    row.forEach(key => {
+                        const btn = document.createElement('button');
+                        btn.type = 'button';
+                        btn.className = 'relative w-11 h-11 sm:w-12 sm:h-12 bg-white rounded-lg sm:rounded-xl shadow-xs border border-[#ced4da] hover:bg-slate-50 active:bg-slate-100 flex items-center justify-center transition-all active:scale-95 cursor-pointer';
+                        
+                        // Shifted character (Top-Left)
+                        const shiftSpan = document.createElement('span');
+                        shiftSpan.className = `absolute top-1 left-1.5 transition-all duration-150 ${
+                            isShift 
+                                ? 'text-[14px] sm:text-[18px] font-extrabold text-[#212529]' 
+                                : 'text-[10px] sm:text-[11px] font-semibold text-slate-400'
+                        }`;
+                        shiftSpan.innerText = getDisplayChar(key.shift);
+                        btn.appendChild(shiftSpan);
+
+                        // Unshifted character (Bottom-Right)
+                        const normalSpan = document.createElement('span');
+                        normalSpan.className = `absolute bottom-1 right-2 transition-all duration-150 ${
+                            isShift 
+                                ? 'text-[10px] sm:text-[11px] font-semibold text-slate-400' 
+                                : 'text-[14px] sm:text-[18px] font-extrabold text-[#212529]'
+                        }`;
+                        normalSpan.innerText = getDisplayChar(key.normal);
+                        btn.appendChild(normalSpan);
+
+                        btn.addEventListener('click', () => {
+                            const input = document.getElementById('swal-reason-input') as HTMLInputElement;
+                            if (input) {
+                                input.value += isShift ? key.shift : key.normal;
+                                input.focus();
+                            }
+                        });
+                        rowDiv.appendChild(btn);
+                    });
+                    keysContainer.appendChild(rowDiv);
+                });
+
+                // Control Row
+                const controlRow = document.createElement('div');
+                controlRow.className = 'flex justify-center gap-1.5 mt-2';
+
+                // Shift Key
+                const shiftBtn = document.createElement('button');
+                shiftBtn.type = 'button';
+                shiftBtn.className = `w-18 sm:w-26 h-11 sm:h-12 text-sm sm:text-base font-extrabold rounded-lg sm:rounded-xl border transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                    isShift 
+                        ? 'bg-[#51555B] text-white border-[#51555B] shadow-md shadow-gray-400/50' 
+                        : 'bg-[#cbd2da] hover:bg-[#b8c1cc] text-[#212529] border-[#ced4da]'
+                }`;
+                shiftBtn.innerText = 'Shift';
+                shiftBtn.addEventListener('click', () => {
+                    isShift = !isShift;
+                    renderKeyboard();
+                });
+                controlRow.appendChild(shiftBtn);
+
+                // Space Key
+                const spaceBtn = document.createElement('button');
+                spaceBtn.type = 'button';
+                spaceBtn.className = 'flex-grow h-11 sm:h-12 bg-white hover:bg-slate-50 active:bg-slate-100 rounded-lg sm:rounded-xl border border-gray-300 shadow-xs text-slate-700 font-extrabold text-sm sm:text-base flex items-center justify-center cursor-pointer active:scale-95 transition-all max-w-md';
+                spaceBtn.innerText = 'Space';
+                spaceBtn.addEventListener('click', () => {
+                    const input = document.getElementById('swal-reason-input') as HTMLInputElement;
+                    if (input) {
+                        input.value += ' ';
+                        input.focus();
+                    }
+                });
+                controlRow.appendChild(spaceBtn);
+
+                // Clear Key
+                const clearBtn = document.createElement('button');
+                clearBtn.type = 'button';
+                clearBtn.className = 'w-18 sm:w-26 h-11 sm:h-12 bg-red-100 hover:bg-red-200 text-red-700 border border-red-200 font-extrabold text-sm sm:text-base rounded-lg sm:rounded-xl transition-all flex items-center justify-center cursor-pointer active:scale-95 shadow-xs';
+                clearBtn.innerText = 'Clear';
+                clearBtn.addEventListener('click', () => {
+                    const input = document.getElementById('swal-reason-input') as HTMLInputElement;
+                    if (input) {
+                        input.value = '';
+                        input.focus();
+                    }
+                });
+                controlRow.appendChild(clearBtn);
+
+                // Backspace Key
+                const backspaceBtn = document.createElement('button');
+                backspaceBtn.type = 'button';
+                backspaceBtn.className = 'w-28 sm:w-40 h-11 sm:h-12 bg-[#cbd2da] hover:bg-[#b8c1cc] border border-gray-300 rounded-lg sm:rounded-xl transition-all flex items-center justify-center cursor-pointer active:scale-95 font-bold text-slate-800 shadow-xs';
+                backspaceBtn.innerHTML = `
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 stroke-[2.5]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2M3 12l6.414 6.414A2 2 0 0010.828 19H19a2 2 0 002-2V7a2 2 0 00-2-2h-8.172a2 2 0 00-1.414.586L3 12z" />
+                    </svg>
+                `;
+                backspaceBtn.addEventListener('click', () => {
+                    const input = document.getElementById('swal-reason-input') as HTMLInputElement;
+                    if (input) {
+                        input.value = input.value.slice(0, -1);
+                        input.focus();
+                    }
+                });
+                controlRow.appendChild(backspaceBtn);
+
+                keysContainer.appendChild(controlRow);
+            };
+
+            // Quick Reasons Event Listeners
+            const quickBtns = document.querySelectorAll('.swal-quick-btn');
+            quickBtns.forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const target = e.target as HTMLButtonElement;
+                    const input = document.getElementById('swal-reason-input') as HTMLInputElement;
+                    if (input && target) {
+                        input.value = target.innerText.trim();
+                        input.focus();
+                    }
+                });
+            });
+
+            // Keyboard Toggle Button
+            const toggleBtn = document.getElementById('swal-keyboard-toggle');
+            if (toggleBtn && panel) {
+                toggleBtn.addEventListener('click', () => {
+                    if (panel.classList.contains('hidden')) {
+                        panel.classList.remove('hidden');
+                        toggleBtn.classList.remove('bg-orange-50', 'text-orange-600', 'border-orange-200');
+                        toggleBtn.classList.add('bg-orange-600', 'text-white', 'border-orange-600');
+                        renderKeyboard();
+
+                        // Position near the bottom-center of the screen
+                        setTimeout(() => {
+                            const rect = panel.getBoundingClientRect();
+                            const width = rect.width || 580;
+                            const height = rect.height || 280;
+                            currentX = Math.max(0, (window.innerWidth - width) / 2);
+                            currentY = Math.max(0, window.innerHeight - height - 30);
+                            panel.style.left = `${currentX}px`;
+                            panel.style.top = `${currentY}px`;
+                        }, 50);
+                    } else {
+                        panel.classList.add('hidden');
+                        toggleBtn.classList.remove('bg-orange-600', 'text-white', 'border-orange-600');
+                        toggleBtn.classList.add('bg-orange-50', 'text-orange-600', 'border-orange-200');
+                    }
+                });
+            }
+
+            // Language Toggle
+            const langToggle = document.getElementById('swal-keyboard-lang-toggle');
+            if (langToggle) {
+                langToggle.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    currentLang = currentLang === 'th' ? 'en' : 'th';
+                    renderKeyboard();
+                });
+                langToggle.addEventListener('mousedown', (e) => e.stopPropagation());
+                langToggle.addEventListener('touchstart', (e) => e.stopPropagation());
+            }
+
+            // Close Keyboard Button
+            const closeBtn = document.getElementById('swal-keyboard-close');
+            if (closeBtn && panel && toggleBtn) {
+                closeBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    panel.classList.add('hidden');
+                    toggleBtn.classList.remove('bg-orange-600', 'text-white', 'border-orange-600');
+                    toggleBtn.classList.add('bg-orange-50', 'text-orange-600', 'border-orange-200');
+                });
+                closeBtn.addEventListener('mousedown', (e) => e.stopPropagation());
+                closeBtn.addEventListener('touchstart', (e) => e.stopPropagation());
+            }
+        },
+        willClose: () => {
+            if (onMouseMoveGlobal) {
+                window.removeEventListener('mousemove', onMouseMoveGlobal);
+                window.removeEventListener('touchmove', onMouseMoveGlobal);
+            }
+            if (onMouseUpGlobal) {
+                window.removeEventListener('mouseup', onMouseUpGlobal);
+                window.removeEventListener('touchend', onMouseUpGlobal);
+            }
+        },
+        preConfirm: () => {
+            const input = document.getElementById('swal-reason-input') as HTMLInputElement;
+            if (!input || !input.value || !input.value.trim()) {
+                Swal.showValidationMessage('กรุณากรอกเหตุผลด้วยครับ');
+                return false;
+            }
+            return input.value.trim();
+        }
+    });
+
+    if (dismiss === Swal.DismissReason.cancel || reasonText === undefined) {
+        return undefined;
+    }
+    return reasonText;
+};
+
 interface StockManagementProps {
     stockItems: StockItem[];
     setStockItems: React.Dispatch<React.SetStateAction<StockItem[]>>;
@@ -2058,6 +2492,21 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                                                                                     }
                                                                                                     
                                                                                                     const receivedQty = Number(qtyInput.value);
+                                                                                                    const orderedQty = Number(item.orderedQuantity || 0);
+                                                                                                    
+                                                                                                    let incompleteReason = '';
+                                                                                                    if (receivedQty < orderedQty) {
+                                                                                                        const reasonText = await askForIncompleteReason(
+                                                                                                            'ระบุเหตุผลที่ได้รับของไม่ครบ',
+                                                                                                            `สินค้า "${item.name}" ได้รับเพียง ${receivedQty} จากที่สั่ง ${orderedQty} ${item.unit}`,
+                                                                                                            ''
+                                                                                                        );
+                                                                                                        if (reasonText === undefined) {
+                                                                                                            return; // Abort saving if cancelled or dismissed
+                                                                                                        }
+                                                                                                        incompleteReason = reasonText;
+                                                                                                    }
+
                                                                                                     const currentQty = Number(item.quantity || 0);
                                                                                                     const newCombinedQty = currentQty + receivedQty;
                                                                                                     const now = Date.now();
@@ -2088,110 +2537,14 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                                                                                                     <span class="font-semibold text-green-800">ถ้านับรวม ยอดสต็อกใหม่จะเป็น:</span>
                                                                                                                     <span class="font-black text-green-700">${newCombinedQty} ${item.unit}</span>
                                                                                                                 </div>
+                                                                                                                ${incompleteReason ? `
+                                                                                                                <div class="mt-2 bg-red-50 p-2 rounded-lg border border-red-200">
+                                                                                                                    <span class="font-bold text-red-800 text-xs block">⚠️ เหตุผลที่ได้รับไม่ครบ:</span>
+                                                                                                                    <span class="text-red-700 text-xs">${incompleteReason}</span>
+                                                                                                                </div>
+                                                                                                                ` : ''}
                                                                                                                 <div class="mt-4 font-bold text-center text-gray-900 text-base">
                                                                                                                     ต้องการนำจำนวนที่รับเข้าใหม่นี้ รวมเข้ากับยอดคงเหลือในโปรแกรมเดิมหรือไม่?
-                                                                                                                </div>
-                                                                                                            </div>
-                                                                                                        `,
-                                                                                                        icon: 'question',
-                                                                                                        showCancelButton: true,
-                                                                                                        showDenyButton: true,
-                                                                                                        confirmButtonColor: '#16a34a',
-                                                                                                        denyButtonColor: '#ea580c',
-                                                                                                        cancelButtonColor: '#94a3b8',
-                                                                                                        confirmButtonText: '✓ นับรวม (บวกเพิ่มสต็อก)',
-                                                                                                        denyButtonText: '✗ ไม่นับรวม (บันทึกเฉพาะจำนวนรับ)',
-                                                                                                        cancelButtonText: 'ยกเลิก'
-                                                                                                    });
-
-                                                                                                    if (itemConfirm.isDismissed && itemConfirm.dismiss === Swal.DismissReason.cancel) {
-                                                                                                        return; // Abort
-                                                                                                    }
-
-                                                                                                    const shouldCombine = itemConfirm.isConfirmed;
-                                                                                                    const currentStockQty = Number(item.quantity || 0);
-                                                                                                    const addedQty = shouldCombine ? receivedQty : 0;
-
-                                                                                                    setStockItems(prev => {
-                                                                                                        return prev.map(i => {
-                                                                                                            if (i.id === item.id) {
-                                                                                                                return {
-                                                                                                                    ...i,
-                                                                                                                    quantity: currentStockQty + addedQty,
-                                                                                                                    receivedDate: now,
-                                                                                                                    lastReceivedQuantity: receivedQty,
-                                                                                                                    lastOrderedQuantity: Number(i.orderedQuantity) || 0,
-                                                                                                                    orderedQuantity: Math.max(0, (Number(i.orderedQuantity) || 0) - receivedQty),
-                                                                                                                    lastUpdated: now,
-                                                                                                                    lastUpdatedBy: activeUsername
-                                                                                                                };
-                                                                                                            }
-                                                                                                            return i;
-                                                                                                        });
-                                                                                                    });
-
-                                                                                                    addLog(item, 'receive', `รับสินค้าเข้า: ${receivedQty} ${item.unit} (รวมยอด: ${shouldCombine ? 'ใช่' : 'ไม่'}) โดย ${activeUsername}`);
-
-                                                                                                    Swal.fire({
-                                                                                                        title: 'สำเร็จ!',
-                                                                                                        text: `บันทึกรายการรับสินค้า "${item.name}" เรียบร้อยแล้ว`,
-                                                                                                        icon: 'success',
-                                                                                                        timer: 2000,
-                                                                                                        showConfirmButton: false
-                                                                                                    });
-                                                                                                }}
-                                                                                                className="px-4 py-2.5 bg-orange-600 hover:bg-orange-700 text-white font-bold rounded-xl shadow-md shadow-orange-100 transition-all active:scale-95 text-xs whitespace-nowrap cursor-pointer flex items-center justify-center gap-1 self-stretch"
-                                                                                            >
-                                                                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                                                                                </svg>
-                                                                                                บันทึก
-                                                                                            </button>
-                                                                                        )}
-                                                                                    </div>
-                                                                                    
-                                                                                    {isEditingThisItem && (
-                                                                                        <div className="mt-2 flex gap-1.5 w-full">
-                                                                                            <button
-                                                                                                type="button"
-                                                                                                onClick={async () => {
-                                                                                                    const valStr = bulkEditQuantities[item.id];
-                                                                                                    if (!valStr || isNaN(Number(valStr)) || Number(valStr) < 0) {
-                                                                                                        Swal.fire('ข้อผิดพลาด', 'กรุณาระบุจำนวนที่ถูกต้อง', 'error');
-                                                                                                        return;
-                                                                                                    }
-                                                                                                    const newQty = Number(valStr);
-                                                                                                    const prevLastReceived = item.lastReceivedQuantity ?? 0;
-                                                                                                    const diff = newQty - prevLastReceived;
-                                                                                                    
-                                                                                                    const confirmed = await Swal.fire({
-                                                                                                        title: 'แก้ไขจำนวนรับสินค้า',
-                                                                                                        html: `
-                                                                                                            <div class="text-left space-y-2.5 p-2 text-sm text-gray-700">
-                                                                                                                <div class="flex justify-between border-b pb-1.5">
-                                                                                                                    <span class="font-medium">ชื่อวัตถุดิบ:</span>
-                                                                                                                    <span class="font-bold text-gray-900">${item.name}</span>
-                                                                                                                </div>
-                                                                                                                <div class="flex justify-between border-b pb-1.5 bg-blue-50/50 p-1.5 rounded-lg">
-                                                                                                                    <span class="font-bold text-blue-800">คงเหลือในโปรแกรมปัจจุบัน:</span>
-                                                                                                                    <span class="font-extrabold text-blue-700">${item.quantity} ${item.unit}</span>
-                                                                                                                </div>
-                                                                                                                <div class="flex justify-between border-b pb-1.5">
-                                                                                                                    <span class="font-medium">จำนวนรับเดิม:</span>
-                                                                                                                    <span class="font-bold text-gray-800">${prevLastReceived} ${item.unit}</span>
-                                                                                                                </div>
-                                                                                                                <div class="flex justify-between border-b pb-1.5 bg-orange-50/50 p-1.5 rounded-lg">
-                                                                                                                    <span class="font-bold text-orange-800">จำนวนรับใหม่:</span>
-                                                                                                                    <span class="font-extrabold text-orange-700">${newQty} ${item.unit}</span>
-                                                                                                                </div>
-                                                                                                                <div class="flex justify-between text-xs text-gray-500 mt-2">
-                                                                                                                    <span>ส่วนต่างที่จะคำนวณ:</span>
-                                                                                                                    <span class="font-black ${diff >= 0 ? 'text-green-600' : 'text-red-600'}">
-                                                                                                                        ${diff >= 0 ? '+' : ''}${diff} ${item.unit}
-                                                                                                                    </span>
-                                                                                                                </div>
-                                                                                                                <div class="mt-4 font-bold text-center text-gray-900 text-base">
-                                                                                                                    ต้องการนับจำนวนที่รับใหม่นี้ รวมเข้ากับยอดคงเหลือในโปรแกรมด้วยหรือไม่?
                                                                                                                 </div>
                                                                                                             </div>
                                                                                                         `,
@@ -2206,70 +2559,205 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                                                                                         cancelButtonText: 'ยกเลิก'
                                                                                                     });
 
-                                                                                                    if (confirmed.isConfirmed || confirmed.isDenied) {
-                                                                                                        const shouldCombine = confirmed.isConfirmed;
-                                                                                                        const now = Date.now();
-                                                                                                        const activeUsername = currentUser?.username || 'Unknown Staff';
-                                                                                                        const diffToApply = shouldCombine ? diff : 0;
+                                                                                                    if (itemConfirm.isConfirmed || itemConfirm.isDenied) {
+                                                                                                        const shouldCombine = itemConfirm.isConfirmed;
+                                                                                                        const diffToApply = shouldCombine ? receivedQty : 0;
 
                                                                                                         setStockItems(prev => {
                                                                                                             const nextItems = [...prev];
                                                                                                             const itemIndex = nextItems.findIndex(i => i.id === item.id);
                                                                                                             if (itemIndex !== -1) {
                                                                                                                 const targetItem = nextItems[itemIndex];
-                                                                                                                
-                                                                                                                const editRecord = {
-                                                                                                                    updatedBy: activeUsername,
-                                                                                                                    updatedAt: now,
-                                                                                                                    previousQuantity: prevLastReceived,
-                                                                                                                    newQuantity: newQty
-                                                                                                                };
-
                                                                                                                 nextItems[itemIndex] = {
                                                                                                                     ...targetItem,
                                                                                                                     quantity: targetItem.quantity + diffToApply,
-                                                                                                                    lastReceivedQuantity: newQty,
+                                                                                                                    receivedDate: now,
+                                                                                                                    lastReceivedQuantity: receivedQty,
+                                                                                                                    lastOrderedQuantity: Number(targetItem.orderedQuantity) || 0,
+                                                                                                                    orderedQuantity: 0,
+                                                                                                                    incompleteReason: incompleteReason || undefined,
                                                                                                                     lastUpdated: now,
-                                                                                                                    lastUpdatedBy: activeUsername,
-                                                                                                                    receiveEditHistory: [...(targetItem.receiveEditHistory || []), editRecord]
+                                                                                                                    lastUpdatedBy: activeUsername
                                                                                                                 };
                                                                                                             }
                                                                                                             return nextItems;
                                                                                                         });
 
-                                                                                                        addLog(item, 'adjust', `แก้ไขจำนวนรับแบบกลุ่ม: เปลี่ยนจาก ${prevLastReceived} เป็น ${newQty} ${item.unit} (รวมยอด: ${shouldCombine ? 'ใช่' : 'ไม่'}) โดย ${activeUsername}`);
+                                                                                                        addLog(item, 'adjust', `บันทึกรับของแบบกลุ่ม: จำนวน ${receivedQty} ${item.unit} (รวมยอด: ${shouldCombine ? 'ใช่' : 'ไม่'}) โดย ${activeUsername}${incompleteReason ? ` เหตุผลไม่ครบ: ${incompleteReason}` : ''}`);
 
                                                                                                         Swal.fire({
-                                                                                                            title: 'แก้ไขสำเร็จ!',
-                                                                                                            text: `แก้ไขรายการรับสินค้า "${item.name}" เรียบร้อยแล้ว (${shouldCombine ? 'อัปเดตยอดสต็อกแล้ว' : 'ไม่ได้ปรับยอดสต็อก'})`,
+                                                                                                            title: 'บันทึกสำเร็จ!',
+                                                                                                            text: `บันทึกรับสินค้า "${item.name}" เรียบร้อยแล้ว (${shouldCombine ? 'อัปเดตยอดสต็อกแล้ว' : 'ไม่ได้ปรับยอดสต็อก'})`,
                                                                                                             icon: 'success',
                                                                                                             timer: 2000,
                                                                                                             showConfirmButton: false
                                                                                                         });
-
-                                                                                                        setBulkEditingItemIds(prev => ({...prev, [item.id]: false}));
                                                                                                     }
                                                                                                 }}
-                                                                                                className="flex-1 py-1 px-1.5 bg-green-600 hover:bg-green-700 text-white text-[10px] font-bold rounded-lg transition-all active:scale-95 cursor-pointer text-center"
+                                                                                                className="py-2.5 px-4 bg-orange-600 hover:bg-orange-700 text-white text-xs font-bold rounded-xl transition-all active:scale-95 cursor-pointer shadow-md shadow-orange-100 flex items-center justify-center min-w-[70px]"
                                                                                             >
-                                                                                                บันทึก
+                                                                                                รับเข้า
                                                                                             </button>
-                                                                                            <button
-                                                                                                type="button"
-                                                                                                onClick={() => {
-                                                                                                    setBulkEditingItemIds(prev => ({...prev, [item.id]: false}));
-                                                                                                }}
-                                                                                                className="flex-1 py-1 px-1.5 bg-gray-200 hover:bg-gray-300 text-gray-700 text-[10px] font-bold rounded-lg transition-all active:scale-95 cursor-pointer text-center"
-                                                                                            >
-                                                                                                ยกเลิก
-                                                                                            </button>
-                                                                                        </div>
-                                                                                    )}
-                                                                                    
+                                                                                        )}
+
+                                                                                        {isEditingThisItem && (
+                                                                                            <div className="flex gap-1.5 w-full max-w-[120px]">
+                                                                                                <button
+                                                                                                    type="button"
+                                                                                                    onClick={async () => {
+                                                                                                        const valStr = bulkEditQuantities[item.id];
+                                                                                                        if (!valStr || isNaN(Number(valStr)) || Number(valStr) < 0) {
+                                                                                                            Swal.fire('ข้อผิดพลาด', 'กรุณาระบุจำนวนที่ถูกต้อง', 'error');
+                                                                                                            return;
+                                                                                                        }
+                                                                                                        const newQty = Number(valStr);
+                                                                                                        const targetOrderQty = Number(item.lastOrderedQuantity || item.orderedQuantity || 0);
+
+                                                                                                        let incompleteReason = item.incompleteReason || '';
+                                                                                                        if (newQty < targetOrderQty) {
+                                                                                                            const reasonText = await askForIncompleteReason(
+                                                                                                                'ระบุเหตุผลที่ได้รับของไม่ครบ (แก้ไข)',
+                                                                                                                `สินค้า "${item.name}" ได้รับเพียง ${newQty} จากที่สั่ง ${targetOrderQty} ${item.unit}`,
+                                                                                                                item.incompleteReason || ''
+                                                                                                            );
+                                                                                                            if (reasonText === undefined) {
+                                                                                                                return; // Abort
+                                                                                                            }
+                                                                                                            incompleteReason = reasonText;
+                                                                                                        } else {
+                                                                                                            incompleteReason = '';
+                                                                                                        }
+
+                                                                                                        const prevLastReceived = item.lastReceivedQuantity ?? 0;
+                                                                                                        const diff = newQty - prevLastReceived;
+
+                                                                                                        const confirmed = await Swal.fire({
+                                                                                                            title: 'แก้ไขจำนวนรับสินค้า',
+                                                                                                            html: `
+                                                                                                                <div class="text-left space-y-2.5 p-2 text-sm text-gray-700 font-sans">
+                                                                                                                    <div class="flex justify-between border-b pb-1.5">
+                                                                                                                        <span class="font-medium">ชื่อวัตถุดิบ:</span>
+                                                                                                                        <span class="font-bold text-gray-900">${item.name}</span>
+                                                                                                                    </div>
+                                                                                                                    <div class="flex justify-between border-b pb-1.5 bg-blue-50/50 p-1.5 rounded-lg">
+                                                                                                                        <span class="font-bold text-blue-800">คงเหลือในโปรแกรมปัจจุบัน:</span>
+                                                                                                                        <span class="font-extrabold text-blue-700">${item.quantity} ${item.unit}</span>
+                                                                                                                    </div>
+                                                                                                                    <div class="flex justify-between border-b pb-1.5">
+                                                                                                                        <span class="font-medium">จำนวนรับเดิม:</span>
+                                                                                                                        <span class="font-bold text-gray-800">${prevLastReceived} ${item.unit}</span>
+                                                                                                                    </div>
+                                                                                                                    <div class="flex justify-between border-b pb-1.5 bg-orange-50/50 p-1.5 rounded-lg">
+                                                                                                                        <span class="font-bold text-orange-800">จำนวนรับใหม่:</span>
+                                                                                                                        <span class="font-extrabold text-orange-700">${newQty} ${item.unit}</span>
+                                                                                                                    </div>
+                                                                                                                    <div class="flex justify-between text-xs text-gray-500 mt-2 bg-green-50/30 p-1.5 rounded-lg border border-dashed border-green-200">
+                                                                                                                        <span class="font-semibold text-green-800">ส่วนต่างที่จะคำนวณ:</span>
+                                                                                                                        <span class="font-black ${diff >= 0 ? 'text-green-600' : 'text-red-600'}">
+                                                                                                                            ${diff >= 0 ? '+' : ''}${diff} ${item.unit}
+                                                                                                                        </span>
+                                                                                                                    </div>
+                                                                                                                    ${incompleteReason ? `
+                                                                                                                    <div class="mt-2 bg-red-50 p-2 rounded-lg border border-red-200">
+                                                                                                                        <span class="font-bold text-red-800 text-xs block">⚠️ เหตุผลที่ได้รับไม่ครบ:</span>
+                                                                                                                        <span class="text-red-700 text-xs">${incompleteReason}</span>
+                                                                                                                    </div>
+                                                                                                                    ` : ''}
+                                                                                                                    <div class="mt-4 font-bold text-center text-gray-900 text-base">
+                                                                                                                        ต้องการนับจำนวนที่รับใหม่นี้ รวมเข้ากับยอดคงเหลือในโปรแกรมด้วยหรือไม่?
+                                                                                                                    </div>
+                                                                                                                </div>
+                                                                                                            `,
+                                                                                                            icon: 'question',
+                                                                                                            showCancelButton: true,
+                                                                                                            showDenyButton: true,
+                                                                                                            confirmButtonColor: '#16a34a',
+                                                                                                            denyButtonColor: '#ea580c',
+                                                                                                            cancelButtonColor: '#94a3b8',
+                                                                                                            confirmButtonText: '✓ นับรวม (อัปเดตสต็อก)',
+                                                                                                            denyButtonText: '✗ ไม่นับรวม (แก้ไขเฉพาะจำนวนรับ)',
+                                                                                                            cancelButtonText: 'ยกเลิก'
+                                                                                                        });
+
+                                                                                                        if (confirmed.isConfirmed || confirmed.isDenied) {
+                                                                                                            const shouldCombine = confirmed.isConfirmed;
+                                                                                                            const now = Date.now();
+                                                                                                            const activeUsername = currentUser?.username || 'Unknown Staff';
+                                                                                                            const diffToApply = shouldCombine ? diff : 0;
+
+                                                                                                            setStockItems(prev => {
+                                                                                                                const nextItems = [...prev];
+                                                                                                                const itemIndex = nextItems.findIndex(i => i.id === item.id);
+                                                                                                                if (itemIndex !== -1) {
+                                                                                                                    const targetItem = nextItems[itemIndex];
+                                                                                                                    
+                                                                                                                    const editRecord = {
+                                                                                                                        updatedBy: activeUsername,
+                                                                                                                        updatedAt: now,
+                                                                                                                        previousQuantity: prevLastReceived,
+                                                                                                                        newQuantity: newQty
+                                                                                                                    };
+
+                                                                                                                    nextItems[itemIndex] = {
+                                                                                                                        ...targetItem,
+                                                                                                                        quantity: targetItem.quantity + diffToApply,
+                                                                                                                        lastReceivedQuantity: newQty,
+                                                                                                                        lastUpdated: now,
+                                                                                                                        lastUpdatedBy: activeUsername,
+                                                                                                                        incompleteReason: incompleteReason || undefined,
+                                                                                                                        receiveEditHistory: [...(targetItem.receiveEditHistory || []), editRecord]
+                                                                                                                    };
+                                                                                                                }
+                                                                                                                return nextItems;
+                                                                                                            });
+
+                                                                                                            addLog(item, 'adjust', `แก้ไขจำนวนรับแบบกลุ่ม: เปลี่ยนจาก ${prevLastReceived} เป็น ${newQty} ${item.unit} (รวมยอด: ${shouldCombine ? 'ใช่' : 'ไม่'}) โดย ${activeUsername}`);
+
+                                                                                                            Swal.fire({
+                                                                                                                title: 'แก้ไขสำเร็จ!',
+                                                                                                                text: `แก้ไขรายการรับสินค้า "${item.name}" เรียบร้อยแล้ว (${shouldCombine ? 'อัปเดตยอดสต็อกแล้ว' : 'ไม่ได้ปรับยอดสต็อก'})`,
+                                                                                                                icon: 'success',
+                                                                                                                timer: 2000,
+                                                                                                                showConfirmButton: false
+                                                                                                            });
+
+                                                                                                            setBulkEditingItemIds(prev => ({...prev, [item.id]: false}));
+                                                                                                        }
+                                                                                                    }}
+                                                                                                    className="flex-1 py-1 px-1.5 bg-green-600 hover:bg-green-700 text-white text-[10px] font-bold rounded-lg transition-all active:scale-95 cursor-pointer text-center"
+                                                                                                >
+                                                                                                    บันทึก
+                                                                                                </button>
+                                                                                                <button
+                                                                                                    type="button"
+                                                                                                    onClick={() => {
+                                                                                                        setBulkEditingItemIds(prev => ({...prev, [item.id]: false}));
+                                                                                                    }}
+                                                                                                    className="flex-1 py-1 px-1.5 bg-gray-200 hover:bg-gray-300 text-gray-700 text-[10px] font-bold rounded-lg transition-all active:scale-95 cursor-pointer text-center"
+                                                                                                >
+                                                                                                    ยกเลิก
+                                                                                                </button>
+                                                                                            </div>
+                                                                                        )}
+                                                                                    </div>
+
                                                                                     {isVerifiedToday && item.lastUpdatedBy && (
-                                                                                        <div className="mt-1 text-[10px] text-gray-500 font-medium text-center bg-green-50/50 py-1.5 px-2 rounded-lg flex flex-col items-center gap-1">
-                                                                                            <span className="text-green-700 font-bold block">บันทึกโดย: {item.lastUpdatedBy}</span>
+                                                                                        <div className={`mt-2 text-[10px] text-gray-500 font-medium text-center py-1.5 px-2 rounded-lg flex flex-col items-center gap-1 ${
+                                                                                            isReceivedComplete 
+                                                                                                ? 'bg-green-50/50 border border-green-100' 
+                                                                                                : 'bg-red-50/50 border border-red-100'
+                                                                                        }`}>
+                                                                                            <span className={`${isReceivedComplete ? 'text-green-700' : 'text-red-700'} font-bold block`}>
+                                                                                                บันทึกโดย: {item.lastUpdatedBy}
+                                                                                            </span>
                                                                                             <span className="text-gray-400 opacity-80">{parseDateValue(item.lastUpdated)?.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) || '-'} น.</span>
+                                                                                            
+                                                                                            {item.incompleteReason && (
+                                                                                                <div className="mt-1 w-full p-1.5 bg-red-100/60 text-red-800 text-[9px] font-bold rounded-md border border-red-200/80 text-left">
+                                                                                                    <span className="block text-red-600 font-bold mb-0.5">⚠️ เหตุผลที่ได้รับไม่ครบ:</span>
+                                                                                                    <span className="font-semibold text-gray-700 block whitespace-pre-wrap leading-tight">{item.incompleteReason}</span>
+                                                                                                </div>
+                                                                                            )}
                                                                                             
                                                                                             {item.receiveEditHistory && item.receiveEditHistory.length > 0 && (
                                                                                                 <div className="w-full mt-1.5 pt-1.5 border-t border-dashed border-green-200 text-left">
