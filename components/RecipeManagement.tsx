@@ -231,8 +231,6 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
                                 <th>ชื่อวัตถุดิบ</th>
                                 <th style="text-align: center">ปริมาณ</th>
                                 <th style="width: 80px">หน่วย</th>
-                                <th style="text-align: right">ราคา/หน่วย</th>
-                                <th style="text-align: right">ต้นทุน</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -252,15 +250,13 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
                         <td>${stockItem?.name || 'Unknown Item'}</td>
                         <td style="text-align: center">${ing.quantity}</td>
                         <td>${ing.unit}</td>
-                        <td style="text-align: right">฿${smartPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                        <td style="text-align: right">฿${subtotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                     </tr>
                 `;
             });
 
             if (recipe.additionalIngredients && recipe.additionalIngredients.length > 0) {
                 content += `
-                    <tr><td colspan="6" style="background:#f1f5f9; font-weight:bold; color: #475569; padding: 8px 10px;">บรรจุภัณฑ์และต้นทุนคงที่</td></tr>
+                    <tr><td colspan="4" style="background:#f1f5f9; font-weight:bold; color: #475569; padding: 8px 10px;">บรรจุภัณฑ์และต้นทุนคงที่</td></tr>
                 `;
                 recipe.additionalIngredients.forEach((ing, idx) => {
                     const stockItem = stockMap.get(String(ing.stockItemId));
@@ -276,8 +272,6 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
                             <td>${stockItem?.name || 'Unknown Item'}</td>
                             <td style="text-align: center">${ing.quantity}</td>
                             <td>${ing.unit}</td>
-                            <td style="text-align: right">฿${smartPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                            <td style="text-align: right">฿${subtotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                         </tr>
                     `;
                 });
@@ -286,10 +280,6 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
             content += `
                         </tbody>
                     </table>
-                    <div class="total-section">
-                        <div class="cost-line">ต้นทุนวัตถุดิบสุทธิ: ฿${cost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-                        <div class="total-cost">สรุปราคาต้นทุนเป้าหมาย: ฿${cost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-                    </div>
 
                     ${recipe.instructions ? `
                         <h3>วิธีการปรุงอาหาร</h3>
