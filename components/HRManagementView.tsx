@@ -4,6 +4,7 @@ import { JobApplication, EmploymentContract, TimeRecord, PayrollRecord, LeaveReq
 import { DEFAULT_JOB_APPLICATIONS, DEFAULT_EMPLOYMENT_CONTRACTS } from '../constants';
 import Swal from 'sweetalert2';
 import * as XLSX from 'xlsx';
+import { Eye, EyeOff } from 'lucide-react';
 
 type HRTab = 'application' | 'contract' | 'time' | 'payroll' | 'leave';
 
@@ -126,6 +127,7 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
     }, [initialTab]);
 
     const [selectedItems, setSelectedItems] = useState<(number | string)[]>([]);
+    const [showSalaries, setShowSalaries] = useState<boolean>(false);
 
     const handleOpenLeaveQuotaModal = () => {
         const employeeOptions = users
@@ -1173,7 +1175,19 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                         <th className="p-3">วันที่สมัคร</th>
                                         <th className="p-3">ชื่อ-นามสกุล</th>
                                         <th className="p-3">ตำแหน่ง</th>
-                                        <th className="p-3">เงินเดือนที่ขอ</th>
+                                        <th className="p-3">
+                                            <div className="flex items-center gap-1.5">
+                                                <span>เงินเดือนที่ขอ</span>
+                                                <button 
+                                                    type="button"
+                                                    onClick={() => setShowSalaries(!showSalaries)}
+                                                    className="p-1 hover:bg-gray-600 rounded text-gray-400 hover:text-white transition-colors cursor-pointer"
+                                                    title={showSalaries ? "ซ่อนตัวเลข" : "แสดงตัวเลข"}
+                                                >
+                                                    {showSalaries ? <EyeOff className="h-4 w-4 inline-block" /> : <Eye className="h-4 w-4 inline-block" />}
+                                                </button>
+                                            </div>
+                                        </th>
                                         <th className="p-3">สถานะ</th>
                                         <th className="p-3">จัดการ</th>
                                     </tr>
@@ -1210,7 +1224,13 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                                 </td>
                                                 <td className="p-3 font-medium text-white">{app.fullName || '-'}</td>
                                                 <td className="p-3">{app.position || '-'}</td>
-                                                <td className="p-3">{(app.expectedSalary || 0).toLocaleString()}</td>
+                                                <td className="p-3">
+                                                    {showSalaries ? (
+                                                        (app.expectedSalary || 0).toLocaleString()
+                                                    ) : (
+                                                        <span className="text-gray-500 font-medium">••••••</span>
+                                                    )}
+                                                </td>
                                                 <td className="p-3">
                                                     {isEditMode ? (
                                                         <select
@@ -1327,7 +1347,19 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                         <th className="p-3">พนักงาน</th>
                                         <th className="p-3">ตำแหน่ง</th>
                                         <th className="p-3">ประเภท</th>
-                                        <th className="p-3">เงินเดือน</th>
+                                        <th className="p-3">
+                                            <div className="flex items-center gap-1.5">
+                                                <span>เงินเดือน</span>
+                                                <button 
+                                                    type="button"
+                                                    onClick={() => setShowSalaries(!showSalaries)}
+                                                    className="p-1 hover:bg-gray-600 rounded text-gray-400 hover:text-white transition-colors cursor-pointer"
+                                                    title={showSalaries ? "ซ่อนตัวเลข" : "แสดงตัวเลข"}
+                                                >
+                                                    {showSalaries ? <EyeOff className="h-4 w-4 inline-block" /> : <Eye className="h-4 w-4 inline-block" />}
+                                                </button>
+                                            </div>
+                                        </th>
                                         <th className="p-3">จัดการ</th>
                                     </tr>
                                 </thead>
@@ -1379,7 +1411,13 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                                     )}
                                                 </td>
                                                 <td className="p-3">{c.contractType}</td>
-                                                <td className="p-3">{(c.salary || 0).toLocaleString()}</td>
+                                                <td className="p-3">
+                                                    {showSalaries ? (
+                                                        (c.salary || 0).toLocaleString()
+                                                    ) : (
+                                                        <span className="text-gray-500 font-medium">••••••</span>
+                                                    )}
+                                                </td>
                                                 <td className="p-3">
                                                     <div className="flex items-center gap-2 flex-wrap">
                                                         <button 
@@ -1561,7 +1599,19 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                             </div>
                                         </th>
                                         <th className="p-3">พนักงาน</th>
-                                        <th className="p-3">เงินเดือนฐาน</th>
+                                        <th className="p-3">
+                                            <div className="flex items-center gap-1.5">
+                                                <span>เงินเดือนฐาน</span>
+                                                <button 
+                                                    type="button"
+                                                    onClick={() => setShowSalaries(!showSalaries)}
+                                                    className="p-1 hover:bg-gray-600 rounded text-gray-400 hover:text-white transition-colors cursor-pointer"
+                                                    title={showSalaries ? "ซ่อนตัวเลข" : "แสดงตัวเลข"}
+                                                >
+                                                    {showSalaries ? <EyeOff className="h-4 w-4 inline-block" /> : <Eye className="h-4 w-4 inline-block" />}
+                                                </button>
+                                            </div>
+                                        </th>
                                         <th className="p-3">สุทธิ</th>
                                         <th className="p-3">สถานะ</th>
                                         <th className="p-3">วันจ่ายครั้งถัดไป</th>
@@ -1599,8 +1649,20 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                                     )}
                                                 </td>
                                                 <td className="p-3 font-medium text-white">{p.employeeName}</td>
-                                                <td className="p-3">{(p.baseSalary || 0).toLocaleString()}</td>
-                                                <td className="p-3 font-bold text-green-400">{(p.totalNetSalary || 0).toLocaleString()}</td>
+                                                <td className="p-3">
+                                                    {showSalaries ? (
+                                                        (p.baseSalary || 0).toLocaleString()
+                                                    ) : (
+                                                        <span className="text-gray-500 font-medium">••••••</span>
+                                                    )}
+                                                </td>
+                                                <td className="p-3 font-bold text-green-400">
+                                                    {showSalaries ? (
+                                                        (p.totalNetSalary || 0).toLocaleString()
+                                                    ) : (
+                                                        <span className="text-gray-500 font-medium">••••••</span>
+                                                    )}
+                                                </td>
                                                 <td className="p-3">
                                                     {isEditMode ? (
                                                         <select
