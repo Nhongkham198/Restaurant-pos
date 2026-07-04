@@ -408,6 +408,12 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             
             // 1. Strict Permission Check: Only select from allowedBranchIds
             if (currentUser.allowedBranchIds && currentUser.allowedBranchIds.length > 0) {
+                // Concept 2: Always show branch selection screen for branch-admin and admin on login (regardless of 1 or multiple branches)
+                if (currentUser.role === 'admin' || currentUser.role === 'branch-admin') {
+                    console.log('[DataContext] User is admin/branch-admin. Skipping auto-selection.');
+                    return;
+                }
+
                 // NEW LOGIC: If user has access to MULTIPLE branches, do NOT auto-select.
                 // Let them choose from the selection screen.
                 if (currentUser.allowedBranchIds.length > 1) {

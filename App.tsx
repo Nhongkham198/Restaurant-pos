@@ -1343,8 +1343,8 @@ export const App: React.FC = () => {
                 }
             } else if (['admin', 'branch-admin', 'auditor'].includes(user.role)) {
                 handleViewChange('dashboard');
-                // NEW LOGIC: Branch Selection for Admin/Manager/Auditor
-                if (user.role === 'admin' || (user.allowedBranchIds && user.allowedBranchIds.length > 1)) {
+                // Concept 2: Always show branch selection screen for branch-admin on login (regardless of 1 or multiple branches)
+                if (user.role === 'admin' || user.role === 'branch-admin' || (user.allowedBranchIds && user.allowedBranchIds.length > 1)) {
                     setSelectedBranch(null); 
                     localStorage.removeItem('selectedBranch');
                 } else if (user.allowedBranchIds && user.allowedBranchIds.length === 1) {
