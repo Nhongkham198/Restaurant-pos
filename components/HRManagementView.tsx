@@ -383,16 +383,82 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                     const sheet = workbook.Sheets[sheetName];
                     const json = XLSX.utils.sheet_to_json(sheet);
                     
-                    // Basic mapping - assumes columns like "Name", "Position", "Phone", "Salary"
-                    const newApps = json.map((row: any) => ({
-                        id: Date.now() + Math.random(),
-                        fullName: row['Name'] || row['ชื่อ-นามสกุล'] || row['ชื่อ'] || 'Unknown',
-                        position: row['Position'] || row['ตำแหน่ง'] || 'Staff',
-                        phoneNumber: row['Phone'] || row['เบอร์โทร'] || row['เบอร์โทรศัพท์'] || '',
-                        expectedSalary: Number(row['Salary'] || row['เงินเดือน'] || row['เงินเดือนที่ขอ'] || 0),
-                        status: 'pending',
-                        applicationDate: Date.now()
-                    }));
+                    // Robust mapping supporting flexible, case-insensitive, and partial/Thai headers
+                    const newApps = json.map((row: any) => {
+                        const getRowValue = (searchKeys: string[]) => {
+                            for (const k of searchKeys) {
+                                if (row[k] !== undefined && row[k] !== null && row[k] !== '') return row[k];
+                            }
+                            const rowKeys = Object.keys(row);
+                            for (const k of searchKeys) {
+                                const target = k.toLowerCase();
+                                const found = rowKeys.find(rk => rk.toLowerCase() === target);
+                                if (found !== undefined && row[found] !== undefined && row[found] !== null && row[found] !== '') {
+                                    return row[found];
+                                }
+                            }
+                            for (const k of searchKeys) {
+                                const target = k.toLowerCase();
+                                const found = rowKeys.find(rk => {
+                                    const rkLower = rk.toLowerCase();
+                                    return (target.length >= 4 && rkLower.length >= 4 && (rkLower.startsWith(target) || target.startsWith(rkLower)));
+                                });
+                                if (found !== undefined && row[found] !== undefined && row[found] !== null && row[found] !== '') {
+                                    return row[found];
+                                }
+                            }
+                            return undefined;
+                        };
+
+                        const fullNameVal = getRowValue(['fullName', 'Name', 'ชื่อ-นามสกุล', 'ชื่อ', 'full name']);
+                        const positionVal = getRowValue(['position', 'Position', 'ตำแหน่ง', 'ตำแหน่งที่สมัคร', 'job']);
+                        const phoneVal = getRowValue(['phoneNumber', 'phone', 'Phone', 'เบอร์โทร', 'เบอร์โทรศัพท์', 'tel', 'telephone']);
+                        const salaryVal = getRowValue(['expectedSalary', 'expectedSa', 'salary', 'Salary', 'เงินเดือน', 'เงินเดือนที่ขอ', 'เงินเดือนที่ต้องการ']);
+                        const statusVal = getRowValue(['status', 'Status', 'สถานะ']);
+                        const appDateVal = getRowValue(['applicationDate', 'application', 'application_date', 'date', 'วันที่สมัคร', 'วันที่']);
+
+                        let parsedStatus: 'pending' | 'interview' | 'hired' | 'rejected' | 'approved' = 'pending';
+                        if (statusVal) {
+                            const s = String(statusVal).toLowerCase().trim();
+                            if (['pending', 'interview', 'hired', 'rejected', 'approved'].includes(s)) {
+                                parsedStatus = s as any;
+                            } else if (s === 'รอพิจารณา') {
+                                parsedStatus = 'pending';
+                            } else if (s === 'นัดสัมภาษณ์') {
+                                parsedStatus = 'interview';
+                            } else if (s === 'รับเข้าทำงาน' || s === 'ว่าจ้าง') {
+                                parsedStatus = 'hired';
+                            } else if (s === 'ปฏิเสธ') {
+                                parsedStatus = 'rejected';
+                            } else if (s === 'อนุมัติ') {
+                                parsedStatus = 'approved';
+                            }
+                        }
+
+                        let parsedAppDate = Date.now();
+                        if (appDateVal) {
+                            const num = Number(appDateVal);
+                            if (!isNaN(num) && num > 1000000000) {
+                                parsedAppDate = num;
+                            } else {
+                                const parsed = Date.parse(String(appDateVal));
+                                if (!isNaN(parsed)) {
+                                    parsedAppDate = parsed;
+                                }
+                            }
+                        }
+
+                        return {
+                            id: Number(getRowValue(['id', 'ID'])) || (Date.now() + Math.random()),
+                            fullName: fullNameVal ? String(fullNameVal) : 'Unknown',
+                            position: positionVal ? String(positionVal) : 'Staff',
+                            phoneNumber: phoneVal ? String(phoneVal) : '',
+                            expectedSalary: salaryVal ? Number(salaryVal) : 0,
+                            status: parsedStatus,
+                            applicationDate: parsedAppDate,
+                            userId: getRowValue(['userId', 'userid']) ? Number(getRowValue(['userId', 'userid'])) : undefined
+                        };
+                    });
 
                     if (newApps.length > 0) {
                         newApps.forEach((app: JobApplication) => jobApplicationsActions.add(app));
