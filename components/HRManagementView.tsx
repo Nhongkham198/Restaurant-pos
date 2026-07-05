@@ -895,6 +895,30 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
         // Filter contracts to suggest employees
         const options = employmentContracts.map(c => `<option value="${c.id}" data-salary="${c.salary}" data-name="${c.employeeName}" data-userid="${c.userId || ''}">${c.employeeName}</option>`).join('');
 
+        const workedDates = new Set<string>();
+        let lastEmpId = '';
+        let lastDate = '';
+        let lastCycle = 0;
+
+        const getDatesForCycle = (baseDate: Date, cycle: number): Date[] => {
+            const dates: Date[] = [];
+            if (cycle === 30) {
+                const year = baseDate.getFullYear();
+                const month = baseDate.getMonth();
+                const lastDay = new Date(year, month + 1, 0).getDate();
+                for (let d = 1; d <= lastDay; d++) {
+                    dates.push(new Date(year, month, d));
+                }
+            } else {
+                for (let i = cycle - 1; i >= 0; i--) {
+                    const d = new Date(baseDate);
+                    d.setDate(baseDate.getDate() - i);
+                    dates.push(d);
+                }
+            }
+            return dates;
+        };
+
         Swal.fire({
             title: 'บันทึกเงินเดือน',
             html: `
@@ -908,11 +932,24 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                 </div>
                 <div class="flex items-center gap-2 mb-3 px-1 text-left">
                     <input id="swal-pay-probation" type="checkbox" class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer">
-                    <label for="swal-pay-probation" class="text-sm font-semibold text-gray-300 cursor-pointer">ทดลองงาน (จ่ายรายวัน)</label>
+                    <label for="swal-pay-probation" class="text-sm font-semibold text-red-600 cursor-pointer">ทดลองงาน (จ่ายรายวัน)</label>
                 </div>
                 <div id="swal-pay-daily-rate-container" class="hidden mb-3">
                     <div class="text-left mb-1 text-xs text-gray-400">อัตราค่าจ้างรายวัน (บาท):</div>
                     <input id="swal-pay-daily-rate" type="number" class="swal2-input m-0 w-full" placeholder="ระบุอัตราค่าจ้างรายวัน (เช่น 350)">
+                </div>
+                <div id="swal-pay-calendar-section" class="hidden mb-3 text-left">
+                    <div class="text-xs font-semibold text-gray-400 mb-1">ปฏิทินวันทำงาน (คลิกเพื่อเลือกวันทำงานจริง):</div>
+                    <div class="flex items-center justify-between text-[11px] text-gray-300 mb-2 px-1">
+                        <span class="text-emerald-400 font-semibold">🟢 วันที่ทำงาน</span>
+                        <span id="swal-pay-calendar-month-year" class="text-amber-300 font-bold bg-gray-800/80 px-2 py-0.5 rounded border border-gray-700"></span>
+                        <span class="text-rose-400 font-semibold">🔴 วันที่ไม่ทำงาน</span>
+                    </div>
+                    <div id="swal-pay-calendar-grid" class="grid grid-cols-7 gap-1 text-center bg-gray-800 p-2 rounded-lg border border-gray-700 text-white"></div>
+                    <div class="text-xs text-gray-400 mt-2 flex justify-between px-1">
+                        <span>เลือกทำงานจริง: <strong id="swal-pay-selected-count" class="text-emerald-400">0</strong> วัน</span>
+                        <span>วันหยุดร้าน (จันทร์): <strong id="swal-pay-mondays-count" class="text-amber-400">0</strong> วัน</span>
+                    </div>
                 </div>
                 <div class="flex gap-2 mb-3">
                     <input id="swal-pay-slip" class="swal2-input m-0 flex-grow" placeholder="ลิงก์รูปภาพสลิป (URL)">
@@ -922,7 +959,7 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                     <select id="swal-pay-cycle" class="swal2-input m-0 flex-grow">
                         <option value="7">รอบถัดไป 7 วัน</option>
                         <option value="14">รอบถัดไป 14 วัน</option>
-                        <option value="30">รอบถัดไป 30 วัน</option>
+                        <option value="30">รอบเดือน</option>
                     </select>
                     <input id="swal-pay-next-date" class="swal2-input m-0 w-1/2 bg-gray-100" placeholder="วันจ่ายครั้งถัดไป" readonly>
                 </div>
@@ -951,7 +988,11 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                      if (payDateVal && !isNaN(cycle)) {
                          const payDate = new Date(payDateVal);
                          const nextDate = new Date(payDate);
-                         nextDate.setDate(payDate.getDate() + cycle);
+                         if (cycle === 30) {
+                             nextDate.setMonth(payDate.getMonth() + 1);
+                         } else {
+                             nextDate.setDate(payDate.getDate() + cycle);
+                         }
                          
                          const day = nextDate.getDate().toString().padStart(2, '0');
                          const month = (nextDate.getMonth() + 1).toString().padStart(2, '0');
@@ -959,6 +1000,102 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                          nextDateInput.value = `จ่ายครั้งถัดไป: ${day}/${month}/${year}`;
                      } else {
                          nextDateInput.value = '';
+                     }
+                 };
+
+                 const renderCalendarGrid = (payDateVal: string, cycle: number) => {
+                     const gridContainer = document.getElementById('swal-pay-calendar-grid');
+                     const selectedCountSpan = document.getElementById('swal-pay-selected-count');
+                     const mondaysCountSpan = document.getElementById('swal-pay-mondays-count');
+                     if (!gridContainer || !payDateVal) return;
+
+                     const monthYearSpan = document.getElementById('swal-pay-calendar-month-year');
+                     if (monthYearSpan) {
+                         const payDateObj = new Date(payDateVal);
+                         const monthNamesThaiFull = [
+                             'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+                             'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
+                         ];
+                         const monthName = monthNamesThaiFull[payDateObj.getMonth()];
+                         const yearBE = payDateObj.getFullYear() + 543;
+                         monthYearSpan.innerText = `${monthName} ${yearBE}`;
+                     }
+
+                     gridContainer.innerHTML = '';
+
+                     const headers = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'];
+                     headers.forEach(h => {
+                         const hDiv = document.createElement('div');
+                         hDiv.className = 'font-bold text-gray-400 text-[10px] py-1 border-b border-gray-700';
+                         hDiv.innerText = h;
+                         gridContainer.appendChild(hDiv);
+                     });
+
+                     const payDate = new Date(payDateVal);
+                     const datesInCycle = getDatesForCycle(payDate, cycle);
+
+                     if (datesInCycle.length === 0) return;
+
+                     const firstDate = datesInCycle[0];
+                     const firstDayOfWeek = firstDate.getDay();
+
+                     for (let s = 0; s < firstDayOfWeek; s++) {
+                         const spacer = document.createElement('div');
+                         spacer.className = 'py-1 text-transparent select-none';
+                         spacer.innerText = '.';
+                         gridContainer.appendChild(spacer);
+                     }
+
+                     let closedMondays = 0;
+
+                     datesInCycle.forEach(d => {
+                         const dateStr = d.toISOString().split('T')[0];
+                         const isMonday = d.getDay() === 1;
+                         const dayNum = d.getDate();
+                         
+                         const cell = document.createElement('button');
+                         cell.type = 'button';
+                         cell.className = 'w-full py-1 text-[11px] font-semibold rounded transition-colors focus:outline-none';
+                         
+                         const dayNames = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'];
+                         const thaiMonthNames = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+                         const formatThaiDate = `${dayNames[d.getDay()]} ${d.getDate()} ${thaiMonthNames[d.getMonth()]} ${d.getFullYear() + 543}`;
+                         cell.title = formatThaiDate;
+
+                         if (isMonday) {
+                             closedMondays++;
+                             cell.className += ' bg-amber-950/40 text-amber-500 cursor-not-allowed border border-amber-900/40';
+                             cell.innerHTML = `${dayNum}<br><span class="text-[7px] opacity-75">ปิด</span>`;
+                             cell.disabled = true;
+                         } else {
+                             const isWorked = workedDates.has(dateStr);
+                             if (isWorked) {
+                                 cell.className += ' bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-500 cursor-pointer';
+                                 cell.innerHTML = `${dayNum}<br><span class="text-[7px] opacity-75">ทำ</span>`;
+                             } else {
+                                 cell.className += ' bg-rose-950 text-rose-400 hover:bg-rose-900 border border-rose-800 cursor-pointer';
+                                 cell.innerHTML = `${dayNum}<br><span class="text-[7px] opacity-75">หยุด</span>`;
+                             }
+
+                             cell.addEventListener('click', (e) => {
+                                 e.preventDefault();
+                                 if (workedDates.has(dateStr)) {
+                                     workedDates.delete(dateStr);
+                                 } else {
+                                     workedDates.add(dateStr);
+                                 }
+                                 calculateDeductions();
+                             });
+                         }
+                         gridContainer.appendChild(cell);
+                     });
+
+                     if (selectedCountSpan) {
+                         const activeInCycleCount = datesInCycle.filter(d => workedDates.has(d.toISOString().split('T')[0])).length;
+                         selectedCountSpan.innerText = String(activeInCycleCount);
+                     }
+                     if (mondaysCountSpan) {
+                         mondaysCountSpan.innerText = String(closedMondays);
                      }
                  };
 
@@ -972,11 +1109,13 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                      const dateVal = dateInput.value; // YYYY-MM-DD
                      const isProbation = probationCheckbox.checked;
 
-                     // Show/Hide daily rate field
+                     // Show/Hide daily rate field & calendar
                      if (isProbation) {
                          dailyRateContainer.classList.remove('hidden');
+                         document.getElementById('swal-pay-calendar-section')?.classList.remove('hidden');
                      } else {
                          dailyRateContainer.classList.add('hidden');
+                         document.getElementById('swal-pay-calendar-section')?.classList.add('hidden');
                      }
 
                      // Update Username Field & ID based on employee name override first
@@ -1039,47 +1178,89 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                          );
 
                          if (isProbation) {
-                             const dailyRate = Number(dailyRateInput.value) || 350;
+                              const dailyRate = Number(dailyRateInput.value) || 350;
+
+                              const currentEmpId = select.value;
+                              const currentDateVal = dateInput.value;
+                              const currentCycle = parseInt(cycleSelect.value) || 7;
+
+                              const stateChanged = currentEmpId !== lastEmpId || currentDateVal !== lastDate || currentCycle !== lastCycle;
+                              const dates = currentDateVal ? getDatesForCycle(new Date(currentDateVal), currentCycle) : [];
+
+                              if (stateChanged) {
+                                  workedDates.clear();
+                                  lastEmpId = currentEmpId;
+                                  lastDate = currentDateVal;
+                                  lastCycle = currentCycle;
+
+                                  if (currentDateVal && userId) {
+                                      for (const d of dates) {
+                                          const dateStr = d.toISOString().split('T')[0];
+
+                                         if (d.getDay() === 1) {
+                                             continue; // Monday is shop closed, don't add to workedDates
+                                         }
+
+                                         const dTime = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+                                         const leaveToday = unpaidLeaves.find(l => {
+                                             const start = new Date(l.startDate);
+                                             const end = new Date(l.endDate);
+                                             const startTime = new Date(start.getFullYear(), start.getMonth(), start.getDate()).getTime();
+                                             const endTime = new Date(end.getFullYear(), end.getMonth(), end.getDate()).getTime();
+                                             return dTime >= startTime && dTime <= endTime;
+                                         });
+
+                                         if (!leaveToday) {
+                                             workedDates.add(dateStr);
+                                         }
+                                     }
+                                 }
+                             }
+
+                             if (currentDateVal) {
+                                 renderCalendarGrid(currentDateVal, currentCycle);
+                             }
 
                              let actualPaidDays = 0;
-                             let unpaidLeaveDays = 0;
                              let closedShopMondays = 0;
                              let potentialDays = 0;
+                             let unpaidLeaveDays = 0;
                              const leavesInCycle: { dateStr: string; reason: string; duration: number }[] = [];
 
-                             for (let i = 0; i < cycle; i++) {
-                                 const d = new Date(payDate);
-                                 d.setDate(payDate.getDate() - i);
-                                 
-                                 // Check if it is Monday
-                                 if (d.getDay() === 1) {
-                                     closedShopMondays++;
-                                     continue; // Shop is closed on Mondays, so no daily rate paid
-                                 }
+                             if (currentDateVal) {
+                                 const payDateObj = new Date(currentDateVal);
+                                                                  const dates = getDatesForCycle(payDateObj, currentCycle);
+                                 for (const d of dates) {
+                                     const dateStr = d.toISOString().split('T')[0];
 
-                                 potentialDays++;
+                                     if (d.getDay() === 1) {
+                                         closedShopMondays++;
+                                         continue;
+                                     }
 
-                                 // Check if there is unpaid leave on this day d
-                                 const dTime = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-                                 const leaveToday = unpaidLeaves.find(l => {
-                                     const start = new Date(l.startDate);
-                                     const end = new Date(l.endDate);
-                                     const startTime = new Date(start.getFullYear(), start.getMonth(), start.getDate()).getTime();
-                                     const endTime = new Date(end.getFullYear(), end.getMonth(), end.getDate()).getTime();
-                                     return dTime >= startTime && dTime <= endTime;
-                                 });
+                                     potentialDays++;
 
-                                 if (leaveToday) {
-                                     const duration = leaveToday.isHalfDay ? 0.5 : 1;
-                                     unpaidLeaveDays += duration;
-                                     leavesInCycle.push({
-                                         dateStr: d.toLocaleDateString('th-TH'),
-                                         reason: leaveToday.reason || 'ลาแบบไม่รับเงิน',
-                                         duration: duration
-                                     });
-                                     actualPaidDays += (1 - duration);
-                                 } else {
-                                     actualPaidDays += 1;
+                                     if (workedDates.has(dateStr)) {
+                                         actualPaidDays++;
+                                     } else {
+                                         unpaidLeaveDays++;
+                                         
+                                         const dTime = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+                                         const leaveToday = leaveRequests.find(l => {
+                                             if (l.userId !== userId) return false;
+                                             const start = new Date(l.startDate);
+                                             const end = new Date(l.endDate);
+                                             const startTime = new Date(start.getFullYear(), start.getMonth(), start.getDate()).getTime();
+                                             const endTime = new Date(end.getFullYear(), end.getMonth(), end.getDate()).getTime();
+                                             return dTime >= startTime && dTime <= endTime;
+                                         });
+
+                                         leavesInCycle.push({
+                                             dateStr: d.toLocaleDateString('th-TH'),
+                                             reason: leaveToday ? (leaveToday.reason || 'ลาแบบไม่รับเงิน') : 'ไม่ได้มาทำงาน (หักออก)',
+                                             duration: 1
+                                         });
+                                     }
                                  }
                              }
 
@@ -1090,12 +1271,12 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                              let htmlContent = `
                                  <div class="mb-2 p-2 bg-blue-900/30 rounded border border-blue-500/50">
                                      <p class="text-blue-400 font-bold text-sm">📋 สรุปงานรายวัน (ช่วงทดลองงาน)</p>
-                                     <p class="text-xs text-gray-400">รอบจ่ายเงิน: ${cycle} วัน (${payDate.toLocaleDateString('th-TH')} ย้อนหลัง)</p>
+                                     <p class="text-xs text-gray-400">รอบจ่ายเงิน: ${currentCycle === 30 ? 'รอบเดือน' : currentCycle + ' วัน'} (${currentDateVal ? new Date(currentDateVal).toLocaleDateString('th-TH') : ''} ย้อนหลัง)</p>
                                      <ul class="text-xs text-gray-300 list-disc pl-4 mt-1">
-                                         <li>จำนวนวันทั้งหมดในรอบ: ${cycle} วัน</li>
+                                         <li>จำนวนวันทั้งหมดในรอบ: ${currentCycle === 30 ? dates.length : currentCycle} วัน</li>
                                          <li>วันหยุดร้าน (วันจันทร์): ${closedShopMondays} วัน (ไม่คิดเงิน)</li>
                                          <li>วันทำงานปกติสูงสุด: ${potentialDays} วัน</li>
-                                         <li>วันลาไม่รับเงินเดือน: ${unpaidLeaveDays} วัน</li>
+                                         <li class="text-rose-400 font-medium">วันไม่มาทำงาน/วันลา: ${unpaidLeaveDays} วัน</li>
                                          <li class="font-bold text-green-400">วันทำงานที่จ่ายจริง: ${actualPaidDays} วัน</li>
                                      </ul>
                                  </div>
@@ -1104,9 +1285,9 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                              if (leavesInCycle.length > 0) {
                                  htmlContent += `
                                      <div class="mb-2 p-2 bg-red-900/30 rounded border border-red-500/50">
-                                         <p class="text-red-400 font-bold text-xs">⚠️ รายการลาไม่รับเงินเดือนในรอบบิล:</p>
+                                         <p class="text-red-400 font-bold text-xs">⚠️ รายการวันหยุด/วันลาไม่คิดเงิน:</p>
                                          <ul class="text-[11px] text-gray-300 list-disc pl-4 mt-1">
-                                             ${leavesInCycle.map(l => `<li>${l.dateStr}: ${l.reason} (${l.duration} วัน)</li>`).join('')}
+                                             ${leavesInCycle.map(l => `<li>${l.dateStr}: ${l.reason}</li>`).join('')}
                                          </ul>
                                          <p class="text-xs text-red-300 font-semibold mt-1">หักรวม: ${unpaidLeaveDays} วัน x ${dailyRate} = ${deductions.toLocaleString()} บาท</p>
                                      </div>
@@ -1116,7 +1297,7 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                              htmlContent += `<hr class="my-2 border-gray-600">`;
                              htmlContent += `
                                  <p>ค่าจ้างปกติ (${potentialDays} วัน x ${dailyRate} บาท): ${baseSalary.toLocaleString()} บาท</p>
-                                 ${deductions > 0 ? `<p class="text-red-400">หักวันลาสะสม: -${deductions.toLocaleString()} บาท</p>` : ''}
+                                 ${deductions > 0 ? `<p class="text-red-400">หักวันไม่ทำงานสะสม: -${deductions.toLocaleString()} บาท</p>` : ''}
                                  <p class="font-bold text-green-500 text-lg mt-1">ยอดจ่ายสุทธิ: ${(netPay || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท</p>
                              `;
 
@@ -1255,19 +1436,21 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                      updateNextPaymentDate();
                      calculateDeductions();
                  });
-                 probationCheckbox.addEventListener('change', () => {
-                     if (probationCheckbox.checked) {
-                         dailyRateContainer.classList.remove('hidden');
-                         const option = select.options[select.selectedIndex];
-                         const salary = option ? Number(option.getAttribute('data-salary')) : 0;
-                         if (salary && !dailyRateInput.value) {
-                             dailyRateInput.value = String(Math.round(salary / 26));
-                         }
-                     } else {
-                         dailyRateContainer.classList.add('hidden');
-                     }
-                     calculateDeductions();
-                 });
+                  probationCheckbox.addEventListener('change', () => {
+                      if (probationCheckbox.checked) {
+                          dailyRateContainer.classList.remove('hidden');
+                          document.getElementById('swal-pay-calendar-section')?.classList.remove('hidden');
+                          const option = select.options[select.selectedIndex];
+                          const salary = option ? Number(option.getAttribute('data-salary')) : 0;
+                          if (salary && !dailyRateInput.value) {
+                              dailyRateInput.value = String(Math.round(salary / 26));
+                          }
+                      } else {
+                          dailyRateContainer.classList.add('hidden');
+                          document.getElementById('swal-pay-calendar-section')?.classList.add('hidden');
+                      }
+                      calculateDeductions();
+                  });
                  dailyRateInput.addEventListener('input', calculateDeductions);
             },
             preConfirm: () => {
@@ -1286,17 +1469,32 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                 const baseSalaryAttr = contract ? contract.salary : 0;
 
                 let baseSalaryForRecord = baseSalaryAttr;
+                let finalWorkedDays: number | undefined = undefined;
+                let finalWorkedDatesList: string[] | undefined = undefined;
+
                 if (isProbation) {
                     let potentialDays = 0;
                     const payDateObj = new Date(date);
-                    for (let i = 0; i < cycle; i++) {
-                        const d = new Date(payDateObj);
-                        d.setDate(payDateObj.getDate() - i);
+                    const dates = getDatesForCycle(payDateObj, cycle);
+                    for (const d of dates) {
                         if (d.getDay() !== 1) { // non-Monday
                             potentialDays++;
                         }
                     }
                     baseSalaryForRecord = potentialDays * dailyRate;
+
+                    // Compute actual paid days and dates list from workedDates set
+                    let actualPaidDays = 0;
+                    const workedDatesList: string[] = [];
+                    for (const d of dates) {
+                        const dateStr = d.toISOString().split('T')[0];
+                        if (d.getDay() !== 1 && workedDates.has(dateStr)) {
+                            actualPaidDays++;
+                            workedDatesList.push(dateStr);
+                        }
+                    }
+                    finalWorkedDays = actualPaidDays;
+                    finalWorkedDatesList = workedDatesList;
                 } else {
                     let cycleFactor = 1;
                     if (cycle === 14) cycleFactor = 2;
@@ -1339,7 +1537,11 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                 // Calculate next payment date for saving
                 const payDate = new Date(date);
                 const nextPaymentDate = new Date(payDate);
-                nextPaymentDate.setDate(payDate.getDate() + cycle);
+                if (cycle === 30) {
+                    nextPaymentDate.setMonth(payDate.getMonth() + 1);
+                } else {
+                    nextPaymentDate.setDate(payDate.getDate() + cycle);
+                }
 
                 return {
                     employeeName: employeeName,
@@ -1349,7 +1551,9 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                     totalNetSalary: netSalary,
                     slipUrl: slipUrl,
                     nextPaymentDate: nextPaymentDate.getTime(),
-                    paymentCycle: cycle as 7 | 14 | 30
+                    paymentCycle: cycle as 7 | 14 | 30,
+                    workedDays: finalWorkedDays,
+                    workedDates: finalWorkedDatesList
                 };
             }
         }).then((result) => {
@@ -1368,7 +1572,9 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                     status: val.slipUrl ? 'paid' : 'pending',
                     slipUrl: val.slipUrl,
                     nextPaymentDate: val.nextPaymentDate,
-                    paymentCycle: val.paymentCycle
+                    paymentCycle: val.paymentCycle,
+                    workedDays: val.workedDays,
+                    workedDates: val.workedDates
                 };
                 setPayrollRecords(prev => [...prev, newPayroll]);
                 Swal.fire('สำเร็จ', 'บันทึกเงินเดือนเรียบร้อย', 'success');
@@ -1984,7 +2190,14 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                                         p.month && !isNaN(new Date(p.month).getTime()) ? new Date(p.month).toLocaleDateString('th-TH') : '-'
                                                     )}
                                                 </td>
-                                                <td className="p-3 font-medium text-white">{p.employeeName}</td>
+                                                <td className="p-3 font-medium text-white">
+                                                    <div>
+                                                        <span>{p.employeeName}</span>
+                                                        {p.workedDays !== undefined && (
+                                                            <p className="text-[10px] text-emerald-400 font-normal mt-0.5">🟢 ทำงานจริง: {p.workedDays} วัน</p>
+                                                        )}
+                                                    </div>
+                                                </td>
                                                 <td className="p-3">
                                                     {showSalaries ? (
                                                         (p.baseSalary || 0).toLocaleString()

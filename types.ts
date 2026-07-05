@@ -528,6 +528,8 @@ export interface PayrollRecord {
     slipUrl?: string; // Added: Payment slip URL
     nextPaymentDate?: number; // Added: Timestamp for next scheduled payment
     paymentCycle?: 7 | 14 | 30; // Added: Cycle in days (7, 14, or 30)
+    workedDays?: number; // Added: Number of actual worked days for probation/daily-pay
+    workedDates?: string[]; // Added: List of YYYY-MM-DD dates actually worked
 }
 
 export interface DeliveryPriceHistoryEntry {
