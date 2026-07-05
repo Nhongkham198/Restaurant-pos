@@ -10,6 +10,61 @@ type HRTab = 'application' | 'contract' | 'time' | 'payroll' | 'leave';
 
 import { User } from '../types';
 
+const findUserByEmployeeName = (empName: string, users: User[], jobApplications: JobApplication[]): User | undefined => {
+    if (!empName) return undefined;
+    const name = empName.trim();
+    const nameNormalized = name.replace(/\s+/g, '').toLowerCase();
+
+    // 1. Try to find an exact match or highly similar name in job applications
+    const jobApp = jobApplications.find(j => {
+        if (!j.fullName) return false;
+        const jNameNormalized = j.fullName.trim().replace(/\s+/g, '').toLowerCase();
+        
+        // Exact normalized match
+        if (jNameNormalized === nameNormalized) return true;
+        
+        // Partial matches for common variations
+        if (nameNormalized.includes(jNameNormalized) || jNameNormalized.includes(nameNormalized)) return true;
+        
+        return false;
+    });
+
+    if (jobApp) {
+        // If the job application has a userId, find that user
+        if (jobApp.userId) {
+            const user = users.find(u => u.id === jobApp.userId);
+            if (user) return user;
+        }
+        // If not, try matching by nickname from the job application
+        if (jobApp.nickname) {
+            const nick = jobApp.nickname.trim().toLowerCase();
+            const user = users.find(u => u.username.toLowerCase() === nick);
+            if (user) return user;
+        }
+    }
+
+    // 2. Direct name/username matching fallbacks for hardcoded safety
+    if (name === 'พัชรัตน์ ดงรุ่ง') {
+        return users.find(u => u.username === 'Pam');
+    }
+    if (name === 'กนกอร นาสินส่ง' || name === 'กนกร นา สินส่ง' || (name.includes('กนก') && name.includes('สินส่ง'))) {
+        return users.find(u => u.username === 'Pea');
+    }
+    if (name === 'รัตนา ทวิบุตร') {
+        return users.find(u => u.username === 'Tal');
+    }
+    if (name === 'วิชุดา ฆารประเดิม' || (name.includes('วิชุดา') && name.includes('ฆารประเดิม'))) {
+        return users.find(u => u.username === 'Fah');
+    }
+
+    // 3. Last fallback: Try matching the first word of the name with a username
+    const firstWord = name.split(/\s+/)[0].toLowerCase();
+    const userByFirstWord = users.find(u => u.username.toLowerCase() === firstWord);
+    if (userByFirstWord) return userByFirstWord;
+
+    return undefined;
+};
+
 interface HRManagementViewProps {
     isEditMode?: boolean;
     onOpenUserManager?: (userData: Partial<User>) => void;
@@ -597,6 +652,11 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                     }
                 }
 
+                if (!userId && finalName) {
+                    const matchedUser = findUserByEmployeeName(finalName, users, jobApplications);
+                    if (matchedUser) userId = matchedUser.id;
+                }
+
                 // Fallback: Try to find by name matching if manual entry or no userId in jobApp
                 if (!userId && finalName) {
                      // Try to match first name with username
@@ -763,10 +823,10 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
         const leaveDuration = getDuration(leaveRequest);
 
         if (newStatus === 'approved') {
-            const employee = users.find(u => u.id === leaveRequest.userId);
+            const employee = findUserByEmployeeName(leaveRequest.employeeName, users, jobApplications) || users.find(u => u.id === leaveRequest.userId);
             
             if (leaveRequest.type === 'vacation' || leaveRequest.type === 'leave-without-pay') {
-                const contract = employmentContracts.find(c => c.userId === leaveRequest.userId);
+                const contract = employmentContracts.find(c => c.employeeName === leaveRequest.employeeName) || employmentContracts.find(c => c.userId === leaveRequest.userId);
 
                 if (employee && contract) {
                     isLeaveWithoutPayApproved = true;
@@ -846,6 +906,14 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                     </select>
                     <input id="swal-pay-username" class="swal2-input m-0 w-1/3 bg-gray-100" placeholder="User" readonly>
                 </div>
+                <div class="flex items-center gap-2 mb-3 px-1 text-left">
+                    <input id="swal-pay-probation" type="checkbox" class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer">
+                    <label for="swal-pay-probation" class="text-sm font-semibold text-gray-300 cursor-pointer">ทดลองงาน (จ่ายรายวัน)</label>
+                </div>
+                <div id="swal-pay-daily-rate-container" class="hidden mb-3">
+                    <div class="text-left mb-1 text-xs text-gray-400">อัตราค่าจ้างรายวัน (บาท):</div>
+                    <input id="swal-pay-daily-rate" type="number" class="swal2-input m-0 w-full" placeholder="ระบุอัตราค่าจ้างรายวัน (เช่น 350)">
+                </div>
                 <div class="flex gap-2 mb-3">
                     <input id="swal-pay-slip" class="swal2-input m-0 flex-grow" placeholder="ลิงก์รูปภาพสลิป (URL)">
                     <input id="swal-pay-date" type="date" class="swal2-input m-0 w-1/3" placeholder="เลือกวันที่จ่าย">
@@ -869,6 +937,9 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                  const cycleSelect = document.getElementById('swal-pay-cycle') as HTMLSelectElement;
                  const nextDateInput = document.getElementById('swal-pay-next-date') as HTMLInputElement;
                  const infoDiv = document.getElementById('swal-pay-calc-info') as HTMLDivElement;
+                 const probationCheckbox = document.getElementById('swal-pay-probation') as HTMLInputElement;
+                 const dailyRateContainer = document.getElementById('swal-pay-daily-rate-container') as HTMLDivElement;
+                 const dailyRateInput = document.getElementById('swal-pay-daily-rate') as HTMLInputElement;
                  
                  const formatNumber = (num: number) => {
                      return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -894,38 +965,71 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                  const calculateDeductions = () => {
                      updateNextPaymentDate();
                      const option = select.options[select.selectedIndex];
+                     if (!option) return;
                      const salary = Number(option.getAttribute('data-salary'));
                      let userId = Number(option.getAttribute('data-userid'));
                      const empName = option.getAttribute('data-name');
                      const dateVal = dateInput.value; // YYYY-MM-DD
+                     const isProbation = probationCheckbox.checked;
+
+                     // Show/Hide daily rate field
+                     if (isProbation) {
+                         dailyRateContainer.classList.remove('hidden');
+                     } else {
+                         dailyRateContainer.classList.add('hidden');
+                     }
+
+                     // Update Username Field & ID based on employee name override first
+                     let user = null;
+                     if (empName) {
+                         const mappedUser = findUserByEmployeeName(empName, users, jobApplications);
+                         if (mappedUser) {
+                             user = mappedUser;
+                             userId = mappedUser.id;
+                         }
+                     }
 
                      // Fallback: If userId is missing, try to find it via JobApplication
-                     if (!userId && empName) {
+                     if (!user && !userId && empName) {
                          const normalizedEmpName = empName.trim();
                          const jobApp = jobApplications.find(j => j.fullName.trim() === normalizedEmpName && j.userId);
                          if (jobApp) userId = jobApp.userId!;
                      }
 
-                     // Update Username Field
-                     if (userId) {
-                         const user = users.find(u => u.id === userId);
-                         usernameInput.value = user ? user.username : `User ID: ${userId} (Not Found)`;
+                     // Try standard fallback searches if user is still not resolved
+                     if (!user && userId) {
+                         user = users.find(u => String(u.id) === String(userId));
+                          if (!user && empName) {
+                              const normalizedEmpName = empName.trim();
+                              const jobApp = jobApplications.find(j => j.fullName.trim() === normalizedEmpName);
+                              if (jobApp) {
+                                  if (jobApp.userId) {
+                                      user = users.find(u => String(u.id) === String(jobApp.userId));
+                                  }
+                                  if (!user && jobApp.nickname) {
+                                      const nick = jobApp.nickname.trim().toLowerCase();
+                                      user = users.find(u => u.username.toLowerCase() === nick);
+                                  }
+                              }
+                          }
+                          if (!user && empName) {
+                              const firstWord = empName.trim().split(' ')[0].toLowerCase();
+                              user = users.find(u => u.username.toLowerCase() === firstWord);
+                          }
+                     }
+
+                     if (user) {
+                         usernameInput.value = user.username;
+                         userId = user.id;
+                     } else if (userId) {
+                         usernameInput.value = `User ID: ${userId} (Not Found)`;
                      } else {
                          usernameInput.value = '';
                      }
 
                      if (salary && dateVal && userId) {
                          const payDate = new Date(dateVal);
-                         
-                         // Define Ranges
-                         // Backward: 10 days before payDate (inclusive start, exclusive end of payDate to avoid double count)
-                         const backStart = new Date(payDate);
-                         backStart.setDate(payDate.getDate() - 10);
-                         const backEnd = new Date(payDate);
-
-                         const forwardStart = new Date(payDate);
-                         const forwardEnd = new Date(payDate);
-                         forwardEnd.setDate(payDate.getDate() + 10);
+                         const cycle = parseInt(cycleSelect.value) || 7;
 
                          // Get all approved unpaid leaves for this user
                          const unpaidLeaves = leaveRequests.filter(l => 
@@ -934,126 +1038,237 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                              l.status === 'approved'
                          );
 
-                         let retroactiveDays = 0;
-                         let currentDays = 0;
-                         const retroactiveLeavesList: LeaveRequest[] = [];
-                         const currentLeavesList: LeaveRequest[] = [];
+                         if (isProbation) {
+                             const dailyRate = Number(dailyRateInput.value) || 350;
 
-                         unpaidLeaves.forEach(l => {
-                             const leaveStart = new Date(l.startDate);
-                             const leaveEnd = new Date(l.endDate);
+                             let actualPaidDays = 0;
+                             let unpaidLeaveDays = 0;
+                             let closedShopMondays = 0;
+                             let potentialDays = 0;
+                             const leavesInCycle: { dateStr: string; reason: string; duration: number }[] = [];
 
-                             // 1. Check Retroactive Overlap [backStart, backEnd]
-                             if (leaveStart <= backEnd && leaveEnd >= backStart) {
-                                 const overlapStart = leaveStart < backStart ? backStart : leaveStart;
-                                 const overlapEnd = leaveEnd > backEnd ? backEnd : leaveEnd;
+                             for (let i = 0; i < cycle; i++) {
+                                 const d = new Date(payDate);
+                                 d.setDate(payDate.getDate() - i);
                                  
-                                 if (overlapStart <= overlapEnd) {
-                                     const diffTime = Math.abs(overlapEnd.getTime() - overlapStart.getTime());
-                                     const days = l.isHalfDay ? 0.5 : Math.max(1, Math.round(diffTime / (1000 * 60 * 60 * 24)));
-                                     retroactiveDays += days;
-                                     if (!retroactiveLeavesList.includes(l)) retroactiveLeavesList.push(l);
+                                 // Check if it is Monday
+                                 if (d.getDay() === 1) {
+                                     closedShopMondays++;
+                                     continue; // Shop is closed on Mondays, so no daily rate paid
+                                 }
+
+                                 potentialDays++;
+
+                                 // Check if there is unpaid leave on this day d
+                                 const dTime = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+                                 const leaveToday = unpaidLeaves.find(l => {
+                                     const start = new Date(l.startDate);
+                                     const end = new Date(l.endDate);
+                                     const startTime = new Date(start.getFullYear(), start.getMonth(), start.getDate()).getTime();
+                                     const endTime = new Date(end.getFullYear(), end.getMonth(), end.getDate()).getTime();
+                                     return dTime >= startTime && dTime <= endTime;
+                                 });
+
+                                 if (leaveToday) {
+                                     const duration = leaveToday.isHalfDay ? 0.5 : 1;
+                                     unpaidLeaveDays += duration;
+                                     leavesInCycle.push({
+                                         dateStr: d.toLocaleDateString('th-TH'),
+                                         reason: leaveToday.reason || 'ลาแบบไม่รับเงิน',
+                                         duration: duration
+                                     });
+                                     actualPaidDays += (1 - duration);
+                                 } else {
+                                     actualPaidDays += 1;
                                  }
                              }
 
-                             // 2. Check Forward Overlap [forwardStart, forwardEnd]
-                             if (leaveStart <= forwardEnd && leaveEnd >= forwardStart) {
-                                 const overlapStart = leaveStart < forwardStart ? forwardStart : leaveStart;
-                                 const overlapEnd = leaveEnd > forwardEnd ? forwardEnd : leaveEnd;
-                                 
-                                 if (overlapStart <= overlapEnd) {
-                                     const diffTime = Math.abs(overlapEnd.getTime() - overlapStart.getTime());
-                                     const days = l.isHalfDay ? 0.5 : Math.max(1, Math.round(diffTime / (1000 * 60 * 60 * 24)));
-                                     currentDays += days;
-                                     if (!currentLeavesList.includes(l)) currentLeavesList.push(l);
-                                 }
-                             }
-                         });
+                             const baseSalary = potentialDays * dailyRate;
+                             const deductions = unpaidLeaveDays * dailyRate;
+                             const netPay = actualPaidDays * dailyRate;
 
-                         const dailyRate = salary / 26; // Rule: Salary / 26
-                         const weeklySalary = salary / 4; // Rule: Salary / 4
-                         
-                         const retroactiveDeduction = dailyRate * retroactiveDays;
-                         const currentDeduction = dailyRate * currentDays;
-                         const totalDeduction = retroactiveDeduction + currentDeduction;
-                         
-                         const netPay = Math.max(0, weeklySalary - totalDeduction);
-
-                         let htmlContent = '';
-
-                         // Retroactive Info
-                         if (retroactiveDays > 0) {
-                             htmlContent += `
-                                 <div class="mb-2 p-2 bg-red-900/30 rounded border border-red-500/50">
-                                     <p class="text-red-400 font-bold text-sm">⚠️ พบการลาย้อนหลัง ${retroactiveDays} วัน</p>
-                                     <p class="text-xs text-gray-400">ช่วงเวลา: ${backStart.toLocaleDateString('th-TH')} - ${backEnd.toLocaleDateString('th-TH')}</p>
+                             let htmlContent = `
+                                 <div class="mb-2 p-2 bg-blue-900/30 rounded border border-blue-500/50">
+                                     <p class="text-blue-400 font-bold text-sm">📋 สรุปงานรายวัน (ช่วงทดลองงาน)</p>
+                                     <p class="text-xs text-gray-400">รอบจ่ายเงิน: ${cycle} วัน (${payDate.toLocaleDateString('th-TH')} ย้อนหลัง)</p>
                                      <ul class="text-xs text-gray-300 list-disc pl-4 mt-1">
-                                         ${retroactiveLeavesList.map(l => `<li>${new Date(l.startDate).toLocaleDateString('th-TH')} (${l.reason})</li>`).join('')}
+                                         <li>จำนวนวันทั้งหมดในรอบ: ${cycle} วัน</li>
+                                         <li>วันหยุดร้าน (วันจันทร์): ${closedShopMondays} วัน (ไม่คิดเงิน)</li>
+                                         <li>วันทำงานปกติสูงสุด: ${potentialDays} วัน</li>
+                                         <li>วันลาไม่รับเงินเดือน: ${unpaidLeaveDays} วัน</li>
+                                         <li class="font-bold text-green-400">วันทำงานที่จ่ายจริง: ${actualPaidDays} วัน</li>
                                      </ul>
-                                     <p class="text-sm font-bold text-red-300 mt-1">หักย้อนหลัง: ${(retroactiveDeduction || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท</p>
                                  </div>
                              `;
+
+                             if (leavesInCycle.length > 0) {
+                                 htmlContent += `
+                                     <div class="mb-2 p-2 bg-red-900/30 rounded border border-red-500/50">
+                                         <p class="text-red-400 font-bold text-xs">⚠️ รายการลาไม่รับเงินเดือนในรอบบิล:</p>
+                                         <ul class="text-[11px] text-gray-300 list-disc pl-4 mt-1">
+                                             ${leavesInCycle.map(l => `<li>${l.dateStr}: ${l.reason} (${l.duration} วัน)</li>`).join('')}
+                                         </ul>
+                                         <p class="text-xs text-red-300 font-semibold mt-1">หักรวม: ${unpaidLeaveDays} วัน x ${dailyRate} = ${deductions.toLocaleString()} บาท</p>
+                                     </div>
+                                 `;
+                             }
+
+                             htmlContent += `<hr class="my-2 border-gray-600">`;
+                             htmlContent += `
+                                 <p>ค่าจ้างปกติ (${potentialDays} วัน x ${dailyRate} บาท): ${baseSalary.toLocaleString()} บาท</p>
+                                 ${deductions > 0 ? `<p class="text-red-400">หักวันลาสะสม: -${deductions.toLocaleString()} บาท</p>` : ''}
+                                 <p class="font-bold text-green-500 text-lg mt-1">ยอดจ่ายสุทธิ: ${(netPay || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท</p>
+                             `;
+
+                             infoDiv.innerHTML = htmlContent;
+                             infoDiv.classList.remove('hidden');
+                             baseInput.value = formatNumber(netPay);
                          } else {
+                             // Regular employee calculation
+                             let cycleFactor = 1;
+                             if (cycle === 14) cycleFactor = 2;
+                             if (cycle === 30) cycleFactor = 4;
+                             const baseForCycle = (salary / 4) * cycleFactor;
+                             
+                             // Define Ranges
+                             // Backward: 10 days before payDate (inclusive start, exclusive end of payDate to avoid double count)
+                             const backStart = new Date(payDate);
+                             backStart.setDate(payDate.getDate() - 10);
+                             const backEnd = new Date(payDate);
+
+                             const forwardStart = new Date(payDate);
+                             const forwardEnd = new Date(payDate);
+                             forwardEnd.setDate(payDate.getDate() + 10);
+
+                             let retroactiveDays = 0;
+                             let currentDays = 0;
+                             const retroactiveLeavesList: LeaveRequest[] = [];
+                             const currentLeavesList: LeaveRequest[] = [];
+
+                             unpaidLeaves.forEach(l => {
+                                 const leaveStart = new Date(l.startDate);
+                                 const leaveEnd = new Date(l.endDate);
+
+                                 // 1. Check Retroactive Overlap [backStart, backEnd]
+                                 if (leaveStart <= backEnd && leaveEnd >= backStart) {
+                                     const overlapStart = leaveStart < backStart ? backStart : leaveStart;
+                                     const overlapEnd = leaveEnd > backEnd ? backEnd : leaveEnd;
+                                     
+                                     if (overlapStart <= overlapEnd) {
+                                         const diffTime = Math.abs(overlapEnd.getTime() - overlapStart.getTime());
+                                         const days = l.isHalfDay ? 0.5 : Math.max(1, Math.round(diffTime / (1000 * 60 * 60 * 24)));
+                                         retroactiveDays += days;
+                                         if (!retroactiveLeavesList.includes(l)) retroactiveLeavesList.push(l);
+                                     }
+                                 }
+
+                                 // 2. Check Forward Overlap [forwardStart, forwardEnd]
+                                 if (leaveStart <= forwardEnd && leaveEnd >= forwardStart) {
+                                     const overlapStart = leaveStart < forwardStart ? forwardStart : leaveStart;
+                                     const overlapEnd = leaveEnd > forwardEnd ? forwardEnd : leaveEnd;
+                                     
+                                     if (overlapStart <= overlapEnd) {
+                                         const diffTime = Math.abs(overlapEnd.getTime() - overlapStart.getTime());
+                                         const days = l.isHalfDay ? 0.5 : Math.max(1, Math.round(diffTime / (1000 * 60 * 60 * 24)));
+                                         currentDays += days;
+                                         if (!currentLeavesList.includes(l)) currentLeavesList.push(l);
+                                     }
+                                 }
+                             });
+
+                             const dailyRate = salary / 26; // Rule: Salary / 26
+                             
+                             const retroactiveDeduction = dailyRate * retroactiveDays;
+                             const currentDeduction = dailyRate * currentDays;
+                             const totalDeduction = retroactiveDeduction + currentDeduction;
+                             
+                             const netPay = Math.max(0, baseForCycle - totalDeduction);
+
+                             let htmlContent = '';
+
+                             // Retroactive Info
+                             if (retroactiveDays > 0) {
+                                 htmlContent += `
+                                     <div class="mb-2 p-2 bg-red-900/30 rounded border border-red-500/50">
+                                         <p class="text-red-400 font-bold text-sm">⚠️ พบการลาย้อนหลัง ${retroactiveDays} วัน</p>
+                                         <p class="text-xs text-gray-400">ช่วงเวลา: ${backStart.toLocaleDateString('th-TH')} - ${backEnd.toLocaleDateString('th-TH')}</p>
+                                         <ul class="text-xs text-gray-300 list-disc pl-4 mt-1">
+                                             ${retroactiveLeavesList.map(l => `<li>${new Date(l.startDate).toLocaleDateString('th-TH')} (${l.reason})</li>`).join('')}
+                                         </ul>
+                                         <p class="text-sm font-bold text-red-300 mt-1">หักย้อนหลัง: ${(retroactiveDeduction || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท</p>
+                                     </div>
+                                 `;
+                             } else {
+                                 htmlContent += `
+                                    <div class="mb-2 p-2 bg-gray-800/50 rounded border border-gray-700">
+                                        <p class="text-green-500 text-xs">ไม่พบการลาย้อนหลัง (10 วันย้อนหลัง)</p>
+                                        <p class="text-xs text-gray-400">ช่วงเวลา: ${backStart.toLocaleDateString('th-TH')} - ${backEnd.toLocaleDateString('th-TH')}</p>
+                                    </div>
+                                 `;
+                             }
+
+                             // Current Period Info
+                             if (currentDays > 0) {
+                                 htmlContent += `
+                                     <div class="mb-2">
+                                         <p class="text-red-500 font-bold">พบการลาในรอบปัจจุบัน ${currentDays} วัน</p>
+                                         <p class="text-xs text-gray-400">ช่วงเวลา: ${forwardStart.toLocaleDateString('th-TH')} - ${forwardEnd.toLocaleDateString('th-TH')}</p>
+                                         <p>หัก (รอบนี้): ${currentDays} วัน x ${(dailyRate || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} = ${(currentDeduction || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท</p>
+                                     </div>
+                                 `;
+                             } else {
+                                 htmlContent += `
+                                    <div class="mb-2">
+                                        <p class="text-green-500">ไม่พบการลาในรอบปัจจุบัน (10 วันข้างหน้า)</p>
+                                        <p class="text-xs text-gray-400">ช่วงเวลา: ${forwardStart.toLocaleDateString('th-TH')} - ${forwardEnd.toLocaleDateString('th-TH')}</p>
+                                    </div>
+                                 `;
+                             }
+
+                             htmlContent += `<hr class="my-2 border-gray-600">`;
+
+                             // Summary
                              htmlContent += `
-                                <div class="mb-2 p-2 bg-gray-800/50 rounded border border-gray-700">
-                                    <p class="text-green-500 text-xs">ไม่พบการลาย้อนหลัง (10 วันย้อนหลัง)</p>
-                                    <p class="text-xs text-gray-400">ช่วงเวลา: ${backStart.toLocaleDateString('th-TH')} - ${backEnd.toLocaleDateString('th-TH')}</p>
-                                </div>
+                                 <p class="mt-2">เงินเดือนตามรอบจ่าย (${cycle} วัน): ${(baseForCycle || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท</p>
+                                 ${totalDeduction > 0 ? `<p class="text-red-400">รวมหักทั้งหมด: -${(totalDeduction || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท</p>` : ''}
+                                 <p class="font-bold text-green-500 text-lg mt-1">ยอดจ่ายสุทธิ: ${(netPay || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท</p>
                              `;
+
+                             infoDiv.innerHTML = htmlContent;
+                             infoDiv.classList.remove('hidden');
+                             
+                             baseInput.value = formatNumber(netPay);
                          }
-
-                         // Current Period Info
-                         if (currentDays > 0) {
-                             htmlContent += `
-                                 <div class="mb-2">
-                                     <p class="text-red-500 font-bold">พบการลาในรอบปัจจุบัน ${currentDays} วัน</p>
-                                     <p class="text-xs text-gray-400">ช่วงเวลา: ${forwardStart.toLocaleDateString('th-TH')} - ${forwardEnd.toLocaleDateString('th-TH')}</p>
-                                     <p>หัก (รอบนี้): ${currentDays} วัน x ${(dailyRate || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} = ${(currentDeduction || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท</p>
-                                 </div>
-                             `;
-                         } else {
-                             htmlContent += `
-                                <div class="mb-2">
-                                    <p class="text-green-500">ไม่พบการลาในรอบปัจจุบัน (10 วันข้างหน้า)</p>
-                                    <p class="text-xs text-gray-400">ช่วงเวลา: ${forwardStart.toLocaleDateString('th-TH')} - ${forwardEnd.toLocaleDateString('th-TH')}</p>
-                                </div>
-                             `;
-                         }
-
-                         htmlContent += `<hr class="my-2 border-gray-600">`;
-
-                         // Summary
-                         htmlContent += `
-                             <p class="mt-2">เงินเดือนรายสัปดาห์ (หาร 4): ${(weeklySalary || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท</p>
-                             ${totalDeduction > 0 ? `<p class="text-red-400">รวมหักทั้งหมด: -${(totalDeduction || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท</p>` : ''}
-                             <p class="font-bold text-green-500 text-lg mt-1">ยอดจ่ายสุทธิ: ${(netPay || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท</p>
-                         `;
-
-                         infoDiv.innerHTML = htmlContent;
-                         infoDiv.classList.remove('hidden');
-                         
-                         baseInput.value = formatNumber(netPay);
                      } else if (salary) {
-                         baseInput.value = formatNumber(salary / 4); // Default to weekly salary
+                         let cycleFactor = 1;
+                         const cycleVal = parseInt(cycleSelect.value) || 7;
+                         if (cycleVal === 14) cycleFactor = 2;
+                         if (cycleVal === 30) cycleFactor = 4;
+                         baseInput.value = formatNumber((salary / 4) * cycleFactor);
                          infoDiv.classList.add('hidden');
                      }
                  };
 
                  select.addEventListener('change', calculateDeductions);
                  dateInput.addEventListener('change', calculateDeductions);
-                 cycleSelect.addEventListener('change', updateNextPaymentDate);
-                 
-                 select.addEventListener('change', () => {
-                    const option = select.options[select.selectedIndex];
-                    const salary = Number(option.getAttribute('data-salary'));
-                    if (salary) {
-                        const baseInput = document.getElementById('swal-pay-base') as HTMLInputElement;
-                        baseInput.value = formatNumber(salary); // This might be overwritten by calculateDeductions if date is present
-                        if ((document.getElementById('swal-pay-date') as HTMLInputElement).value) {
-                            calculateDeductions();
-                        }
-                    }
+                 cycleSelect.addEventListener('change', () => {
+                     updateNextPaymentDate();
+                     calculateDeductions();
                  });
+                 probationCheckbox.addEventListener('change', () => {
+                     if (probationCheckbox.checked) {
+                         dailyRateContainer.classList.remove('hidden');
+                         const option = select.options[select.selectedIndex];
+                         const salary = option ? Number(option.getAttribute('data-salary')) : 0;
+                         if (salary && !dailyRateInput.value) {
+                             dailyRateInput.value = String(Math.round(salary / 26));
+                         }
+                     } else {
+                         dailyRateContainer.classList.add('hidden');
+                     }
+                     calculateDeductions();
+                 });
+                 dailyRateInput.addEventListener('input', calculateDeductions);
             },
             preConfirm: () => {
                 const select = document.getElementById('swal-pay-emp-select') as HTMLSelectElement;
@@ -1065,8 +1280,30 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                 const slipUrl = (document.getElementById('swal-pay-slip') as HTMLInputElement).value;
                 const contractId = Number(select.value);
                 const contract = employmentContracts.find(c => c.id === contractId);
-                const baseSalary = contract ? contract.salary : 0;
-                const deductions = baseSalary - netSalary;
+                const isProbation = (document.getElementById('swal-pay-probation') as HTMLInputElement).checked;
+                const dailyRate = isProbation ? (Number((document.getElementById('swal-pay-daily-rate') as HTMLInputElement).value) || 350) : 0;
+
+                const baseSalaryAttr = contract ? contract.salary : 0;
+
+                let baseSalaryForRecord = baseSalaryAttr;
+                if (isProbation) {
+                    let potentialDays = 0;
+                    const payDateObj = new Date(date);
+                    for (let i = 0; i < cycle; i++) {
+                        const d = new Date(payDateObj);
+                        d.setDate(payDateObj.getDate() - i);
+                        if (d.getDay() !== 1) { // non-Monday
+                            potentialDays++;
+                        }
+                    }
+                    baseSalaryForRecord = potentialDays * dailyRate;
+                } else {
+                    let cycleFactor = 1;
+                    if (cycle === 14) cycleFactor = 2;
+                    if (cycle === 30) cycleFactor = 4;
+                    baseSalaryForRecord = (baseSalaryAttr / 4) * cycleFactor;
+                }
+                const deductions = baseSalaryForRecord - netSalary;
 
                 if (!select.value || !date) {
                     Swal.showValidationMessage('กรุณาเลือกพนักงานและเดือน');
@@ -1107,7 +1344,7 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                 return {
                     employeeName: employeeName,
                     month: date,
-                    baseSalary: baseSalary,
+                    baseSalary: baseSalaryForRecord,
                     deductions: deductions > 0 ? deductions : 0,
                     totalNetSalary: netSalary,
                     slipUrl: slipUrl,
@@ -1331,7 +1568,8 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                                 </td>
                                                 <td className="p-3 flex gap-2 items-center">
                                                     {(() => {
-                                                        const linkedUser = users.find(u => u.id === app.userId) || 
+                                                        const linkedUser = findUserByEmployeeName(app.fullName, users, jobApplications) ||
+                                                            users.find(u => u.id === app.userId) || 
                                                             users.find(u => employmentContracts.some(c => c.userId === u.id && c.employeeName === app.fullName));
                                                         
                                                         return linkedUser ? (
@@ -1426,12 +1664,13 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                                 </button>
                                             </div>
                                         </th>
+                                        <th className="p-3">User</th>
                                         <th className="p-3">จัดการ</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-700">
                                     {employmentContracts.length === 0 ? (
-                                        <tr><td colSpan={isEditMode ? 7 : 6} className="p-4 text-center text-gray-500">ไม่พบข้อมูล</td></tr>
+                                        <tr><td colSpan={isEditMode ? 8 : 7} className="p-4 text-center text-gray-500">ไม่พบข้อมูล</td></tr>
                                     ) : (
                                         employmentContracts.map((c, index) => (
                                             <tr key={c.id || index} className="hover:bg-gray-700/50">
@@ -1482,6 +1721,37 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                                         (c.salary || 0).toLocaleString()
                                                     ) : (
                                                         <span className="text-gray-500 font-medium">••••••</span>
+                                                    )}
+                                                </td>
+                                                <td className="p-3">
+                                                    {isEditMode ? (
+                                                        <select
+                                                            value={c.userId || ''}
+                                                            onChange={(e) => {
+                                                                const val = e.target.value;
+                                                                const newUserId = val ? Number(val) : undefined;
+                                                                employmentContractsActions.update(c.id, { userId: newUserId });
+                                                            }}
+                                                            className="bg-gray-700 text-white border border-gray-600 rounded px-2 py-1 text-xs focus:outline-none focus:border-blue-500 max-w-[120px]"
+                                                        >
+                                                            <option value="">-- เลือกผู้ใช้ --</option>
+                                                            {users.map(u => (
+                                                                <option key={u.id} value={u.id}>{u.username}</option>
+                                                            ))}
+                                                        </select>
+                                                    ) : (
+                                                        (() => {
+                                                            const linkedUser = findUserByEmployeeName(c.employeeName, users, jobApplications) || users.find(u => u.id === c.userId);
+                                                            return linkedUser ? (
+                                                                <span className="text-xs text-gray-400 bg-gray-700 px-2 py-1 rounded whitespace-nowrap">
+                                                                    👤 {linkedUser.username}
+                                                                </span>
+                                                            ) : (
+                                                                <span className="text-xs text-red-400 bg-red-950/40 px-2 py-1 rounded whitespace-nowrap">
+                                                                    ⚠️ ไม่พบผู้ใช้งาน
+                                                                </span>
+                                                            );
+                                                        })()
                                                     )}
                                                 </td>
                                                 <td className="p-3">
@@ -1844,7 +2114,8 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
 
                                         return leaveRequests.map((l, index) => {
                                             // Try to find user by ID, or fallback to matching name via employment contract
-                                            const user = users.find(u => u.id === l.userId) || 
+                                            const user = findUserByEmployeeName(l.employeeName, users, jobApplications) ||
+                                                         users.find(u => u.id === l.userId) || 
                                                          users.find(u => employmentContracts.some(c => c.userId === u.id && c.employeeName === l.employeeName));
                                             
                                             const quotas = user?.leaveQuotas ?? { sick: 0, personal: 0, vacation: 0 };
