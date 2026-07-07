@@ -59,7 +59,8 @@ const MIGRATED_COLLECTIONS = [
     'stockTags',
     'maintenanceItems',
     'closingChecklistItems',
-    'closingChecklistLog'
+    'closingChecklistLog',
+    'employeeGoals'
 ];
 
 // Helper to reliably retrieve or generate a unique ID string from any item
@@ -129,7 +130,7 @@ export function useFirestoreSync<T>(
             return () => {};
         }
 
-        const isBranchSpecific = !['users', 'branches', 'leaveRequests'].includes(collectionKey);
+        const isBranchSpecific = !['users', 'branches', 'leaveRequests', 'employeeGoals'].includes(collectionKey);
         const currentInitialValue = initialValueRef.current;
         const isMigrated = MIGRATED_COLLECTIONS.includes(collectionKey);
 
@@ -380,7 +381,7 @@ export function useFirestoreSync<T>(
 
         if (!db) return;
 
-        const isBranchSpecific = !['users', 'branches', 'leaveRequests'].includes(boundCollectionKey);
+        const isBranchSpecific = !['users', 'branches', 'leaveRequests', 'employeeGoals'].includes(boundCollectionKey);
         const isMigrated = MIGRATED_COLLECTIONS.includes(boundCollectionKey);
         
         if (isBranchSpecific && !boundBranchId) {
