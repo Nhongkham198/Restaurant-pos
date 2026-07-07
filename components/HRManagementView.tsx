@@ -93,7 +93,24 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
         return branches.filter(b => allowedIds.includes(b.id));
     }, [branches, currentUser]);
 
-    const [activeTab, setActiveTab] = useState<HRTab>(initialTab);
+    const [activeTab, setActiveTab] = useState<HRTab>(() => {
+        const adminOrManager = currentUser?.role === 'admin' || currentUser?.role === 'branch-admin';
+        if (!adminOrManager) {
+            if (initialTab !== 'leave' && initialTab !== 'goal') {
+                return 'leave';
+            }
+        }
+        return initialTab;
+    });
+
+    useEffect(() => {
+        const adminOrManager = currentUser?.role === 'admin' || currentUser?.role === 'branch-admin';
+        if (!adminOrManager) {
+            if (activeTab !== 'leave' && activeTab !== 'goal') {
+                setActiveTab('leave');
+            }
+        }
+    }, [currentUser, activeTab]);
 
     // Goal Setting & Evaluation States
     const [draftGoalItems, setDraftGoalItems] = useState<GoalItem[]>([]);
@@ -1909,7 +1926,13 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                         { id: 'payroll' as HRTab, label: '💰 เงินเดือน' },
                         { id: 'leave' as HRTab, label: '📅 วันลา' },
                         { id: 'goal' as HRTab, label: '🎯 เป้าหมาย & ประเมิน (Goal)' },
-                    ].map(tab => renderTabButton(tab.id, tab.label))}
+                    ].filter(tab => {
+                        const isAdminOrManager = currentUser?.role === 'admin' || currentUser?.role === 'branch-admin';
+                        if (!isAdminOrManager) {
+                            return tab.id === 'leave' || tab.id === 'goal';
+                        }
+                        return true;
+                    }).map(tab => renderTabButton(tab.id, tab.label))}
                 </div>
 
             {/* Content Area */}
