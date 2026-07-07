@@ -76,7 +76,8 @@ import type {
     OrderCounter,
     MaintenanceItem,
     MaintenanceLog,
-    DeliveryProvider
+    DeliveryProvider,
+    EmployeeGoal
 } from './types';
 import { useFirestoreSync, useFirestoreCollection } from './hooks/useFirestoreSync';
 import { useUI } from './contexts/UIContext';
@@ -243,6 +244,19 @@ export const App: React.FC = () => {
         qrPopupImageUrl, setQrPopupImageUrl,
         qrPopupMessage, setQrPopupMessage
     } = useData();
+
+    const [employeeGoals] = useFirestoreSync<EmployeeGoal[]>(null, 'employeeGoals', []);
+
+    const goalsBadgeCount = useMemo(() => {
+        if (!currentUser) return 0;
+        
+        // For admin/branch-admin: count goals in 'pending_admin' status (needs setup/approval) or 'pending_evaluation' (needs grading)
+        if (currentUser.role === 'admin' || currentUser.role === 'branch-admin') {
+            return employeeGoals.filter(g => g.status === 'pending_admin' || g.status === 'pending_evaluation').length;
+        }
+        
+        return 0; // Standard employees don't see peer goals to evaluate
+    }, [employeeGoals, currentUser]);
 
     const handleChangeBranch = () => {
         localStorage.setItem('intentToChangeBranch', 'true');
@@ -770,8 +784,26 @@ export const App: React.FC = () => {
             view: 'maintenance',
             badge: maintenanceBadgeCount
         });
+
+        // Add Goal Tab for standard employees as well
+        if (currentUser?.role !== 'pos' && currentUser?.role !== 'table') {
+            items.push({
+                id: 'goal-mobile',
+                label: 'เป้าหมาย',
+                icon: (
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <circle cx="12" cy="12" r="10" />
+                        <circle cx="12" cy="12" r="6" />
+                        <circle cx="12" cy="12" r="2" />
+                    </svg>
+                ),
+                view: 'goal',
+                badge: goalsBadgeCount
+            });
+        }
+
         return items;
-    }, [currentUser, branches, tablesBadgeCount, totalKitchenBadgeCount, leaveBadgeCount, stockBadgeCount, maintenanceBadgeCount, setModalState]);
+    }, [currentUser, branches, tablesBadgeCount, totalKitchenBadgeCount, leaveBadgeCount, stockBadgeCount, maintenanceBadgeCount, goalsBadgeCount, setModalState]);
 
     const selectedTable = useMemo(() => {
         return tables.find(t => t.id === selectedTableId) || null;
@@ -2002,7 +2034,7 @@ export const App: React.FC = () => {
                         currentView={currentView} onViewChange={handleViewChange} isEditMode={isEditMode} onToggleEditMode={() => setIsEditMode(!isEditMode)}
                         onOpenSettings={() => setModalState(prev => ({ ...prev, isSettings: true }))} cookingBadgeCount={cookingBadgeCount} waitingBadgeCount={waitingBadgeCount}
                         tablesBadgeCount={tablesBadgeCount} vacantTablesBadgeCount={vacantTablesCount} leaveBadgeCount={leaveBadgeCount} stockBadgeCount={stockBadgeCount} 
-                        maintenanceBadgeCount={maintenanceBadgeCount} preOrderBadgeCount={preOrderBadgeCount} currentUser={currentUser} onLogout={handleLogout}
+                        maintenanceBadgeCount={maintenanceBadgeCount} preOrderBadgeCount={preOrderBadgeCount} goalsBadgeCount={goalsBadgeCount} currentUser={currentUser} onLogout={handleLogout}
                         onOpenUserManager={() => setModalState(prev => ({ ...prev, isUserManager: true }))} 
                         logoUrl={appLogoUrl || logoUrl} // Prioritize App Logo (Red)
                         onLogoChangeClick={() => {}}
@@ -2165,11 +2197,11 @@ export const App: React.FC = () => {
                                                     isEditMode={isEditMode}
                                                 />
                                             )}
-                                            {(currentView === 'hr' || currentView === 'hr-payroll') && (
+                                            {(currentView === 'hr' || currentView === 'hr-payroll' || currentView === 'goal') && (
                                                 <HRManagementView 
                                                     isEditMode={isEditMode} 
                                                     onOpenUserManager={handleOpenUserManagerWithData} 
-                                                    initialTab={currentView === 'hr-payroll' ? 'payroll' : 'application'}
+                                                    initialTab={currentView === 'hr-payroll' ? 'payroll' : (currentView === 'goal' ? 'goal' : 'application')}
                                                 />
                                             )}
                                             {currentView === 'expense-analysis' && (
@@ -2248,11 +2280,11 @@ export const App: React.FC = () => {
                                     isEditMode={isEditMode}
                                 />
                             )}
-                            {(currentView === 'hr' || currentView === 'hr-payroll') && (
+                            {(currentView === 'hr' || currentView === 'hr-payroll' || currentView === 'goal') && (
                                 <HRManagementView 
                                     isEditMode={isEditMode} 
                                     onOpenUserManager={handleOpenUserManagerWithData} 
-                                    initialTab={currentView === 'hr-payroll' ? 'payroll' : 'application'}
+                                    initialTab={currentView === 'hr-payroll' ? 'payroll' : (currentView === 'goal' ? 'goal' : 'application')}
                                 />
                             )}
                             {currentView === 'expense-analysis' && (

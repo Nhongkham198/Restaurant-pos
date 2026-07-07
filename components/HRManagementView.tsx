@@ -1,12 +1,13 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useData } from '../contexts/DataContext';
-import { JobApplication, EmploymentContract, TimeRecord, PayrollRecord, LeaveRequest } from '../types';
+import { JobApplication, EmploymentContract, TimeRecord, PayrollRecord, LeaveRequest, EmployeeGoal, GoalItem, PeerEvaluation } from '../types';
 import { DEFAULT_JOB_APPLICATIONS, DEFAULT_EMPLOYMENT_CONTRACTS } from '../constants';
 import Swal from 'sweetalert2';
 import * as XLSX from 'xlsx';
 import { Eye, EyeOff } from 'lucide-react';
+import { useFirestoreSync } from '../hooks/useFirestoreSync';
 
-type HRTab = 'application' | 'contract' | 'time' | 'payroll' | 'leave';
+type HRTab = 'application' | 'contract' | 'time' | 'payroll' | 'leave' | 'goal';
 
 import { User } from '../types';
 
@@ -79,10 +80,30 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
         payrollRecords, setPayrollRecords,
         leaveRequests, setLeaveRequests,
         users, setUsers, branchId,
-        jobPositions, setJobPositions
+        jobPositions, setJobPositions,
+        currentUser, branches
     } = useData();
 
+    const [employeeGoals, setEmployeeGoals] = useFirestoreSync<EmployeeGoal[]>(null, 'employeeGoals', []);
+
+    const visibleBranches = useMemo(() => {
+        if (!currentUser) return [];
+        if (currentUser.role === 'admin') return branches;
+        const allowedIds = currentUser.allowedBranchIds || [];
+        return branches.filter(b => allowedIds.includes(b.id));
+    }, [branches, currentUser]);
+
     const [activeTab, setActiveTab] = useState<HRTab>(initialTab);
+
+    // Goal Setting & Evaluation States
+    const [draftGoalItems, setDraftGoalItems] = useState<GoalItem[]>([]);
+    const [goalSelectedBranches, setGoalSelectedBranches] = useState<number[]>([]);
+    const [evaluatingGoal, setEvaluatingGoal] = useState<EmployeeGoal | null>(null);
+    const [evalScores, setEvalScores] = useState<Record<string, number>>({}); // item ID -> rating (1-10)
+    const [adminGradingGoal, setAdminGradingGoal] = useState<EmployeeGoal | null>(null);
+    const [adminFeedback, setAdminFeedback] = useState<string>('');
+    const [viewingGoalDetails, setViewingGoalDetails] = useState<EmployeeGoal | null>(null);
+    const [showEvalAlert, setShowEvalAlert] = useState(true);
     
     // Payroll Sorting State
     const [payrollSortConfig, setPayrollSortConfig] = useState<{ key: keyof PayrollRecord; direction: 'asc' | 'desc' } | null>({ key: 'month', direction: 'desc' });
@@ -1621,6 +1642,209 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
         });
     };
 
+    // --- GOAL ACTIONS ---
+    const handleSaveGoalDraft = (items: GoalItem[], selectedBranches: number[]) => {
+        if (items.length === 0) {
+            Swal.fire('ข้อผิดพลาด', 'กรุณาเพิ่มเป้าหมายอย่างน้อย 1 ข้อ', 'error');
+            return;
+        }
+        if (selectedBranches.length === 0) {
+            Swal.fire('ข้อผิดพลาด', 'กรุณาเลือกสาขาที่ต้องการส่งเป้าหมายอย่างน้อย 1 สาขา', 'error');
+            return;
+        }
+
+        const existingDraft = employeeGoals.find(g => 
+            (g.userId === currentUser?.id?.toString() || g.userId === currentUser?.username) && 
+            g.status === 'draft'
+        );
+
+        const draftGoal: EmployeeGoal = {
+            id: existingDraft?.id || Date.now().toString(),
+            userId: currentUser?.id?.toString() || 'unknown',
+            employeeName: currentUser?.username || 'พนักงานนิรนาม',
+            branchIds: selectedBranches.map(bId => bId.toString()),
+            items: items,
+            status: 'draft',
+            createdAt: existingDraft?.createdAt || Date.now()
+        };
+
+        const updatedGoals = existingDraft
+            ? employeeGoals.map(g => g.id === existingDraft.id ? draftGoal : g)
+            : [...employeeGoals, draftGoal];
+
+        setEmployeeGoals(updatedGoals);
+        Swal.fire('สำเร็จ', 'บันทึกแบบร่างเป้าหมายเรียบร้อยแล้ว', 'success');
+    };
+
+    const handleSubmitGoalToAdmin = (items: GoalItem[], selectedBranches: number[]) => {
+        if (items.length === 0) {
+            Swal.fire('ข้อผิดพลาด', 'กรุณาเพิ่มเป้าหมายอย่างน้อย 1 ข้อ', 'error');
+            return;
+        }
+        if (selectedBranches.length === 0) {
+            Swal.fire('ข้อผิดพลาด', 'กรุณาเลือกสาขาที่ต้องการส่งเป้าหมายอย่างน้อย 1 สาขา', 'error');
+            return;
+        }
+
+        const existingDraft = employeeGoals.find(g => 
+            (g.userId === currentUser?.id?.toString() || g.userId === currentUser?.username) && 
+            g.status === 'draft'
+        );
+
+        const finalGoal: EmployeeGoal = {
+            id: existingDraft?.id || Date.now().toString(),
+            userId: currentUser?.id?.toString() || 'unknown',
+            employeeName: currentUser?.username || 'พนักงานนิรนาม',
+            branchIds: selectedBranches.map(bId => bId.toString()),
+            items: items,
+            status: 'pending_admin',
+            createdAt: Date.now()
+        };
+
+        const updatedGoals = existingDraft
+            ? employeeGoals.map(g => g.id === existingDraft.id ? finalGoal : g)
+            : [...employeeGoals, finalGoal];
+
+        setEmployeeGoals(updatedGoals);
+        Swal.fire('ส่งสำเร็จ', 'ส่งเป้าหมายไปยังผู้ดูแลเรียบร้อยแล้ว', 'success');
+    };
+
+    const handleSetGoalActive = (goalId: string) => {
+        const goal = employeeGoals.find(g => g.id === goalId);
+        if (!goal) return;
+
+        const today = new Date();
+        const startDateStr = today.toISOString().split('T')[0];
+        
+        // 6 months later
+        const sixMonthsLater = new Date();
+        sixMonthsLater.setMonth(sixMonthsLater.getMonth() + 6);
+        const endDateStr = sixMonthsLater.toISOString().split('T')[0];
+
+        const updatedGoal: EmployeeGoal = {
+            ...goal,
+            status: 'active',
+            startDate: startDateStr,
+            endDate: endDateStr,
+            setByAdmin: true,
+            approvedByAdmin: true,
+            approvedAt: Date.now()
+        };
+
+        setEmployeeGoals(prev => prev.map(g => g.id === goalId ? updatedGoal : g));
+        Swal.fire('สำเร็จ', 'อนุมัติเริ่มเป้าหมาย 6 เดือนเรียบร้อยแล้ว', 'success');
+    };
+
+    const handleSimulateExpired = (goalId: string) => {
+        const goal = employeeGoals.find(g => g.id === goalId);
+        if (!goal) return;
+
+        const updatedGoal: EmployeeGoal = {
+            ...goal,
+            status: 'pending_evaluation'
+        };
+
+        setEmployeeGoals(prev => prev.map(g => g.id === goalId ? updatedGoal : g));
+        Swal.fire('จำลองสำเร็จ', 'จำลองครบกำหนด 6 เดือน และเปิดสิทธิ์ประเมินแล้ว', 'success');
+    };
+
+    const handleToggleActiveItemStatus = (goal: EmployeeGoal, itemIndex: number) => {
+        const updatedItems = [...goal.items];
+        const currentStatus = updatedItems[itemIndex].status;
+        updatedItems[itemIndex] = {
+            ...updatedItems[itemIndex],
+            status: currentStatus === 'completed' ? 'not_completed' : 'completed'
+        };
+
+        const updatedGoal: EmployeeGoal = {
+            ...goal,
+            items: updatedItems
+        };
+
+        setEmployeeGoals(prev => prev.map(g => g.id === goal.id ? updatedGoal : g));
+    };
+
+    const handleSubmitEvaluation = (goal: EmployeeGoal, scores: Record<string, number>) => {
+        if (!currentUser) return;
+
+        // Check if all items rated
+        const allRated = goal.items.every(item => scores[item.id] !== undefined);
+        if (!allRated) {
+            Swal.fire('ข้อผิดพลาด', 'กรุณาให้คะแนนเป้าหมายทุกข้อให้ครบถ้วน', 'warning');
+            return;
+        }
+
+        const newEval: PeerEvaluation = {
+            evaluatorId: currentUser.id.toString(),
+            evaluatorName: currentUser.username,
+            scores: scores,
+            submittedAt: Date.now()
+        };
+
+        const evals = goal.peerEvaluations ? [...goal.peerEvaluations] : [];
+        // Remove previous evaluation by same user if any
+        const filteredEvals = evals.filter(e => e.evaluatorId !== currentUser.id.toString());
+        filteredEvals.push(newEval);
+
+        const updatedGoal: EmployeeGoal = {
+            ...goal,
+            peerEvaluations: filteredEvals
+        };
+
+        setEmployeeGoals(prev => prev.map(g => g.id === goal.id ? updatedGoal : g));
+        setEvaluatingGoal(null);
+        setEvalScores({});
+        Swal.fire('สำเร็จ', 'ส่งคะแนนประเมินเพื่อนร่วมงานเรียบร้อยแล้ว', 'success');
+    };
+
+    const handleApproveAndGrade = (goal: EmployeeGoal, note: string) => {
+        if (!goal.peerEvaluations || goal.peerEvaluations.length === 0) {
+            Swal.fire('ข้อผิดพลาด', 'ยังไม่มีเพื่อนร่วมงานประเมินเป้าหมายนี้', 'error');
+            return;
+        }
+
+        // Calculate final score
+        // Each peer score is from 1 to 10
+        // Total possible score = peers_count * items_count * 10
+        // Earned score = sum of all scores
+        const peersCount = goal.peerEvaluations.length;
+        const itemsCount = goal.items.length;
+        const maxPoints = peersCount * itemsCount * 10;
+        
+        let earnedPoints = 0;
+        goal.peerEvaluations.forEach(pe => {
+            Object.values(pe.scores).forEach(score => {
+                earnedPoints += score;
+            });
+        });
+
+        const finalScorePercentage = parseFloat(((earnedPoints / maxPoints) * 100).toFixed(2));
+        
+        let finalGrade: 'A' | 'B' | 'C' | 'D' = 'D';
+        if (finalScorePercentage >= 80) {
+            finalGrade = 'A';
+        } else if (finalScorePercentage >= 70) {
+            finalGrade = 'B';
+        } else if (finalScorePercentage >= 60) {
+            finalGrade = 'C';
+        }
+
+        const updatedGoal: EmployeeGoal = {
+            ...goal,
+            status: 'completed',
+            finalScore: finalScorePercentage,
+            finalGrade: finalGrade,
+            adminNote: note,
+            approvedByAdmin: true,
+            approvedAt: Date.now()
+        };
+
+        setEmployeeGoals(prev => prev.map(g => g.id === goal.id ? updatedGoal : g));
+        setAdminGradingGoal(null);
+        setAdminFeedback('');
+        Swal.fire('อนุมัติแล้ว', `บันทึกผลการประเมินเรียบร้อย ได้เกรด ${finalGrade} (${finalScorePercentage}%)`, 'success');
+    };
+
     const payrollDueCount = useMemo(() => {
         const latestRecordsMap = new Map<string, PayrollRecord>();
         payrollRecords.forEach(r => {
@@ -1683,6 +1907,8 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                         { id: 'contract' as HRTab, label: '📝 สัญญาจ้าง' },
                         { id: 'time' as HRTab, label: '⏰ บันทึกเวลา' },
                         { id: 'payroll' as HRTab, label: '💰 เงินเดือน' },
+                        { id: 'leave' as HRTab, label: '📅 วันลา' },
+                        { id: 'goal' as HRTab, label: '🎯 เป้าหมาย & ประเมิน (Goal)' },
                     ].map(tab => renderTabButton(tab.id, tab.label))}
                 </div>
 
@@ -2419,6 +2645,886 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                 </tbody>
                             </table>
                         </div>
+                    </div>
+                )}
+
+                {/* --- GOAL TAB --- */}
+                {activeTab === 'goal' && (
+                    <div className="space-y-6 text-white">
+                        {/* 1. PEER EVALUATION ALERT BANNER (PERSISTENT POPUP UNTIL DISMISSED) */}
+                        {(() => {
+                            const pendingPeerGoals = employeeGoals.filter(g => 
+                                g.userId !== (currentUser?.id?.toString() || currentUser?.username) &&
+                                g.status === 'pending_evaluation' &&
+                                g.branchIds.some(bid => bid === branchId || currentUser?.allowedBranchIds?.includes(Number(bid))) &&
+                                !(g.peerEvaluations?.some(pe => pe.evaluatorId === currentUser?.id?.toString()))
+                            );
+
+                            if (pendingPeerGoals.length === 0 || !showEvalAlert) return null;
+
+                            return (
+                                <div className="bg-gradient-to-r from-amber-600 to-orange-700 text-white p-4 rounded-xl shadow-2xl relative border border-amber-500 animate-pulse flex items-center justify-between gap-4">
+                                    <div className="flex items-center gap-3">
+                                        <span className="text-2xl">🚨</span>
+                                        <div>
+                                            <h4 className="font-bold text-lg">มีเป้าหมายของเพื่อนร่วมงานที่รอให้คุณประเมิน!</h4>
+                                            <p className="text-sm opacity-90">คุณมีเป้าหมายของเพื่อนพนักงานในสาขาเดียวกันจำนวน <strong>{pendingPeerGoals.length} คน</strong> ที่ครบกำหนด 6 เดือน และกำลังรอผลประเมินจากเพื่อนร่วมงาน</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <button 
+                                            onClick={() => {
+                                                // Automatically select the first peer to evaluate
+                                                setEvaluatingGoal(pendingPeerGoals[0]);
+                                                // Init scores
+                                                const initialScores: Record<string, number> = {};
+                                                pendingPeerGoals[0].items.forEach(it => {
+                                                    initialScores[it.id] = 10; // Default to 10 max
+                                                });
+                                                setEvalScores(initialScores);
+                                            }} 
+                                            className="bg-white text-orange-950 font-semibold px-4 py-2 rounded-lg text-sm hover:bg-orange-100 transition-colors shadow"
+                                        >
+                                            ร่วมประเมินเลย
+                                        </button>
+                                        <button 
+                                            onClick={() => setShowEvalAlert(false)} 
+                                            className="text-white hover:text-amber-200 p-1 rounded-full hover:bg-black/10 transition-colors"
+                                            title="ปิดข้อความแจ้งเตือน"
+                                        >
+                                            ✕
+                                        </button>
+                                    </div>
+                                </div>
+                            );
+                        })()}
+
+                        {/* 2. ADMIN & BRANCH MANAGER DASHBOARD */}
+                        {(currentUser?.role === 'admin' || currentUser?.role === 'branch-admin') && (
+                            <div className="bg-gray-900/50 p-6 rounded-xl border border-gray-700 space-y-4">
+                                <div className="flex justify-between items-center flex-wrap gap-3">
+                                    <div>
+                                        <h2 className="text-xl font-bold flex items-center gap-2 text-white">
+                                            <span className="text-yellow-500">👑</span> แผงควบคุมเป้าหมายพนักงาน (Admin/Manager Dashboard)
+                                        </h2>
+                                        <p className="text-xs text-gray-400">จัดการ ตั้งค่าเป้าหมาย และอนุมัติเกรดประเมินผลการทำงานของพนักงาน</p>
+                                    </div>
+                                    
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-xs text-gray-400">กรองสาขา:</span>
+                                        <select 
+                                            value={branchId || ''} 
+                                            className="bg-gray-800 text-white border border-gray-700 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500"
+                                            disabled
+                                        >
+                                            <option value={branchId || ''}>
+                                                {branches.find(b => b.id === Number(branchId))?.name || `สาขา ${branchId}`}
+                                            </option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left text-gray-300">
+                                        <thead className="bg-gray-800 text-gray-100 text-sm font-semibold uppercase">
+                                            <tr>
+                                                <th className="p-3">ชื่อพนักงาน</th>
+                                                <th className="p-3">สาขาที่รับเป้าหมาย</th>
+                                                <th className="p-3 text-center">จำนวนหัวข้อ</th>
+                                                <th className="p-3">ความคืบหน้าของพนักงาน</th>
+                                                <th className="p-3">เกรด / คะแนน</th>
+                                                <th className="p-3">สถานะเป้าหมาย</th>
+                                                <th className="p-3 text-right">การจัดการ</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-800 text-sm">
+                                            {employeeGoals.filter(g => g.branchIds.includes(branchId || '')).length === 0 ? (
+                                                <tr>
+                                                    <td colSpan={7} className="p-8 text-center text-gray-500">
+                                                        📭 ยังไม่มีข้อมูลเป้าหมายพนักงานที่ส่งมาในสาขานี้
+                                                    </td>
+                                                </tr>
+                                            ) : (
+                                                employeeGoals
+                                                    .filter(g => g.branchIds.includes(branchId || ''))
+                                                    .map(goal => {
+                                                        const completedCount = goal.items.filter(it => it.status === 'completed').length;
+                                                        const progressPercentage = goal.items.length > 0 
+                                                            ? Math.round((completedCount / goal.items.length) * 100) 
+                                                            : 0;
+
+                                                        return (
+                                                            <tr key={goal.id} className="hover:bg-gray-800/30 transition-colors">
+                                                                <td className="p-3 font-semibold text-white">{goal.employeeName}</td>
+                                                                <td className="p-3">
+                                                                    <div className="flex flex-wrap gap-1">
+                                                                        {goal.branchIds.map(bId => {
+                                                                            const bName = branches.find(b => b.id === Number(bId))?.name || `สาขา ${bId}`;
+                                                                            return (
+                                                                                <span key={bId} className="bg-blue-900/30 text-blue-300 text-[11px] px-1.5 py-0.5 rounded border border-blue-800">
+                                                                                    {bName}
+                                                                                </span>
+                                                                            );
+                                                                        })}
+                                                                    </div>
+                                                                </td>
+                                                                <td className="p-3 text-center font-mono font-bold text-gray-200">{goal.items.length} ข้อ</td>
+                                                                <td className="p-3">
+                                                                    <div className="space-y-1">
+                                                                        <div className="flex justify-between text-xs text-gray-400">
+                                                                            <span>ทำสำเร็จ {completedCount}/{goal.items.length}</span>
+                                                                            <span>{progressPercentage}%</span>
+                                                                        </div>
+                                                                        <div className="w-full bg-gray-700 h-1.5 rounded-full overflow-hidden">
+                                                                            <div className="bg-emerald-500 h-full rounded-full" style={{ width: `${progressPercentage}%` }}></div>
+                                                                        </div>
+                                                                    </div>
+                                                                </td>
+                                                                <td className="p-3">
+                                                                    {goal.status === 'completed' ? (
+                                                                        <div className="flex items-center gap-1.5">
+                                                                            <span className={`h-7 w-7 flex items-center justify-center font-bold rounded-full ${
+                                                                                goal.finalGrade === 'A' ? 'bg-emerald-600 text-white' :
+                                                                                goal.finalGrade === 'B' ? 'bg-blue-600 text-white' :
+                                                                                goal.finalGrade === 'C' ? 'bg-yellow-600 text-white' :
+                                                                                'bg-red-600 text-white'
+                                                                            }`}>
+                                                                                {goal.finalGrade}
+                                                                            </span>
+                                                                            <span className="text-xs text-gray-400 font-mono">({goal.finalScore}%)</span>
+                                                                        </div>
+                                                                    ) : (
+                                                                        <span className="text-gray-500 text-xs">- รออนุมัติเกรด -</span>
+                                                                    )}
+                                                                </td>
+                                                                <td className="p-3">
+                                                                    <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+                                                                        goal.status === 'draft' ? 'bg-gray-700 text-gray-300' :
+                                                                        goal.status === 'pending_admin' ? 'bg-yellow-950 text-yellow-300 border border-yellow-800' :
+                                                                        goal.status === 'active' ? 'bg-blue-950 text-blue-300 border border-blue-800' :
+                                                                        goal.status === 'pending_evaluation' ? 'bg-orange-950 text-orange-300 border border-orange-800' :
+                                                                        'bg-emerald-950 text-emerald-300 border border-emerald-800'
+                                                                    }`}>
+                                                                        {goal.status === 'draft' ? 'แบบร่าง' :
+                                                                         goal.status === 'pending_admin' ? 'รอ Set Goal / เริ่ม' :
+                                                                         goal.status === 'active' ? 'กำลังดำเนินงาน 6 เดือน' :
+                                                                         goal.status === 'pending_evaluation' ? 'รอประเมิน' :
+                                                                         'อนุมัติและเสร็จสิ้น'}
+                                                                    </span>
+                                                                </td>
+                                                                <td className="p-3 text-right">
+                                                                    <div className="flex justify-end gap-1.5">
+                                                                        <button 
+                                                                            onClick={() => setViewingGoalDetails(goal)} 
+                                                                            className="bg-gray-800 hover:bg-gray-700 text-xs px-2.5 py-1.5 rounded text-gray-300 hover:text-white border border-gray-750"
+                                                                            title="ดูรายละเอียดเป้าหมาย"
+                                                                        >
+                                                                            👁️ รายละเอียด
+                                                                        </button>
+
+                                                                        {goal.status === 'pending_admin' && (
+                                                                            <button 
+                                                                                onClick={() => handleSetGoalActive(goal.id)} 
+                                                                                className="bg-blue-600 hover:bg-blue-700 text-xs text-white px-2.5 py-1.5 rounded font-semibold flex items-center gap-1"
+                                                                            >
+                                                                                🎯 Set Goal
+                                                                            </button>
+                                                                        )}
+
+                                                                        {goal.status === 'active' && (
+                                                                            <button 
+                                                                                onClick={() => handleSimulateExpired(goal.id)} 
+                                                                                className="bg-amber-600 hover:bg-amber-700 text-xs text-white px-2.5 py-1.5 rounded flex items-center gap-1"
+                                                                                title="เร่งเวลาจำลองครบ 6 เดือนทันที เพื่อทดสอบประเมิน"
+                                                                            >
+                                                                                ⚡ ครบ 6 เดือน
+                                                                            </button>
+                                                                        )}
+
+                                                                        {goal.status === 'pending_evaluation' && (
+                                                                            <button 
+                                                                                onClick={() => {
+                                                                                    setAdminGradingGoal(goal);
+                                                                                    setAdminFeedback(goal.adminNote || '');
+                                                                                }} 
+                                                                                className="bg-emerald-600 hover:bg-emerald-700 text-xs text-white px-2.5 py-1.5 rounded font-semibold"
+                                                                            >
+                                                                                📊 อนุมัติเกรด
+                                                                            </button>
+                                                                        )}
+                                                                    </div>
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    })
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* 3. INDIVIDUAL EMPLOYEE INTERACTIVE SCREEN */}
+                        <div className="bg-gray-900/40 p-6 rounded-xl border border-gray-700 space-y-6">
+                            {(() => {
+                                const myGoal = employeeGoals.find(g => 
+                                    g.userId === (currentUser?.id?.toString() || currentUser?.username)
+                                );
+
+                                // If the user is in creation/editing mode
+                                const isDraftMode = draftGoalItems.length > 0;
+
+                                if (isDraftMode) {
+                                    return (
+                                        <div className="space-y-4">
+                                            <div className="border-b border-gray-800 pb-3 flex justify-between items-center">
+                                                <div>
+                                                    <h3 className="text-lg font-bold text-blue-400 flex items-center gap-2">
+                                                        <span>📝</span> ขั้นตอนที่ 1: พนักงานตั้งเป้าหมายตัวเอง (Employee Goal Setting)
+                                                    </h3>
+                                                    <p className="text-xs text-gray-400">กรุณาป้อนเป้าหมายการทำงานส่วนตัวของคุณในแต่ละข้อให้ชัดเจน</p>
+                                                </div>
+                                                <button 
+                                                    onClick={() => {
+                                                        setDraftGoalItems([]);
+                                                        setGoalSelectedBranches([]);
+                                                    }} 
+                                                    className="text-gray-500 hover:text-gray-300 text-xs"
+                                                >
+                                                    ยกเลิก
+                                                </button>
+                                            </div>
+
+                                            {/* Goal points list */}
+                                            <div className="space-y-3">
+                                                {draftGoalItems.map((item, idx) => (
+                                                    <div key={item.id} className="flex flex-col sm:flex-row gap-3 sm:items-center bg-gray-800/40 p-3 rounded-lg border border-gray-800">
+                                                        <div className="flex-grow flex items-center gap-2 w-full">
+                                                            <span className="font-mono text-xs text-gray-500 w-14 shrink-0 whitespace-nowrap">ข้อที่ {idx + 1}:</span>
+                                                            <input 
+                                                                type="text" 
+                                                                value={item.text} 
+                                                                onChange={(e) => {
+                                                                    const updated = [...draftGoalItems];
+                                                                    updated[idx] = { ...updated[idx], text: e.target.value };
+                                                                    setDraftGoalItems(updated);
+                                                                }}
+                                                                placeholder="ตัวอย่างเช่น: พัฒนาและเปิดใช้งานระบบบริการล้างจานอัตโนมัติสำเร็จ"
+                                                                className="flex-grow bg-gray-800 text-white border border-gray-700 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500 min-w-0"
+                                                            />
+                                                        </div>
+                                                        
+                                                        <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto shrink-0 border-t border-gray-850 sm:border-0 pt-2 sm:pt-0">
+                                                            {/* Accomplished Toggles (Disabled during drafting stage, only editable during active evaluation phase) */}
+                                                            <div className="flex gap-1">
+                                                                <button 
+                                                                    type="button"
+                                                                    disabled={true}
+                                                                    title="ปุ่มนี้จะสามารถกดเลือกได้เมื่อถึงช่วงเวลาประเมินผลเท่านั้น"
+                                                                    className="px-2.5 py-1.5 sm:py-1 rounded text-xs font-semibold opacity-40 cursor-not-allowed transition-colors whitespace-nowrap bg-gray-800 text-gray-500"
+                                                                >
+                                                                    ทำสำเร็จ
+                                                                </button>
+                                                                <button 
+                                                                    type="button"
+                                                                    disabled={true}
+                                                                    title="ปุ่มนี้จะสามารถกดเลือกได้เมื่อถึงช่วงเวลาประเมินผลเท่านั้น"
+                                                                    className="px-2.5 py-1.5 sm:py-1 rounded text-xs font-semibold opacity-40 cursor-not-allowed transition-colors whitespace-nowrap bg-gray-800 text-gray-500"
+                                                                >
+                                                                    ยังไม่สำเร็จ
+                                                                </button>
+                                                            </div>
+
+                                                            {/* Trash button */}
+                                                            <button 
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setDraftGoalItems(draftGoalItems.filter((_, i) => i !== idx));
+                                                                }}
+                                                                className="text-red-400 hover:text-red-300 p-1.5 sm:p-1 rounded hover:bg-gray-800"
+                                                                title="ลบเป้าหมายข้อนี้"
+                                                            >
+                                                                🗑️
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ))}
+
+                                                <button 
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setDraftGoalItems([...draftGoalItems, { id: Date.now().toString() + Math.random().toString(), text: '', status: 'not_completed' }]);
+                                                    }}
+                                                    className="w-full py-2 bg-gray-800 hover:bg-gray-750 text-blue-400 text-xs rounded-lg border border-dashed border-gray-700 font-semibold flex items-center justify-center gap-2"
+                                                >
+                                                    ➕ เพิ่มข้อเป้าหมายถัดไป
+                                                </button>
+                                            </div>
+
+                                            {/* Branch selector checkboxes (Multi-branch support) */}
+                                            <div className="bg-gray-800/20 p-4 rounded-lg border border-gray-800 space-y-2">
+                                                <label className="text-sm font-bold text-gray-300 block">
+                                                    🏢 ติ๊กเลือกสาขาที่ต้องการส่งเป้าหมาย (Multi-branch Support):
+                                                </label>
+                                                <p className="text-xs text-gray-500">เป้าหมายของคุณจะถูกส่งข้ามไปยังผู้ดูแลและเพื่อนร่วมสาขาตามสาขาที่คุณเลือก</p>
+                                                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 pt-1">
+                                                    {visibleBranches.map(b => (
+                                                        <label key={b.id} className="flex items-center gap-2 text-sm bg-gray-800 p-2.5 rounded-lg border border-gray-700 cursor-pointer hover:bg-gray-750 transition-colors">
+                                                            <input 
+                                                                type="checkbox" 
+                                                                checked={goalSelectedBranches.includes(b.id)}
+                                                                onChange={(e) => {
+                                                                    if (e.target.checked) {
+                                                                        setGoalSelectedBranches([...goalSelectedBranches, b.id]);
+                                                                    } else {
+                                                                        setGoalSelectedBranches(goalSelectedBranches.filter(id => id !== b.id));
+                                                                    }
+                                                                }}
+                                                                className="rounded text-blue-600 focus:ring-blue-500 bg-gray-900 border-gray-700"
+                                                            />
+                                                            <span className="text-gray-300 font-medium">{b.name}</span>
+                                                        </label>
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            {/* Submit actions */}
+                                            <div className="flex gap-2 justify-end pt-2">
+                                                <button 
+                                                    onClick={() => {
+                                                        setDraftGoalItems([]);
+                                                        setGoalSelectedBranches([]);
+                                                    }} 
+                                                    className="bg-gray-850 hover:bg-gray-800 text-white px-4 py-2 rounded-lg text-sm transition-colors border border-gray-700"
+                                                >
+                                                    ยกเลิก
+                                                </button>
+                                                <button 
+                                                    onClick={() => handleSaveGoalDraft(draftGoalItems, goalSelectedBranches)} 
+                                                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                                                >
+                                                    💾 บันทึกแบบร่าง (Save Draft)
+                                                </button>
+                                                <button 
+                                                    onClick={() => handleSubmitGoalToAdmin(draftGoalItems, goalSelectedBranches)} 
+                                                    className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-lg hover:shadow-emerald-900/30 transition-colors"
+                                                >
+                                                    🚀 ส่งเป้าหมายให้ผู้ดูแล (Submit Goal)
+                                                </button>
+                                            </div>
+                                        </div>
+                                    );
+                                }
+
+                                // If user already has a goal record in the system
+                                if (myGoal) {
+                                    const completedCount = myGoal.items.filter(it => it.status === 'completed').length;
+                                    const progressPercentage = myGoal.items.length > 0 
+                                        ? Math.round((completedCount / myGoal.items.length) * 100) 
+                                        : 0;
+
+                                    return (
+                                        <div className="space-y-4">
+                                            <div className="flex justify-between items-start flex-wrap gap-3 border-b border-gray-800 pb-3">
+                                                <div>
+                                                    <h3 className="text-lg font-bold flex items-center gap-2">
+                                                        <span>🎯</span> เป้าหมายการทำงานส่วนตัวของฉัน (My Personal Goals)
+                                                    </h3>
+                                                    <p className="text-xs text-gray-400">ติดตาม แก้ไขความคืบหน้า หรือรอดูคะแนนผลประเมินของคุณ</p>
+                                                </div>
+                                                
+                                                <div className="flex gap-2">
+                                                    {myGoal.status === 'draft' && (
+                                                        <button 
+                                                            onClick={() => {
+                                                                setDraftGoalItems(myGoal.items);
+                                                                setGoalSelectedBranches(myGoal.branchIds.map(Number));
+                                                            }} 
+                                                            className="bg-blue-600 hover:bg-blue-700 text-white text-xs px-3 py-1.5 rounded-lg font-semibold flex items-center gap-1"
+                                                        >
+                                                            ✍️ แก้ไขแบบร่าง / ส่งผู้ดูแล
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {/* Status Header Cards */}
+                                            {myGoal.status === 'pending_admin' && (
+                                                <div className="bg-yellow-950/40 border border-yellow-800 p-4 rounded-xl text-yellow-300 text-sm">
+                                                    ⏳ <strong>เป้าหมายของคุณส่งให้ผู้ดูแลแล้ว:</strong> อยู่ระหว่างรอผู้ดูแลหรือหัวหน้าสาขามากดตรวจและอนุมัติปุ่ม <strong>"Set Goal"</strong> เพื่อเริ่มต้นโครงการ 6 เดือนอย่างเป็นทางการ
+                                                </div>
+                                            )}
+
+                                            {myGoal.status === 'active' && (
+                                                <div className="bg-blue-950/40 border border-blue-800 p-4 rounded-xl text-blue-300 text-sm flex flex-col md:flex-row justify-between gap-4 md:items-center">
+                                                    <div>
+                                                        <strong>🌟 โครงการทำงาน 6 เดือนเริ่มแล้ว:</strong> สัญญาเป้าหมายมีผลตั้งแต่ <strong>{myGoal.startDate}</strong> ถึง <strong>{myGoal.endDate}</strong>
+                                                        <p className="text-xs text-gray-400 mt-1">คุณสามารถอัปเดตสถานะเป้าหมายของคุณด้านล่างระหว่างทำงานได้ตลอดเวลา</p>
+                                                    </div>
+                                                    <button 
+                                                        onClick={() => handleSimulateExpired(myGoal.id)} 
+                                                        className="bg-amber-650 hover:bg-amber-700 text-white text-xs px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 self-start whitespace-nowrap"
+                                                        title="ปุ่มนี้สร้างขึ้นเพื่อให้พนักงานสามารถจำลองจำลองสิทธิ์เมื่อเวลาครบ 6 เดือน เพื่อเปิดให้เพื่อนๆ ประเมินเป้าหมายของคุณได้ทันทีโดยไม่ต้องรอจริง 6 เดือน"
+                                                    >
+                                                        ⚡ จำลองครบ 6 เดือน
+                                                    </button>
+                                                </div>
+                                            )}
+
+                                            {myGoal.status === 'pending_evaluation' && (
+                                                <div className="bg-orange-950/40 border border-orange-850 p-4 rounded-xl text-orange-300 text-sm">
+                                                    ⏳ <strong>เป้าหมายครบกำหนด 6 เดือนแล้ว:</strong> ระบบกำลังเปิดโอกาสให้เพื่อนร่วมงานคนอื่นๆ ในสาขาเดียวกัน เข้ามาร่วมประเมินความเห็นการทำสำเร็จในแต่ละข้อเป้าหมายของคุณ
+                                                    <p className="text-xs text-gray-400 mt-1">ปัจจุบันมีเพื่อนประเมินแล้วจำนวน <strong>{myGoal.peerEvaluations?.length || 0} คน</strong></p>
+                                                </div>
+                                            )}
+
+                                            {myGoal.status === 'completed' && (
+                                                <div className="bg-emerald-950/40 border border-emerald-800 p-5 rounded-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                                                    <div className="space-y-1">
+                                                        <h4 className="text-emerald-400 font-bold text-lg flex items-center gap-2">
+                                                            <span>🎉</span> บันทึกการประเมินเสร็จสมบูรณ์แล้ว!
+                                                        </h4>
+                                                        <p className="text-sm text-gray-300">เป้าหมายของคุณได้รับการอนุมัติและจัดเกรดจากทางผู้ดูแลเรียบร้อย</p>
+                                                        {myGoal.adminNote && (
+                                                            <div className="mt-2 text-xs bg-black/20 p-2.5 rounded-lg border border-emerald-900/30 text-gray-400">
+                                                                <strong>ข้อแนะนำจากผู้ดูแล:</strong> "{myGoal.adminNote}"
+                                                            </div>
+                                                        )}
+                                                    </div>
+
+                                                    <div className="bg-emerald-900/30 border border-emerald-800 p-4 rounded-xl text-center min-w-[120px]">
+                                                        <div className="text-xs text-emerald-400 uppercase tracking-wider font-bold">ผลการประเมิน</div>
+                                                        <div className="text-4xl font-extrabold text-white my-1">{myGoal.finalGrade}</div>
+                                                        <div className="text-xs text-gray-400 font-mono">({myGoal.finalScore}%)</div>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Goals Progress and Interactive Accomplishment List */}
+                                            <div className="bg-gray-800/30 p-4 rounded-xl border border-gray-800 space-y-4">
+                                                <div className="flex justify-between items-center text-sm">
+                                                    <span className="font-bold text-gray-300">ความก้าวหน้าการทำเป้าหมายสำเร็จด้วยตนเอง:</span>
+                                                    <span className="text-emerald-400 font-bold">{progressPercentage}% ({completedCount}/{myGoal.items.length} ข้อ)</span>
+                                                </div>
+                                                <div className="w-full bg-gray-700 h-2 rounded-full overflow-hidden">
+                                                    <div className="bg-emerald-500 h-full rounded-full transition-all duration-300" style={{ width: `${progressPercentage}%` }}></div>
+                                                </div>
+
+                                                <div className="space-y-2 pt-2">
+                                                    {myGoal.items.map((it, index) => (
+                                                        <div key={it.id} className="flex justify-between items-center bg-gray-950/40 p-3.5 rounded-lg border border-gray-800 gap-4 flex-wrap md:flex-nowrap">
+                                                            <div className="space-y-1">
+                                                                <span className="text-xs text-gray-500 font-mono block">เป้าหมายข้อที่ {index + 1}</span>
+                                                                <span className="text-gray-200 text-sm font-medium">{it.text}</span>
+                                                            </div>
+
+                                                            {/* If active, employee can toggle status */}
+                                                            {myGoal.status === 'active' ? (
+                                                                <div className="flex items-center gap-1">
+                                                                    <button 
+                                                                        onClick={() => handleToggleActiveItemStatus(myGoal, index)} 
+                                                                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
+                                                                            it.status === 'completed'
+                                                                                ? 'bg-emerald-600 text-white shadow shadow-emerald-950'
+                                                                                : 'bg-gray-800 text-gray-500 hover:bg-gray-750'
+                                                                        }`}
+                                                                    >
+                                                                        ✓ ทำสำเร็จแล้ว
+                                                                    </button>
+                                                                    <button 
+                                                                        onClick={() => handleToggleActiveItemStatus(myGoal, index)} 
+                                                                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
+                                                                            it.status === 'not_completed'
+                                                                                ? 'bg-red-600 text-white shadow shadow-red-950'
+                                                                                : 'bg-gray-800 text-gray-500 hover:bg-gray-750'
+                                                                        }`}
+                                                                    >
+                                                                        ✗ ยังไม่สำเร็จ
+                                                                    </button>
+                                                                </div>
+                                                            ) : (
+                                                                <span className={`px-2.5 py-1 rounded text-xs font-semibold ${
+                                                                    it.status === 'completed' 
+                                                                        ? 'bg-emerald-950 text-emerald-400 border border-emerald-900' 
+                                                                        : 'bg-gray-800 text-gray-400'
+                                                                }`}>
+                                                                    {it.status === 'completed' ? '✓ ทำสำเร็จแล้ว' : '✗ ยังไม่สำเร็จ'}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                }
+
+                                // If no goals whatsoever are set by user yet
+                                return (
+                                    <div className="py-12 text-center max-w-md mx-auto space-y-4">
+                                        <div className="text-5xl text-blue-500 animate-bounce">🎯</div>
+                                        <div>
+                                            <h3 className="text-lg font-bold">คุณยังไม่มีเป้าหมายของคุณในระบบ</h3>
+                                            <p className="text-xs text-gray-400 mt-1">เริ่มต้นร่างเป้าหมายส่วนตัวของคุณในการปฏิบัติงานรอบ 6 เดือนถัดไป เพื่อรับการประเมินจากเพื่อนร่วมงานและเลื่อนตำแหน่ง/รางวัล</p>
+                                        </div>
+                                        <button 
+                                            onClick={() => {
+                                                setDraftGoalItems([{ id: Date.now().toString(), text: '', status: 'not_completed' }]);
+                                                const defaultBranchIds = visibleBranches.length > 0 
+                                                    ? visibleBranches.map(b => b.id) 
+                                                    : [Number(branchId)];
+                                                setGoalSelectedBranches(defaultBranchIds);
+                                            }} 
+                                            className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow-lg hover:shadow-blue-900/30 transition-all border border-blue-500"
+                                        >
+                                            + เริ่มต้นร่างเป้าหมายของฉัน (Goal Setting)
+                                        </button>
+                                    </div>
+                                );
+                            })()}
+                        </div>
+
+                        {/* 4. PEER EVALUATION PORTAL (EVALUATING OTHER EMPLOYEES IN BRANCH) - Hidden for standard employees, visible only for admin & branch managers */}
+                        {(currentUser?.role === 'admin' || currentUser?.role === 'branch-admin') && (
+                            <div className="bg-gray-900/40 p-6 rounded-xl border border-gray-700 space-y-4">
+                                <div>
+                                    <h3 className="text-lg font-bold flex items-center gap-2 text-white">
+                                        <span>👥</span> รายการเป้าหมายเพื่อนร่วมงาน (Peer Goals for Evaluation)
+                                    </h3>
+                                    <p className="text-xs text-gray-400">เมื่อเพื่อนร่วมงานครบกำหนด 6 เดือน ระบบจะเปิดให้พนักงานในสาขาเดียวกันโหวตและให้คะแนนการทำเป้าหมายสำเร็จ</p>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {employeeGoals
+                                        .filter(g => 
+                                            g.userId !== (currentUser?.id?.toString() || currentUser?.username) &&
+                                            (g.status === 'pending_evaluation' || g.status === 'active') &&
+                                            g.branchIds.some(bid => bid === branchId || currentUser?.allowedBranchIds?.includes(Number(bid)))
+                                        )
+                                        .map(peerGoal => {
+                                            const alreadyEvaluated = peerGoal.peerEvaluations?.some(pe => pe.evaluatorId === currentUser?.id?.toString());
+
+                                            return (
+                                                <div key={peerGoal.id} className="bg-gray-800 p-4 rounded-xl border border-gray-700 flex justify-between items-center gap-4 hover:border-gray-600 transition-colors">
+                                                    <div>
+                                                        <h4 className="font-semibold text-white text-sm">{peerGoal.employeeName}</h4>
+                                                        <p className="text-xs text-gray-400 mt-0.5">สถานะ: <span className="text-amber-400">{peerGoal.status === 'active' ? 'กำลังปฏิบัติงาน (เร่งเวลาก่อนครบ 6 เดือนได้)' : 'ครบ 6 เดือน (รอประเมิน)'}</span></p>
+                                                        <p className="text-xs text-gray-500">จำนวนเป้าหมาย: {peerGoal.items.length} ข้อ</p>
+                                                    </div>
+
+                                                    <div>
+                                                        {alreadyEvaluated ? (
+                                                            <span className="bg-emerald-950 text-emerald-400 border border-emerald-900 text-xs px-2.5 py-1.5 rounded-lg font-medium">
+                                                                ✓ ประเมินแล้ว
+                                                            </span>
+                                                        ) : (
+                                                            <button 
+                                                                onClick={() => {
+                                                                    setEvaluatingGoal(peerGoal);
+                                                                    const initialScores: Record<string, number> = {};
+                                                                    peerGoal.items.forEach(it => {
+                                                                        initialScores[it.id] = 10; // Default to 10 max
+                                                                    });
+                                                                    setEvalScores(initialScores);
+                                                                }} 
+                                                                className="bg-blue-600 hover:bg-blue-700 text-xs text-white px-3 py-1.5 rounded-lg font-semibold"
+                                                            >
+                                                                ✍️ ประเมินเป้าหมาย
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+
+                                    {employeeGoals.filter(g => 
+                                        g.userId !== (currentUser?.id?.toString() || currentUser?.username) &&
+                                        (g.status === 'pending_evaluation' || g.status === 'active') &&
+                                        g.branchIds.some(bid => bid === branchId || currentUser?.allowedBranchIds?.includes(Number(bid)))
+                                    ).length === 0 && (
+                                        <div className="col-span-full bg-gray-800/10 p-6 text-center text-gray-500 text-xs border border-dashed border-gray-800 rounded-xl">
+                                            🍃 ไม่มีเป้าหมายเพื่อนร่วมงานอื่นกำลังรอประเมินหรือกำลังปฏิบัติงานในขณะนี้
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* --- MODAL: PEER EVALUATION INPUT FORM --- */}
+                        {evaluatingGoal && (
+                            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+                                <div className="bg-gray-800 border border-gray-700 rounded-2xl p-6 max-w-xl w-full shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto text-white">
+                                    <div className="flex justify-between items-start border-b border-gray-700 pb-3">
+                                        <div>
+                                            <h3 className="text-lg font-bold text-white">✍️ ร่วมประเมินเป้าหมายพนักงาน</h3>
+                                            <p className="text-xs text-gray-400">เป้าหมายของ <strong>{evaluatingGoal.employeeName}</strong></p>
+                                        </div>
+                                        <button 
+                                            onClick={() => setEvaluatingGoal(null)} 
+                                            className="text-gray-400 hover:text-white"
+                                        >
+                                            ✕
+                                        </button>
+                                    </div>
+
+                                    <div className="space-y-4">
+                                        <p className="text-xs text-amber-400 bg-amber-950/30 border border-amber-900/30 p-2.5 rounded-lg leading-relaxed">
+                                            💡 กรุณาให้คะแนนเป้าหมายแต่ละข้อของพนักงานบนระดับ <strong>1 ถึง 10 คะแนน</strong> (10 คะแนนหมายถึง ทำข้อนั้นสำเร็จยอดเยี่ยม, 1 คะแนนหมายถึง ไม่สำเร็จเลยหรือทำได้น้อยมาก)
+                                        </p>
+
+                                        {evaluatingGoal.items.map((it, idx) => (
+                                            <div key={it.id} className="bg-gray-900/50 p-4 rounded-xl border border-gray-700 space-y-3">
+                                                <div className="flex justify-between items-start gap-4">
+                                                    <div>
+                                                        <span className="text-xs text-gray-500 font-mono block">ข้อเป้าหมายที่ {idx + 1}</span>
+                                                        <p className="text-gray-200 font-medium text-sm mt-0.5">{it.text}</p>
+                                                    </div>
+                                                    <span className={`px-2 py-0.5 rounded text-[11px] font-semibold flex-shrink-0 ${
+                                                        it.status === 'completed' ? 'bg-emerald-950 text-emerald-400' : 'bg-gray-800 text-gray-500'
+                                                    }`}>
+                                                        {it.status === 'completed' ? 'พนักงานรายงาน: สำเร็จ' : 'พนักงานรายงาน: ยังไม่สำเร็จ'}
+                                                    </span>
+                                                </div>
+
+                                                {/* 1-10 tactile rating circles */}
+                                                <div className="space-y-1">
+                                                    <div className="flex justify-between text-[11px] text-gray-400">
+                                                        <span>ปรับปรุง (1 คะแนน)</span>
+                                                        <span>ดีเยี่ยม (10 คะแนน)</span>
+                                                    </div>
+                                                    <div className="flex justify-between gap-1 overflow-x-auto pb-1">
+                                                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(score => (
+                                                            <button 
+                                                                key={score} 
+                                                                type="button"
+                                                                onClick={() => setEvalScores({ ...evalScores, [it.id]: score })}
+                                                                className={`h-8 w-8 text-xs font-bold rounded-full transition-all flex items-center justify-center border flex-shrink-0 ${
+                                                                    evalScores[it.id] === score 
+                                                                        ? 'bg-blue-600 text-white border-blue-500 scale-110 shadow-lg'
+                                                                        : 'bg-gray-800 hover:bg-gray-750 text-gray-400 border-gray-700'
+                                                                }`}
+                                                            >
+                                                                {score}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    <div className="flex gap-2 justify-end pt-3 border-t border-gray-700">
+                                        <button 
+                                            onClick={() => setEvaluatingGoal(null)} 
+                                            className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg text-sm"
+                                        >
+                                            ยกเลิก
+                                        </button>
+                                        <button 
+                                            onClick={() => handleSubmitEvaluation(evaluatingGoal, evalScores)} 
+                                            className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg text-sm font-semibold"
+                                        >
+                                            🚀 บันทึกการประเมิน
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* --- MODAL: ADMIN GRADING & APPROVE FORM --- */}
+                        {adminGradingGoal && (
+                            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+                                <div className="bg-gray-800 border border-gray-700 rounded-2xl p-6 max-w-xl w-full shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto text-white">
+                                    <div className="flex justify-between items-start border-b border-gray-700 pb-3">
+                                        <div>
+                                            <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                                                <span>📊</span> ประเมินคะแนน & บันทึกเกรด (Grade & Approve)
+                                            </h3>
+                                            <p className="text-xs text-gray-400">ตรวจสอบเป้าหมายของ <strong>{adminGradingGoal.employeeName}</strong></p>
+                                        </div>
+                                        <button 
+                                            onClick={() => setAdminGradingGoal(null)} 
+                                            className="text-gray-400 hover:text-white"
+                                        >
+                                            ✕
+                                        </button>
+                                    </div>
+
+                                    <div className="space-y-4">
+                                        {/* Statistical Summary */}
+                                        {(() => {
+                                            const evals = adminGradingGoal.peerEvaluations || [];
+                                            const peersCount = evals.length;
+                                            const itemsCount = adminGradingGoal.items.length;
+                                            const maxPoints = peersCount * itemsCount * 10;
+                                            
+                                            let earnedPoints = 0;
+                                            evals.forEach(pe => {
+                                                Object.values(pe.scores).forEach(score => {
+                                                    earnedPoints += score;
+                                                });
+                                            });
+
+                                            const finalScorePercentage = maxPoints > 0 
+                                                ? parseFloat(((earnedPoints / maxPoints) * 100).toFixed(2)) 
+                                                : 0;
+                                            
+                                            let autoGrade: 'A' | 'B' | 'C' | 'D' = 'D';
+                                            if (finalScorePercentage >= 80) autoGrade = 'A';
+                                            else if (finalScorePercentage >= 70) autoGrade = 'B';
+                                            else if (finalScorePercentage >= 60) autoGrade = 'C';
+
+                                            return (
+                                                <div className="space-y-4">
+                                                    <div className="bg-gray-900/40 p-4 rounded-xl border border-gray-700 grid grid-cols-3 gap-3 text-center">
+                                                        <div>
+                                                            <div className="text-xs text-gray-400">จำนวนเพื่อนประเมิน</div>
+                                                            <div className="text-xl font-bold text-white mt-1">{peersCount} คน</div>
+                                                        </div>
+                                                        <div>
+                                                            <div className="text-xs text-gray-400">คะแนนเฉลี่ย</div>
+                                                            <div className="text-xl font-bold text-blue-400 mt-1">{finalScorePercentage}%</div>
+                                                        </div>
+                                                        <div>
+                                                            <div className="text-xs text-gray-400">เกรดที่ได้</div>
+                                                            <div className="text-xl font-extrabold text-emerald-400 mt-1">{autoGrade}</div>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Peer details breakdown */}
+                                                    <div className="space-y-2">
+                                                        <h4 className="text-xs font-bold text-gray-300 uppercase tracking-wider">คะแนนรายข้อที่ประเมินโดยเพื่อนพนักงาน:</h4>
+                                                        <div className="space-y-2 max-h-[25vh] overflow-y-auto pr-1">
+                                                            {adminGradingGoal.items.map((it, idx) => {
+                                                                let totalItemScore = 0;
+                                                                evals.forEach(pe => {
+                                                                    totalItemScore += (pe.scores[it.id] || 0);
+                                                                });
+                                                                const avgItemScore = peersCount > 0 
+                                                                    ? parseFloat((totalItemScore / peersCount).toFixed(1)) 
+                                                                    : 0;
+
+                                                                return (
+                                                                    <div key={it.id} className="bg-gray-900/30 p-2.5 rounded-lg border border-gray-750 flex justify-between items-center text-xs">
+                                                                        <span className="text-gray-300 font-medium">{idx + 1}. {it.text}</span>
+                                                                        <span className="text-blue-400 font-mono font-bold whitespace-nowrap bg-blue-900/10 px-2 py-0.5 rounded border border-blue-900/20">
+                                                                            คะแนน {avgItemScore}/10
+                                                                        </span>
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Admin Feedback Box */}
+                                                    <div className="space-y-1.5">
+                                                        <label className="text-xs font-bold text-gray-300 uppercase tracking-wider">
+                                                            ข้อแนะนำและคำติชมจากผู้ดูแล:
+                                                        </label>
+                                                        <textarea 
+                                                            value={adminFeedback}
+                                                            onChange={(e) => setAdminFeedback(e.target.value)}
+                                                            placeholder="ตัวอย่าง: ทำเป้าหมายสำเร็จได้ยอดเยี่ยมมากครับ มีผลงานล้างจานประทับใจพนักงานทุกคน ขอให้รักษามาตรฐานนี้ไว้เพื่อโอกาสขึ้นโบนัสรอบปี..."
+                                                            className="w-full bg-gray-900 text-white border border-gray-700 rounded-lg p-3 text-sm focus:outline-none focus:border-blue-500 h-24"
+                                                        />
+                                                    </div>
+
+                                                    <div className="flex gap-2 justify-end pt-3 border-t border-gray-700">
+                                                        <button 
+                                                            onClick={() => setAdminGradingGoal(null)} 
+                                                            className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg text-sm"
+                                                        >
+                                                            ยกเลิก
+                                                        </button>
+                                                        <button 
+                                                            onClick={() => handleApproveAndGrade(adminGradingGoal, adminFeedback)} 
+                                                            className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2 rounded-lg text-sm font-semibold"
+                                                        >
+                                                            ✅ อนุมัติ & บันทึกเกรด {autoGrade}
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* --- MODAL: VIEW GOAL DETAILS --- */}
+                        {viewingGoalDetails && (
+                            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+                                <div className="bg-gray-800 border border-gray-700 rounded-2xl p-6 max-w-xl w-full shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto text-white">
+                                    <div className="flex justify-between items-start border-b border-gray-700 pb-3">
+                                        <div>
+                                            <h3 className="text-lg font-bold text-white">👁️ รายละเอียดและประวัติเป้าหมาย</h3>
+                                            <p className="text-xs text-gray-400">เป้าหมายของ <strong>{viewingGoalDetails.employeeName}</strong></p>
+                                        </div>
+                                        <button 
+                                            onClick={() => setViewingGoalDetails(null)} 
+                                            className="text-gray-400 hover:text-white"
+                                        >
+                                            ✕
+                                        </button>
+                                    </div>
+
+                                    <div className="space-y-4">
+                                        <div className="grid grid-cols-2 gap-3 text-xs bg-gray-900/40 p-3 rounded-lg text-gray-400 border border-gray-700">
+                                            <div>สถานะ: <span className="font-bold text-white">{viewingGoalDetails.status}</span></div>
+                                            <div>สร้างเมื่อ: <span className="font-bold text-white">{new Date(viewingGoalDetails.createdAt).toLocaleDateString('th-TH')}</span></div>
+                                            {viewingGoalDetails.startDate && (
+                                                <>
+                                                    <div>วันเริ่มสัญญา: <span className="font-bold text-white">{viewingGoalDetails.startDate}</span></div>
+                                                    <div>วันสิ้นสุดสัญญา: <span className="font-bold text-white">{viewingGoalDetails.endDate}</span></div>
+                                                </>
+                                            )}
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <h4 className="text-sm font-semibold text-gray-300">รายการเป้าหมายรายข้อ:</h4>
+                                            <div className="space-y-2">
+                                                {viewingGoalDetails.items.map((it, idx) => (
+                                                    <div key={it.id} className="bg-gray-900/30 p-3 rounded-lg border border-gray-750 flex justify-between items-center gap-4 text-sm">
+                                                        <span className="text-gray-200">{idx + 1}. {it.text}</span>
+                                                        <span className={`px-2 py-0.5 rounded text-[11px] font-semibold flex-shrink-0 ${
+                                                            it.status === 'completed' ? 'bg-emerald-950 text-emerald-400' : 'bg-gray-800 text-gray-500'
+                                                        }`}>
+                                                            {it.status === 'completed' ? 'ทำสำเร็จ' : 'ยังไม่สำเร็จ'}
+                                                        </span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        {viewingGoalDetails.status === 'completed' && (
+                                            <div className="bg-emerald-950/30 border border-emerald-900/30 p-4 rounded-xl space-y-2">
+                                                <div className="flex justify-between items-center">
+                                                    <span className="text-sm font-bold text-emerald-400">ผลการประเมินรอบเป้าหมาย:</span>
+                                                    <span className="text-2xl font-black text-white bg-emerald-600 px-3 py-1 rounded-lg">เกรด {viewingGoalDetails.finalGrade}</span>
+                                                </div>
+                                                <div className="text-xs text-gray-300 mt-1">
+                                                    คะแนนรวมเฉลี่ยที่ได้: <strong>{viewingGoalDetails.finalScore}%</strong>
+                                                </div>
+                                                {viewingGoalDetails.adminNote && (
+                                                    <div className="text-xs text-gray-400 bg-black/25 p-2.5 rounded-lg border border-emerald-900/30">
+                                                        <strong>ข้อเสนอแนะจากผู้ดูแล:</strong> "{viewingGoalDetails.adminNote}"
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <div className="flex justify-end pt-3 border-t border-gray-700">
+                                        <button 
+                                            onClick={() => setViewingGoalDetails(null)} 
+                                            className="bg-gray-700 hover:bg-gray-600 text-white px-5 py-2 rounded-lg text-sm"
+                                        >
+                                            ปิดหน้าต่าง
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
 
