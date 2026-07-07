@@ -18,7 +18,6 @@ interface HeaderProps {
     stockBadgeCount: number; 
     maintenanceBadgeCount: number; // Added maintenance badge
     preOrderBadgeCount: number; // Added pre-order badge
-    goalsBadgeCount?: number; // Added goals badge
     currentUser: User | null;
     onLogout: () => void;
     onOpenUserManager: () => void;
@@ -111,7 +110,7 @@ const PrinterStatusIndicator: React.FC<{
 export const Header: React.FC<HeaderProps> = ({ 
     currentView, onViewChange, isEditMode, onToggleEditMode, onOpenSettings, 
     cookingBadgeCount, waitingBadgeCount, tablesBadgeCount, vacantTablesBadgeCount, leaveBadgeCount, stockBadgeCount, maintenanceBadgeCount,
-    preOrderBadgeCount, goalsBadgeCount,
+    preOrderBadgeCount,
     currentUser, onLogout, onOpenUserManager,
     logoUrl, onLogoChangeClick, restaurantName, onRestaurantNameChange,
     branchName, onChangeBranch, onManageBranches,
@@ -302,21 +301,6 @@ export const Header: React.FC<HeaderProps> = ({
                         icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2-2v12a2 2 0 002 2z"></path></svg>}
                         badge={leaveBadgeCount}
                         activeClassName="bg-indigo-600 hover:bg-indigo-700 text-white shadow-md"
-                        isDark={isKitchenView}
-                    />
-                    <NavButton 
-                        label="เป้าหมาย" 
-                        isActive={currentView === 'goal'} 
-                        onClick={() => onViewChange('goal')}
-                        icon={
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                <circle cx="12" cy="12" r="10" />
-                                <circle cx="12" cy="12" r="6" />
-                                <circle cx="12" cy="12" r="2" />
-                            </svg>
-                        }
-                        badge={goalsBadgeCount}
-                        activeClassName="bg-blue-600 hover:bg-blue-700 text-white shadow-md"
                         isDark={isKitchenView}
                     />
                 </nav>

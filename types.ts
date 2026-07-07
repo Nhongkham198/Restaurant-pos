@@ -378,7 +378,7 @@ export interface PreOrder {
     orderType?: 'dine-in' | 'takeaway'; // Added: Type of order
 }
 
-export type View = 'pos' | 'kitchen' | 'tables' | 'dashboard' | 'history' | 'stock' | 'stock-analytics' | 'recipes' | 'leave' | 'leave-analytics' | 'maintenance' | 'closing-checklist' | 'hr' | 'hr-payroll' | 'expense-analysis' | 'pre-order-management' | 'pre-order-customer' | 'goal';
+export type View = 'pos' | 'kitchen' | 'tables' | 'dashboard' | 'history' | 'stock' | 'stock-analytics' | 'recipes' | 'leave' | 'leave-analytics' | 'maintenance' | 'closing-checklist' | 'hr' | 'hr-payroll' | 'expense-analysis' | 'pre-order-management' | 'pre-order-customer';
 
 export interface NavItem {
     id: string;
@@ -541,42 +541,3 @@ export interface DeliveryPriceHistoryEntry {
     timestamp: number;
     updatedBy: string;
 }
-
-export interface GoalItem {
-    id: string;
-    text: string;
-    status: 'completed' | 'not_completed'; // ทำสำเร็จ vs ยังทำไม่สำเร็จ
-}
-
-export interface PeerEvaluation {
-    evaluatorId: string;
-    evaluatorName: string;
-    scores: Record<string, number>; // goalItemId -> score (e.g. 1 to 10)
-    submittedAt: number;
-}
-
-export interface EmployeeGoal {
-    _firestoreId?: string;
-    id: string; // unique ID
-    userId: string; // employee's user ID
-    employeeName: string;
-    branchIds: string[]; // branches selected by employee (multi-branch support via checkboxes)
-    items: GoalItem[];
-    status: 'draft' | 'pending_admin' | 'active' | 'pending_evaluation' | 'completed'; 
-    // draft: employee drafting
-    // pending_admin: sent to admin to set goal/approve start
-    // active: 6-month period started
-    // pending_evaluation: 6 months ended, waiting for peers to evaluate
-    // completed: peers evaluated, admin graded and approved
-    startDate?: string; // YYYY-MM-DD
-    endDate?: string; // YYYY-MM-DD
-    setByAdmin?: boolean;
-    createdAt: number;
-    peerEvaluations?: PeerEvaluation[];
-    finalScore?: number; // percentage
-    finalGrade?: 'A' | 'B' | 'C' | 'D';
-    adminNote?: string;
-    approvedByAdmin?: boolean;
-    approvedAt?: number;
-}
-
