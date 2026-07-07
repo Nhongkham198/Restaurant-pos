@@ -910,11 +910,17 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                     dates.push(new Date(year, month, d));
                 }
             } else {
-                for (let i = cycle - 1; i >= 0; i--) {
-                    const d = new Date(baseDate);
-                    d.setDate(baseDate.getDate() - i);
+                let nonMondaysCount = 0;
+                let current = new Date(baseDate);
+                while (nonMondaysCount < cycle) {
+                    const d = new Date(current);
                     dates.push(d);
+                    if (d.getDay() !== 1) { // 1 is Monday (shop closed)
+                        nonMondaysCount++;
+                    }
+                    current.setDate(current.getDate() - 1);
                 }
+                dates.sort((a, b) => a.getTime() - b.getTime());
             }
             return dates;
         };
@@ -1173,7 +1179,7 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                          // Get all approved unpaid leaves for this user
                          const unpaidLeaves = leaveRequests.filter(l => 
                              l.userId === userId && 
-                             (l.type === 'leave-without-pay' || l.type === 'vacation') && 
+                             (isProbation ? true : (l.type === 'leave-without-pay' || l.type === 'vacation')) && 
                              l.status === 'approved'
                          );
 
@@ -1246,8 +1252,8 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                          unpaidLeaveDays++;
                                          
                                          const dTime = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-                                         const leaveToday = leaveRequests.find(l => {
-                                             if (l.userId !== userId) return false;
+                                         const leaveToday = unpaidLeaves.find(l => {
+                                             // already filtered by userId
                                              const start = new Date(l.startDate);
                                              const end = new Date(l.endDate);
                                              const startTime = new Date(start.getFullYear(), start.getMonth(), start.getDate()).getTime();
@@ -1500,6 +1506,39 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                     if (cycle === 14) cycleFactor = 2;
                     if (cycle === 30) cycleFactor = 4;
                     baseSalaryForRecord = (baseSalaryAttr / 4) * cycleFactor;
+
+                    // Compute actual paid days and dates list for regular employees based on approved unpaid leaves
+                    const payDateObj = new Date(date);
+                    const dates = getDatesForCycle(payDateObj, cycle);
+                    const empUserId = contract ? contract.userId : 0;
+
+                    const relevantLeaves = leaveRequests.filter(l => 
+                        l.userId === empUserId && 
+                        (l.type === 'leave-without-pay' || l.type === 'vacation') && 
+                        l.status === 'approved'
+                    );
+
+                    let actualWorkedDays = 0;
+                    const workedDatesList: string[] = [];
+                    for (const d of dates) {
+                        if (d.getDay() === 1) continue; // Skip Mondays
+                        
+                        const dTime = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+                        const hasLeave = relevantLeaves.some(l => {
+                            const start = new Date(l.startDate);
+                            const end = new Date(l.endDate);
+                            const startTime = new Date(start.getFullYear(), start.getMonth(), start.getDate()).getTime();
+                            const endTime = new Date(end.getFullYear(), end.getMonth(), end.getDate()).getTime();
+                            return dTime >= startTime && dTime <= endTime;
+                        });
+
+                        if (!hasLeave) {
+                            actualWorkedDays++;
+                            workedDatesList.push(d.toISOString().split('T')[0]);
+                        }
+                    }
+                    finalWorkedDays = actualWorkedDays;
+                    finalWorkedDatesList = workedDatesList;
                 }
                 const deductions = baseSalaryForRecord - netSalary;
 
@@ -2193,7 +2232,7 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                                 <td className="p-3 font-medium text-white">
                                                     <div>
                                                         <span>{p.employeeName}</span>
-                                                        {p.workedDays !== undefined && (
+                                                        {typeof p.workedDays === 'number' && !isNaN(p.workedDays) && (
                                                             <p className="text-[10px] text-emerald-400 font-normal mt-0.5">🟢 ทำงานจริง: {p.workedDays} วัน</p>
                                                         )}
                                                     </div>
