@@ -162,10 +162,11 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
 
     const handleBranchChange = (branchId: number) => {
         setFormData(prev => {
-            const currentIds = prev.allowedBranchIds || [];
-            const newAllowedIds = currentIds.includes(branchId)
-                ? currentIds.filter(id => id !== branchId)
-                : [...currentIds, branchId];
+            const currentIds = (prev.allowedBranchIds || []).map(Number);
+            const numBranchId = Number(branchId);
+            const newAllowedIds = currentIds.includes(numBranchId)
+                ? currentIds.filter(id => id !== numBranchId)
+                : [...currentIds, numBranchId];
             return { ...prev, allowedBranchIds: newAllowedIds };
         });
     };
@@ -213,13 +214,13 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
 
         // --- Logic ---
         if (editingUser) { // UPDATE
-            if (users.some(u => u && typeof u.username === 'string' && u.username.trim().toLowerCase() === formData.username.trim().toLowerCase() && u.id !== editingUser.id)) {
+            if (users.some(u => u && typeof u.username === 'string' && u.username.trim().toLowerCase() === formData.username.trim().toLowerCase() && Number(u.id) !== Number(editingUser.id))) {
                 Swal.fire('ผิดพลาด', 'ชื่อผู้ใช้นี้มีอยู่แล้ว', 'error');
                 return;
             }
             
             setUsers(prevUsers => prevUsers.map(u => {
-                if (u.id !== editingUser!.id) {
+                if (Number(u.id) !== Number(editingUser!.id)) {
                     return u;
                 }
     
@@ -272,7 +273,10 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
             }
 
             const numericIds = users
-                .map(u => u && typeof u.id === 'number' && !isNaN(u.id) ? u.id : 0)
+                .map(u => {
+                    const parsedId = u ? Number(u.id) : 0;
+                    return isNaN(parsedId) ? 0 : parsedId;
+                })
                 .filter(id => id > 0);
             const newId = numericIds.length > 0 ? Math.max(...numericIds) + 1 : 1;
             
@@ -321,12 +325,13 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
             icon: 'warning',
             showCancelButton: true,
             confirmButtonColor: '#d33',
-            cancelButtonColor: '#d33',
+            cancelButtonColor: '#9CA3AF',
             confirmButtonText: 'ใช่, ลบเลย!',
             cancelButtonText: 'ยกเลิก'
         }).then((result) => {
             if (result.isConfirmed) {
-                setUsers(prev => prev.filter(u => u.id !== userId));
+                console.log('[UserManagerModal] Deleting user with ID:', userId);
+                setUsers(prev => prev.filter(u => u && Number(u.id) !== Number(userId)));
                 Swal.fire('ลบแล้ว!', 'ผู้ใช้ถูกลบเรียบร้อยแล้ว', 'success');
             }
         });
@@ -362,6 +367,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
             case 'kitchen': return 'พนักงานครัว';
             case 'auditor': return 'Auditor';
             case 'table': return 'Tablet / โต๊ะลูกค้า';
+            case 'staff': return 'พนักงานทั่วไป';
         }
     };
 
@@ -410,11 +416,11 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
                                 <div className="space-y-3">
                                     {userList.map(user => {
                                         const isActionDisabled = (() => {
-                                            if (user.id === currentUser.id) return true;
+                                            if (Number(user.id) === Number(currentUser.id)) return true;
                                             if (user.role === 'admin') return currentUser.role !== 'admin';
                                             if (currentUser.role === 'branch-admin') {
-                                                const currentUserBranches = currentUser.allowedBranchIds || [];
-                                                const targetUserBranches = user.allowedBranchIds || [];
+                                                const currentUserBranches = (currentUser.allowedBranchIds || []).map(Number);
+                                                const targetUserBranches = (user.allowedBranchIds || []).map(Number);
                                                 const hasSharedBranch = currentUserBranches.some(branchId => targetUserBranches.includes(branchId));
                                                 return !hasSharedBranch;
                                             }
@@ -422,14 +428,14 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
                                         })();
                 
                                         const disabledTitle = (() => {
-                                            if (user.id === currentUser.id) return 'ไม่สามารถดำเนินการกับบัญชีตัวเองได้';
+                                            if (Number(user.id) === Number(currentUser.id)) return 'ไม่สามารถดำเนินการกับบัญชีตัวเองได้';
                                             if (user.role === 'admin' && currentUser.role !== 'admin') return 'ไม่มีสิทธิ์จัดการผู้ดูแลระบบ';
                                             if (isActionDisabled) return 'ไม่มีสิทธิ์จัดการผู้ใช้ของสาขาอื่น';
                                             return '';
                                         })();
                 
                                         return (
-                                            <div key={user.id} className={`flex items-center gap-4 p-3 rounded-md transition-colors ${editingUser?.id === user.id ? 'bg-gray-100' : 'hover:bg-gray-50'}`}>
+                                            <div key={user.id} className={`flex items-center gap-4 p-3 rounded-md transition-colors ${editingUser && Number(editingUser.id) === Number(user.id) ? 'bg-gray-100' : 'hover:bg-gray-50'}`}>
                                                <img src={user.profilePictureUrl || "https://img.icons8.com/fluency/48/user-male-circle.png"} alt={user.username} className="w-12 h-12 rounded-full object-cover flex-shrink-0" />
                                                <div className="flex-1">
                                                     <p className="font-semibold text-gray-800">{user.username}</p>
@@ -612,7 +618,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
                                         name="role" 
                                         value={formData.role} 
                                         onChange={handleInputChange} 
-                                        disabled={editingUser && editingUser.id === currentUser.id}
+                                        disabled={editingUser && Number(editingUser.id) === Number(currentUser.id)}
                                         className="w-full px-3 py-2 border rounded-md bg-white border-gray-300 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
                                     >
                                         <option value="pos">พนักงาน POS</option>
@@ -621,6 +627,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
                                         <option value="admin">ผู้ดูแลระบบ (Admin)</option>
                                         <option value="auditor">Auditor</option>
                                         <option value="table">Tablet / โต๊ะลูกค้า</option>
+                                        <option value="staff">พนักงานทั่วไป</option>
                                     </select>
                                 </div>
 
@@ -638,7 +645,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({ isOpen, onCl
                                                     <label key={`branch-chk-${branchId}`} className="flex items-center gap-2 p-1.5 rounded hover:bg-gray-100 cursor-pointer">
                                                         <input 
                                                             type="checkbox"
-                                                            checked={branch && (formData.allowedBranchIds || []).includes(branch.id)}
+                                                            checked={branch && (formData.allowedBranchIds || []).map(Number).includes(Number(branch.id))}
                                                             onChange={() => branch && handleBranchChange(branch.id)}
                                                             className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                                                         />

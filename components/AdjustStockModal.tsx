@@ -35,6 +35,25 @@ export const AdjustStockModal: React.FC<AdjustStockModalProps> = ({ isOpen, onCl
 
     if (!isOpen || !item) return null;
     
+    // Helper to parse Firebase timestamps safely
+    const parseDateValue = (val: any): Date | null => {
+        if (!val) return null;
+        if (typeof val.toDate === 'function') {
+            return val.toDate();
+        }
+        if (typeof val === 'object' && typeof val.seconds === 'number') {
+            return new Date(val.seconds * 1000);
+        }
+        if (typeof val === 'number') {
+            return new Date(val);
+        }
+        if (typeof val === 'string') {
+            const parsed = Date.parse(val);
+            return isNaN(parsed) ? null : new Date(parsed);
+        }
+        return null;
+    };
+
     const newQuantity = (item.quantity ?? 0) + (adjustmentType === 'add' ? (adjustment ?? 0) : -(adjustment ?? 0));
 
     const inputClasses = "mt-1 block w-full border border-gray-300 p-2 rounded-md shadow-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500";
@@ -68,7 +87,10 @@ export const AdjustStockModal: React.FC<AdjustStockModalProps> = ({ isOpen, onCl
                                     {item.lastUpdatedBy || 'System'}
                                 </span>
                                 <span className="text-xs text-gray-500 mb-1">
-                                    {new Date(item.lastUpdated).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' })}
+                                    {(() => {
+                                        const dateVal = parseDateValue(item.lastUpdated);
+                                        return dateVal ? dateVal.toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' }) + ' น.' : '-';
+                                    })()}
                                 </span>
                                 <div className="mt-1 inline-flex items-center justify-end gap-1">
                                     <span className="text-[10px] text-gray-500">นำออกสะสม:</span>

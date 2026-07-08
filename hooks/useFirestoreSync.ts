@@ -176,9 +176,13 @@ export function useFirestoreSync<T>(
                     const items: any[] = [];
                     snapshot.forEach(docSnap => {
                         if (docSnap.exists) {
+                            const docId = docSnap.id;
+                            if (docId === 'data' || docId === '_initialization_marker') {
+                                return;
+                            }
                             const d = docSnap.data();
                             if (d && typeof d === 'object') {
-                                d._firestoreId = docSnap.id;
+                                d._firestoreId = docId;
                             }
                             items.push(d);
                         }
@@ -548,8 +552,9 @@ export function useFirestoreCollection<T extends { id: number | string }>(
             const docId = item.id.toString();
             const path = `branches/${branchId}/${collectionName}/${docId}`;
             try {
+                const sanitizedItem = JSON.parse(JSON.stringify(item, (key, val) => val === undefined ? null : val));
                 await db.collection(`branches/${branchId}/${collectionName}`).doc(docId).set({
-                    ...item,
+                    ...sanitizedItem,
                     lastUpdated: firebase.firestore.FieldValue.serverTimestamp() // Timestamp Guard
                 });
             } catch (err) {
@@ -560,8 +565,9 @@ export function useFirestoreCollection<T extends { id: number | string }>(
             if (!db || !branchId) return;
             const path = `branches/${branchId}/${collectionName}/${id}`;
             try {
+                const sanitizedUpdates = JSON.parse(JSON.stringify(updates, (key, val) => val === undefined ? null : val));
                 await db.collection(`branches/${branchId}/${collectionName}`).doc(id.toString()).update({
-                    ...updates,
+                    ...sanitizedUpdates,
                     lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
                 });
             } catch (err) {

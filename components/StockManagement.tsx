@@ -612,12 +612,12 @@ export const StockManagement: React.FC<StockManagementProps> = ({
             changeDetails: details,
             performedBy: currentUser?.username || 'System',
             timestamp: Date.now(),
-            incompleteReason: incompleteReason || undefined
+            incompleteReason: incompleteReason || null
         };
         stockLogsActions.add(newLog);
     };
 
-    const handleOpenLogModal = (item: StockItem) => {
+    const handleOpenLogModal = (item: StockItem | null) => {
         setSelectedLogItem(item);
         setIsLogModalOpen(true);
     };
@@ -676,7 +676,9 @@ export const StockManagement: React.FC<StockManagementProps> = ({
     };
 
     const filteredLogs = useMemo(() => {
-        if (!selectedLogItem) return [];
+        if (!selectedLogItem) {
+            return [...stockLogs].sort((a, b) => b.timestamp - a.timestamp);
+        }
         return stockLogs
             .filter(log => log.stockItemId === selectedLogItem.id)
             .sort((a, b) => b.timestamp - a.timestamp);
@@ -792,13 +794,19 @@ export const StockManagement: React.FC<StockManagementProps> = ({
         const updatedBy = currentUser?.username || 'System';
         const timestamp = Date.now();
         
+        // Log the order action for each item first (outside the state updater)
+        items.forEach(updatedItem => {
+            const originalItem = stockItems.find(i => i.id === updatedItem.id);
+            if (originalItem) {
+                addLog(originalItem, 'update', `ออกใบสั่งของ: จำนวน ${updatedItem.orderedQuantity} ${originalItem.unit}`);
+            }
+        });
+
         const updatesMap = new Map(items.map(i => [i.id, i]));
         
         setStockItems(prev => prev.map(item => {
             if (updatesMap.has(item.id)) {
                 const updatedItem = updatesMap.get(item.id)!;
-                // Log the order action
-                addLog(item, 'update', `ออกใบสั่งของ: จำนวน ${updatedItem.orderedQuantity} ${item.unit}`);
                 return {
                     ...item,
                     orderDate: updatedItem.orderDate,
@@ -1068,6 +1076,42 @@ export const StockManagement: React.FC<StockManagementProps> = ({
             success = true;
         } catch (e: any) {
             console.warn("Backend function for stock management failed or not implemented. Falling back to direct client-side DB write.", e);
+            
+            // Log changes outside of setStockItems callback to prevent side effects
+            if (itemToSave.id) {
+                const oldItem = stockItems.find(i => i.id === itemToSave.id);
+                if (oldItem) {
+                    const changes = [];
+                    if (oldItem.name !== itemToSave.name) changes.push(`ชื่อ: ${oldItem.name} -> ${itemToSave.name}`);
+                    if (oldItem.quantity !== Number(itemToSave.quantity)) changes.push(`คงเหลือ: ${oldItem.quantity} -> ${itemToSave.quantity}`);
+                    if (changes.length > 0) {
+                        addLog(oldItem, 'update', changes.join(', '));
+                    }
+                }
+            } else {
+                // Since it's a create, we don't have the new ID yet. Let's find what the new ID will be first.
+                const maxId = stockItems.reduce((max, item) => {
+                    const id = Number(item?.id);
+                    return !isNaN(id) ? Math.max(max, id) : max;
+                }, 0);
+                const newId = maxId + 1;
+                const tempNewItem: StockItem = {
+                    id: newId,
+                    name: itemToSave.name || 'สินค้าใหม่',
+                    category: itemToSave.category || 'ทั่วไป',
+                    imageUrl: itemToSave.imageUrl || '',
+                    quantity: Number(itemToSave.quantity) || 0,
+                    unit: itemToSave.unit || 'ชิ้น',
+                    reorderPoint: Number(itemToSave.reorderPoint) || 0,
+                    withdrawalCount: 0,
+                    lastUpdated: Date.now(),
+                    lastUpdatedBy: updatedBy,
+                    orderDate: itemToSave.orderDate,
+                    receivedDate: itemToSave.receivedDate
+                };
+                addLog(tempNewItem, 'create', `สร้างสินค้าใหม่: ${tempNewItem.name}, จำนวน: ${tempNewItem.quantity}`);
+            }
+
             setStockItems(prev => {
                 const safePrev = Array.isArray(prev) ? prev : [];
                 
@@ -1080,13 +1124,6 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                 if (itemToSave.id) {
                     const oldItem = safePrev.find(i => i.id === itemToSave.id);
                     if (oldItem) {
-                        const changes = [];
-                        if (oldItem.name !== itemToSave.name) changes.push(`ชื่อ: ${oldItem.name} -> ${itemToSave.name}`);
-                        if (oldItem.quantity !== Number(itemToSave.quantity)) changes.push(`คงเหลือ: ${oldItem.quantity} -> ${itemToSave.quantity}`);
-                        if (changes.length > 0) {
-                            addLog(oldItem, 'update', changes.join(', '));
-                        }
-                        
                         // Check for PO sync
                         const diff = Number(itemToSave.quantity) - (Number(oldItem.quantity) || 0);
                         if (diff > 0 && (Number(oldItem.orderedQuantity) || 0) > 0) {
@@ -1121,7 +1158,6 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                     receivedDate: itemToSave.receivedDate
                 };
                 
-                addLog(newItem, 'create', `สร้างสินค้าใหม่: ${newItem.name}, จำนวน: ${newItem.quantity}`);
                 return [...safePrev, newItem];
             });
             success = true;
@@ -1175,6 +1211,12 @@ export const StockManagement: React.FC<StockManagementProps> = ({
         } catch (e: any) {
              console.warn("Backend function for stock adjustment failed or not implemented. Falling back to direct client-side DB write.", e);
              
+             const action = adjustment > 0 ? 'receive' : 'adjust';
+             const typeText = adjustment > 0 ? 'รับเข้า' : 'เบิกออก';
+             
+             // Log outside of setStockItems callback to prevent React side-effects
+             addLog(itemToAdjust, action, `ปรับสต็อก (${typeText}): ${adjustment} ${itemToAdjust.unit} (คงเหลือ: ${itemToAdjust.quantity} -> ${itemToAdjust.quantity + adjustment})`);
+
              setStockItems(prev => prev.map(i => {
                 if (i.id !== itemToAdjust.id) return i;
 
@@ -1191,11 +1233,6 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                     newWithdrawalCount = 0;
                 }
                 
-                // Log inside the fallback as well
-                const action = adjustment > 0 ? 'receive' : 'adjust';
-                const typeText = adjustment > 0 ? 'รับเข้า' : 'เบิกออก';
-                addLog(i, action, `ปรับสต็อก (${typeText}): ${adjustment} ${i.unit} (คงเหลือ: ${i.quantity} -> ${i.quantity + adjustment})`);
-
                 const isManualReceiptForOrder = adjustment > 0 && (Number(i.orderedQuantity) || 0) > 0;
 
                 return { 
@@ -1212,8 +1249,8 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                         orderedQuantity: Math.max(0, (Number(i.orderedQuantity) || 0) - adjustment)
                     } : {})
                 };
-            }));
-            success = true;
+             }));
+             success = true;
         }
 
         if (success) {
@@ -1628,6 +1665,12 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                     <button onClick={handleExport} className="px-4 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 whitespace-nowrap text-sm shadow transition-all hover:shadow-md">
                                         Export Excel
                                     </button>
+                                    <button onClick={() => handleOpenLogModal(null)} className="px-4 py-2 bg-slate-600 text-white font-semibold rounded-lg hover:bg-slate-700 whitespace-nowrap text-sm shadow transition-all hover:shadow-md flex items-center gap-2">
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                        ดูประวัติทั้งหมด
+                                    </button>
                                     {currentUser?.role === 'admin' && (
                                         <button onClick={handleExportLogs} className="px-4 py-2 bg-teal-600 text-white font-semibold rounded-lg hover:bg-teal-700 whitespace-nowrap text-sm shadow transition-all hover:shadow-md flex items-center gap-2">
                                             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1892,6 +1935,9 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                                         
                                                         {/* Floating Inline Actions for quick access */}
                                                         <div className="flex gap-1 ml-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                            <button onClick={() => handleOpenLogModal(item)} className="p-1 text-slate-500 hover:bg-slate-100 rounded-md transition-colors" title="ดูประวัติ">
+                                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                                            </button>
                                                             <button onClick={() => handleOpenItemModal(item)} className="p-1 text-blue-500 hover:bg-blue-50 rounded-md transition-colors" title="แก้ไข">
                                                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L15.232 5.232z" /></svg>
                                                             </button>
@@ -2076,6 +2122,7 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                         )}
                                         <button onClick={() => handleReceiveStock(item)} className="text-base font-medium text-purple-700 hover:underline">รับของ</button>
                                         <button onClick={() => handleOpenAdjustModal(item)} className="text-base font-medium text-red-700 hover:underline">เบิกของ</button>
+                                        <button onClick={() => handleOpenLogModal(item)} className="text-base font-medium text-gray-700 hover:underline">ประวัติ</button>
                                         <button onClick={() => handleOpenItemModal(item)} className="text-base font-medium text-blue-700 hover:underline">แก้ไข</button>
                                         {canDelete && (
                                             <button onClick={() => handleDeleteItem(item.id)} className="text-base font-medium text-red-700 hover:underline">ลบ</button>
@@ -2236,15 +2283,15 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                 </div>
             )}
             {/* Log Modal */}
-            {isLogModalOpen && selectedLogItem && (
+            {isLogModalOpen && (
                 <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black bg-opacity-50 p-4">
-                    <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[80vh]">
+                    <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[80vh]">
                         <div className="p-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
                             <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                                 </svg>
-                                ประวัติการแก้ไข: {selectedLogItem.name}
+                                {selectedLogItem ? `ประวัติการแก้ไข: ${selectedLogItem.name}` : 'ประวัติการทำรายการและแก้ไขสต็อกทั้งหมด'}
                             </h3>
                             <button onClick={() => setIsLogModalOpen(false)} className="text-gray-400 hover:text-gray-600">
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
@@ -2256,6 +2303,8 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                 <thead className="text-gray-500 bg-gray-50 uppercase text-xs sticky top-0 z-10 shadow-sm">
                                     <tr>
                                         <th className="px-6 py-3">วันที่/เวลา</th>
+                                        {!selectedLogItem && <th className="px-6 py-3">วัตถุดิบ</th>}
+                                        <th className="px-6 py-3">ผู้ดำเนินการ</th>
                                         <th className="px-6 py-3">การกระทำ</th>
                                         <th className="px-6 py-3">รายละเอียด</th>
                                     </tr>
@@ -2267,6 +2316,11 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                                 <td className="px-6 py-3 text-gray-500 whitespace-nowrap">
                                                     {new Date(log.timestamp).toLocaleString('th-TH')}
                                                 </td>
+                                                {!selectedLogItem && (
+                                                    <td className="px-6 py-3 font-semibold text-gray-800 whitespace-nowrap">
+                                                        {log.stockItemName || '-'}
+                                                    </td>
+                                                )}
                                                 <td className="px-6 py-3 font-medium text-gray-900">
                                                     {log.performedBy}
                                                 </td>
@@ -2292,7 +2346,7 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                         ))
                                     ) : (
                                         <tr>
-                                            <td colSpan={4} className="px-6 py-8 text-center text-gray-500">
+                                            <td colSpan={selectedLogItem ? 4 : 5} className="px-6 py-8 text-center text-gray-500">
                                                 ยังไม่มีประวัติการแก้ไข
                                             </td>
                                         </tr>
