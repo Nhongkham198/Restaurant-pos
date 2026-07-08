@@ -676,12 +676,29 @@ export const StockManagement: React.FC<StockManagementProps> = ({
     };
 
     const filteredLogs = useMemo(() => {
-        if (!selectedLogItem) {
-            return [...stockLogs].sort((a, b) => b.timestamp - a.timestamp);
+        const baseLogs = !selectedLogItem
+            ? [...stockLogs]
+            : stockLogs.filter(log => log.stockItemId === selectedLogItem.id);
+
+        // Sort by timestamp descending first (newest logs first)
+        const sorted = baseLogs.sort((a, b) => b.timestamp - a.timestamp);
+
+        // Deduplicate logs that have identical stockItemId, action, performedBy, changeDetails
+        // and occur within 5000ms (5 seconds) of each other.
+        const uniqueLogs: StockLog[] = [];
+        for (const log of sorted) {
+            const isDuplicate = uniqueLogs.some(existing => 
+                existing.stockItemId === log.stockItemId &&
+                existing.action === log.action &&
+                existing.performedBy === log.performedBy &&
+                existing.changeDetails === log.changeDetails &&
+                Math.abs(existing.timestamp - log.timestamp) < 5000
+            );
+            if (!isDuplicate) {
+                uniqueLogs.push(log);
+            }
         }
-        return stockLogs
-            .filter(log => log.stockItemId === selectedLogItem.id)
-            .sort((a, b) => b.timestamp - a.timestamp);
+        return uniqueLogs;
     }, [stockLogs, selectedLogItem]);
 
     const handleSort = (key: string) => {
