@@ -1526,6 +1526,53 @@ export const StockManagement: React.FC<StockManagementProps> = ({
         XLSX.writeFile(wb, `stock_audit_log_${new Date().toISOString().slice(0,10)}.xlsx`);
     };
 
+    const handleExportFilteredLogs = () => {
+        if (filteredLogs.length === 0) {
+            Swal.fire('ไม่มีข้อมูล', 'ไม่มีข้อมูลประวัติในขณะนี้', 'info');
+            return;
+        }
+
+        const dataToExport = filteredLogs.map(log => {
+            let actionType = 'อื่นๆ';
+            if (log.action === 'create') actionType = 'สร้างใหม่ (Create)';
+            else if (log.action === 'update') actionType = 'แก้ไข (Update)';
+            else if (log.action === 'delete') actionType = 'ลบ (Delete)';
+            else if (log.action === 'receive') actionType = 'รับของ (Receive)';
+            else if (log.action === 'adjust') actionType = 'ปรับสต็อก (Adjust)';
+            else if (log.action === 'ignore') actionType = 'ปฏิเสธ/เคลียร์รายการสั่งของ (Ignore)';
+
+            let reason = log.incompleteReason || '';
+            if (!reason && log.changeDetails) {
+                const matchIncomplete = log.changeDetails.match(/เหตุผลไม่ครบ:\s*(.*)$/);
+                const matchNote = log.changeDetails.match(/หมายเหตุ:\s*(.*)$/);
+                if (matchIncomplete) {
+                    reason = matchIncomplete[1].trim();
+                } else if (matchNote) {
+                    reason = matchNote[1].trim();
+                }
+            }
+
+            return {
+                'วันที่/เวลา': new Date(log.timestamp).toLocaleString('th-TH'),
+                'ผู้ทำรายการ': log.performedBy,
+                'สินค้า': log.stockItemName,
+                'ประเภทการกระทำ': actionType,
+                'รายละเอียดการเปลี่ยนแปลง': log.changeDetails,
+                'เหตุผลที่ได้รับไม่ครบ': reason
+            };
+        });
+
+        const ws = XLSX.utils.json_to_sheet(dataToExport);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'FilteredAuditLogs');
+        
+        const fileName = selectedLogItem 
+            ? `stock_audit_log_${selectedLogItem.name}_${new Date().toISOString().slice(0,10)}.xlsx`
+            : `stock_audit_log_all_${new Date().toISOString().slice(0,10)}.xlsx`;
+            
+        XLSX.writeFile(wb, fileName);
+    };
+
     const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
@@ -1671,14 +1718,7 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                         </svg>
                                         ดูประวัติทั้งหมด
                                     </button>
-                                    {currentUser?.role === 'admin' && (
-                                        <button onClick={handleExportLogs} className="px-4 py-2 bg-teal-600 text-white font-semibold rounded-lg hover:bg-teal-700 whitespace-nowrap text-sm shadow transition-all hover:shadow-md flex items-center gap-2">
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                            </svg>
-                                            Export ประวัติ
-                                        </button>
-                                    )}
+
                                     <button onClick={() => fileInputRef.current?.click()} className="px-4 py-2 bg-purple-600 text-white font-semibold rounded-lg hover:bg-purple-700 whitespace-nowrap text-sm shadow transition-all hover:shadow-md">
                                         Import Excel
                                     </button>
@@ -2293,9 +2333,20 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                 </svg>
                                 {selectedLogItem ? `ประวัติการแก้ไข: ${selectedLogItem.name}` : 'ประวัติการทำรายการและแก้ไขสต็อกทั้งหมด'}
                             </h3>
-                            <button onClick={() => setIsLogModalOpen(false)} className="text-gray-400 hover:text-gray-600">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                            </button>
+                            <div className="flex items-center gap-3">
+                                <button 
+                                    onClick={handleExportFilteredLogs} 
+                                    className="px-3 py-1.5 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 text-xs sm:text-sm shadow flex items-center gap-1.5 transition-all hover:shadow-md"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                    </svg>
+                                    Export ประวัติ
+                                </button>
+                                <button onClick={() => setIsLogModalOpen(false)} className="text-gray-400 hover:text-gray-600">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                                </button>
+                            </div>
                         </div>
                         
                         <div className="p-0 flex-1 overflow-y-auto">
