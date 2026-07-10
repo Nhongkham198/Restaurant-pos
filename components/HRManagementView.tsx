@@ -96,9 +96,7 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
     const [activeTab, setActiveTab] = useState<HRTab>(() => {
         const adminOrManager = currentUser?.role === 'admin' || currentUser?.role === 'branch-admin';
         if (!adminOrManager) {
-            if (initialTab !== 'leave' && initialTab !== 'goal') {
-                return 'leave';
-            }
+            return 'goal';
         }
         return initialTab;
     });
@@ -106,8 +104,8 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
     useEffect(() => {
         const adminOrManager = currentUser?.role === 'admin' || currentUser?.role === 'branch-admin';
         if (!adminOrManager) {
-            if (activeTab !== 'leave' && activeTab !== 'goal') {
-                setActiveTab('leave');
+            if (activeTab !== 'goal') {
+                setActiveTab('goal');
             }
         }
     }, [currentUser, activeTab]);
@@ -1929,7 +1927,7 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                     ].filter(tab => {
                         const isAdminOrManager = currentUser?.role === 'admin' || currentUser?.role === 'branch-admin';
                         if (!isAdminOrManager) {
-                            return tab.id === 'leave' || tab.id === 'goal';
+                            return tab.id === 'goal';
                         }
                         return true;
                     }).map(tab => renderTabButton(tab.id, tab.label))}
