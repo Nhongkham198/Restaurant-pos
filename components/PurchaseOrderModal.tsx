@@ -2,6 +2,7 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import type { StockItem, User } from '../types';
 import Swal from 'sweetalert2';
+import { ThaiVirtualKeyboard } from './ThaiVirtualKeyboard';
 
 // Use declare var to avoid import issues for global script libraries
 declare var html2canvas: any;
@@ -29,6 +30,10 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, 
     
     // NEW: Filter State (Show only ordered items)
     const [showOnlyOrdered, setShowOnlyOrdered] = useState(false);
+    
+    // Search/filter state for the PO table items
+    const [tableSearchTerm, setTableSearchTerm] = useState('');
+    const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
     
     // Search states
     const [searchTerm, setSearchTerm] = useState('');
@@ -63,6 +68,8 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, 
             setSearchTerm('');
             setShowDropdown(false);
             setShowOnlyOrdered(false); // Reset filter on open
+            setTableSearchTerm('');
+            setIsKeyboardOpen(false);
         }
     }, [isOpen]);
 
@@ -108,14 +115,24 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, 
         return combined.sort((a, b) => (a.category || '').localeCompare(b.category || ''));
     }, [stockItems, addedItemIds]);
 
-    // Apply "Show Only Ordered" Filter
+    // Apply "Show Only Ordered" and search filtering
     const visibleItems = useMemo(() => {
-        if (!showOnlyOrdered) return itemsToOrder;
-        return itemsToOrder.filter(item => {
-            const qty = quantities[item.id];
-            return qty && parseFloat(qty) > 0;
-        });
-    }, [itemsToOrder, quantities, showOnlyOrdered]);
+        let result = itemsToOrder;
+        if (showOnlyOrdered) {
+            result = result.filter(item => {
+                const qty = quantities[item.id];
+                return qty && parseFloat(qty) > 0;
+            });
+        }
+        if (tableSearchTerm.trim()) {
+            const lowerTerm = tableSearchTerm.toLowerCase();
+            result = result.filter(item => 
+                item.name.toLowerCase().includes(lowerTerm) || 
+                (item.category && item.category.toLowerCase().includes(lowerTerm))
+            );
+        }
+        return result;
+    }, [itemsToOrder, quantities, showOnlyOrdered, tableSearchTerm]);
 
     // Items available to add (not currently in the order list)
     const availableToAdd = useMemo(() => {
@@ -546,6 +563,44 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, 
                             </svg>
                         </button>
                     </div>
+                </div>
+
+                {/* Search and Keyboard (no-print) */}
+                <div className="px-8 py-3 bg-gray-50 border-b border-gray-200 no-print flex-shrink-0">
+                    <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
+                        <div className="relative flex-grow w-full sm:max-w-md">
+                            <span className="absolute inset-y-0 left-0 flex items-center pl-3">
+                                <svg className="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" /></svg>
+                            </span>
+                            <input
+                                type="text"
+                                placeholder="ค้นหาวัตถุดิบในใบสั่งซื้อ..."
+                                value={tableSearchTerm}
+                                onChange={(e) => setTableSearchTerm(e.target.value)}
+                                className="w-full pl-10 pr-12 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-900 shadow-sm"
+                            />
+                            <button
+                                onClick={() => setIsKeyboardOpen(!isKeyboardOpen)}
+                                className={`absolute inset-y-0 right-0 flex items-center pr-3 transition-colors ${isKeyboardOpen ? 'text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
+                                title="เปิดคีย์บอร์ด"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    {isKeyboardOpen && (
+                        <div className="mt-3">
+                            <ThaiVirtualKeyboard
+                                onKeyPress={(key) => setTableSearchTerm(prev => prev + key)}
+                                onBackspace={() => setTableSearchTerm(prev => prev.slice(0, -1))}
+                                onClear={() => setTableSearchTerm('')}
+                                onClose={() => setIsKeyboardOpen(false)}
+                            />
+                        </div>
+                    )}
                 </div>
 
                 {/* Content Area - ID added for capture */}

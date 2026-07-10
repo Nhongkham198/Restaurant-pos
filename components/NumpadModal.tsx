@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
 
 interface NumpadModalProps {
     isOpen: boolean;
@@ -66,9 +67,35 @@ export const NumpadModal: React.FC<NumpadModalProps> = ({ isOpen, onClose, initi
     };
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60] p-4" onClick={onClose}>
-            <div className="bg-white rounded-lg shadow-xl p-6 max-w-xs w-full" onClick={e => e.stopPropagation()}>
-                <h2 className="text-xl font-semibold text-center text-gray-800 mb-4">{title}</h2>
+        <div className="fixed inset-0 bg-black/20 flex items-center justify-center z-[100] p-4" onClick={onClose}>
+            <motion.div 
+                drag
+                dragMomentum={false}
+                dragElastic={0.1}
+                className="bg-white rounded-2xl shadow-2xl border border-gray-100 p-6 max-w-xs w-full cursor-grab active:cursor-grabbing select-none"
+                onClick={e => e.stopPropagation()}
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                transition={{ duration: 0.15 }}
+            >
+                {/* Drag Handle & Header */}
+                <div className="flex justify-between items-center mb-4 pb-2 border-b border-gray-100">
+                    <div className="flex flex-col">
+                        <span className="text-[10px] text-gray-400 font-bold tracking-wider uppercase">Drag to move / ลากเพื่อย้าย</span>
+                        <h2 className="text-sm font-bold text-gray-800 line-clamp-1">{title}</h2>
+                    </div>
+                    <button 
+                        type="button" 
+                        onClick={onClose}
+                        className="p-1.5 hover:bg-gray-100 rounded-full text-gray-400 hover:text-gray-600 transition-colors cursor-pointer"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+
                 <div className="bg-gray-100 text-gray-900 text-right text-4xl font-mono font-bold p-4 rounded-lg mb-4 h-20 overflow-x-auto break-all flex items-center justify-end">
                     {currentValue}
                 </div>
@@ -91,11 +118,11 @@ export const NumpadModal: React.FC<NumpadModalProps> = ({ isOpen, onClose, initi
                 <button
                     type="button"
                     onClick={handleConfirm}
-                    className="mt-4 w-full px-4 py-3 bg-blue-600 text-white text-lg font-semibold rounded-md hover:bg-blue-700"
+                    className="mt-4 w-full px-4 py-3 bg-blue-600 text-white text-lg font-semibold rounded-xl hover:bg-blue-700 transition-colors shadow-md shadow-blue-200"
                 >
                     ตกลง
                 </button>
-            </div>
+            </motion.div>
         </div>
     );
 };

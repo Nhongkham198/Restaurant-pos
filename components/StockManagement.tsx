@@ -12,6 +12,7 @@ import { ThaiVirtualKeyboard } from './ThaiVirtualKeyboard';
 import { IngredientPriceUpload } from './IngredientPriceUpload';
 import { PriceComparisonWorkspace } from './PriceComparisonWorkspace';
 import { useData } from '../contexts/DataContext';
+import { NumpadModal } from './NumpadModal';
 
 // Declare XLSX to inform TypeScript that it's available globally from the script tag
 declare var XLSX: any;
@@ -502,6 +503,12 @@ export const StockManagement: React.FC<StockManagementProps> = ({
     const [itemToIgnore, setItemToIgnore] = useState<StockItem | null>(null);
     const [ignoreRemark, setIgnoreRemark] = useState('');
     const [isRemarkKeyboardOpen, setIsRemarkKeyboardOpen] = useState(false);
+
+    // Numpad state for bulk receive
+    const [isNumpadOpen, setIsNumpadOpen] = useState(false);
+    const [numpadTargetId, setNumpadTargetId] = useState<string | null>(null);
+    const [numpadTitle, setNumpadTitle] = useState('');
+    const [numpadInitialValue, setNumpadInitialValue] = useState<string | number>('0');
     
     // Tag Registration State
     const [selectedTagItem, setSelectedTagItem] = useState<StockItem | null>(null);
@@ -533,6 +540,33 @@ export const StockManagement: React.FC<StockManagementProps> = ({
             setBulkEditQuantities({});
         }
     }, [isBulkReceiveOpen]);
+
+    const handleOpenNumpad = (itemId: string | number, itemName: string, isEditing: boolean) => {
+        const idStr = String(itemId);
+        setNumpadTargetId(idStr);
+        setNumpadTitle(`ระบุจำนวนรับ: ${itemName}`);
+        if (isEditing) {
+            setNumpadInitialValue(bulkEditQuantities[idStr] || '0');
+        } else {
+            const qtyInput = document.getElementById(`bulk-qty-${idStr}`) as HTMLInputElement;
+            setNumpadInitialValue(qtyInput ? qtyInput.value || '0' : '0');
+        }
+        setIsNumpadOpen(true);
+    };
+
+    const handleNumpadSubmit = (value: string) => {
+        if (!numpadTargetId) return;
+        const isEditing = !!bulkEditingItemIds[numpadTargetId];
+        if (isEditing) {
+            setBulkEditQuantities(prev => ({ ...prev, [numpadTargetId]: value }));
+        } else {
+            const qtyInput = document.getElementById(`bulk-qty-${numpadTargetId}`) as HTMLInputElement;
+            if (qtyInput) {
+                qtyInput.value = value;
+                // Trigger react re-render if needed or just let native input have the value
+            }
+        }
+    };
 
     const { latestIngredientPrices, setLatestIngredientPrices, latestImportFilename, setLatestImportFilename } = useData();
 
@@ -2228,6 +2262,14 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                 onUpdateStock={handleBulkUpdateStock}
             />
 
+            <NumpadModal
+                isOpen={isNumpadOpen}
+                onClose={() => setIsNumpadOpen(false)}
+                title={numpadTitle}
+                initialValue={numpadInitialValue}
+                onSubmit={handleNumpadSubmit}
+            />
+
             {/* Tag Registration Modal */}
             {isTagModalOpen && (
                 <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black bg-opacity-50 p-4 pb-24">
@@ -2519,7 +2561,8 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                                                 <th className="px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-wider min-w-[180px] sticky left-0 bg-gray-50/90 backdrop-blur-sm z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">สินค้า</th>
                                                                 <th className="px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-wider text-center min-w-[100px]">สั่งโดย</th>
                                                                 <th className="px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-wider text-center min-w-[100px]">จำนวนที่สั่ง</th>
-                                                                <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider text-center min-w-[280px]">ระบุจำนวนที่ได้รับ</th>
+                                                                <th className="px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-wider text-center min-w-[80px]">หน่วย</th>
+                                                                <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider text-center min-w-[360px]">ระบุจำนวนที่ได้รับ</th>
                                                             </tr>
                                                         </thead>
                                                         <tbody className="divide-y divide-gray-100">
@@ -2569,8 +2612,13 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                                                                     {item.orderedQuantity || item.lastOrderedQuantity || 0}
                                                                                 </span>
                                                                             </td>
-                                                                            <td className="px-4 py-2 font-medium min-w-[280px]">
-                                                                                <div className="w-full max-w-[280px] mx-auto">
+                                                                            <td className="px-4 py-3 text-center min-w-[80px]">
+                                                                                <span className="text-xs text-gray-700 font-bold bg-gray-100 px-2.5 py-1 rounded-lg">
+                                                                                    {item.unit || '-'}
+                                                                                </span>
+                                                                            </td>
+                                                                            <td className="px-4 py-2 font-medium min-w-[360px]">
+                                                                                <div className="w-full max-w-[360px] mx-auto">
                                                                                     <div className="flex items-center gap-2 relative">
                                                                                         <div className="relative flex-1">
                                                                                             {isVerifiedToday && !isEditingThisItem && (
@@ -2595,7 +2643,7 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                                                                                 type="number"
                                                                                                 id={`bulk-qty-${item.id}`}
                                                                                                 step="0.01"
-                                                                                                className={`w-full px-3 py-2.5 border border-gray-300 rounded-xl text-center font-black outline-none transition-all placeholder:text-gray-300 placeholder:font-normal text-xl [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
+                                                                                                className={`w-full px-3 py-2.5 pr-10 border border-gray-300 rounded-xl text-center font-black outline-none transition-all placeholder:text-gray-300 placeholder:font-normal text-xl [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
                                                                                                     isInputDisabled
                                                                                                     ? (isReceivedComplete 
                                                                                                         ? 'bg-green-50 text-green-700 cursor-not-allowed border-green-200' 
@@ -2609,6 +2657,19 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                                                                                 disabled={isInputDisabled}
                                                                                             />
                                                                                             
+                                                                                            {!isInputDisabled && (
+                                                                                                <button
+                                                                                                    type="button"
+                                                                                                    onClick={() => handleOpenNumpad(item.id, item.name, isEditingThisItem)}
+                                                                                                    className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1.5 text-gray-400 hover:text-orange-500 active:scale-95 transition-all cursor-pointer"
+                                                                                                    title="เปิดปุ่มกดตัวเลข (Numpad)"
+                                                                                                >
+                                                                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 11h.01M12 7h.01M15 11h.01M12 14h.01M15 7h.01M15 14h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                                                                                    </svg>
+                                                                                                </button>
+                                                                                            )}
+                                                                                            
                                                                                             <input 
                                                                                                 type="hidden"
                                                                                                 id={`bulk-date-${item.id}`}
@@ -2617,122 +2678,135 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                                                                         </div>
 
                                                                                         {!isVerifiedToday && !isEditingThisItem && (
-                                                                                            <button
-                                                                                                type="button"
-                                                                                                onClick={async () => {
-                                                                                                    const qtyInput = document.getElementById(`bulk-qty-${item.id}`) as HTMLInputElement;
-                                                                                                    if (!qtyInput || !qtyInput.value || isNaN(Number(qtyInput.value)) || Number(qtyInput.value) <= 0) {
-                                                                                                        Swal.fire('คำเตือน', 'กรุณาระบุจำนวนสินค้าที่ได้รับให้ถูกต้อง (มากกว่า 0)', 'warning');
-                                                                                                        return;
-                                                                                                    }
-                                                                                                    
-                                                                                                    const receivedQty = Number(qtyInput.value);
-                                                                                                    const orderedQty = Number(item.orderedQuantity || 0);
-                                                                                                    
-                                                                                                    let incompleteReason = '';
-                                                                                                    if (receivedQty < orderedQty) {
-                                                                                                        const reasonText = await askForIncompleteReason(
-                                                                                                            'ระบุเหตุผลที่ได้รับของไม่ครบ',
-                                                                                                            `สินค้า "${item.name}" ได้รับเพียง ${receivedQty} จากที่สั่ง ${orderedQty} ${item.unit}`,
-                                                                                                            ''
-                                                                                                        );
-                                                                                                        if (reasonText === undefined) {
-                                                                                                            return; // Abort saving if cancelled or dismissed
+                                                                                            <div className="flex gap-2 shrink-0">
+                                                                                                <button
+                                                                                                    type="button"
+                                                                                                    onClick={async () => {
+                                                                                                        const qtyInput = document.getElementById(`bulk-qty-${item.id}`) as HTMLInputElement;
+                                                                                                        if (!qtyInput || !qtyInput.value || isNaN(Number(qtyInput.value)) || Number(qtyInput.value) <= 0) {
+                                                                                                            Swal.fire('คำเตือน', 'กรุณาระบุจำนวนสินค้าที่ได้รับให้ถูกต้อง (มากกว่า 0)', 'warning');
+                                                                                                            return;
                                                                                                         }
-                                                                                                        incompleteReason = reasonText;
-                                                                                                    }
-
-                                                                                                    const currentQty = Number(item.quantity || 0);
-                                                                                                    const newCombinedQty = currentQty + receivedQty;
-                                                                                                    const now = Date.now();
-                                                                                                    const activeUsername = currentUser?.username || 'Unknown Staff';
-
-                                                                                                    const itemConfirm = await Swal.fire({
-                                                                                                        title: `บันทึกรับของ "${item.name}"`,
-                                                                                                        html: `
-                                                                                                            <div class="text-left space-y-2.5 p-2 text-sm text-gray-700 font-sans">
-                                                                                                                ${item.imageUrl ? `
-                                                                                                                <div class="flex justify-center mb-3">
-                                                                                                                    <img src="${item.imageUrl}" class="w-20 h-20 object-cover rounded-xl border border-gray-100 shadow-xs" referrerPolicy="no-referrer" />
-                                                                                                                </div>
-                                                                                                                ` : ''}
-                                                                                                                <div class="flex justify-between border-b pb-1.5">
-                                                                                                                    <span class="font-medium">ชื่อวัตถุดิบ:</span>
-                                                                                                                    <span class="font-bold text-gray-900">${item.name}</span>
-                                                                                                                </div>
-                                                                                                                <div class="flex justify-between border-b pb-1.5 bg-blue-50/50 p-1.5 rounded-lg">
-                                                                                                                    <span class="font-bold text-blue-800">จำนวนคงเหลือเดิมในโปรแกรม:</span>
-                                                                                                                    <span class="font-extrabold text-blue-700">${currentQty} ${item.unit}</span>
-                                                                                                                </div>
-                                                                                                                <div class="flex justify-between border-b pb-1.5 bg-orange-50/50 p-1.5 rounded-lg">
-                                                                                                                    <span class="font-bold text-orange-800">จำนวนที่ระบุรับเข้าครั้งนี้:</span>
-                                                                                                                    <span class="font-extrabold text-orange-700">${receivedQty} ${item.unit}</span>
-                                                                                                                </div>
-                                                                                                                <div class="flex justify-between text-xs text-gray-500 mt-2 bg-green-50/30 p-1.5 rounded-lg border border-dashed border-green-200">
-                                                                                                                    <span class="font-semibold text-green-800">ถ้านับรวม ยอดสต็อกใหม่จะเป็น:</span>
-                                                                                                                    <span class="font-black text-green-700">${newCombinedQty} ${item.unit}</span>
-                                                                                                                </div>
-                                                                                                                ${incompleteReason ? `
-                                                                                                                <div class="mt-2 bg-red-50 p-2 rounded-lg border border-red-200">
-                                                                                                                    <span class="font-bold text-red-800 text-xs block">⚠️ เหตุผลที่ได้รับไม่ครบ:</span>
-                                                                                                                    <span class="text-red-700 text-xs">${incompleteReason}</span>
-                                                                                                                </div>
-                                                                                                                ` : ''}
-                                                                                                                <div class="mt-4 font-bold text-center text-gray-900 text-base">
-                                                                                                                    ต้องการนำจำนวนที่รับเข้าใหม่นี้ รวมเข้ากับยอดคงเหลือในโปรแกรมเดิมหรือไม่?
-                                                                                                                </div>
-                                                                                                            </div>
-                                                                                                        `,
-                                                                                                        icon: 'question',
-                                                                                                        showCancelButton: true,
-                                                                                                        showDenyButton: true,
-                                                                                                        confirmButtonColor: '#16a34a',
-                                                                                                        denyButtonColor: '#ea580c',
-                                                                                                        cancelButtonColor: '#94a3b8',
-                                                                                                        confirmButtonText: '✓ นับรวม (อัปเดตสต็อก)',
-                                                                                                        denyButtonText: '✗ ไม่นับรวม (แก้ไขเฉพาะจำนวนรับ)',
-                                                                                                        cancelButtonText: 'ยกเลิก'
-                                                                                                    });
-
-                                                                                                    if (itemConfirm.isConfirmed || itemConfirm.isDenied) {
-                                                                                                        const shouldCombine = itemConfirm.isConfirmed;
-                                                                                                        const diffToApply = shouldCombine ? receivedQty : 0;
-
-                                                                                                        setStockItems(prev => {
-                                                                                                            const nextItems = [...prev];
-                                                                                                            const itemIndex = nextItems.findIndex(i => i.id === item.id);
-                                                                                                            if (itemIndex !== -1) {
-                                                                                                                const targetItem = nextItems[itemIndex];
-                                                                                                                nextItems[itemIndex] = {
-                                                                                                                    ...targetItem,
-                                                                                                                    quantity: targetItem.quantity + diffToApply,
-                                                                                                                    receivedDate: now,
-                                                                                                                    lastReceivedQuantity: receivedQty,
-                                                                                                                    lastOrderedQuantity: Number(targetItem.orderedQuantity) || 0,
-                                                                                                                    orderedQuantity: 0,
-                                                                                                                    incompleteReason: incompleteReason || undefined,
-                                                                                                                    lastUpdated: now,
-                                                                                                                    lastUpdatedBy: activeUsername
-                                                                                                                };
+                                                                                                        
+                                                                                                        const receivedQty = Number(qtyInput.value);
+                                                                                                        const orderedQty = Number(item.orderedQuantity || 0);
+                                                                                                        
+                                                                                                        let incompleteReason = '';
+                                                                                                        if (receivedQty < orderedQty) {
+                                                                                                            const reasonText = await askForIncompleteReason(
+                                                                                                                'ระบุเหตุผลที่ได้รับของไม่ครบ',
+                                                                                                                `สินค้า "${item.name}" ได้รับเพียง ${receivedQty} จากที่สั่ง ${orderedQty} ${item.unit}`,
+                                                                                                                ''
+                                                                                                            );
+                                                                                                            if (reasonText === undefined) {
+                                                                                                                return; // Abort saving if cancelled or dismissed
                                                                                                             }
-                                                                                                            return nextItems;
+                                                                                                            incompleteReason = reasonText;
+                                                                                                        }
+
+                                                                                                        const currentQty = Number(item.quantity || 0);
+                                                                                                        const newCombinedQty = currentQty + receivedQty;
+                                                                                                        const now = Date.now();
+                                                                                                        const activeUsername = currentUser?.username || 'Unknown Staff';
+
+                                                                                                        const itemConfirm = await Swal.fire({
+                                                                                                            title: `บันทึกรับของ "${item.name}"`,
+                                                                                                            html: `
+                                                                                                                <div class="text-left space-y-2.5 p-2 text-sm text-gray-700 font-sans">
+                                                                                                                    ${item.imageUrl ? `
+                                                                                                                    <div class="flex justify-center mb-3">
+                                                                                                                        <img src="${item.imageUrl}" class="w-20 h-20 object-cover rounded-xl border border-gray-100 shadow-xs" referrerPolicy="no-referrer" />
+                                                                                                                    </div>
+                                                                                                                    ` : ''}
+                                                                                                                    <div class="flex justify-between border-b pb-1.5">
+                                                                                                                        <span class="font-medium">ชื่อวัตถุดิบ:</span>
+                                                                                                                        <span class="font-bold text-gray-900">${item.name}</span>
+                                                                                                                    </div>
+                                                                                                                    <div class="flex justify-between border-b pb-1.5 bg-blue-50/50 p-1.5 rounded-lg">
+                                                                                                                        <span class="font-bold text-blue-800">จำนวนคงเหลือเดิมในโปรแกรม:</span>
+                                                                                                                        <span class="font-extrabold text-blue-700">${currentQty} ${item.unit}</span>
+                                                                                                                    </div>
+                                                                                                                    <div class="flex justify-between border-b pb-1.5 bg-orange-50/50 p-1.5 rounded-lg">
+                                                                                                                        <span class="font-bold text-orange-800">จำนวนที่ระบุรับเข้าครั้งนี้:</span>
+                                                                                                                        <span class="font-extrabold text-orange-700">${receivedQty} ${item.unit}</span>
+                                                                                                                    </div>
+                                                                                                                    <div class="flex justify-between text-xs text-gray-500 mt-2 bg-green-50/30 p-1.5 rounded-lg border border-dashed border-green-200">
+                                                                                                                        <span class="font-semibold text-green-800">ถ้านับรวม ยอดสต็อกใหม่จะเป็น:</span>
+                                                                                                                        <span class="font-black text-green-700">${newCombinedQty} ${item.unit}</span>
+                                                                                                                    </div>
+                                                                                                                    ${incompleteReason ? `
+                                                                                                                    <div class="mt-2 bg-red-50 p-2 rounded-lg border border-red-200">
+                                                                                                                        <span class="font-bold text-red-800 text-xs block">⚠️ เหตุผลที่ได้รับไม่ครบ:</span>
+                                                                                                                        <span class="text-red-700 text-xs">${incompleteReason}</span>
+                                                                                                                    </div>
+                                                                                                                    ` : ''}
+                                                                                                                    <div class="mt-4 font-bold text-center text-gray-900 text-base">
+                                                                                                                        ต้องการนำจำนวนที่รับเข้าใหม่นี้ รวมเข้ากับยอดคงเหลือในโปรแกรมเดิมหรือไม่?
+                                                                                                                    </div>
+                                                                                                                </div>
+                                                                                                            `,
+                                                                                                            icon: 'question',
+                                                                                                            showCancelButton: true,
+                                                                                                            showDenyButton: true,
+                                                                                                            confirmButtonColor: '#16a34a',
+                                                                                                            denyButtonColor: '#ea580c',
+                                                                                                            cancelButtonColor: '#94a3b8',
+                                                                                                            confirmButtonText: '✓ นับรวม (อัปเดตสต็อก)',
+                                                                                                            denyButtonText: '✗ ไม่นับรวม (แก้ไขเฉพาะจำนวนรับ)',
+                                                                                                            cancelButtonText: 'ยกเลิก'
                                                                                                         });
 
-                                                                                                        addLog(item, 'adjust', `บันทึกรับของแบบกลุ่ม: จำนวน ${receivedQty} ${item.unit} (รวมยอด: ${shouldCombine ? 'ใช่' : 'ไม่'}) โดย ${activeUsername}${incompleteReason ? ` เหตุผลไม่ครบ: ${incompleteReason}` : ''}`, incompleteReason);
+                                                                                                        if (itemConfirm.isConfirmed || itemConfirm.isDenied) {
+                                                                                                            const shouldCombine = itemConfirm.isConfirmed;
+                                                                                                            const diffToApply = shouldCombine ? receivedQty : 0;
 
-                                                                                                        Swal.fire({
-                                                                                                            title: 'บันทึกสำเร็จ!',
-                                                                                                            text: `บันทึกรับสินค้า "${item.name}" เรียบร้อยแล้ว (${shouldCombine ? 'อัปเดตยอดสต็อกแล้ว' : 'ไม่ได้ปรับยอดสต็อก'})`,
-                                                                                                            icon: 'success',
-                                                                                                            timer: 2000,
-                                                                                                            showConfirmButton: false
-                                                                                                        });
-                                                                                                    }
-                                                                                                }}
-                                                                                                className="py-2.5 px-4 bg-orange-600 hover:bg-orange-700 text-white text-xs font-bold rounded-xl transition-all active:scale-95 cursor-pointer shadow-md shadow-orange-100 flex items-center justify-center min-w-[70px]"
-                                                                                            >
-                                                                                                รับเข้า
-                                                                                            </button>
+                                                                                                            setStockItems(prev => {
+                                                                                                                const nextItems = [...prev];
+                                                                                                                const itemIndex = nextItems.findIndex(i => i.id === item.id);
+                                                                                                                if (itemIndex !== -1) {
+                                                                                                                    const targetItem = nextItems[itemIndex];
+                                                                                                                    nextItems[itemIndex] = {
+                                                                                                                        ...targetItem,
+                                                                                                                        quantity: targetItem.quantity + diffToApply,
+                                                                                                                        receivedDate: now,
+                                                                                                                        lastReceivedQuantity: receivedQty,
+                                                                                                                        lastOrderedQuantity: Number(targetItem.orderedQuantity) || 0,
+                                                                                                                        orderedQuantity: 0,
+                                                                                                                        incompleteReason: incompleteReason || undefined,
+                                                                                                                        lastUpdated: now,
+                                                                                                                        lastUpdatedBy: activeUsername
+                                                                                                                    };
+                                                                                                                }
+                                                                                                                return nextItems;
+                                                                                                            });
+
+                                                                                                            addLog(item, 'adjust', `บันทึกรับของแบบกลุ่ม: จำนวน ${receivedQty} ${item.unit} (รวมยอด: ${shouldCombine ? 'ใช่' : 'ไม่'}) โดย ${activeUsername}${incompleteReason ? ` เหตุผลไม่ครบ: ${incompleteReason}` : ''}`, incompleteReason);
+
+                                                                                                            Swal.fire({
+                                                                                                                title: 'บันทึกสำเร็จ!',
+                                                                                                                text: `บันทึกรับสินค้า "${item.name}" เรียบร้อยแล้ว (${shouldCombine ? 'อัปเดตยอดสต็อกแล้ว' : 'ไม่ได้ปรับยอดสต็อก'})`,
+                                                                                                                icon: 'success',
+                                                                                                                timer: 2000,
+                                                                                                                showConfirmButton: false
+                                                                                                            });
+                                                                                                        }
+                                                                                                    }}
+                                                                                                    className="py-2.5 px-4 bg-orange-600 hover:bg-orange-700 text-white text-xs font-bold rounded-xl transition-all active:scale-95 cursor-pointer shadow-md shadow-orange-100 flex items-center justify-center min-w-[70px]"
+                                                                                                >
+                                                                                                    รับเข้า
+                                                                                                </button>
+                                                                                                <button
+                                                                                                    type="button"
+                                                                                                    onClick={() => handleOpenIgnoreModal(item)}
+                                                                                                    className="py-2.5 px-3 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 text-xs font-bold rounded-xl transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-1 min-w-[70px]"
+                                                                                                    title="ยกเลิก/ปิดรายการสั่งซื้อนี้"
+                                                                                                >
+                                                                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                                                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                                                                                    </svg>
+                                                                                                    ปิดรายการ
+                                                                                                </button>
+                                                                                            </div>
                                                                                         )}
 
                                                                                         {isEditingThisItem && (
