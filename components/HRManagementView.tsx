@@ -117,6 +117,7 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
     const [evalScores, setEvalScores] = useState<Record<string, number>>({}); // item ID -> rating (1-10)
     const [adminGradingGoal, setAdminGradingGoal] = useState<EmployeeGoal | null>(null);
     const [adminFeedback, setAdminFeedback] = useState<string>('');
+    const [adminSelectedGrade, setAdminSelectedGrade] = useState<'A' | 'B' | 'C' | 'D'>('C');
     const [viewingGoalDetails, setViewingGoalDetails] = useState<EmployeeGoal | null>(null);
     const [showEvalAlert, setShowEvalAlert] = useState(true);
     
@@ -1812,7 +1813,7 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
         Swal.fire('สำเร็จ', 'ส่งคะแนนประเมินเพื่อนร่วมงานเรียบร้อยแล้ว', 'success');
     };
 
-    const handleApproveAndGrade = (goal: EmployeeGoal, note: string) => {
+    const handleApproveAndGrade = (goal: EmployeeGoal, note: string, selectedGrade?: 'A' | 'B' | 'C' | 'D') => {
         if (!goal.peerEvaluations || goal.peerEvaluations.length === 0) {
             Swal.fire('ข้อผิดพลาด', 'ยังไม่มีเพื่อนร่วมงานประเมินเป้าหมายนี้', 'error');
             return;
@@ -1833,15 +1834,19 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
             });
         });
 
-        const finalScorePercentage = parseFloat(((earnedPoints / maxPoints) * 100).toFixed(2));
+        const finalScorePercentage = maxPoints > 0 
+            ? parseFloat(((earnedPoints / maxPoints) * 100).toFixed(2)) 
+            : 0;
         
-        let finalGrade: 'A' | 'B' | 'C' | 'D' = 'D';
-        if (finalScorePercentage >= 80) {
-            finalGrade = 'A';
-        } else if (finalScorePercentage >= 70) {
-            finalGrade = 'B';
-        } else if (finalScorePercentage >= 60) {
-            finalGrade = 'C';
+        let finalGrade: 'A' | 'B' | 'C' | 'D' = selectedGrade || 'D';
+        if (!selectedGrade) {
+            if (finalScorePercentage >= 80) {
+                finalGrade = 'A';
+            } else if (finalScorePercentage >= 70) {
+                finalGrade = 'B';
+            } else if (finalScorePercentage >= 60) {
+                finalGrade = 'C';
+            }
         }
 
         const updatedGoal: EmployeeGoal = {
@@ -1857,7 +1862,7 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
         setEmployeeGoals(prev => prev.map(g => g.id === goal.id ? updatedGoal : g));
         setAdminGradingGoal(null);
         setAdminFeedback('');
-        Swal.fire('อนุมัติแล้ว', `บันทึกผลการประเมินเรียบร้อย ได้เกรด ${finalGrade} (${finalScorePercentage}%)`, 'success');
+        Swal.fire('อนุมัติและตัดเกรดแล้ว', `สรุปผลคะแนนและบันทึกเกรดเรียบร้อย ได้เกรด ${finalGrade} (${finalScorePercentage}%)`, 'success');
     };
 
     const payrollDueCount = useMemo(() => {
@@ -2867,6 +2872,23 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                                                                 onClick={() => {
                                                                                     setAdminGradingGoal(goal);
                                                                                     setAdminFeedback(goal.adminNote || '');
+                                                                                    
+                                                                                    const evals = goal.peerEvaluations || [];
+                                                                                    const peersCount = evals.length;
+                                                                                    const itemsCount = goal.items.length;
+                                                                                    const maxPoints = peersCount * itemsCount * 10;
+                                                                                    let earnedPoints = 0;
+                                                                                    evals.forEach(pe => {
+                                                                                        Object.values(pe.scores).forEach(score => {
+                                                                                            earnedPoints += score;
+                                                                                        });
+                                                                                    });
+                                                                                    const finalScorePercentage = maxPoints > 0 ? parseFloat(((earnedPoints / maxPoints) * 100).toFixed(2)) : 0;
+                                                                                    let autoGrade: 'A' | 'B' | 'C' | 'D' = 'D';
+                                                                                    if (finalScorePercentage >= 80) autoGrade = 'A';
+                                                                                    else if (finalScorePercentage >= 70) autoGrade = 'B';
+                                                                                    else if (finalScorePercentage >= 60) autoGrade = 'C';
+                                                                                    setAdminSelectedGrade(autoGrade);
                                                                                 }} 
                                                                                 className="bg-emerald-600 hover:bg-emerald-700 text-xs text-white px-2.5 py-1.5 rounded font-semibold"
                                                                             >
@@ -3205,8 +3227,8 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                             })()}
                         </div>
 
-                        {/* 4. PEER EVALUATION PORTAL (EVALUATING OTHER EMPLOYEES IN BRANCH) - Hidden for standard employees, visible only for admin & branch managers */}
-                        {(currentUser?.role === 'admin' || currentUser?.role === 'branch-admin') && (
+                        {/* 4. PEER EVALUATION PORTAL (EVALUATING OTHER EMPLOYEES IN BRANCH) */}
+                        {currentUser && (
                             <div className="bg-gray-900/40 p-6 rounded-xl border border-gray-700 space-y-4">
                                 <div>
                                     <h3 className="text-lg font-bold flex items-center gap-2 text-white">
@@ -3407,15 +3429,15 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                                             <div className="text-xl font-bold text-blue-400 mt-1">{finalScorePercentage}%</div>
                                                         </div>
                                                         <div>
-                                                            <div className="text-xs text-gray-400">เกรดที่ได้</div>
+                                                            <div className="text-xs text-gray-400">เกรดที่คำนวณได้</div>
                                                             <div className="text-xl font-extrabold text-emerald-400 mt-1">{autoGrade}</div>
                                                         </div>
                                                     </div>
 
                                                     {/* Peer details breakdown */}
                                                     <div className="space-y-2">
-                                                        <h4 className="text-xs font-bold text-gray-300 uppercase tracking-wider">คะแนนรายข้อที่ประเมินโดยเพื่อนพนักงาน:</h4>
-                                                        <div className="space-y-2 max-h-[25vh] overflow-y-auto pr-1">
+                                                        <h4 className="text-xs font-bold text-gray-300 uppercase tracking-wider">คะแนนรายข้อเฉลี่ยที่ประเมินโดยเพื่อนพนักงาน:</h4>
+                                                        <div className="space-y-2 max-h-[20vh] overflow-y-auto pr-1 text-gray-100">
                                                             {adminGradingGoal.items.map((it, idx) => {
                                                                 let totalItemScore = 0;
                                                                 evals.forEach(pe => {
@@ -3434,6 +3456,70 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                                                     </div>
                                                                 );
                                                             })}
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Raw individual peer score breakdown (ONLY visible to admins/managers) */}
+                                                    <div className="space-y-2">
+                                                        <h4 className="text-xs font-bold text-yellow-400 uppercase tracking-wider flex items-center gap-1">
+                                                            <span>🔒</span> คะแนนดิบรายบุคคล (เห็นเฉพาะ Admin/ผู้ดูแลสาขา):
+                                                        </h4>
+                                                        <div className="space-y-2 max-h-[20vh] overflow-y-auto pr-1">
+                                                            {evals.length === 0 ? (
+                                                                <div className="text-xs text-gray-500 italic p-2 bg-gray-900/20 rounded border border-dashed border-gray-800">
+                                                                    ยังไม่มีพนักงานคนใดส่งผลประเมินในขณะนี้
+                                                                </div>
+                                                            ) : (
+                                                                evals.map((pe, idx) => {
+                                                                    const sumScore = Object.values(pe.scores).reduce((a, b) => a + b, 0);
+                                                                    const totalItems = adminGradingGoal.items.length;
+                                                                    const avgScore = totalItems > 0 ? (sumScore / totalItems).toFixed(1) : '0';
+
+                                                                    return (
+                                                                        <div key={idx} className="bg-gray-900/50 p-3 rounded-lg border border-gray-700/60 space-y-1.5 text-xs">
+                                                                            <div className="flex justify-between items-center text-gray-300">
+                                                                                <span className="font-semibold text-blue-400">👤 {pe.evaluatorName} (ID: {pe.evaluatorId})</span>
+                                                                                <span className="font-mono text-[11px] bg-gray-800 px-2 py-0.5 rounded text-gray-400">
+                                                                                    เฉลี่ย: {avgScore}/10 คะแนน
+                                                                                </span>
+                                                                            </div>
+                                                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pl-3 border-l-2 border-blue-500/50">
+                                                                                {adminGradingGoal.items.map((it, itemIdx) => (
+                                                                                    <div key={it.id} className="text-[11px] text-gray-400 truncate" title={`${itemIdx + 1}. ${it.text}`}>
+                                                                                        ข้อที่ {itemIdx + 1}: <span className="font-semibold text-white">{pe.scores[it.id] || 0}/10</span>
+                                                                                    </div>
+                                                                                ))}
+                                                                            </div>
+                                                                        </div>
+                                                                    );
+                                                                })
+                                                            )}
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Manual Grade Selection Buttons (Override) */}
+                                                    <div className="space-y-2 pt-2 border-t border-gray-700/60">
+                                                        <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block">
+                                                            เลือกสรุปเกรดที่จะบันทึกผล (Grade Adjustment):
+                                                        </label>
+                                                        <div className="flex gap-2">
+                                                            {(['A', 'B', 'C', 'D'] as const).map((grade) => (
+                                                                <button
+                                                                    key={grade}
+                                                                    type="button"
+                                                                    onClick={() => setAdminSelectedGrade(grade)}
+                                                                    className={`flex-1 py-2.5 rounded-lg text-sm font-bold border transition-all ${
+                                                                        adminSelectedGrade === grade
+                                                                            ? grade === 'A' ? 'bg-emerald-600 text-white border-emerald-500 shadow-lg scale-[1.02]' :
+                                                                              grade === 'B' ? 'bg-blue-600 text-white border-blue-500 shadow-lg scale-[1.02]' :
+                                                                              grade === 'C' ? 'bg-yellow-600 text-white border-yellow-500 shadow-lg scale-[1.02]' :
+                                                                              'bg-red-600 text-white border-red-500 shadow-lg scale-[1.02]'
+                                                                            : 'bg-gray-900/60 hover:bg-gray-900 border-gray-700 text-gray-400'
+                                                                    }`}
+                                                                >
+                                                                    เกรด {grade} {grade === autoGrade ? '(แนะนำ)' : ''}
+                                                                </button>
+                                                            ))}
                                                         </div>
                                                     </div>
 
@@ -3458,10 +3544,10 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                                             ยกเลิก
                                                         </button>
                                                         <button 
-                                                            onClick={() => handleApproveAndGrade(adminGradingGoal, adminFeedback)} 
-                                                            className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2 rounded-lg text-sm font-semibold"
+                                                            onClick={() => handleApproveAndGrade(adminGradingGoal, adminFeedback, adminSelectedGrade)} 
+                                                            className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2 rounded-lg text-sm font-bold flex items-center gap-1 shadow-lg shadow-emerald-950/40"
                                                         >
-                                                            ✅ อนุมัติ & บันทึกเกรด {autoGrade}
+                                                            <span>📝</span> สรุปเกรด & บันทึกผล ({adminSelectedGrade})
                                                         </button>
                                                     </div>
                                                 </div>
@@ -3516,6 +3602,43 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                                 ))}
                                             </div>
                                         </div>
+
+                                        {viewingGoalDetails.peerEvaluations && viewingGoalDetails.peerEvaluations.length > 0 && (
+                                            <div className="space-y-2 border-t border-gray-700/60 pt-4">
+                                                <h4 className="text-xs font-bold text-gray-300 uppercase tracking-wider flex items-center gap-1">
+                                                    <span>👥</span> ผลประเมินจากเพื่อนร่วมงาน:
+                                                </h4>
+                                                <div className="space-y-2 max-h-[22vh] overflow-y-auto pr-1">
+                                                    {viewingGoalDetails.peerEvaluations.map((pe, idx) => {
+                                                        const sumScore = Object.values(pe.scores).reduce((a, b) => a + b, 0);
+                                                        const totalItems = viewingGoalDetails.items.length;
+                                                        const avgScore = totalItems > 0 ? (sumScore / totalItems).toFixed(1) : '0';
+                                                        const isAdminOrManager = currentUser?.role === 'admin' || currentUser?.role === 'branch-admin';
+                                                        const displayName = isAdminOrManager 
+                                                            ? `👤 ${pe.evaluatorName} (ID: ${pe.evaluatorId})` 
+                                                            : `👤 ผู้ร่วมประเมินคนที่ ${idx + 1} (ไม่เปิดเผยตัวตน)`;
+
+                                                        return (
+                                                            <div key={idx} className="bg-gray-900/40 p-3 rounded-lg border border-gray-750 space-y-1.5 text-xs">
+                                                                <div className="flex justify-between items-center text-gray-300">
+                                                                    <span className={`font-semibold ${isAdminOrManager ? 'text-blue-400' : 'text-gray-300'}`}>{displayName}</span>
+                                                                    <span className="font-mono text-[11px] bg-gray-850 px-2 py-0.5 rounded text-gray-400">
+                                                                        เฉลี่ย: {avgScore}/10 คะแนน
+                                                                    </span>
+                                                                </div>
+                                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pl-3 border-l-2 border-gray-700">
+                                                                    {viewingGoalDetails.items.map((it, itemIdx) => (
+                                                                        <div key={it.id} className="text-[11px] text-gray-400 truncate" title={`${itemIdx + 1}. ${it.text}`}>
+                                                                            ข้อที่ {itemIdx + 1}: <span className="font-semibold text-white">{pe.scores[it.id] || 0}/10</span>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        )}
 
                                         {viewingGoalDetails.status === 'completed' && (
                                             <div className="bg-emerald-950/30 border border-emerald-900/30 p-4 rounded-xl space-y-2">
