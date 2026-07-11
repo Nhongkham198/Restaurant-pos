@@ -504,6 +504,17 @@ export const StockManagement: React.FC<StockManagementProps> = ({
     const [ignoreRemark, setIgnoreRemark] = useState('');
     const [isRemarkKeyboardOpen, setIsRemarkKeyboardOpen] = useState(false);
 
+    // Scroll state to auto-collapse header elements on mobile/desktop scrolling
+    const [isScrolledDown, setIsScrolledDown] = useState(false);
+    const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+        const scrollTop = e.currentTarget.scrollTop;
+        if (scrollTop > 50) {
+            setIsScrolledDown(true);
+        } else {
+            setIsScrolledDown(false);
+        }
+    };
+
     // Numpad state for bulk receive
     const [isNumpadOpen, setIsNumpadOpen] = useState(false);
     const [numpadTargetId, setNumpadTargetId] = useState<string | null>(null);
@@ -1720,92 +1731,94 @@ export const StockManagement: React.FC<StockManagementProps> = ({
         <>
             <div className="h-full w-full flex flex-col bg-gray-50">
                 <header className="p-4 sm:p-6 border-b border-gray-200 bg-white flex-shrink-0 shadow-sm z-10">
-                    <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
-                        <div className="flex justify-between items-center w-full md:w-auto flex-shrink-0">
-                            <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 whitespace-nowrap">จัดการสต็อกสินค้า</h1>
-                            {/* Mobile Action Buttons */}
-                            <div className="lg:hidden flex gap-2 ml-2">
-                                <button onClick={() => setIsBulkReceiveOpen(true)} className="px-3 py-2 bg-orange-600 text-white font-semibold rounded-lg hover:bg-orange-700 text-sm flex items-center gap-2 shadow-sm transition-all active:scale-95">
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <div className={`transition-all duration-300 overflow-hidden ${isScrolledDown ? 'max-h-0 opacity-0 pointer-events-none' : 'max-h-[500px] opacity-100 mb-4'}`}>
+                        <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
+                            <div className="flex justify-between items-center w-full md:w-auto flex-shrink-0">
+                                <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 whitespace-nowrap">จัดการสต็อกสินค้า</h1>
+                                {/* Mobile Action Buttons */}
+                                <div className="lg:hidden flex gap-2 ml-2">
+                                    <button onClick={() => setIsBulkReceiveOpen(true)} className="px-3 py-2 bg-orange-600 text-white font-semibold rounded-lg hover:bg-orange-700 text-sm flex items-center gap-2 shadow-sm transition-all active:scale-95">
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                                        </svg>
+                                        <span>ตรวจรับ</span>
+                                    </button>
+                                    <button onClick={handleMobilePO} className="px-3 py-2 bg-orange-500 text-white font-semibold rounded-lg hover:bg-orange-600 text-sm flex items-center gap-2 shadow-sm transition-all active:scale-95">
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                                        <span>ออกใบสั่ง</span>
+                                    </button>
+                                </div>
+                            </div>
+                            {/* Hidden on mobile and tablet vertical (< 1024px), shown on desktop */}
+                            <div className="hidden lg:flex flex-wrap items-center justify-end gap-2 flex-1">
+                                <input
+                                    type="file"
+                                    ref={fileInputRef}
+                                    onChange={handleImport}
+                                    className="hidden"
+                                    accept=".xlsx, .xls"
+                                />
+                                <button onClick={() => { setIsMobilePOMode(false); setIsPurchaseOrderModalOpen(true); }} className="px-4 py-2 bg-orange-500 text-white font-semibold rounded-lg hover:bg-orange-600 whitespace-nowrap text-sm flex items-center gap-2 shadow transition-all hover:shadow-md">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>
+                                    ออกรายการสั่งของ
+                                </button>
+
+                                <button onClick={() => setIsBulkReceiveOpen(true)} className="px-4 py-2 bg-orange-600 text-white font-semibold rounded-lg hover:bg-orange-700 whitespace-nowrap text-sm shadow transition-all hover:shadow-md flex items-center gap-2">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
                                     </svg>
-                                    <span>ตรวจรับ</span>
+                                    ตรวจรับสินค้า
                                 </button>
-                                <button onClick={handleMobilePO} className="px-3 py-2 bg-orange-500 text-white font-semibold rounded-lg hover:bg-orange-600 text-sm flex items-center gap-2 shadow-sm transition-all active:scale-95">
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                                    <span>ออกใบสั่ง</span>
+
+                                {(currentUser?.role === 'admin' || currentUser?.role === 'branch-admin') && (
+                                    <>
+                                        <button onClick={handleExport} className="px-4 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 whitespace-nowrap text-sm shadow transition-all hover:shadow-md">
+                                            Export Excel
+                                        </button>
+                                        <button onClick={() => handleOpenLogModal(null)} className="px-4 py-2 bg-slate-600 text-white font-semibold rounded-lg hover:bg-slate-700 whitespace-nowrap text-sm shadow transition-all hover:shadow-md flex items-center gap-2">
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                            </svg>
+                                            ดูประวัติทั้งหมด
+                                        </button>
+
+                                        <button onClick={() => fileInputRef.current?.click()} className="px-4 py-2 bg-purple-600 text-white font-semibold rounded-lg hover:bg-purple-700 whitespace-nowrap text-sm shadow transition-all hover:shadow-md">
+                                            Import Excel
+                                        </button>
+                                    </>
+                                )}
+                                <button onClick={() => handleOpenItemModal(null)} className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 whitespace-nowrap text-sm shadow transition-all hover:shadow-md">
+                                    + เพิ่มรายการ
                                 </button>
+                                {(currentUser?.role === 'admin' || currentUser?.role === 'branch-admin') && (
+                                    <>
+                                        <div className="flex flex-col">
+                                            <IngredientPriceUpload 
+                                                existingPrices={latestIngredientPrices}
+                                                onUpload={(data, filename) => {
+                                                    setLatestIngredientPrices(data);
+                                                    setLatestImportFilename(filename);
+                                                }} 
+                                            />
+                                            {latestImportFilename && (
+                                                <div className="flex items-center gap-1 mt-1 px-2 py-0.5 bg-blue-50 border border-blue-100 rounded text-[10px] text-blue-600 font-bold whitespace-nowrap">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                                    </svg>
+                                                    SYNCED: {latestImportFilename}
+                                                </div>
+                                            )}
+                                        </div>
+                                        <button onClick={onOpenTagModal} className="px-4 py-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 whitespace-nowrap text-sm shadow transition-all hover:shadow-md flex items-center gap-2">
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>
+                                            🏷️ ลงทะเบียน Tag
+                                        </button>
+                                    </>
+                                )}
                             </div>
                         </div>
-                        {/* Hidden on mobile and tablet vertical (< 1024px), shown on desktop */}
-                        <div className="hidden lg:flex flex-wrap items-center justify-end gap-2 flex-1">
-                            <input
-                                type="file"
-                                ref={fileInputRef}
-                                onChange={handleImport}
-                                className="hidden"
-                                accept=".xlsx, .xls"
-                            />
-                            <button onClick={() => { setIsMobilePOMode(false); setIsPurchaseOrderModalOpen(true); }} className="px-4 py-2 bg-orange-500 text-white font-semibold rounded-lg hover:bg-orange-600 whitespace-nowrap text-sm flex items-center gap-2 shadow transition-all hover:shadow-md">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>
-                                ออกรายการสั่งของ
-                            </button>
-
-                            <button onClick={() => setIsBulkReceiveOpen(true)} className="px-4 py-2 bg-orange-600 text-white font-semibold rounded-lg hover:bg-orange-700 whitespace-nowrap text-sm shadow transition-all hover:shadow-md flex items-center gap-2">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-                                </svg>
-                                ตรวจรับสินค้า
-                            </button>
-
-                            {(currentUser?.role === 'admin' || currentUser?.role === 'branch-admin') && (
-                                <>
-                                    <button onClick={handleExport} className="px-4 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 whitespace-nowrap text-sm shadow transition-all hover:shadow-md">
-                                        Export Excel
-                                    </button>
-                                    <button onClick={() => handleOpenLogModal(null)} className="px-4 py-2 bg-slate-600 text-white font-semibold rounded-lg hover:bg-slate-700 whitespace-nowrap text-sm shadow transition-all hover:shadow-md flex items-center gap-2">
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                        </svg>
-                                        ดูประวัติทั้งหมด
-                                    </button>
-
-                                    <button onClick={() => fileInputRef.current?.click()} className="px-4 py-2 bg-purple-600 text-white font-semibold rounded-lg hover:bg-purple-700 whitespace-nowrap text-sm shadow transition-all hover:shadow-md">
-                                        Import Excel
-                                    </button>
-                                </>
-                            )}
-                            <button onClick={() => handleOpenItemModal(null)} className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 whitespace-nowrap text-sm shadow transition-all hover:shadow-md">
-                                + เพิ่มรายการ
-                            </button>
-                            {(currentUser?.role === 'admin' || currentUser?.role === 'branch-admin') && (
-                                <>
-                                    <div className="flex flex-col">
-                                        <IngredientPriceUpload 
-                                            existingPrices={latestIngredientPrices}
-                                            onUpload={(data, filename) => {
-                                                setLatestIngredientPrices(data);
-                                                setLatestImportFilename(filename);
-                                            }} 
-                                        />
-                                        {latestImportFilename && (
-                                            <div className="flex items-center gap-1 mt-1 px-2 py-0.5 bg-blue-50 border border-blue-100 rounded text-[10px] text-blue-600 font-bold whitespace-nowrap">
-                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                                                </svg>
-                                                SYNCED: {latestImportFilename}
-                                            </div>
-                                        )}
-                                    </div>
-                                    <button onClick={onOpenTagModal} className="px-4 py-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 whitespace-nowrap text-sm shadow transition-all hover:shadow-md flex items-center gap-2">
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>
-                                        🏷️ ลงทะเบียน Tag
-                                    </button>
-                                </>
-                            )}
-                        </div>
                     </div>
-                     <div className="mt-4 flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+                    <div className={`transition-all duration-300 ${isScrolledDown ? 'mt-0' : 'mt-4'} flex flex-col sm:flex-row justify-between sm:items-center gap-4`}>
                         {/* Container for Search (Mobile: Full Width, Desktop: Side-by-side) */}
                         <div className="flex w-full sm:w-auto gap-3">
                             <div className="relative flex-grow sm:w-80">
@@ -1841,79 +1854,83 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                         </div>
 
                         {/* Mobile Filters & Sorting - Side by Side (Mobile Only) */}
-                        <div className="sm:hidden flex w-full gap-2">
-                            {/* Mobile Category Dropdown */}
-                            <div className="flex-1 relative">
-                                <select
-                                    value={selectedCategory}
-                                    onChange={(e) => setSelectedCategory(e.target.value)}
-                                    className="w-full pl-3 pr-8 py-2 border border-gray-300 rounded-lg bg-white text-gray-700 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm appearance-none shadow-sm"
-                                >
-                                    <option value="ทั้งหมด">หมวดหมู่: ทั้งหมด</option>
-                                    <option value="รายการสั่งของ">รายการสั่งของ</option>
-                                    {stockCategories.filter(c => c !== 'ทั้งหมด').map(category => (
-                                        <option key={category} value={category}>{category}</option>
-                                    ))}
-                                </select>
-                                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-500">
-                                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                        <div className={`sm:hidden transition-all duration-300 overflow-hidden ${isScrolledDown ? 'max-h-0 opacity-0 pointer-events-none mt-0' : 'max-h-24 opacity-100 mt-4'}`}>
+                            <div className="flex w-full gap-2">
+                                {/* Mobile Category Dropdown */}
+                                <div className="flex-1 relative">
+                                    <select
+                                        value={selectedCategory}
+                                        onChange={(e) => setSelectedCategory(e.target.value)}
+                                        className="w-full pl-3 pr-8 py-2 border border-gray-300 rounded-lg bg-white text-gray-700 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm appearance-none shadow-sm"
+                                    >
+                                        <option value="ทั้งหมด">หมวดหมู่: ทั้งหมด</option>
+                                        <option value="รายการสั่งของ">รายการสั่งของ</option>
+                                        {stockCategories.filter(c => c !== 'ทั้งหมด').map(category => (
+                                            <option key={category} value={category}>{category}</option>
+                                        ))}
+                                    </select>
+                                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-500">
+                                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                                    </div>
                                 </div>
-                            </div>
 
-                            {/* Mobile Sort Dropdown */}
-                            <div className="flex-1 relative">
-                                <select
-                                    value={sortConfig.key}
-                                    onChange={(e) => handleSort(e.target.value)}
-                                    className="w-full pl-3 pr-8 py-2 border border-gray-300 rounded-lg bg-white text-gray-700 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm appearance-none shadow-sm"
-                                >
-                                    <option value="default">เรียงตามปกติ</option>
-                                    <option value="lastUpdated">เรียงตามแก้ไขล่าสุด</option>
-                                    <option value="orderDate">เรียงตามวันที่สั่ง</option>
-                                    <option value="receivedDate">เรียงตามวันที่รับ</option>
-                                </select>
-                                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-500">
-                                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                                {/* Mobile Sort Dropdown */}
+                                <div className="flex-1 relative">
+                                    <select
+                                        value={sortConfig.key}
+                                        onChange={(e) => handleSort(e.target.value)}
+                                        className="w-full pl-3 pr-8 py-2 border border-gray-300 rounded-lg bg-white text-gray-700 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm appearance-none shadow-sm"
+                                    >
+                                        <option value="default">เรียงตามปกติ</option>
+                                        <option value="lastUpdated">เรียงตามแก้ไขล่าสุด</option>
+                                        <option value="orderDate">เรียงตามวันที่สั่ง</option>
+                                        <option value="receivedDate">เรียงตามวันที่รับ</option>
+                                    </select>
+                                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-500">
+                                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                                    </div>
                                 </div>
-                            </div>
 
-                            {/* Reset Button (Small icon on mobile to save space) */}
-                            {sortConfig.key !== 'default' && (
-                                <button 
-                                    onClick={() => handleSort('default')}
-                                    className="flex-shrink-0 p-2 bg-red-50 text-red-600 border border-red-100 rounded-lg flex items-center justify-center shadow-sm active:scale-95 transition-all"
-                                    title="รีเซ็ตการเรียง"
-                                >
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                    </svg>
-                                </button>
-                            )}
+                                {/* Reset Button (Small icon on mobile to save space) */}
+                                {sortConfig.key !== 'default' && (
+                                    <button 
+                                        onClick={() => handleSort('default')}
+                                        className="flex-shrink-0 p-2 bg-red-50 text-red-600 border border-red-100 rounded-lg flex items-center justify-center shadow-sm active:scale-95 transition-all"
+                                        title="รีเซ็ตการเรียง"
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                        </svg>
+                                    </button>
+                                )}
+                            </div>
                         </div>
 
                         {/* Desktop Category Buttons - Hidden on mobile */}
-                        <div className="hidden sm:flex items-center gap-2 flex-wrap">
-                            <button
-                                onClick={() => setSelectedCategory('ทั้งหมด')}
-                                className={`px-4 py-1.5 rounded-full text-sm font-semibold transition-all ${selectedCategory === 'ทั้งหมด' ? 'bg-blue-600 text-white shadow-md' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300'}`}
-                            >
-                                ทั้งหมด
-                            </button>
-                            <button
-                                onClick={() => setSelectedCategory('รายการสั่งของ')}
-                                className={`px-4 py-1.5 rounded-full text-sm font-semibold transition-all ${selectedCategory === 'รายการสั่งของ' ? 'bg-purple-600 text-white shadow-md' : 'bg-white border border-purple-200 text-purple-600 hover:bg-purple-50 hover:border-purple-300'}`}
-                            >
-                                รายการสั่งของ
-                            </button>
-                            {stockCategories.filter(c => c !== 'ทั้งหมด').map(category => (
+                        <div className={`hidden sm:block transition-all duration-300 overflow-hidden ${isScrolledDown ? 'max-h-0 opacity-0 pointer-events-none' : 'max-h-48 opacity-100'}`}>
+                            <div className="flex items-center gap-2 flex-wrap">
                                 <button
-                                    key={category}
-                                    onClick={() => setSelectedCategory(category)}
-                                    className={`px-4 py-1.5 rounded-full text-sm font-semibold transition-all ${selectedCategory === category ? 'bg-blue-600 text-white shadow-md' : 'bg-blue-50 border border-blue-100 text-blue-600 hover:bg-blue-100 hover:border-blue-200'}`}
+                                    onClick={() => setSelectedCategory('ทั้งหมด')}
+                                    className={`px-4 py-1.5 rounded-full text-sm font-semibold transition-all ${selectedCategory === 'ทั้งหมด' ? 'bg-blue-600 text-white shadow-md' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300'}`}
                                 >
-                                    {category}
+                                    ทั้งหมด
                                 </button>
-                            ))}
+                                <button
+                                    onClick={() => setSelectedCategory('รายการสั่งของ')}
+                                    className={`px-4 py-1.5 rounded-full text-sm font-semibold transition-all ${selectedCategory === 'รายการสั่งของ' ? 'bg-purple-600 text-white shadow-md' : 'bg-white border border-purple-200 text-purple-600 hover:bg-purple-50 hover:border-purple-300'}`}
+                                >
+                                    รายการสั่งของ
+                                </button>
+                                {stockCategories.filter(c => c !== 'ทั้งหมด').map(category => (
+                                    <button
+                                        key={category}
+                                        onClick={() => setSelectedCategory(category)}
+                                        className={`px-4 py-1.5 rounded-full text-sm font-semibold transition-all ${selectedCategory === category ? 'bg-blue-600 text-white shadow-md' : 'bg-blue-50 border border-blue-100 text-blue-600 hover:bg-blue-100 hover:border-blue-200'}`}
+                                    >
+                                        {category}
+                                    </button>
+                                ))}
+                            </div>
                         </div>
                     </div>
                 </header>
@@ -1921,21 +1938,23 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                 {/* Content Area */}
                 <div className="flex-1 flex flex-col min-h-0 p-4 md:p-6">
                     {/* Main Tabs */}
-                    <div className="flex border-b border-gray-100 mb-6 bg-white rounded-xl shadow-sm overflow-hidden p-1 gap-1">
-                        <button 
-                            onClick={() => setActiveTab('inventory')}
-                            className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-lg font-bold text-sm transition-all ${activeTab === 'inventory' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'}`}
-                        >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
-                            รายการคลังสินค้า
-                        </button>
-                        <button 
-                            onClick={() => setActiveTab('comparison')}
-                            className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-lg font-bold text-sm transition-all ${activeTab === 'comparison' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'}`}
-                        >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
-                            เปรียบเทียบราคา (Manual)
-                        </button>
+                    <div className={`transition-all duration-300 overflow-hidden ${isScrolledDown ? 'max-h-0 opacity-0 pointer-events-none mb-0' : 'max-h-24 opacity-100 mb-6'}`}>
+                        <div className="flex border-b border-gray-100 bg-white rounded-xl shadow-sm overflow-hidden p-1 gap-1">
+                            <button 
+                                onClick={() => setActiveTab('inventory')}
+                                className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-lg font-bold text-sm transition-all ${activeTab === 'inventory' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'}`}
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
+                                รายการคลังสินค้า
+                            </button>
+                            <button 
+                                onClick={() => setActiveTab('comparison')}
+                                className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-lg font-bold text-sm transition-all ${activeTab === 'comparison' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'}`}
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+                                เปรียบเทียบราคา (Manual)
+                            </button>
+                        </div>
                     </div>
 
                     {activeTab === 'inventory' ? (
@@ -2132,7 +2151,7 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                             </div>
 
                             {/* Mobile/Tablet Card Layout */}
-                            <div className="md:hidden space-y-3 pb-24 overflow-y-auto flex-1">
+                            <div className="md:hidden space-y-3 pb-24 overflow-y-auto flex-1" onScroll={handleScroll}>
                         {filteredItems.length > 0 ? filteredItems.map((item, index) => {
                             if (!item) return null;
                             const status = getStatus(item);

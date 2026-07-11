@@ -2819,7 +2819,40 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                                                             </span>
                                                                             <span className="text-xs text-gray-400 font-mono">({goal.finalScore}%)</span>
                                                                         </div>
-                                                                    ) : (
+                                                                    ) : goal.status === 'pending_evaluation' && goal.peerEvaluations && goal.peerEvaluations.length > 0 ? (() => {
+                                                                        const evals = goal.peerEvaluations;
+                                                                        const peersCount = evals.length;
+                                                                        const itemsCount = goal.items.length;
+                                                                        const maxPoints = peersCount * itemsCount * 10;
+                                                                        let earnedPoints = 0;
+                                                                        evals.forEach(pe => {
+                                                                            Object.values(pe.scores).forEach(score => {
+                                                                                earnedPoints += score;
+                                                                            });
+                                                                        });
+                                                                        const finalScorePercentage = maxPoints > 0 ? parseFloat(((earnedPoints / maxPoints) * 100).toFixed(2)) : 0;
+                                                                        let autoGrade: 'A' | 'B' | 'C' | 'D' = 'D';
+                                                                        if (finalScorePercentage >= 80) autoGrade = 'A';
+                                                                        else if (finalScorePercentage >= 70) autoGrade = 'B';
+                                                                        else if (finalScorePercentage >= 60) autoGrade = 'C';
+
+                                                                        return (
+                                                                            <div className="flex flex-col gap-0.5">
+                                                                                <div className="flex items-center gap-1.5">
+                                                                                    <span className={`h-6 w-6 text-xs flex items-center justify-center font-bold rounded-full ${
+                                                                                        autoGrade === 'A' ? 'bg-emerald-600/30 text-emerald-400 border border-emerald-500/30' :
+                                                                                        autoGrade === 'B' ? 'bg-blue-600/30 text-blue-400 border border-blue-500/30' :
+                                                                                        autoGrade === 'C' ? 'bg-yellow-600/30 text-yellow-400 border border-yellow-500/30' :
+                                                                                        'bg-red-600/30 text-red-400 border border-red-500/30'
+                                                                                    }`} title="เกรดแนะแนวคำนวณจากเพื่อนประเมิน">
+                                                                                        {autoGrade}
+                                                                                    </span>
+                                                                                    <span className="text-xs text-blue-400 font-mono">({finalScorePercentage}%)</span>
+                                                                                </div>
+                                                                                <span className="text-[10px] text-gray-400 font-medium">เกรดแนะแนว</span>
+                                                                            </div>
+                                                                        );
+                                                                    })() : (
                                                                         <span className="text-gray-500 text-xs">- รออนุมัติเกรด -</span>
                                                                     )}
                                                                 </td>
@@ -2860,7 +2893,7 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                                                         {goal.status === 'active' && (
                                                                             <button 
                                                                                 onClick={() => handleSimulateExpired(goal.id)} 
-                                                                                className="bg-amber-600 hover:bg-amber-700 text-xs text-white px-2.5 py-1.5 rounded flex items-center gap-1"
+                                                                                className="bg-amber-650 hover:bg-amber-700 text-xs text-white px-2.5 py-1.5 rounded flex items-center gap-1"
                                                                                 title="เร่งเวลาจำลองครบ 6 เดือนทันที เพื่อทดสอบประเมิน"
                                                                             >
                                                                                 ⚡ ครบ 6 เดือน
@@ -2892,7 +2925,7 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                                                                 }} 
                                                                                 className="bg-emerald-600 hover:bg-emerald-700 text-xs text-white px-2.5 py-1.5 rounded font-semibold"
                                                                             >
-                                                                                📊 อนุมัติเกรด
+                                                                                📊 สรุปเกรด
                                                                             </button>
                                                                         )}
                                                                     </div>
@@ -3432,6 +3465,20 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                                             <div className="text-xs text-gray-400">เกรดที่คำนวณได้</div>
                                                             <div className="text-xl font-extrabold text-emerald-400 mt-1">{autoGrade}</div>
                                                         </div>
+                                                    </div>
+
+                                                    <div className="flex justify-between items-center bg-emerald-950/20 border border-emerald-900/40 px-4 py-3 rounded-xl gap-4">
+                                                        <div className="flex items-center gap-2 text-xs text-emerald-400">
+                                                            <span>💡</span>
+                                                            <span>ระบบแนะนำให้ประเมินเกรด <strong>{autoGrade}</strong> ({finalScorePercentage}%) จากผลคะแนนเฉลี่ย</span>
+                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setAdminSelectedGrade(autoGrade)}
+                                                            className="bg-emerald-600 hover:bg-emerald-700 text-xs text-white font-bold px-3 py-1.5 rounded-lg transition-colors cursor-pointer shrink-0"
+                                                        >
+                                                            🎯 สรุปเกรดตามที่แสดงผล
+                                                        </button>
                                                     </div>
 
                                                     {/* Peer details breakdown */}
