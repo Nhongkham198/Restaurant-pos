@@ -86,6 +86,36 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
 
     const [employeeGoals, setEmployeeGoals] = useFirestoreSync<EmployeeGoal[]>(null, 'employeeGoals', []);
 
+    const deduplicatedEmployeeGoals = useMemo(() => {
+        const uniqueGoalsByUser: Record<string, EmployeeGoal> = {};
+        employeeGoals.forEach(g => {
+            const existing = uniqueGoalsByUser[g.userId];
+            if (!existing) {
+                uniqueGoalsByUser[g.userId] = g;
+            } else {
+                const statusPriority = (status: string) => {
+                    if (status === 'completed') return 5;
+                    if (status === 'pending_evaluation') return 4;
+                    if (status === 'active') return 3;
+                    if (status === 'pending_admin') return 2;
+                    return 1; // draft
+                };
+                
+                const pG = statusPriority(g.status);
+                const pE = statusPriority(existing.status);
+                
+                if (pG > pE) {
+                    uniqueGoalsByUser[g.userId] = g;
+                } else if (pG === pE) {
+                    if ((g.createdAt || 0) > (existing.createdAt || 0)) {
+                        uniqueGoalsByUser[g.userId] = g;
+                    }
+                }
+            }
+        });
+        return Object.values(uniqueGoalsByUser);
+    }, [employeeGoals]);
+
     const visibleBranches = useMemo(() => {
         if (!currentUser) return [];
         if (currentUser.role === 'admin') return branches;
@@ -120,6 +150,12 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
     const [adminSelectedGrade, setAdminSelectedGrade] = useState<'A' | 'B' | 'C' | 'D'>('C');
     const [viewingGoalDetails, setViewingGoalDetails] = useState<EmployeeGoal | null>(null);
     const [showEvalAlert, setShowEvalAlert] = useState(true);
+    
+    // States for admin editing employee goals under editMode
+    const [adminEditingGoal, setAdminEditingGoal] = useState<EmployeeGoal | null>(null);
+    const [adminEditItems, setAdminEditItems] = useState<GoalItem[]>([]);
+    const [adminEditBranches, setAdminEditBranches] = useState<number[]>([]);
+    const [adminEditStatus, setAdminEditStatus] = useState<EmployeeGoal['status']>('draft');
     
     // Payroll Sorting State
     const [payrollSortConfig, setPayrollSortConfig] = useState<{ key: keyof PayrollRecord; direction: 'asc' | 'desc' } | null>({ key: 'month', direction: 'desc' });
@@ -1669,23 +1705,22 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
             return;
         }
 
-        const existingDraft = employeeGoals.find(g => 
-            (g.userId === currentUser?.id?.toString() || g.userId === currentUser?.username) && 
-            g.status === 'draft'
+        const existingGoal = employeeGoals.find(g => 
+            (g.userId === currentUser?.id?.toString() || g.userId === currentUser?.username)
         );
 
         const draftGoal: EmployeeGoal = {
-            id: existingDraft?.id || Date.now().toString(),
+            id: existingGoal?.id || Date.now().toString(),
             userId: currentUser?.id?.toString() || 'unknown',
             employeeName: currentUser?.username || 'พนักงานนิรนาม',
             branchIds: selectedBranches.map(bId => bId.toString()),
             items: items,
             status: 'draft',
-            createdAt: existingDraft?.createdAt || Date.now()
+            createdAt: existingGoal?.createdAt || Date.now()
         };
 
-        const updatedGoals = existingDraft
-            ? employeeGoals.map(g => g.id === existingDraft.id ? draftGoal : g)
+        const updatedGoals = existingGoal
+            ? employeeGoals.map(g => g.id === existingGoal.id ? draftGoal : g)
             : [...employeeGoals, draftGoal];
 
         setEmployeeGoals(updatedGoals);
@@ -1702,13 +1737,12 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
             return;
         }
 
-        const existingDraft = employeeGoals.find(g => 
-            (g.userId === currentUser?.id?.toString() || g.userId === currentUser?.username) && 
-            g.status === 'draft'
+        const existingGoal = employeeGoals.find(g => 
+            (g.userId === currentUser?.id?.toString() || g.userId === currentUser?.username)
         );
 
         const finalGoal: EmployeeGoal = {
-            id: existingDraft?.id || Date.now().toString(),
+            id: existingGoal?.id || Date.now().toString(),
             userId: currentUser?.id?.toString() || 'unknown',
             employeeName: currentUser?.username || 'พนักงานนิรนาม',
             branchIds: selectedBranches.map(bId => bId.toString()),
@@ -1717,8 +1751,8 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
             createdAt: Date.now()
         };
 
-        const updatedGoals = existingDraft
-            ? employeeGoals.map(g => g.id === existingDraft.id ? finalGoal : g)
+        const updatedGoals = existingGoal
+            ? employeeGoals.map(g => g.id === existingGoal.id ? finalGoal : g)
             : [...employeeGoals, finalGoal];
 
         setEmployeeGoals(updatedGoals);
@@ -1863,6 +1897,42 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
         setAdminGradingGoal(null);
         setAdminFeedback('');
         Swal.fire('อนุมัติและตัดเกรดแล้ว', `สรุปผลคะแนนและบันทึกเกรดเรียบร้อย ได้เกรด ${finalGrade} (${finalScorePercentage}%)`, 'success');
+    };
+
+    const handleAdminSaveEditedGoal = () => {
+        if (!adminEditingGoal) return;
+        if (adminEditItems.length === 0) {
+            Swal.fire('ข้อผิดพลาด', 'กรุณาเพิ่มเป้าหมายอย่างน้อย 1 ข้อ', 'error');
+            return;
+        }
+        if (adminEditBranches.length === 0) {
+            Swal.fire('ข้อผิดพลาด', 'กรุณาเลือกสาขาที่ต้องการส่งเป้าหมายอย่างน้อย 1 สาขา', 'error');
+            return;
+        }
+
+        let startDate = adminEditingGoal.startDate;
+        let endDate = adminEditingGoal.endDate;
+        if (adminEditStatus === 'active' && (!startDate || !endDate)) {
+            const today = new Date();
+            startDate = today.toISOString().split('T')[0];
+            
+            const sixMonthsLater = new Date();
+            sixMonthsLater.setMonth(sixMonthsLater.getMonth() + 6);
+            endDate = sixMonthsLater.toISOString().split('T')[0];
+        }
+
+        const updatedGoal: EmployeeGoal = {
+            ...adminEditingGoal,
+            items: adminEditItems,
+            branchIds: adminEditBranches.map(String),
+            status: adminEditStatus,
+            startDate,
+            endDate,
+        };
+
+        setEmployeeGoals(prev => prev.map(g => g.id === adminEditingGoal.id ? updatedGoal : g));
+        setAdminEditingGoal(null);
+        Swal.fire('สำเร็จ', 'บันทึกการแก้ไขเป้าหมายของพนักงานโดยผู้ดูแลเรียบร้อยแล้ว', 'success');
     };
 
     const payrollDueCount = useMemo(() => {
@@ -2679,7 +2749,7 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                     <div className="space-y-6 text-white">
                         {/* 1. PEER EVALUATION ALERT BANNER (PERSISTENT POPUP UNTIL DISMISSED) */}
                         {(() => {
-                            const pendingPeerGoals = employeeGoals.filter(g => 
+                            const pendingPeerGoals = deduplicatedEmployeeGoals.filter(g => 
                                 g.userId !== (currentUser?.id?.toString() || currentUser?.username) &&
                                 g.status === 'pending_evaluation' &&
                                 g.branchIds.some(bid => bid === branchId || currentUser?.allowedBranchIds?.includes(Number(bid))) &&
@@ -2733,7 +2803,7 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                         <h2 className="text-xl font-bold flex items-center gap-2 text-white">
                                             <span className="text-yellow-500">👑</span> แผงควบคุมเป้าหมายพนักงาน (Admin/Manager Dashboard)
                                         </h2>
-                                        <p className="text-xs text-gray-400">จัดการ ตั้งค่าเป้าหมาย และอนุมัติเกรดประเมินผลการทำงานของพนักงาน</p>
+                                        <p className="text-xs text-gray-400">จัดการ ตั้งค่าเป้าหมาย และอนุมัติเกรดประเมินผลการทำงาน of พนักงาน</p>
                                     </div>
                                     
                                     <div className="flex items-center gap-2">
@@ -2764,14 +2834,14 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-gray-800 text-sm">
-                                            {employeeGoals.filter(g => g.branchIds.includes(branchId || '')).length === 0 ? (
+                                            {deduplicatedEmployeeGoals.filter(g => g.branchIds.includes(branchId || '')).length === 0 ? (
                                                 <tr>
                                                     <td colSpan={7} className="p-8 text-center text-gray-500">
                                                         📭 ยังไม่มีข้อมูลเป้าหมายพนักงานที่ส่งมาในสาขานี้
                                                     </td>
                                                 </tr>
                                             ) : (
-                                                employeeGoals
+                                                deduplicatedEmployeeGoals
                                                     .filter(g => g.branchIds.includes(branchId || ''))
                                                     .map(goal => {
                                                         const completedCount = goal.items.filter(it => it.status === 'completed').length;
@@ -2881,6 +2951,21 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                                                             👁️ รายละเอียด
                                                                         </button>
 
+                                                                        {isEditMode && currentUser?.role === 'admin' && (
+                                                                            <button 
+                                                                                onClick={() => {
+                                                                                    setAdminEditingGoal(goal);
+                                                                                    setAdminEditItems(goal.items.map(it => ({ ...it })));
+                                                                                    setAdminEditBranches(goal.branchIds.map(Number));
+                                                                                    setAdminEditStatus(goal.status);
+                                                                                }} 
+                                                                                className="bg-yellow-650 hover:bg-yellow-700 text-xs text-white px-2.5 py-1.5 rounded font-semibold flex items-center gap-1"
+                                                                                title="แก้ไขเป้าหมายของพนักงานคนนี้"
+                                                                            >
+                                                                                ✍️ แก้ไขเป้าหมาย
+                                                                            </button>
+                                                                        )}
+
                                                                         {goal.status === 'pending_admin' && (
                                                                             <button 
                                                                                 onClick={() => handleSetGoalActive(goal.id)} 
@@ -2943,7 +3028,7 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                         {/* 3. INDIVIDUAL EMPLOYEE INTERACTIVE SCREEN */}
                         <div className="bg-gray-900/40 p-6 rounded-xl border border-gray-700 space-y-6">
                             {(() => {
-                                const myGoal = employeeGoals.find(g => 
+                                const myGoal = deduplicatedEmployeeGoals.find(g => 
                                     g.userId === (currentUser?.id?.toString() || currentUser?.username)
                                 );
 
@@ -3271,7 +3356,7 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    {employeeGoals
+                                    {deduplicatedEmployeeGoals
                                         .filter(g => 
                                             g.userId !== (currentUser?.id?.toString() || currentUser?.username) &&
                                             (g.status === 'pending_evaluation' || g.status === 'active') &&
@@ -3313,7 +3398,7 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                             );
                                         })}
 
-                                    {employeeGoals.filter(g => 
+                                    {deduplicatedEmployeeGoals.filter(g => 
                                         g.userId !== (currentUser?.id?.toString() || currentUser?.username) &&
                                         (g.status === 'pending_evaluation' || g.status === 'active') &&
                                         g.branchIds.some(bid => bid === branchId || currentUser?.allowedBranchIds?.includes(Number(bid)))
@@ -3711,6 +3796,243 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                             className="bg-gray-700 hover:bg-gray-600 text-white px-5 py-2 rounded-lg text-sm"
                                         >
                                             ปิดหน้าต่าง
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* --- MODAL: ADMIN EDIT EMPLOYEE GOAL --- */}
+                        {adminEditingGoal && (
+                            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+                                <div className="bg-gray-800 border border-gray-700 rounded-2xl p-6 max-w-2xl w-full shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto text-white">
+                                    <div className="flex justify-between items-start border-b border-gray-700 pb-3">
+                                        <div>
+                                            <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                                                <span>✍️</span> แก้ไขและจัดการเป้าหมายพนักงาน (โหมดผู้ดูแลระบบ)
+                                            </h3>
+                                            <p className="text-xs text-gray-400">กำลังแก้ไขเป้าหมายของ <strong>{adminEditingGoal.employeeName}</strong></p>
+                                        </div>
+                                        <button 
+                                            onClick={() => setAdminEditingGoal(null)} 
+                                            className="text-gray-400 hover:text-white text-lg"
+                                        >
+                                            ✕
+                                        </button>
+                                    </div>
+
+                                    <div className="space-y-4">
+                                        {/* 1. Goal Items List */}
+                                        <div className="space-y-2">
+                                            <label className="text-sm font-bold text-gray-300 block">
+                                                🎯 รายการเป้าหมายพนักงาน (Goal Items):
+                                            </label>
+                                            <div className="space-y-3">
+                                                {adminEditItems.map((item, idx) => (
+                                                    <div key={item.id} className="flex flex-col sm:flex-row gap-3 sm:items-center bg-gray-900/40 p-3 rounded-lg border border-gray-700">
+                                                        <div className="flex-grow flex items-center gap-2 w-full">
+                                                            <span className="font-mono text-xs text-gray-500 w-14 shrink-0 whitespace-nowrap">ข้อที่ {idx + 1}:</span>
+                                                            <input 
+                                                                type="text" 
+                                                                value={item.text} 
+                                                                onChange={(e) => {
+                                                                    const updated = [...adminEditItems];
+                                                                    updated[idx] = { ...updated[idx], text: e.target.value };
+                                                                    setAdminEditItems(updated);
+                                                                }}
+                                                                placeholder="ป้อนรายละเอียดเป้าหมาย..."
+                                                                className="flex-grow bg-gray-800 text-white border border-gray-700 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500 min-w-0"
+                                                            />
+                                                        </div>
+                                                        
+                                                        <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto shrink-0 border-t border-gray-850 sm:border-0 pt-2 sm:pt-0">
+                                                            {/* Accomplished Toggles */}
+                                                            <div className="flex gap-1">
+                                                                <button 
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        const updated = [...adminEditItems];
+                                                                        updated[idx] = { ...updated[idx], status: 'completed' };
+                                                                        setAdminEditItems(updated);
+                                                                    }}
+                                                                    className={`px-2.5 py-1 rounded text-[11px] font-semibold transition-colors ${
+                                                                        item.status === 'completed'
+                                                                            ? 'bg-emerald-600 text-white font-bold'
+                                                                            : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                                                                    }`}
+                                                                >
+                                                                    สำเร็จ
+                                                                </button>
+                                                                <button 
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        const updated = [...adminEditItems];
+                                                                        updated[idx] = { ...updated[idx], status: 'not_completed' };
+                                                                        setAdminEditItems(updated);
+                                                                    }}
+                                                                    className={`px-2.5 py-1 rounded text-[11px] font-semibold transition-colors ${
+                                                                        item.status === 'not_completed'
+                                                                            ? 'bg-red-650 text-white font-bold'
+                                                                            : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                                                                    }`}
+                                                                >
+                                                                    ยังไม่สำเร็จ
+                                                                </button>
+                                                            </div>
+
+                                                            {/* Trash button */}
+                                                            <button 
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setAdminEditItems(adminEditItems.filter((_, i) => i !== idx));
+                                                                }}
+                                                                className="text-red-400 hover:text-red-300 p-1.5 sm:p-1 rounded hover:bg-gray-800/60"
+                                                                title="ลบเป้าหมายข้อนี้"
+                                                            >
+                                                                🗑️
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ))}
+
+                                                <button 
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setAdminEditItems([...adminEditItems, { id: Date.now().toString() + Math.random().toString(), text: '', status: 'not_completed' }]);
+                                                    }}
+                                                    className="w-full py-2 bg-gray-900 hover:bg-gray-850 text-blue-400 text-xs rounded-lg border border-dashed border-gray-700 font-semibold flex items-center justify-center gap-2"
+                                                >
+                                                    ➕ เพิ่มเป้าหมายพนักงานข้อใหม่
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {/* 2. Branch selector checkboxes (Multi-branch support) */}
+                                        <div className="bg-gray-900/20 p-4 rounded-xl border border-gray-700 space-y-2">
+                                            <label className="text-sm font-bold text-gray-300 block">
+                                                🏢 สาขาที่ใช้งาน (Multi-branch Support):
+                                            </label>
+                                            <div className="grid grid-cols-2 gap-2 pt-1">
+                                                {visibleBranches.map(b => (
+                                                    <label key={b.id} className="flex items-center gap-2 text-xs bg-gray-900/60 p-2.5 rounded-lg border border-gray-700 cursor-pointer hover:bg-gray-750 transition-colors">
+                                                        <input 
+                                                            type="checkbox" 
+                                                            checked={adminEditBranches.includes(b.id)}
+                                                            onChange={(e) => {
+                                                                if (e.target.checked) {
+                                                                    setAdminEditBranches([...adminEditBranches, b.id]);
+                                                                } else {
+                                                                    setAdminEditBranches(adminEditBranches.filter(id => id !== b.id));
+                                                                }
+                                                            }}
+                                                            className="rounded text-blue-600 focus:ring-blue-500 bg-gray-900 border-gray-700"
+                                                        />
+                                                        <span className="text-gray-300 font-medium">{b.name}</span>
+                                                    </label>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        {/* 3. Goal Status & Evaluation Config */}
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div className="space-y-1.5">
+                                                <label className="text-sm font-bold text-gray-300 block">
+                                                    ⏳ สถานะของเป้าหมาย:
+                                                </label>
+                                                <select
+                                                    value={adminEditStatus}
+                                                    onChange={(e) => {
+                                                        const newStatus = e.target.value as EmployeeGoal['status'];
+                                                        setAdminEditStatus(newStatus);
+                                                    }}
+                                                    className="w-full bg-gray-900 text-white border border-gray-700 rounded-lg p-2.5 text-sm focus:outline-none focus:border-blue-500"
+                                                >
+                                                    <option value="draft">แบบร่าง (Draft)</option>
+                                                    <option value="pending_admin">รอ Set Goal / ตรวจสอบ (Pending Admin)</option>
+                                                    <option value="active">กำลังดำเนินงาน 6 เดือน (Active)</option>
+                                                    <option value="pending_evaluation">รอประเมินผล (Pending Evaluation)</option>
+                                                    <option value="completed">เสร็จสมบูรณ์ / ตัดเกรดแล้ว (Completed)</option>
+                                                </select>
+                                            </div>
+
+                                            {adminEditStatus === 'completed' && (
+                                                <div className="space-y-1.5">
+                                                    <label className="text-sm font-bold text-gray-300 block">
+                                                        🏅 เกรดเป้าหมายสูงสุด:
+                                                    </label>
+                                                    <select
+                                                        value={adminEditingGoal.finalGrade || 'C'}
+                                                        onChange={(e) => {
+                                                            setAdminEditingGoal({
+                                                                ...adminEditingGoal,
+                                                                finalGrade: e.target.value as 'A' | 'B' | 'C' | 'D'
+                                                            });
+                                                        }}
+                                                        className="w-full bg-gray-900 text-white border border-gray-700 rounded-lg p-2.5 text-sm focus:outline-none focus:border-blue-500"
+                                                    >
+                                                        <option value="A">A (ดีเยี่ยม)</option>
+                                                        <option value="B">B (ดี)</option>
+                                                        <option value="C">C (พอใช้)</option>
+                                                        <option value="D">D (ต้องปรับปรุง)</option>
+                                                    </select>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {adminEditStatus === 'completed' && (
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                                                <div className="space-y-1.5">
+                                                    <label className="text-sm font-bold text-gray-300 block">
+                                                        📊 คะแนนประเมินรวม (%):
+                                                    </label>
+                                                    <input 
+                                                        type="number"
+                                                        min={0}
+                                                        max={100}
+                                                        value={adminEditingGoal.finalScore ?? 80}
+                                                        onChange={(e) => {
+                                                            setAdminEditingGoal({
+                                                                ...adminEditingGoal,
+                                                                finalScore: Number(e.target.value)
+                                                            });
+                                                        }}
+                                                        className="w-full bg-gray-900 text-white border border-gray-700 rounded-lg p-2.5 text-sm focus:outline-none focus:border-blue-500"
+                                                    />
+                                                </div>
+
+                                                <div className="space-y-1.5">
+                                                    <label className="text-sm font-bold text-gray-300 block">
+                                                        📝 คำแนะนำผู้ดูแล/หัวหน้าสาขา:
+                                                    </label>
+                                                    <textarea 
+                                                        value={adminEditingGoal.adminNote || ''}
+                                                        onChange={(e) => {
+                                                            setAdminEditingGoal({
+                                                                ...adminEditingGoal,
+                                                                adminNote: e.target.value
+                                                            });
+                                                        }}
+                                                        placeholder="เพิ่มคำแนะนำเพื่อแนะแนวพนักงาน..."
+                                                        rows={2}
+                                                        className="w-full bg-gray-900 text-white border border-gray-700 rounded-lg p-2.5 text-xs focus:outline-none focus:border-blue-500"
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <div className="flex gap-2 justify-end pt-3 border-t border-gray-700">
+                                        <button 
+                                            onClick={() => setAdminEditingGoal(null)} 
+                                            className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg text-sm"
+                                        >
+                                            ยกเลิก
+                                        </button>
+                                        <button 
+                                            onClick={handleAdminSaveEditedGoal} 
+                                            className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg text-sm font-semibold"
+                                        >
+                                            🚀 บันทึกการแก้ไข
                                         </button>
                                     </div>
                                 </div>
