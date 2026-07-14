@@ -504,15 +504,12 @@ export const StockManagement: React.FC<StockManagementProps> = ({
     const [ignoreRemark, setIgnoreRemark] = useState('');
     const [isRemarkKeyboardOpen, setIsRemarkKeyboardOpen] = useState(false);
 
-    // Scroll state to auto-collapse header elements on mobile/desktop scrolling
+    // Scroll state to auto-collapse header elements on mobile/desktop scrolling (disabled to prevent layout shifts & bounces)
     const [isScrolledDown, setIsScrolledDown] = useState(false);
+    const [isFiltersCollapsed, setIsFiltersCollapsed] = useState(false);
     const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
-        const scrollTop = e.currentTarget.scrollTop;
-        if (scrollTop > 50) {
-            setIsScrolledDown(true);
-        } else {
-            setIsScrolledDown(false);
-        }
+        // Disabled auto-collapsing of header on mobile scroll to prevent layout jumps/bouncing
+        // especially on mobile devices where small content lengths cause viewport resizing.
     };
 
     // Numpad state for bulk receive
@@ -1851,10 +1848,33 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                     onClose={() => setIsKeyboardOpen(false)}
                                 />
                             )}
+
+                            {/* Mobile Filters and Tabs Collapse/Expand Toggle Button */}
+                            <button
+                                onClick={() => setIsFiltersCollapsed(!isFiltersCollapsed)}
+                                className="sm:hidden px-3.5 py-2 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg text-blue-600 font-bold text-xs flex items-center justify-center gap-1 shrink-0 shadow-sm transition-all active:scale-95"
+                                title={isFiltersCollapsed ? "แสดงตัวกรอง" : "ย่อตัวกรอง"}
+                            >
+                                {isFiltersCollapsed ? (
+                                    <>
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                        </svg>
+                                        <span>แสดงกรอง</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                                        </svg>
+                                        <span>ย่อกรอง</span>
+                                    </>
+                                )}
+                            </button>
                         </div>
 
                         {/* Mobile Filters & Sorting - Side by Side (Mobile Only) */}
-                        <div className={`sm:hidden transition-all duration-300 overflow-hidden ${isScrolledDown ? 'max-h-0 opacity-0 pointer-events-none mt-0' : 'max-h-24 opacity-100 mt-4'}`}>
+                        <div className={`sm:hidden transition-all duration-300 overflow-hidden ${isFiltersCollapsed ? 'max-h-0 opacity-0 pointer-events-none mt-0 mb-0' : 'max-h-24 opacity-100 mt-4'}`}>
                             <div className="flex w-full gap-2">
                                 {/* Mobile Category Dropdown */}
                                 <div className="flex-1 relative">
@@ -1938,7 +1958,7 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                 {/* Content Area */}
                 <div className="flex-1 flex flex-col min-h-0 p-4 md:p-6">
                     {/* Main Tabs */}
-                    <div className={`transition-all duration-300 overflow-hidden ${isScrolledDown ? 'max-h-0 opacity-0 pointer-events-none mb-0' : 'max-h-24 opacity-100 mb-6'}`}>
+                    <div className={`transition-all duration-300 overflow-hidden ${isFiltersCollapsed ? 'max-h-0 opacity-0 pointer-events-none mb-0' : 'max-h-24 opacity-100 mb-6'}`}>
                         <div className="flex border-b border-gray-100 bg-white rounded-xl shadow-sm overflow-hidden p-1 gap-1">
                             <button 
                                 onClick={() => setActiveTab('inventory')}
