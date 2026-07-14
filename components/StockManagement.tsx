@@ -1731,18 +1731,18 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                     <div className={`transition-all duration-300 overflow-hidden ${isScrolledDown ? 'max-h-0 opacity-0 pointer-events-none' : 'max-h-[500px] opacity-100 mb-4'}`}>
                         <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
                             <div className="flex justify-between items-center w-full md:w-auto flex-shrink-0">
-                                <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 whitespace-nowrap">จัดการสต็อกสินค้า</h1>
+                                <h1 className="text-base xs:text-lg sm:text-2xl md:text-3xl font-bold text-gray-800 whitespace-nowrap">จัดการสต็อกสินค้า</h1>
                                 {/* Mobile Action Buttons */}
-                                <div className="lg:hidden flex gap-2 ml-2">
-                                    <button onClick={() => setIsBulkReceiveOpen(true)} className="px-3 py-2 bg-orange-600 text-white font-semibold rounded-lg hover:bg-orange-700 text-sm flex items-center gap-2 shadow-sm transition-all active:scale-95">
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <div className="lg:hidden flex gap-1.5 xs:gap-2 ml-1 xs:ml-2">
+                                    <button onClick={() => setIsBulkReceiveOpen(true)} className="px-2 py-1.5 xs:px-3 xs:py-2 bg-orange-600 text-white font-semibold rounded-lg hover:bg-orange-700 text-xs xs:text-sm flex items-center gap-1 xs:gap-2 shadow-sm transition-all active:scale-95">
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 xs:h-5 xs:w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
                                         </svg>
-                                        <span>ตรวจรับ</span>
+                                        <span className="whitespace-nowrap">ตรวจรับ</span>
                                     </button>
-                                    <button onClick={handleMobilePO} className="px-3 py-2 bg-orange-500 text-white font-semibold rounded-lg hover:bg-orange-600 text-sm flex items-center gap-2 shadow-sm transition-all active:scale-95">
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                                        <span>ออกใบสั่ง</span>
+                                    <button onClick={handleMobilePO} className="px-2 py-1.5 xs:px-3 xs:py-2 bg-orange-500 text-white font-semibold rounded-lg hover:bg-orange-600 text-xs xs:text-sm flex items-center gap-1 xs:gap-2 shadow-sm transition-all active:scale-95">
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 xs:h-5 xs:w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                                        <span className="whitespace-nowrap">ออกใบสั่ง</span>
                                     </button>
                                 </div>
                             </div>
