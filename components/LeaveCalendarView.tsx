@@ -156,6 +156,11 @@ export const LeaveCalendarView: React.FC<LeaveCalendarViewProps> = ({ leaveReque
         return new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).getDay();
     }, [currentDate]);
 
+    const totalRows = useMemo(() => {
+        const totalCells = firstDayOfMonth + daysInMonth.length;
+        return Math.ceil(totalCells / 7);
+    }, [firstDayOfMonth, daysInMonth]);
+
     const handlePrevMonth = () => {
         setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
     };
@@ -294,47 +299,47 @@ export const LeaveCalendarView: React.FC<LeaveCalendarViewProps> = ({ leaveReque
     return (
         <>
             <div className="flex flex-col h-full w-full bg-gray-50 p-4 overflow-y-auto pb-24">
-                <div className="flex justify-between items-center mb-4 flex-shrink-0">
-                    <h2 className="text-2xl font-bold text-gray-800">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 flex-shrink-0">
+                    <h2 className="text-sm xs:text-base sm:text-2xl font-bold text-gray-800 whitespace-nowrap">
                         ปฏิทินวันลา - {monthNames[currentDate.getMonth()]} {currentDate.getFullYear() + 543}
                     </h2>
-                    <div className="flex gap-4">
-                        <div className="flex bg-white rounded-lg shadow-sm border border-gray-200">
-                            <button onClick={handlePrevMonth} className="px-4 py-2 hover:bg-gray-100 text-gray-600 border-r">
+                    <div className="flex flex-wrap items-center gap-1.5 xs:gap-2 sm:gap-4">
+                        <div className="flex bg-white rounded-lg shadow-sm border border-gray-200 text-xs sm:text-sm">
+                            <button onClick={handlePrevMonth} className="px-2.5 py-1.5 xs:px-3 xs:py-2 sm:px-4 sm:py-2 hover:bg-gray-100 text-gray-600 border-r">
                                 &lt;
                             </button>
-                            <button onClick={() => setCurrentDate(new Date())} className="px-4 py-2 hover:bg-gray-100 text-gray-600 border-r font-semibold">
+                            <button onClick={() => setCurrentDate(new Date())} className="px-2.5 py-1.5 xs:px-3 xs:py-2 sm:px-4 sm:py-2 hover:bg-gray-100 text-gray-600 border-r font-semibold">
                                 วันนี้
                             </button>
-                            <button onClick={handleNextMonth} className="px-4 py-2 hover:bg-gray-100 text-gray-600">
+                            <button onClick={handleNextMonth} className="px-2.5 py-1.5 xs:px-3 xs:py-2 sm:px-4 sm:py-2 hover:bg-gray-100 text-gray-600">
                                 &gt;
                             </button>
                         </div>
                         {(currentUser?.role === 'admin' || currentUser?.role === 'branch-admin') && (
                             <button 
                                 onClick={handleExportLeaves}
-                                className="px-4 py-2 bg-green-600 text-white font-semibold rounded-lg shadow hover:bg-green-700 transition-colors flex items-center gap-2"
+                                className="px-2.5 py-1.5 xs:px-3 xs:py-2 bg-green-600 text-white font-semibold rounded-lg shadow hover:bg-green-700 transition-colors flex items-center gap-1 xs:gap-1.5 text-xs sm:text-sm"
                             >
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 xs:h-4 xs:w-4 sm:h-5 sm:w-5" viewBox="0 0 20 20" fill="currentColor">
                                     <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
                                 </svg>
-                                ส่งออก Excel
+                                <span className="whitespace-nowrap">ส่งออก Excel</span>
                             </button>
                         )}
                         <button 
                             onClick={() => onOpenRequestModal()}
-                            className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow hover:bg-blue-700 transition-colors flex items-center gap-2"
+                            className="px-2.5 py-1.5 xs:px-3 xs:py-2 bg-blue-600 text-white font-semibold rounded-lg shadow hover:bg-blue-700 transition-colors flex items-center gap-1 xs:gap-1.5 text-xs sm:text-sm"
                         >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 xs:h-4 xs:w-4 sm:h-5 sm:w-5" viewBox="0 0 20 20" fill="currentColor">
                                 <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
                             </svg>
-                            ขอวันลา
+                            <span className="whitespace-nowrap">ขอวันลา</span>
                         </button>
                     </div>
                 </div>
 
                 {/* Calendar Grid */}
-                <div className="bg-white rounded-xl shadow-lg border border-gray-200 flex flex-col overflow-hidden w-full mb-6" style={{ minHeight: '500px' }}>
+                <div className="bg-white rounded-xl shadow-lg border border-gray-200 flex flex-col overflow-hidden w-full mb-6" style={{ minHeight: `${totalRows * 100 + 60}px` }}>
                     <div className="grid grid-cols-7 bg-gray-100 border-b border-gray-200 text-center py-3 font-semibold text-gray-600 flex-shrink-0">
                         <div className="text-red-500">อาทิตย์</div>
                         <div>จันทร์</div>
@@ -345,9 +350,12 @@ export const LeaveCalendarView: React.FC<LeaveCalendarViewProps> = ({ leaveReque
                         <div>เสาร์</div>
                     </div>
 
-                    <div className="grid grid-cols-7 auto-rows-fr flex-1 h-full w-full">
+                    <div 
+                        className="grid grid-cols-7 flex-1 w-full"
+                        style={{ gridTemplateRows: `repeat(${totalRows}, minmax(100px, 1fr))` }}
+                    >
                         {Array.from({ length: firstDayOfMonth }).map((_, i) => (
-                            <div key={`empty-${i}`} className="bg-gray-50 border-b border-r border-gray-100"></div>
+                            <div key={`empty-${i}`} className="bg-gray-50 border-b border-r border-gray-100 min-h-[100px]"></div>
                         ))}
 
                         {daysInMonth.map(day => {
@@ -386,7 +394,7 @@ export const LeaveCalendarView: React.FC<LeaveCalendarViewProps> = ({ leaveReque
                         })}
                         
                         {Array.from({ length: (7 - (firstDayOfMonth + daysInMonth.length) % 7) % 7 }).map((_, i) => (
-                             <div key={`empty-end-${i}`} className="bg-gray-50 border-b border-r border-gray-100"></div>
+                             <div key={`empty-end-${i}`} className="bg-gray-50 border-b border-r border-gray-100 min-h-[100px]"></div>
                         ))}
                     </div>
                 </div>
