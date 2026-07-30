@@ -169,6 +169,23 @@ export const PreOrderCustomer: React.FC = () => {
     const [selectedOptions, setSelectedOptions] = useState<MenuOption[]>([]);
 
     useEffect(() => {
+        if (selectedItem) {
+            setItemQuantity(1);
+            const initialOptions: MenuOption[] = [];
+            if (selectedItem.optionGroups && selectedItem.optionGroups.length > 0) {
+                selectedItem.optionGroups.forEach(group => {
+                    if (group.required && group.options && group.options.length > 0) {
+                        initialOptions.push(group.options[0]);
+                    }
+                });
+            }
+            setSelectedOptions(initialOptions);
+        } else {
+            setSelectedOptions([]);
+        }
+    }, [selectedItem]);
+
+    useEffect(() => {
         const ua = navigator.userAgent || navigator.vendor || (window as any).opera;
         const isInApp = (ua.indexOf("FBAN") > -1) || (ua.indexOf("FBAV") > -1) || (ua.indexOf("Line") > -1) || (ua.indexOf("Instagram") > -1);
         
@@ -307,16 +324,35 @@ export const PreOrderCustomer: React.FC = () => {
     const handleAddToCart = () => {
         if (!selectedItem) return;
 
+        // Check required option groups
+        if (selectedItem.optionGroups && selectedItem.optionGroups.length > 0) {
+            for (const group of selectedItem.optionGroups) {
+                if (group.required) {
+                    const hasSelection = selectedOptions.some(so => group.options.some(go => go.id === so.id));
+                    if (!hasSelection) {
+                        Swal.fire({
+                            icon: 'warning',
+                            title: t('ข้อมูลไม่ครบถ้วน'),
+                            text: `${t('กรุณาเลือก')} "${group.name}"`,
+                            confirmButtonColor: '#3b82f6'
+                        });
+                        return;
+                    }
+                }
+            }
+        }
+
         const basePrice = selectedItem.price;
         const optionsPrice = selectedOptions.reduce((sum, opt) => sum + opt.priceModifier, 0);
         const finalPrice = basePrice + optionsPrice;
 
+        const optionsKey = selectedOptions.map(o => o.id).sort().join('-');
         const newCartItem: OrderItem = {
             ...selectedItem,
             id: selectedItem.id,
             quantity: itemQuantity,
             isTakeaway: false,
-            cartItemId: `${Date.now()}-${selectedItem.id}`,
+            cartItemId: `${Date.now()}-${selectedItem.id}-${optionsKey}`,
             finalPrice,
             selectedOptions: [...selectedOptions]
         };
@@ -328,7 +364,7 @@ export const PreOrderCustomer: React.FC = () => {
         
         Swal.fire({
             icon: 'success',
-            title: 'เพิ่มลงตะกร้าแล้ว',
+            title: t('เพิ่มลงตะกร้าแล้ว'),
             toast: true,
             position: 'top-end',
             showConfirmButton: false,
@@ -777,6 +813,15 @@ export const PreOrderCustomer: React.FC = () => {
                                                     </svg>
                                                 </button>
                                             </div>
+                                            {item.selectedOptions && item.selectedOptions.length > 0 && (
+                                                <div className="mt-1 flex flex-wrap gap-1">
+                                                    {item.selectedOptions.map((opt, oIdx) => (
+                                                        <span key={oIdx} className="text-[11px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md">
+                                                            + {opt.name}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            )}
                                             <div className="mt-1 flex items-center justify-between">
                                                 <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">{item.quantity} {t('จาน')}</span>
                                                 <span className="text-sm font-black text-gray-900">{(item.finalPrice * item.quantity).toLocaleString()}.-</span>
