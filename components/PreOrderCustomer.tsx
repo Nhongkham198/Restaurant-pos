@@ -640,7 +640,12 @@ export const PreOrderCustomer: React.FC = () => {
                                     {item.originalPrice && item.originalPrice > item.price && (
                                         <span className="text-xs text-gray-400 line-through font-normal">{item.originalPrice.toLocaleString()}.-</span>
                                     )}
-                                    <span className={`text-sm font-black ${item.originalPrice && item.originalPrice > item.price ? 'text-red-600' : 'text-blue-600'}`}>{item.price.toLocaleString()}.-</span>
+                                    <div className="relative inline-block">
+                                        {item.originalPrice && item.originalPrice > item.price && (
+                                            <span className="absolute -inset-1 rounded-md bg-red-500/20 animate-ping z-0 pointer-events-none"></span>
+                                        )}
+                                        <span className={`relative z-10 font-black ${item.originalPrice && item.originalPrice > item.price ? 'text-red-600 text-base animate-pulse tracking-tight drop-shadow-[0_1px_2px_rgba(220,38,38,0.25)]' : 'text-sm text-blue-600'}`}>{item.price.toLocaleString()}.-</span>
+                                    </div>
                                 </div>
                                 <div className="w-8 h-8 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-colors">
                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -700,12 +705,17 @@ export const PreOrderCustomer: React.FC = () => {
                                         {selectedItem.originalPrice && selectedItem.originalPrice > selectedItem.price && (
                                             <span className="text-sm text-gray-400 line-through font-medium">{selectedItem.originalPrice.toLocaleString()}.-</span>
                                         )}
-                                        <span className={`text-2xl font-black ${selectedItem.originalPrice && selectedItem.originalPrice > selectedItem.price ? 'text-red-600' : 'text-blue-600'}`}>
-                                            {selectedItem.price.toLocaleString()}.-
-                                        </span>
+                                        <div className="relative inline-block">
+                                            {selectedItem.originalPrice && selectedItem.originalPrice > selectedItem.price && (
+                                                <span className="absolute -inset-1 rounded-xl bg-red-500/20 animate-ping z-0 pointer-events-none"></span>
+                                            )}
+                                            <span className={`relative z-10 text-2xl font-black ${selectedItem.originalPrice && selectedItem.originalPrice > selectedItem.price ? 'text-red-600 animate-pulse tracking-tight drop-shadow-md' : 'text-blue-600'}`}>
+                                                {selectedItem.price.toLocaleString()}.-
+                                            </span>
+                                        </div>
                                         {selectedItem.originalPrice && selectedItem.originalPrice > selectedItem.price && (
-                                            <span className="bg-red-100 text-red-600 text-[10px] font-black px-2 py-0.5 rounded-md mt-0.5">
-                                                ลด {(selectedItem.originalPrice - selectedItem.price).toLocaleString()}.-
+                                            <span className="bg-red-600 text-white text-[10px] font-black px-2 py-0.5 rounded-md mt-1 shadow-sm animate-bounce">
+                                                🔥 ประหยัด {(selectedItem.originalPrice - selectedItem.price).toLocaleString()}.-
                                             </span>
                                         )}
                                     </div>

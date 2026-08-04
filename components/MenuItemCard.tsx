@@ -97,9 +97,14 @@ export const MenuItemCard: React.FC<MenuItemCardProps> = ({
                              {item.originalPrice.toLocaleString()} ฿
                          </span>
                      )}
-                     <p className={`text-lg font-bold ${item.originalPrice && item.originalPrice > item.price ? 'text-red-600' : 'text-blue-600'}`}>
-                         {(item.price ?? 0).toLocaleString()}<span className="text-sm font-medium"> ฿</span>
-                     </p>
+                     <div className="relative inline-block">
+                         {item.originalPrice && item.originalPrice > item.price && (
+                             <span className="absolute -inset-1 rounded-lg bg-red-500/20 animate-ping z-0 pointer-events-none"></span>
+                         )}
+                         <p className={`relative z-10 font-black ${item.originalPrice && item.originalPrice > item.price ? 'text-red-600 text-xl animate-pulse tracking-tight drop-shadow-[0_1px_2px_rgba(220,38,38,0.25)]' : 'text-lg font-bold text-blue-600'}`}>
+                             {(item.price ?? 0).toLocaleString()}<span className="text-sm font-medium"> ฿</span>
+                         </p>
+                     </div>
                 </div>
             </div>
 
