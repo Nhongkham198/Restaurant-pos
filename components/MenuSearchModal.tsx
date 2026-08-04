@@ -154,7 +154,12 @@ export const MenuSearchModal: React.FC<MenuSearchModalProps> = ({ isOpen, onClos
                                             <div className={`w-4 h-4 bg-white rounded-full shadow-md transform transition-transform ${isAvailable ? 'translate-x-6' : 'translate-x-0'}`} />
                                         </div>
                                     ) : (
-                                        <p className={`font-bold text-lg ${!isAvailable ? 'text-gray-400' : 'text-blue-600'}`}>{item.price.toLocaleString()} ฿</p>
+                                        <div className="text-right">
+                                            {item.originalPrice && item.originalPrice > item.price && (
+                                                <span className="text-xs text-gray-400 line-through block">{item.originalPrice.toLocaleString()} ฿</span>
+                                            )}
+                                            <p className={`font-bold text-lg ${!isAvailable ? 'text-gray-400' : (item.originalPrice && item.originalPrice > item.price ? 'text-red-600' : 'text-blue-600')}`}>{item.price.toLocaleString()} ฿</p>
+                                        </div>
                                     )}
                                 </div>
                             );

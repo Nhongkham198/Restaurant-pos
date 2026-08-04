@@ -305,6 +305,7 @@ export const Menu: React.FC<MenuProps> = ({
                     'name': item.name,
                     'name_en': item.nameEn || '',
                     'price': item.price,
+                    'original_price': item.originalPrice || '',
                     'category': item.category,
                     'image_url': item.imageUrl,
                     'cooking_time': item.cookingTime || '',
@@ -326,6 +327,7 @@ export const Menu: React.FC<MenuProps> = ({
                             'name': item.name,
                             'name_en': item.nameEn || '',
                             'price': item.price,
+                            'original_price': item.originalPrice || '',
                             'category': item.category,
                             'image_url': item.imageUrl,
                             'cooking_time': item.cookingTime || '',
@@ -346,6 +348,7 @@ export const Menu: React.FC<MenuProps> = ({
                                 'name': item.name,
                                 'name_en': item.nameEn || '',
                                 'price': item.price,
+                                'original_price': item.originalPrice || '',
                                 'category': item.category,
                                 'image_url': item.imageUrl,
                                 'cooking_time': item.cookingTime || '',
@@ -408,6 +411,7 @@ export const Menu: React.FC<MenuProps> = ({
                     newCategories.add(categoryCleaned);
     
                     const parsedPrice = row.price !== undefined && !isNaN(Number(row.price)) ? Number(row.price) : 0;
+                    const parsedOriginalPrice = row.original_price !== undefined && !isNaN(Number(row.original_price)) && Number(row.original_price) > 0 ? Number(row.original_price) : undefined;
     
                     if (!menuItemsMap.has(id)) {
                         menuItemsMap.set(id, {
@@ -415,6 +419,7 @@ export const Menu: React.FC<MenuProps> = ({
                             name: String(row.name),
                             nameEn: String(row.name_en || ''),
                             price: parsedPrice,
+                            originalPrice: parsedOriginalPrice,
                             category: categoryCleaned,
                             imageUrl: String(row.image_url || ''),
                             cookingTime: row.cooking_time ? Number(row.cooking_time) : undefined,

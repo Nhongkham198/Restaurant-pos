@@ -89,6 +89,7 @@ export interface MenuItem {
     name: string;
     nameEn?: string; // Added English Name field
     price: number;
+    originalPrice?: number; // Added: Original/normal price before promo discount
     category: string;
     imageUrl: string;
     cookingTime?: number; // in minutes

@@ -620,6 +620,11 @@ export const PreOrderCustomer: React.FC = () => {
                                         </svg>
                                     </div>
                                 )}
+                                {item.originalPrice && item.originalPrice > item.price && (
+                                    <div className="absolute top-2 left-2 bg-red-600 text-white px-2 py-0.5 rounded-lg shadow-md z-10 flex items-center gap-1 animate-pulse">
+                                        <span className="text-[10px] font-black uppercase">🔥 โปรโมชั่น</span>
+                                    </div>
+                                )}
                                 {recommendedMenuItemIds.includes(item.id) && (
                                     <div className="absolute top-2 right-2 bg-yellow-400 text-red-600 px-2 py-1 rounded-lg shadow-lg z-10 animate-bounce flex items-center gap-1">
                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
@@ -631,7 +636,12 @@ export const PreOrderCustomer: React.FC = () => {
                             </div>
                             <h3 className="text-sm font-black text-gray-900 text-center line-clamp-2 leading-tight mb-2 min-h-[2.5rem]">{item.name}</h3>
                             <div className="mt-auto flex items-center justify-between">
-                                <span className="text-sm font-black text-blue-600">{item.price.toLocaleString()}.-</span>
+                                <div className="flex flex-col">
+                                    {item.originalPrice && item.originalPrice > item.price && (
+                                        <span className="text-xs text-gray-400 line-through font-normal">{item.originalPrice.toLocaleString()}.-</span>
+                                    )}
+                                    <span className={`text-sm font-black ${item.originalPrice && item.originalPrice > item.price ? 'text-red-600' : 'text-blue-600'}`}>{item.price.toLocaleString()}.-</span>
+                                </div>
                                 <div className="w-8 h-8 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-colors">
                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 4v16m8-8H4" />
@@ -686,7 +696,19 @@ export const PreOrderCustomer: React.FC = () => {
                                         <h2 className="text-2xl font-black text-gray-900 leading-tight">{selectedItem.name}</h2>
                                         <p className="text-sm font-bold text-gray-400 mt-1">{t(selectedItem.category)}</p>
                                     </div>
-                                    <span className="text-2xl font-black text-blue-600">{selectedItem.price.toLocaleString()}.-</span>
+                                    <div className="flex flex-col items-end">
+                                        {selectedItem.originalPrice && selectedItem.originalPrice > selectedItem.price && (
+                                            <span className="text-sm text-gray-400 line-through font-medium">{selectedItem.originalPrice.toLocaleString()}.-</span>
+                                        )}
+                                        <span className={`text-2xl font-black ${selectedItem.originalPrice && selectedItem.originalPrice > selectedItem.price ? 'text-red-600' : 'text-blue-600'}`}>
+                                            {selectedItem.price.toLocaleString()}.-
+                                        </span>
+                                        {selectedItem.originalPrice && selectedItem.originalPrice > selectedItem.price && (
+                                            <span className="bg-red-100 text-red-600 text-[10px] font-black px-2 py-0.5 rounded-md mt-0.5">
+                                                ลด {(selectedItem.originalPrice - selectedItem.price).toLocaleString()}.-
+                                            </span>
+                                        )}
+                                    </div>
                                 </div>
 
                                 {selectedItem.imageUrl && (

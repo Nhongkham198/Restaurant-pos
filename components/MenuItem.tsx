@@ -91,10 +91,23 @@ export const MenuItemCard: React.FC<MenuItemCardProps> = ({
 
             <div className="p-2 flex flex-col flex-auto justify-between">
                 <h3 className="font-semibold text-gray-800 text-base leading-tight min-h-[40px] line-clamp-2 text-center">{item.name || ''}</h3>
-                <div className="flex justify-end items-baseline mt-1 pt-2 border-t border-gray-100">
-                     <p className="text-lg font-bold text-blue-600">{(item.price ?? 0).toLocaleString()}<span className="text-sm font-medium"> ฿</span></p>
+                <div className="flex justify-end items-baseline mt-1 pt-2 border-t border-gray-100 gap-1.5 flex-wrap">
+                     {item.originalPrice && item.originalPrice > item.price && (
+                         <span className="text-xs text-gray-400 line-through font-normal">
+                             {item.originalPrice.toLocaleString()} ฿
+                         </span>
+                     )}
+                     <p className={`text-lg font-bold ${item.originalPrice && item.originalPrice > item.price ? 'text-red-600' : 'text-blue-600'}`}>
+                         {(item.price ?? 0).toLocaleString()}<span className="text-sm font-medium"> ฿</span>
+                     </p>
                 </div>
             </div>
+
+            {item.originalPrice && item.originalPrice > item.price && (
+                <div className="absolute top-2 right-2 bg-red-600 text-white font-black text-[10px] px-2 py-0.5 rounded-full shadow-md z-20 flex items-center gap-1 animate-pulse">
+                    🔥 PROMO
+                </div>
+            )}
 
             {isRecommended && (
                 <div className="absolute top-2 left-2 flex items-center justify-center w-10 h-10 z-20 pointer-events-none" title="เมนูแนะนำ">

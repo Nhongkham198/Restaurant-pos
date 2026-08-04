@@ -19,6 +19,7 @@ const initialFormState: Omit<MenuItem, 'id'> = {
     name: '',
     nameEn: '', // Added English name
     price: 0,
+    originalPrice: undefined,
     category: '',
     imageUrl: '',
     cookingTime: 15,
@@ -28,6 +29,7 @@ const initialFormState: Omit<MenuItem, 'id'> = {
 export const MenuItemModal: React.FC<MenuItemModalProps> = ({ isOpen, onClose, onSave, itemToEdit, categories, onAddCategory }) => {
     const [formState, setFormState] = useState(initialFormState);
     const [priceString, setPriceString] = useState('0');
+    const [originalPriceString, setOriginalPriceString] = useState('');
     const [isAddingCategory, setIsAddingCategory] = useState(false);
     const [newCategoryName, setNewCategoryName] = useState('');
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -59,9 +61,11 @@ export const MenuItemModal: React.FC<MenuItemModalProps> = ({ isOpen, onClose, o
                     optionGroups: JSON.parse(JSON.stringify(itemToEdit.optionGroups || [])) 
                 });
                 setPriceString(String(itemToEdit.price));
+                setOriginalPriceString(itemToEdit.originalPrice ? String(itemToEdit.originalPrice) : '');
             } else {
                 setFormState({ ...initialFormState, category: normalizedCategories.find(c => c !== 'ทั้งหมด') || '', optionGroups: [] });
                 setPriceString('0');
+                setOriginalPriceString('');
             }
         }
     }, [isOpen, itemToEdit, normalizedCategories]);
@@ -72,6 +76,18 @@ export const MenuItemModal: React.FC<MenuItemModalProps> = ({ isOpen, onClose, o
         if (val === '' || /^\d*\.?\d*$/.test(val)) {
             setPriceString(val);
             setFormState(prev => ({ ...prev, price: parseFloat(val) || 0 }));
+        }
+    };
+
+    const handleOriginalPriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const val = e.target.value;
+        if (val === '' || /^\d*\.?\d*$/.test(val)) {
+            setOriginalPriceString(val);
+            const parsed = parseFloat(val);
+            setFormState(prev => ({ 
+                ...prev, 
+                originalPrice: !isNaN(parsed) && parsed > 0 ? parsed : undefined 
+            }));
         }
     };
 
@@ -231,9 +247,26 @@ export const MenuItemModal: React.FC<MenuItemModalProps> = ({ isOpen, onClose, o
                             <label className="block text-sm font-medium text-gray-700">ชื่อภาษาอังกฤษ (Optional)</label>
                             <input type="text" value={formState.nameEn} onChange={(e) => setFormState(prev => ({...prev, nameEn: e.target.value}))} className={inputClasses} placeholder="English Name" />
                         </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700">ราคา (บาท)</label>
-                            <input type="text" inputMode="decimal" value={priceString} onChange={handlePriceChange} className={inputClasses} required />
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">
+                                    ราคาขาย / ราคาโปรโมชั่น (บาท) <span className="text-red-500">*</span>
+                                </label>
+                                <input type="text" inputMode="decimal" value={priceString} onChange={handlePriceChange} className={inputClasses} required />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">
+                                    ราคาปกติ / ราคาเดิม (บาท) <span className="text-xs text-gray-400">(ระบุเพื่อแสดงราคาขีดฆ่า)</span>
+                                </label>
+                                <input 
+                                    type="text" 
+                                    inputMode="decimal" 
+                                    value={originalPriceString} 
+                                    onChange={handleOriginalPriceChange} 
+                                    className={inputClasses} 
+                                    placeholder="เช่น 150 (ไม่ระบุก็ได้)" 
+                                />
+                            </div>
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-700">หมวดหมู่</label>
