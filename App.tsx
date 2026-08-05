@@ -1796,7 +1796,7 @@ export const App: React.FC = () => {
         if (!customerTable && targetTableId) {
              customerTable = {
                 id: targetTableIdNum,
-                name: 'กำลังโหลด...',
+                name: targetTableIdNum > 0 ? `โต๊ะ ${targetTableIdNum}` : (targetTableIdNum === -1 ? 'สั่งกลับบ้าน' : 'เดลิเวอรี่'),
                 floor: '-',
                 activePin: null,
                 reservation: null

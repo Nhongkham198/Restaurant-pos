@@ -273,14 +273,24 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
     const [selectedBranch, setSelectedBranch] = useState<Branch | null>(() => {
         const params = new URLSearchParams(window.location.search);
-        const isCustomer = params.get('mode') === 'customer';
+        const isCustomer = params.get('mode') === 'customer' || params.get('mode') === 'pre-order' || params.get('orderType') === 'takeaway' || params.get('orderType') === 'delivery';
         const urlBranchId = params.get('branchId');
 
         if (isCustomer) {
-            if (urlBranchId) return null;
             const customerBranch = localStorage.getItem('customerSelectedBranch');
             if (customerBranch) {
-                try { return JSON.parse(customerBranch); } catch (e) { localStorage.removeItem('customerSelectedBranch'); }
+                try {
+                    const parsed = JSON.parse(customerBranch);
+                    if (!urlBranchId || parsed.id.toString() === urlBranchId) return parsed;
+                } catch (e) { localStorage.removeItem('customerSelectedBranch'); }
+            }
+            if (urlBranchId) {
+                return {
+                    id: Number(urlBranchId),
+                    name: 'สาขา ' + urlBranchId,
+                    restaurantName: 'ร้านอาหาร',
+                    code: 'B' + urlBranchId
+                } as Branch;
             }
         }
         
@@ -628,10 +638,12 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     const [recommendedItemsLimit, setRecommendedItemsLimit] = useFirestoreSync<number>(branchId, 'recommendedItemsLimit', 10);
     const [manualAdCosts, setManualAdCosts] = useFirestoreSync<Record<string, number>>(branchId, 'manualAdCosts', {});
 
-    const [latestIngredientPrices, setLatestIngredientPrices] = useFirestoreSync<IngredientPrice[]>(branchId, 'latestIngredientPrices', []);
-    const [latestImportFilename, setLatestImportFilename] = useFirestoreSync<string | null>(branchId, 'latestImportFilename', null);
+    const [latestIngredientPrices, setLatestIngredientPrices] = useFirestoreSync<IngredientPrice[]>(heavyDataEffectiveId, 'latestIngredientPrices', []);
+    const [latestImportFilename, setLatestImportFilename] = useFirestoreSync<string | null>(heavyDataEffectiveId, 'latestImportFilename', null);
 
-    const isDataLoading = isBranchesLoading || isMenuItemsLoading || isCategoriesLoading || isTablesLoading || isFloorsLoading || isDeliveryProvidersLoading;
+    const isDataLoading = isCustomerMode
+        ? (isMenuItemsLoading || isCategoriesLoading)
+        : (isBranchesLoading || isMenuItemsLoading || isCategoriesLoading || isTablesLoading || isFloorsLoading || isDeliveryProvidersLoading);
 
     const value = useMemo(() => ({
         currentUser, setCurrentUser, users, setUsers, branches, setBranches,
