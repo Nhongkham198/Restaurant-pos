@@ -1034,34 +1034,50 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
 
                         const recipeStatus = { hasUpdate };
 
-                        // Calculate delivery profits
-                        const deliveryProfits = item.deliveryPrices ? Object.entries(item.deliveryPrices).map(([providerId, price]) => {
-                            const provider = deliveryProviders.find(p => p.id === providerId);
-                            const fixedAdCost = provider?.fixedAdCost || 0;
-                            
-                            const p = price || item.price;
-                            const gp = item.deliveryGPs?.[providerId] || 0;
-                            const tax = item.deliveryTaxes?.[providerId] ?? taxRate;
-                            
-                            const gpAmount = p * (gp / 100);
-                            const taxOnGP = gpAmount * (tax / 100);
-                            const adCostWithTax = fixedAdCost + (fixedAdCost * (tax / 100));
-                            
+                        // Calculate delivery profits based on active deliveryProviders
+                        const activeDeliveryProviders = deliveryProviders.filter(p => p.isEnabled);
+
+                        const deliveryProfits = activeDeliveryProviders.map(provider => {
+                            let price: number | undefined = item.deliveryPrices?.[provider.id];
+                            let gp: number | undefined = item.deliveryGPs?.[provider.id];
+                            let tax: number | undefined = item.deliveryTaxes?.[provider.id];
+
+                            if (price === undefined && item.deliveryPrices) {
+                                const foundKey = Object.keys(item.deliveryPrices).find(k => 
+                                    k.toLowerCase() === provider.id.toLowerCase() || 
+                                    k.toLowerCase() === provider.name.toLowerCase()
+                                );
+                                if (foundKey) {
+                                    price = item.deliveryPrices[foundKey];
+                                    gp = item.deliveryGPs?.[foundKey];
+                                    tax = item.deliveryTaxes?.[foundKey];
+                                }
+                            }
+
+                            const p = (price !== undefined && price > 0) ? price : item.price;
+                            const effectiveGp = gp ?? 0;
+                            const effectiveTax = tax ?? taxRate;
+                            const fixedAdCost = provider.fixedAdCost || 0;
+
+                            const gpAmount = p * (effectiveGp / 100);
+                            const taxOnGP = gpAmount * (effectiveTax / 100);
+                            const adCostWithTax = fixedAdCost + (fixedAdCost * (effectiveTax / 100));
+
                             const netProfit = p - gpAmount - taxOnGP - cost - adCostWithTax;
                             const dMargin = p > 0 ? (netProfit / p) * 100 : 0;
-                            
+
                             return { 
-                                providerId, 
-                                providerName: provider?.name || providerId,
+                                providerId: provider.id, 
+                                providerName: provider.name,
                                 profit: netProfit, 
                                 margin: dMargin, 
                                 price: p, 
-                                gp, 
-                                tax,
+                                gp: effectiveGp, 
+                                tax: effectiveTax,
                                 fixedAdCost,
                                 isUnprofitable: netProfit <= 0 && fixedAdCost > 0
                             };
-                        }) : [];
+                        }).filter(dp => dp.price > 0 || dp.profit !== 0);
 
                         return (
                             <div key={item.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-shadow">

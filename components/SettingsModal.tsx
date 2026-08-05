@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import * as XLSX from 'xlsx';
+import { DEFAULT_DELIVERY_PROVIDERS } from '../types';
 import type { PrinterConfig, ReceiptPrintSettings, KitchenPrinterSettings, CashierPrinterSettings, MenuItem, DeliveryProvider, PrinterStatus, PrinterConnectionType, DeliveryPriceHistoryEntry } from '../types';
 import { printerService } from '../services/printerService';
 import Swal from 'sweetalert2';
@@ -1021,10 +1022,110 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
         ));
     };
 
-    const handleDeliveryFieldChange = (providerId: string, field: 'iconUrl' | 'color' | 'fixedAdCost', value: any) => {
+    const handleDeliveryFieldChange = (providerId: string, field: 'name' | 'iconUrl' | 'color' | 'fixedAdCost', value: any) => {
         setTempDeliveryProviders(prev => prev.map(p => 
             p.id === providerId ? { ...p, [field]: value } : p
         ));
+    };
+
+    const handleAddDeliveryProvider = async () => {
+        const { value: formValues } = await Swal.fire({
+            title: 'เพิ่มผู้ให้บริการ Delivery ใหม่',
+            html: `
+              <div className="text-left space-y-3 p-1">
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">ชื่อผู้ให้บริการ / ค่าย *</label>
+                  <input id="swal-provider-name" class="swal2-input !m-0 !w-full !text-sm" placeholder="เช่น Gojek, Robinhood, ส่งเองของร้าน">
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">สีประจำค่าย</label>
+                  <div className="flex gap-2 items-center">
+                    <input type="color" id="swal-provider-color-picker" value="#2563eb" class="h-10 w-14 border rounded cursor-pointer p-1 bg-white">
+                    <input id="swal-provider-color" class="swal2-input !m-0 flex-1 !text-sm uppercase" value="#2563eb" placeholder="#RRGGBB">
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">URL โลโก้ / ไอคอน (ถ้ามี)</label>
+                  <input id="swal-provider-icon" class="swal2-input !m-0 !w-full !text-sm" placeholder="https://...">
+                </div>
+              </div>
+            `,
+            focusConfirm: false,
+            showCancelButton: true,
+            confirmButtonText: 'เพิ่มค่าย Delivery',
+            cancelButtonText: 'ยกเลิก',
+            confirmButtonColor: '#2563eb',
+            didOpen: () => {
+                const colorPicker = document.getElementById('swal-provider-color-picker') as HTMLInputElement;
+                const colorText = document.getElementById('swal-provider-color') as HTMLInputElement;
+                if (colorPicker && colorText) {
+                    colorPicker.addEventListener('input', (e: any) => { colorText.value = e.target.value; });
+                    colorText.addEventListener('input', (e: any) => { colorPicker.value = e.target.value; });
+                }
+            },
+            preConfirm: () => {
+                const name = (document.getElementById('swal-provider-name') as HTMLInputElement)?.value?.trim();
+                const color = (document.getElementById('swal-provider-color') as HTMLInputElement)?.value?.trim() || '#2563eb';
+                const iconUrl = (document.getElementById('swal-provider-icon') as HTMLInputElement)?.value?.trim() || '';
+                if (!name) {
+                    Swal.showValidationMessage('กรุณาระบุชื่อผู้ให้บริการ Delivery');
+                    return false;
+                }
+                return { name, color, iconUrl };
+            }
+        });
+
+        if (formValues) {
+            const id = formValues.name.toLowerCase().replace(/[^a-z0-9]/g, '') + '_' + Date.now();
+            const newProvider: DeliveryProvider = {
+                id,
+                name: formValues.name,
+                color: formValues.color,
+                iconUrl: formValues.iconUrl,
+                isEnabled: true,
+                isDefault: false
+            };
+            setTempDeliveryProviders(prev => [...prev, newProvider]);
+            Swal.fire({
+                icon: 'success',
+                title: 'เพิ่มค่าย Delivery เรียบร้อย',
+                text: `เพิ่ม ${formValues.name} เรียบร้อยแล้ว (อย่าลืมกด "บันทึกทั้งหมด" ที่มุมล่างขวา)`,
+                timer: 2000,
+                showConfirmButton: false
+            });
+        }
+    };
+
+    const handleDeleteDeliveryProvider = (providerId: string, providerName: string) => {
+        Swal.fire({
+            title: 'ยืนยันการลบ?',
+            text: `คุณต้องการลบผู้ให้บริการ "${providerName}" หรือไม่?`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#ef4444',
+            cancelButtonColor: '#6b7280',
+            confirmButtonText: 'ลบรายการ',
+            cancelButtonText: 'ยกเลิก'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                setTempDeliveryProviders(prev => prev.filter(p => p.id !== providerId));
+            }
+        });
+    };
+
+    const handleRestoreDefaultProviders = () => {
+        Swal.fire({
+            title: 'โหลดค่ายเริ่มต้น?',
+            text: 'ระบบจะรีเซ็ตค่าย Delivery เป็นค่าเริ่มต้น (LINE MAN, Grab, ShopeeFood, foodpanda, Robinhood)',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'โหลดค่าเริ่มต้น',
+            cancelButtonText: 'ยกเลิก'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                setTempDeliveryProviders(DEFAULT_DELIVERY_PROVIDERS);
+            }
+        });
     };
 
     if (!props.isOpen) return null;
@@ -1822,81 +1923,151 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
 
                     {activeTab === 'delivery' && (
                         <div className="bg-white p-6 rounded-lg shadow-sm max-w-3xl mx-auto">
-                            <div className="flex justify-between items-center mb-4">
-                                <h3 className="text-lg font-bold text-gray-800">จัดการ Delivery Providers</h3>
-                                <button 
-                                    onClick={() => {
-                                        setIsPriceHistoryOpen(true);
-                                        fetchPriceHistory();
-                                    }}
-                                    className="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center gap-1 bg-blue-50 px-3 py-1.5 rounded-md border border-blue-100 transition-colors"
-                                >
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                                    ประวัติการปรับราคา
-                                </button>
+                            <div className="flex flex-wrap justify-between items-center gap-3 mb-6 pb-4 border-b border-gray-100">
+                                <div>
+                                    <h3 className="text-xl font-bold text-gray-800">จัดการ Delivery Providers</h3>
+                                    <p className="text-xs text-gray-500 mt-0.5">เพิ่มค่าย Delivery ใหม่ ตั้งค่าสีประจำค่าย และรูปโลโก้ได้ตามต้องการ</p>
+                                </div>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <button 
+                                        type="button"
+                                        onClick={handleAddDeliveryProvider}
+                                        className="bg-green-600 hover:bg-green-700 text-white text-sm font-bold px-3.5 py-2 rounded-lg shadow-sm flex items-center gap-1.5 transition-all transform active:scale-95"
+                                    >
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4"></path></svg>
+                                        เพิ่มผู้ให้บริการ Delivery
+                                    </button>
+                                    <button 
+                                        type="button"
+                                        onClick={handleRestoreDefaultProviders}
+                                        className="text-gray-600 hover:text-gray-800 text-sm font-medium flex items-center gap-1 bg-gray-100 hover:bg-gray-200 px-3 py-2 rounded-lg transition-colors"
+                                        title="โหลดค่ายมาตรฐานกลับมา"
+                                    >
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                                        ค่าเริ่มต้น
+                                    </button>
+                                    <button 
+                                        type="button"
+                                        onClick={() => {
+                                            setIsPriceHistoryOpen(true);
+                                            fetchPriceHistory();
+                                        }}
+                                        className="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center gap-1 bg-blue-50 hover:bg-blue-100 px-3 py-2 rounded-lg border border-blue-100 transition-colors"
+                                    >
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                        ประวัติปรับราคา
+                                    </button>
+                                </div>
                             </div>
-                            <div className="space-y-4">
-                                {tempDeliveryProviders.map(provider => (
-                                    <div key={provider.id} className="p-4 border rounded-lg bg-gray-50 space-y-3">
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex items-center gap-3">
-                                                <div 
-                                                    className="w-10 h-10 rounded-md flex items-center justify-center overflow-hidden flex-shrink-0"
-                                                    style={{ backgroundColor: provider.color || '#e5e7eb' }}
-                                                >
-                                                    {provider.iconUrl ? (
-                                                        <img src={provider.iconUrl} alt={provider.name} className="w-full h-full object-cover" />
-                                                    ) : (
-                                                        <span className="text-white font-bold text-lg">{provider.name.charAt(0)}</span>
-                                                    )}
+
+                            {tempDeliveryProviders.length === 0 ? (
+                                <div className="text-center py-12 px-4 border-2 border-dashed border-gray-200 rounded-xl bg-gray-50">
+                                    <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-3">
+                                        <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                                    </div>
+                                    <h4 className="text-base font-bold text-gray-700 mb-1">ยังไม่มีค่าย Delivery ในระบบ</h4>
+                                    <p className="text-sm text-gray-500 mb-4 max-w-md mx-auto">กดปุ่มด้านล่างเพื่อเพิ่มค่าย Delivery ใหม่ หรือโหลดค่ายมาตรฐาน (LINE MAN, Grab, ShopeeFood, foodpanda, Robinhood)</p>
+                                    <div className="flex justify-center gap-3 flex-wrap">
+                                        <button 
+                                            type="button"
+                                            onClick={handleAddDeliveryProvider}
+                                            className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm px-4 py-2 rounded-lg shadow-sm"
+                                        >
+                                            + เพิ่มผู้ให้บริการ Delivery
+                                        </button>
+                                        <button 
+                                            type="button"
+                                            onClick={handleRestoreDefaultProviders}
+                                            className="bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-bold text-sm px-4 py-2 rounded-lg"
+                                        >
+                                            โหลดค่ายมาตรฐานเริ่มต้น
+                                        </button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="space-y-4">
+                                    {tempDeliveryProviders.map(provider => (
+                                        <div key={provider.id} className="p-4 border border-gray-200 rounded-xl bg-gray-50 hover:bg-white hover:shadow-sm transition-all space-y-3">
+                                            <div className="flex items-center justify-between gap-3">
+                                                <div className="flex items-center gap-3 flex-1">
+                                                    <div 
+                                                        className="w-10 h-10 rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0 shadow-sm border border-black/10"
+                                                        style={{ backgroundColor: provider.color || '#e5e7eb' }}
+                                                    >
+                                                        {provider.iconUrl ? (
+                                                            <img src={provider.iconUrl} alt={provider.name} className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }} />
+                                                        ) : (
+                                                            <span className="text-white font-black text-lg drop-shadow">{provider.name ? provider.name.charAt(0) : 'D'}</span>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex-1 max-w-xs">
+                                                        <input 
+                                                            type="text" 
+                                                            value={provider.name} 
+                                                            onChange={(e) => handleDeliveryFieldChange(provider.id, 'name', e.target.value)}
+                                                            className="font-bold text-gray-800 text-base border-b border-transparent hover:border-gray-300 focus:border-blue-500 bg-transparent px-1 py-0.5 rounded focus:outline-none w-full"
+                                                            placeholder="ชื่อค่าย..."
+                                                        />
+                                                    </div>
                                                 </div>
-                                                <span className="font-bold text-gray-800 text-lg">{provider.name}</span>
+
+                                                <div className="flex items-center gap-3">
+                                                    <label className="relative inline-flex items-center cursor-pointer">
+                                                        <input 
+                                                            type="checkbox" 
+                                                            checked={provider.isEnabled} 
+                                                            onChange={() => handleDeliveryToggle(provider.id)} 
+                                                            className="sr-only peer" 
+                                                        />
+                                                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                                    </label>
+
+                                                    <button 
+                                                        type="button"
+                                                        onClick={() => handleDeleteDeliveryProvider(provider.id, provider.name)}
+                                                        className="text-gray-400 hover:text-red-600 p-1.5 rounded-lg hover:bg-red-50 transition-colors"
+                                                        title="ลบผู้ให้บริการนี้"
+                                                    >
+                                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                                    </button>
+                                                </div>
                                             </div>
-                                            <label className="relative inline-flex items-center cursor-pointer">
-                                                <input 
-                                                    type="checkbox" 
-                                                    checked={provider.isEnabled} 
-                                                    onChange={() => handleDeliveryToggle(provider.id)} 
-                                                    className="sr-only peer" 
-                                                />
-                                                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                                            </label>
-                                        </div>
-                                        
-                                        {/* Edit Fields */}
-                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2 border-t border-gray-200">
-                                            <div>
-                                                <label className="block text-xs font-bold text-gray-500 mb-1">URL รูปไอคอน</label>
-                                                <input 
-                                                    type="text" 
-                                                    value={provider.iconUrl || ''} 
-                                                    onChange={(e) => handleDeliveryFieldChange(provider.id, 'iconUrl', e.target.value)}
-                                                    placeholder="https://..."
-                                                    className="w-full text-sm border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500"
-                                                />
-                                            </div>
-                                            <div>
-                                                <label className="block text-xs font-bold text-gray-500 mb-1">สีประจำค่าย</label>
-                                                <div className="flex items-center gap-2">
-                                                    <input 
-                                                        type="color" 
-                                                        value={provider.color || '#000000'} 
-                                                        onChange={(e) => handleDeliveryFieldChange(provider.id, 'color', e.target.value)}
-                                                        className="h-9 w-12 border border-gray-300 rounded cursor-pointer p-0.5 bg-white"
-                                                    />
+                                            
+                                            {/* Edit Fields */}
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-3 border-t border-gray-200/80">
+                                                <div>
+                                                    <label className="block text-xs font-bold text-gray-500 mb-1">URL รูปไอคอน / โลโก้</label>
                                                     <input 
                                                         type="text" 
-                                                        value={provider.color || ''} 
-                                                        onChange={(e) => handleDeliveryFieldChange(provider.id, 'color', e.target.value)}
-                                                        placeholder="#RRGGBB"
-                                                        className="flex-1 text-sm border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 uppercase"
+                                                        value={provider.iconUrl || ''} 
+                                                        onChange={(e) => handleDeliveryFieldChange(provider.id, 'iconUrl', e.target.value)}
+                                                        placeholder="https://example.com/logo.png"
+                                                        className="w-full text-sm border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
                                                     />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-bold text-gray-500 mb-1">สีประจำค่าย (Theme Color)</label>
+                                                    <div className="flex items-center gap-2">
+                                                        <input 
+                                                            type="color" 
+                                                            value={provider.color || '#2563eb'} 
+                                                            onChange={(e) => handleDeliveryFieldChange(provider.id, 'color', e.target.value)}
+                                                            className="h-9 w-12 border border-gray-300 rounded cursor-pointer p-0.5 bg-white flex-shrink-0"
+                                                        />
+                                                        <input 
+                                                            type="text" 
+                                                            value={provider.color || ''} 
+                                                            onChange={(e) => handleDeliveryFieldChange(provider.id, 'color', e.target.value)}
+                                                            placeholder="#RRGGBB"
+                                                            className="flex-1 text-sm border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 uppercase bg-white"
+                                                        />
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
-                                    </div>
-                                ))}
-                            </div>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     )}
 

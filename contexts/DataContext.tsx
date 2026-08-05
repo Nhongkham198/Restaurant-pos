@@ -4,7 +4,7 @@ import { auth } from '../firebaseConfig';
 import { 
     MenuItem, Table, ActiveOrder, CompletedOrder, CancelledOrder, 
     StockItem, StockTag, StockLog, PrintHistoryEntry, MaintenanceItem, MaintenanceLog, 
-    OrderCounter, StaffCall, LeaveRequest, PrinterConfig, DeliveryProvider,
+    OrderCounter, StaffCall, LeaveRequest, PrinterConfig, DeliveryProvider, DEFAULT_DELIVERY_PROVIDERS,
     User, Branch, JobApplication, EmploymentContract, TimeRecord, PayrollRecord,
     Recipe, IngredientPrice
 } from '../types';
@@ -612,7 +612,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     const [isTaxEnabled, setIsTaxEnabled] = useFirestoreSync<boolean>(branchId, 'isTaxEnabled', false);
     const [taxRate, setTaxRate] = useFirestoreSync<number>(branchId, 'taxRate', 7);
     const [sendToKitchen, setSendToKitchen] = useFirestoreSync<boolean>(branchId, 'sendToKitchen', true);
-    const [deliveryProviders, setDeliveryProviders, isDeliveryProvidersLoading] = useFirestoreSync<DeliveryProvider[]>(branchId, 'deliveryProviders', []);
+    const [deliveryProviders, setDeliveryProviders, isDeliveryProvidersLoading] = useFirestoreSync<DeliveryProvider[]>(branchId, 'deliveryProviders', DEFAULT_DELIVERY_PROVIDERS);
     const [facebookAppId, setFacebookAppId] = useFirestoreSync<string>(branchId, 'facebookAppId', '');
     const [facebookAppSecret, setFacebookAppSecret] = useFirestoreSync<string>(branchId, 'facebookAppSecret', '');
     const [lineOaUrl, setLineOaUrl] = useFirestoreSync<string>(branchId, 'lineOaUrl', '');

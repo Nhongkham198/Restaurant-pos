@@ -43,6 +43,14 @@ export interface DeliveryProvider {
     fixedAdCost?: number; // Added: Fixed advertising cost per order (e.g. 32 THB)
 }
 
+export const DEFAULT_DELIVERY_PROVIDERS: DeliveryProvider[] = [
+    { id: 'lineman', name: 'LINE MAN', iconUrl: '', color: '#00B900', isEnabled: true, isDefault: true },
+    { id: 'grab', name: 'GrabFood', iconUrl: '', color: '#00B14F', isEnabled: true, isDefault: true },
+    { id: 'shopeefood', name: 'ShopeeFood', iconUrl: '', color: '#FF5722', isEnabled: true, isDefault: true },
+    { id: 'foodpanda', name: 'foodpanda', iconUrl: '', color: '#D70F64', isEnabled: true, isDefault: true },
+    { id: 'robinhood', name: 'Robinhood', iconUrl: '', color: '#7C3AED', isEnabled: true, isDefault: true },
+];
+
 export interface User {
     id: number;
     username: string;
