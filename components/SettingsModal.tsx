@@ -636,9 +636,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
         const file = e.target.files?.[0];
         if (!file) return;
 
+        // Validation for large audio files
+        if (file.type.startsWith('audio/') && file.size > 3.5 * 1024 * 1024) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'ไฟล์เสียงมีขนาดใหญ่เกินไป',
+                text: `ไฟล์ของคุณมีขนาด ${(file.size / (1024 * 1024)).toFixed(1)}MB แนะนำให้ใช้ไฟล์เสียงแจ้งเตือนสั้นๆ (ไม่เกิน 2MB) เพื่อให้โหลดและเล่นเสียงแจ้งเตือนได้รวดเร็วทันที`,
+                confirmButtonColor: '#3b82f6'
+            });
+            return;
+        }
+
         setIsUploading(true);
         Swal.fire({
-            title: 'กำลังอัปโหลดไฟล์...',
+            title: 'กำลังประมวลผลไฟล์...',
             allowOutsideClick: false,
             didOpen: () => {
                 Swal.showLoading();
@@ -646,6 +657,29 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
         });
 
         try {
+            // For audio files <= 2.5MB, convert directly to Data URL for instant processing without network delay
+            if (file.type.startsWith('audio/') && file.size <= 2.5 * 1024 * 1024) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const dataUrl = event.target?.result as string;
+                    setSettingsForm(prev => ({ ...prev, [field]: dataUrl }));
+                    setIsUploading(false);
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'ประมวลผลไฟล์เสียงสำเร็จ',
+                        text: 'ไฟล์เสียงพร้อมใช้งานทันที (โหลดเร็ว ไม่ต้องรอเน็ต)',
+                        timer: 1500,
+                        showConfirmButton: false
+                    });
+                };
+                reader.onerror = () => {
+                    setIsUploading(false);
+                    Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถอ่านไฟล์เสียงได้', 'error');
+                };
+                reader.readAsDataURL(file);
+                return;
+            }
+
             let fileToUpload: File | Blob = file;
             
             // Only compress if it's an image
@@ -676,6 +710,24 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
             });
         } catch (error) {
             console.error('Error uploading file:', error);
+            // Fallback for audio files if storage fails
+            if (file.type.startsWith('audio/')) {
+                try {
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                        const dataUrl = event.target?.result as string;
+                        setSettingsForm(prev => ({ ...prev, [field]: dataUrl }));
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'โหลดไฟล์เสียงสำเร็จ (สำรอง)',
+                            timer: 1500,
+                            showConfirmButton: false
+                        });
+                    };
+                    reader.readAsDataURL(file);
+                    return;
+                } catch (e) {}
+            }
             Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถอัปโหลดไฟล์ได้', 'error');
         } finally {
             setIsUploading(false);
@@ -1156,26 +1208,94 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
         </div>
     );
 
-    const renderSoundUpload = (label: string, value: string | null, field: string, inputRef: React.RefObject<HTMLInputElement>) => (
-        <div className="border border-gray-200 rounded-lg p-4 bg-white">
-            <label className="block text-sm font-medium text-gray-700 mb-2">{label}</label>
-            <div className="flex flex-col gap-3">
-                <div className="flex items-center gap-3">
-                    <button onClick={() => inputRef.current?.click()} className="px-3 py-1.5 bg-blue-50 text-blue-600 rounded border border-blue-200 hover:bg-blue-100 text-sm font-medium transition-colors">เลือกไฟล์เสียง</button>
+    const renderSoundUpload = (label: string, value: string | null, field: string, inputRef: React.RefObject<HTMLInputElement>) => {
+        const PRESET_SOUNDS = [
+            { name: '🔔 กระดิ่งร้านอาหาร (Classic Bell)', url: 'https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3' },
+            { name: '🛎️ เสียงเรียกพนักงาน (Service Chime)', url: 'https://assets.mixkit.co/active_storage/sfx/2874/2874-preview.mp3' },
+            { name: '🎵 เสียงเตือนดิจิทัล (Digital Beep)', url: 'https://assets.mixkit.co/active_storage/sfx/2866/2866-preview.mp3' },
+            { name: '🔊 เสียงแจ้งเตือนสั้น (Quick Alert)', url: 'https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3' },
+        ];
+
+        return (
+            <div className="border border-gray-200 rounded-lg p-4 bg-white space-y-3">
+                <div className="flex flex-wrap justify-between items-center gap-2">
+                    <label className="block text-sm font-bold text-gray-800">{label}</label>
+                    <span className="text-xs text-blue-600 bg-blue-50 px-2.5 py-1 rounded-full border border-blue-200 font-medium">
+                        ⚡ แนะนำไฟล์สั้น &lt; 2MB เพื่อให้โหลดเล่นเสียงได้ทันที
+                    </span>
+                </div>
+
+                <div className="flex flex-col gap-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                        <button 
+                            type="button" 
+                            onClick={() => inputRef.current?.click()} 
+                            className="px-3 py-1.5 bg-blue-50 text-blue-600 rounded border border-blue-200 hover:bg-blue-100 text-sm font-medium transition-colors flex items-center gap-1.5"
+                        >
+                            📁 เลือกไฟล์เสียงจากเครื่อง
+                        </button>
+
+                        {value && (
+                            <button 
+                                type="button" 
+                                onClick={() => handleInputChange(field, null)} 
+                                className="px-3 py-1.5 bg-red-50 text-red-600 rounded border border-red-200 hover:bg-red-100 text-sm font-medium transition-colors"
+                            >
+                                ลบไฟล์เสียง
+                            </button>
+                        )}
+
+                        {value && (
+                            <span className="text-xs text-green-600 font-semibold flex items-center gap-1 ml-auto">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
+                                มีไฟล์เสียงในระบบแล้ว
+                            </span>
+                        )}
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-2 border-t border-gray-100">
+                        <div>
+                            <label className="block text-xs text-gray-500 mb-1 font-medium">เลือกใช้เสียงมาตรฐานของระบบ:</label>
+                            <select 
+                                onChange={(e) => {
+                                    if (e.target.value) {
+                                        handleInputChange(field, e.target.value);
+                                        e.target.value = '';
+                                    }
+                                }}
+                                className="w-full text-xs text-gray-700 bg-gray-50 border border-gray-300 rounded p-1.5 focus:outline-none focus:border-blue-500"
+                            >
+                                <option value="">-- เลือกเสียงสำเร็จรูป --</option>
+                                {PRESET_SOUNDS.map((sound, i) => (
+                                    <option key={i} value={sound.url}>{sound.name}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <div>
+                            <label className="block text-xs text-gray-500 mb-1 font-medium">หรือระบุ URL ของไฟล์เสียงออนไลน์:</label>
+                            <input 
+                                type="text" 
+                                value={value || ''} 
+                                onChange={e => handleInputChange(field, e.target.value)} 
+                                placeholder="https://.../sound.mp3" 
+                                className="w-full text-xs text-gray-600 border border-gray-300 rounded p-1.5 focus:outline-none focus:border-blue-500" 
+                            />
+                        </div>
+                    </div>
+
+                    <input type="file" ref={inputRef} onChange={(e) => handleFileChange(e, field)} className="hidden" accept="audio/*" />
+
                     {value && (
-                        <span className="text-xs text-green-600 font-semibold flex items-center gap-1">
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
-                            มีไฟล์เสียงแล้ว
-                        </span>
+                        <div className="bg-gray-50 p-2 rounded border border-gray-200 flex items-center gap-2">
+                            <span className="text-xs text-gray-500 font-medium whitespace-nowrap">ทดลองฟังเสียง:</span>
+                            <audio controls src={value} className="w-full h-8" />
+                        </div>
                     )}
                 </div>
-                <input type="file" ref={inputRef} onChange={(e) => handleFileChange(e, field)} className="hidden" accept="audio/*" />
-                {value && (
-                    <audio controls src={value} className="w-full h-8 mt-1" />
-                )}
             </div>
-        </div>
-    );
+        );
+    };
 
     const renderPrinterSettings = (type: 'kitchen' | 'cashier') => {
         const conf = settingsForm.printerConfig[type];
