@@ -384,8 +384,12 @@ interface TableLayoutProps {
     floors: string[];
     selectedBranch: Branch | null;
     restaurantName: string; // New prop
-    logoUrl: string | null, // New prop
+    logoUrl: string | null; // New prop
     qrCodeUrl?: string | null; // Add this
+    isEditMode?: boolean;
+    onUpdateFloors?: (newFloors: string[]) => void;
+    onAddFloor?: () => void;
+    onRemoveFloor?: (floor: string) => void;
 }
 
 export const TableLayout: React.FC<TableLayoutProps> = ({ 
@@ -400,7 +404,11 @@ export const TableLayout: React.FC<TableLayoutProps> = ({
     selectedBranch,
     restaurantName,
     logoUrl,
-    qrCodeUrl
+    qrCodeUrl,
+    isEditMode = false,
+    onUpdateFloors,
+    onAddFloor,
+    onRemoveFloor
 }) => {
     const [selectedFloor, setSelectedFloor] = useState<string>('');
 
@@ -411,6 +419,14 @@ export const TableLayout: React.FC<TableLayoutProps> = ({
             }
         }
     }, [floors, selectedFloor]);
+
+    const moveFloor = (fromIndex: number, toIndex: number) => {
+        if (!onUpdateFloors || toIndex < 0 || toIndex >= floors.length) return;
+        const updated = [...floors];
+        const [movedItem] = updated.splice(fromIndex, 1);
+        updated.splice(toIndex, 0, movedItem);
+        onUpdateFloors(updated);
+    };
 
     const tablesOnFloor = useMemo(() => {
         return tables.filter(t => t.floor === selectedFloor).sort((a, b) => {
@@ -426,19 +442,107 @@ export const TableLayout: React.FC<TableLayoutProps> = ({
     return (
         <div className="p-4 md:p-6 space-y-4 h-full flex flex-col w-full">
              <div className="flex-shrink-0">
-                <h2 className="text-2xl font-bold text-gray-800 mb-4 text-center">ผังโต๊ะ</h2>
-                <div className="flex justify-center bg-gray-200 rounded-full p-1 max-w-sm mx-auto">
-                    {floors.map(floor => (
-                         <button
-                            key={floor}
-                            onClick={() => setSelectedFloor(floor)}
-                            className={`w-full py-2 px-4 rounded-full font-semibold transition-colors ${
-                                selectedFloor === floor ? 'bg-white text-blue-600 shadow' : 'text-gray-600'
-                            }`}
+                <div className="flex items-center justify-center gap-2 mb-3">
+                    <h2 className="text-2xl font-bold text-gray-800 text-center">ผังโต๊ะ</h2>
+                    {isEditMode && (
+                        <span className="text-xs bg-amber-100 text-amber-800 border border-amber-300 px-2.5 py-1 rounded-full font-semibold flex items-center gap-1 shadow-sm">
+                            ✏️ โหมดแก้ไข (กดปุ่ม ◀ ▶ หรือลากเพื่อสลับตำแหน่งชั้น)
+                        </span>
+                    )}
+                </div>
+
+                <div className="flex flex-wrap items-center justify-center gap-2 bg-gray-200 rounded-full p-1.5 max-w-2xl mx-auto shadow-inner">
+                    {floors.map((floor, index) => {
+                        const isSelected = selectedFloor === floor;
+                        return (
+                            <div
+                                key={floor}
+                                draggable={isEditMode}
+                                onDragStart={(e) => {
+                                    if (!isEditMode) return;
+                                    e.dataTransfer.setData('text/plain', index.toString());
+                                }}
+                                onDragOver={(e) => {
+                                    if (!isEditMode) return;
+                                    e.preventDefault();
+                                }}
+                                onDrop={(e) => {
+                                    if (!isEditMode) return;
+                                    e.preventDefault();
+                                    const fromIndex = parseInt(e.dataTransfer.getData('text/plain'), 10);
+                                    if (!isNaN(fromIndex) && fromIndex !== index) {
+                                        moveFloor(fromIndex, index);
+                                    }
+                                }}
+                                className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 font-semibold transition-all ${
+                                    isSelected 
+                                        ? 'bg-white text-blue-600 shadow-md ring-2 ring-blue-400' 
+                                        : 'text-gray-600 hover:text-gray-800'
+                                } ${isEditMode ? 'cursor-grab active:cursor-grabbing border border-dashed border-blue-400 bg-amber-50/50' : ''}`}
+                            >
+                                {isEditMode && index > 0 && (
+                                    <button
+                                        type="button"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            moveFloor(index, index - 1);
+                                        }}
+                                        className="w-5 h-5 flex items-center justify-center text-[10px] bg-white hover:bg-blue-100 text-blue-700 rounded-full transition-colors shadow border border-gray-200"
+                                        title="เลื่อนไปทางซ้าย"
+                                    >
+                                        ◀
+                                    </button>
+                                )}
+
+                                <button
+                                    type="button"
+                                    onClick={() => setSelectedFloor(floor)}
+                                    className="px-1 text-sm font-bold select-none"
+                                >
+                                    {floor}
+                                </button>
+
+                                {isEditMode && index < floors.length - 1 && (
+                                    <button
+                                        type="button"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            moveFloor(index, index + 1);
+                                        }}
+                                        className="w-5 h-5 flex items-center justify-center text-[10px] bg-white hover:bg-blue-100 text-blue-700 rounded-full transition-colors shadow border border-gray-200"
+                                        title="เลื่อนไปทางขวา"
+                                    >
+                                        ▶
+                                    </button>
+                                )}
+
+                                {isEditMode && onRemoveFloor && (
+                                    <button
+                                        type="button"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            onRemoveFloor(floor);
+                                        }}
+                                        className="w-5 h-5 ml-1 flex items-center justify-center text-[10px] bg-red-100 hover:bg-red-200 text-red-600 rounded-full transition-colors border border-red-200"
+                                        title={`ลบชั้น ${floor}`}
+                                    >
+                                        ✕
+                                    </button>
+                                )}
+                            </div>
+                        );
+                    })}
+
+                    {isEditMode && onAddFloor && (
+                        <button
+                            type="button"
+                            onClick={onAddFloor}
+                            className="px-3 py-1.5 bg-blue-600 text-white hover:bg-blue-700 text-xs font-bold rounded-full transition-colors shadow flex items-center gap-1"
+                            title="เพิ่มชั้นใหม่"
                         >
-                            {floor}
+                            <span>+</span> เพิ่มชั้น
                         </button>
-                    ))}
+                    )}
                 </div>
             </div>
             
