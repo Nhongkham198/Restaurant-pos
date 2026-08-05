@@ -475,10 +475,10 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
     // --- ESSENTIAL DATA ---
     const [menuItems, setMenuItems, isMenuItemsLoading] = useFirestoreSync<MenuItem[]>(branchId, 'menuItems', []);
-    const [recipes, setRecipes, isRecipesLoading] = useFirestoreSync<Recipe[]>(heavyDataEffectiveId, 'recipes', []);
+    const [recipes, setRecipes, isRecipesLoading] = useFirestoreSync<Recipe[]>(branchId, 'recipes', []);
     const [categories, setCategories, isCategoriesLoading] = useFirestoreSync<string[]>(branchId, 'categories', []);
     const [tables, setTables, isTablesLoading] = useFirestoreSync<Table[]>(branchId, 'tables', []);
-    const [floors, setFloors, isFloorsLoading] = useFirestoreSync<string[]>(heavyDataEffectiveId, 'floors', []);
+    const [floors, setFloors, isFloorsLoading] = useFirestoreSync<string[]>(branchId, 'floors', []);
     const [recommendedMenuItemIds, setRecommendedMenuItemIds, isRecommendedLoading] = useFirestoreSync<number[]>(branchId, 'recommendedMenuItemIds', []);
     
     // Active Orders
@@ -523,7 +523,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     const [printHistory, setPrintHistory, isPrintHistoryLoading] = useFirestoreSync<PrintHistoryEntry[]>(heavyDataEffectiveId, 'printHistory', []);
     const [maintenanceItems, setMaintenanceItems, isMaintenanceItemsLoading] = useFirestoreSync<MaintenanceItem[]>(heavyDataEffectiveId, 'maintenanceItems', []);
     const [maintenanceLogs, maintenanceLogsActions] = useFirestoreCollection<MaintenanceLog>(heavyDataEffectiveId, 'maintenanceLogs_v2'); 
-    const [orderCounter, setOrderCounter, isOrderCounterLoading] = useFirestoreSync<OrderCounter>(heavyDataEffectiveId, 'orderCounter', { count: 0, lastResetDate: new Date().toISOString().split('T')[0] });
+    const [orderCounter, setOrderCounter, isOrderCounterLoading] = useFirestoreSync<OrderCounter>(branchId, 'orderCounter', { count: 0, lastResetDate: new Date().toISOString().split('T')[0] });
     
     const [stockLogs, stockLogsActions] = useFirestoreCollection<StockLog>(heavyDataEffectiveId, 'stockLogs');
 

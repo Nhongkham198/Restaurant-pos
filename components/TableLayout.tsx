@@ -405,8 +405,10 @@ export const TableLayout: React.FC<TableLayoutProps> = ({
     const [selectedFloor, setSelectedFloor] = useState<string>('');
 
     useEffect(() => {
-        if (floors && floors.length > 0 && !selectedFloor) {
-            setSelectedFloor(floors[0]);
+        if (floors && floors.length > 0) {
+            if (!selectedFloor || !floors.includes(selectedFloor)) {
+                setSelectedFloor(floors[0]);
+            }
         }
     }, [floors, selectedFloor]);
 
