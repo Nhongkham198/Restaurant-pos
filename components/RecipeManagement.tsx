@@ -342,16 +342,20 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
                         
                         // Manual Cost calculation
                         const manualPrice = ing.unitPrice ?? stockItem?.unitPrice ?? 0;
-                        mCost += ing.quantity * manualPrice;
+                        if (!ing.excludeFromCost) {
+                            mCost += ing.quantity * manualPrice;
+                        }
 
                         // Smart Cost (JSON) calculation matching RecipeModal logic
                         const itemName = (stockItem?.name || '').trim();
                         const latestPrice = itemName ? priceMap.get(itemName) : undefined;
-                        let jsonUnitPrice = undefined;
-                        
-                        jsonUnitPrice = calculateSmartUnitPrice(ing, latestPrice, manualPrice);
+                        let jsonUnitPrice = (ing.isSmartPriceLocked && ing.smartUnitPrice !== undefined) 
+                            ? ing.smartUnitPrice 
+                            : calculateSmartUnitPrice(ing, latestPrice, manualPrice);
 
-                        sCost += ing.quantity * (jsonUnitPrice || 0);
+                        if (!ing.excludeFromCost) {
+                            sCost += ing.quantity * (jsonUnitPrice || 0);
+                        }
                         
                         return {
                             ...ing,
@@ -368,6 +372,7 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
 
                 // Determine miscCost
                 const currentAdditionalManualPackagingSubtotal = recipe.additionalIngredients?.reduce((sum, ing) => {
+                    if (ing.excludeFromCost) return sum;
                     const sItem = stockMap.get(ing.stockItemId);
                     return sum + (ing.quantity * (ing.unitPrice ?? sItem?.unitPrice ?? 0));
                 }, 0) || 0;

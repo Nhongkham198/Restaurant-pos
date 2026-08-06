@@ -5,7 +5,7 @@ import { CompletedOrder, CancelledOrder, User, Recipe, DeliveryProvider } from '
 import { SalesChart } from './SalesChart';
 import PieChart from './PieChart';
 import { NumpadModal } from './NumpadModal';
-import { calculateSmartUnitPrice } from '../utils/recipeUtils';
+import { calculateSmartUnitPrice, parseThaiDateToTimestamp } from '../utils/recipeUtils';
 
 interface DashboardProps {
     completedOrders: CompletedOrder[];
@@ -28,13 +28,25 @@ const StatCard: React.FC<{ title: string; value: string; icon: React.ReactNode; 
     </div>
 );
 
+const canonicalizeProviderName = (rawName: string): string => {
+    if (!rawName) return 'LINE MAN';
+    const norm = rawName.toLowerCase().replace(/[\s\-_]/g, '');
+    if (norm.includes('lineman')) return 'LINE MAN';
+    if (norm.includes('shopee')) return 'ShopeeFood';
+    if (norm.includes('grab')) return 'GrabFood';
+    if (norm.includes('foodpanda') || norm.includes('panda')) return 'foodpanda';
+    if (norm.includes('robinhood') || norm.includes('robin')) return 'Robinhood';
+    return rawName;
+};
+
 const getProviderColor = (name: string, deliveryProviders: DeliveryProvider[]) => {
-    const provider = deliveryProviders.find(p => p.name.toLowerCase() === name.toLowerCase());
+    const canonical = canonicalizeProviderName(name);
+    const provider = deliveryProviders.find(p => canonicalizeProviderName(p.name) === canonical);
     if (provider?.color) return provider.color;
     
     const lowerName = name.toLowerCase();
     if (lowerName.includes('shopeefood') || lowerName.includes('shopee')) return '#FF5722';
-    if (lowerName.includes('lineman')) return '#00B14F';
+    if (lowerName.includes('lineman') || lowerName.includes('line man')) return '#00B14F';
     if (lowerName.includes('grab')) return '#00B14F';
     if (lowerName.includes('foodpanda')) return '#D70F64';
     if (lowerName.includes('robinhood')) return '#802D8C';
@@ -95,13 +107,32 @@ const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelledOrders,
         const stockItemsArr = Array.isArray(stockItems) ? stockItems : [];
         const latestPricesArr = Array.isArray(latestIngredientPrices) ? latestIngredientPrices : [];
         
+        // Build unique latest price map by newest date
+        const priceMap = new Map();
+        latestPricesArr.forEach(p => {
+            if (!p) return;
+            const key = (p.name || '').trim();
+            if (!key) return;
+            
+            const existing = priceMap.get(key);
+            if (!existing) {
+                priceMap.set(key, p);
+            } else {
+                const pDateVal = p.date ? parseThaiDateToTimestamp(p.date) : 0;
+                const existingDateVal = existing.date ? parseThaiDateToTimestamp(existing.date) : 0;
+                if (pDateVal > existingDateVal) {
+                    priceMap.set(key, p);
+                }
+            }
+        });
+
         recipesArr.forEach(r => {
             if (!r) return;
             // Calculate manual ingredients sum to find misc cost
             let ingManualSum = 0;
             const rIngredients = Array.isArray(r.ingredients) ? r.ingredients : [];
             rIngredients.forEach(ing => {
-                if (!ing) return;
+                if (!ing || ing.excludeFromCost) return;
                 const stockItem = stockItemsArr.find(s => s && s.id === ing.stockItemId);
                 ingManualSum += ing.quantity * (ing.unitPrice ?? stockItem?.unitPrice ?? 0);
             });
@@ -109,7 +140,7 @@ const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelledOrders,
             let addManualSum = 0;
             const rAddIngredients = Array.isArray(r.additionalIngredients) ? r.additionalIngredients : [];
             rAddIngredients.forEach(ing => {
-                if (!ing) return;
+                if (!ing || ing.excludeFromCost) return;
                 const stockItem = stockItemsArr.find(s => s && s.id === ing.stockItemId);
                 addManualSum += ing.quantity * (ing.unitPrice ?? stockItem?.unitPrice ?? 0);
             });
@@ -117,29 +148,29 @@ const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelledOrders,
             // Recalculate smart based on CURRENT latestIngredientPrices or saved smartUnitPrice
             let ingSmartSum = 0;
             rIngredients.forEach(ing => {
-                if (!ing) return;
+                if (!ing || ing.excludeFromCost) return;
                 const stockItem = stockItemsArr.find(s => s && s.id === ing.stockItemId);
-                const latestPrice = latestPricesArr.find(p => p && (p.name || '').trim() === (stockItem?.name || '').trim());
+                const itemName = (stockItem?.name || '').trim();
+                const latestPrice = itemName ? priceMap.get(itemName) : undefined;
                 const manualPrice = ing.unitPrice ?? stockItem?.unitPrice ?? 0;
                 
-                let jsonUnitPrice = ing.smartUnitPrice;
-                if (jsonUnitPrice === undefined) {
-                    jsonUnitPrice = calculateSmartUnitPrice(ing, latestPrice, manualPrice);
-                }
+                let jsonUnitPrice = (ing.isSmartPriceLocked && ing.smartUnitPrice !== undefined)
+                    ? ing.smartUnitPrice
+                    : calculateSmartUnitPrice(ing, latestPrice, manualPrice);
                 ingSmartSum += ing.quantity * jsonUnitPrice;
             });
 
             let addSmartSum = 0;
             rAddIngredients.forEach(ing => {
-                if (!ing) return;
+                if (!ing || ing.excludeFromCost) return;
                 const stockItem = stockItemsArr.find(s => s && s.id === ing.stockItemId);
-                const latestPrice = latestPricesArr.find(p => p && (p.name || '').trim() === (stockItem?.name || '').trim());
+                const itemName = (stockItem?.name || '').trim();
+                const latestPrice = itemName ? priceMap.get(itemName) : undefined;
                 const manualPrice = ing.unitPrice ?? stockItem?.unitPrice ?? 0;
                 
-                let jsonUnitPrice = ing.smartUnitPrice;
-                if (jsonUnitPrice === undefined) {
-                    jsonUnitPrice = calculateSmartUnitPrice(ing, latestPrice, manualPrice);
-                }
+                let jsonUnitPrice = (ing.isSmartPriceLocked && ing.smartUnitPrice !== undefined)
+                    ? ing.smartUnitPrice
+                    : calculateSmartUnitPrice(ing, latestPrice, manualPrice);
                 addSmartSum += ing.quantity * jsonUnitPrice;
             });
 
@@ -151,9 +182,9 @@ const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelledOrders,
             const manualTotalWithHidden = manualTotal + (manualTotal * (hiddenCostPercentage / 100));
             const smartTotalWithHidden = smartSubtotal + (smartSubtotal * (hiddenCostPercentage / 100));
 
-            costMap.set(r.menuItemId, { 
-                manual: r.manualTotalCost || manualTotalWithHidden,
-                smart: smartTotalWithHidden 
+            costMap.set(Number(r.menuItemId), { 
+                manual: manualTotalWithHidden > 0 ? manualTotalWithHidden : (r.manualTotalCost || 0),
+                smart: smartTotalWithHidden > 0 ? smartTotalWithHidden : (r.smartTotalCost || manualTotalWithHidden)
             });
         });
         
@@ -164,24 +195,24 @@ const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelledOrders,
 
     // Helper to extract provider name from delivery orders
     const getDeliveryProviderName = (order: { orderType: string, customerName?: string, tableName?: string }) => {
-        if (order.orderType !== 'lineman') return null;
+        if (order.orderType !== 'lineman' && order.orderType !== 'shopeefood') {
+            if (order.tableName && order.tableName.toLowerCase().replace(/[\s\-_]/g, '').includes('lineman')) {
+                return 'LINE MAN';
+            }
+        }
         
-        // 1. Try to get provider name from tableName (most reliable for recent orders)
+        let name = '';
         if (order.tableName && order.tableName !== 'Delivery' && order.tableName !== 'Unknown') {
-            return order.tableName;
+            name = order.tableName;
+        } else if (order.customerName && order.customerName.includes('#')) {
+            name = order.customerName.split('#')[0].trim();
+        } else if (order.customerName && isNaN(Number(order.customerName))) {
+            name = order.customerName;
+        } else {
+            name = order.orderType === 'lineman' ? 'LINE MAN' : 'ShopeeFood';
         }
-        
-        // 2. Try to parse from customerName (e.g. "LineMan #4703")
-        if (order.customerName && order.customerName.includes('#')) {
-            return order.customerName.split('#')[0].trim();
-        }
-        
-        // 3. Fallback to customerName if it's not just a number
-        if (order.customerName && isNaN(Number(order.customerName))) {
-            return order.customerName;
-        }
-        
-        return 'Delivery'; // Final fallback
+
+        return canonicalizeProviderName(name);
     };
 
     const dailyProfitData = useMemo(() => {
@@ -224,10 +255,11 @@ const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelledOrders,
             dayOrders.forEach(order => {
                 const isDelivery = order.orderType === 'lineman' || order.tableName === 'Delivery' || order.customerName?.includes('#');
                 
-                // Identify provider name consistently using the helper
-                const providerName = getDeliveryProviderName(order) || 'LineMan';
+                // Identify provider name consistently using the helper and canonicalization
+                const rawName = getDeliveryProviderName(order) || 'LINE MAN';
+                const providerName = canonicalizeProviderName(rawName);
 
-                const provider = deliveryProviders.find(p => p.name.toLowerCase() === providerName.toLowerCase());
+                const provider = deliveryProviders.find(p => canonicalizeProviderName(p.name) === providerName);
                 
                 order.items.forEach(item => {
                     const sellingPrice = item.finalPrice;
@@ -248,8 +280,11 @@ const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelledOrders,
                     totalSmartCost += smartIngredientCost * itemQty;
 
                     if (isDelivery) {
-                        const gp = item.deliveryGPs?.[provider?.id || ''] || 0;
-                        const tax = item.deliveryTaxes?.[provider?.id || ''] ?? taxRate;
+                        const itemGpVal = item.deliveryGPs?.[provider?.id || ''];
+                        const gp = (itemGpVal !== undefined && itemGpVal !== null) ? itemGpVal : (provider?.defaultGp ?? 0);
+                        
+                        const itemTaxVal = item.deliveryTaxes?.[provider?.id || ''];
+                        const tax = (itemTaxVal !== undefined && itemTaxVal !== null) ? itemTaxVal : (provider?.defaultTax ?? taxRate);
                         
                         const gpAmount = sellingPrice * (gp / 100);
                         const taxOnGP = gpAmount * (tax / 100);
@@ -276,22 +311,33 @@ const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelledOrders,
                 }
             });
 
-            // Calculate manual ad costs per provider
+            // Calculate manual ad costs per provider (canonicalize provider names in keys)
             const manualAdCostsByProvider: Record<string, number> = {};
-            let totalManualAdCostWithTax = 0;
             
             Object.entries(manualAdCosts || {}).forEach(([key, cost]) => {
-                // ONLY include keys that match the current day AND have the new composite format "date|provider"
-                // This ignores legacy keys that were just "date" which caused incorrect totals.
-                if (key.startsWith(dayKey) && key.includes('|')) {
-                    const provider = key.split('|')[1];
-                    manualAdCostsByProvider[provider] = (manualAdCostsByProvider[provider] || 0) + cost;
-                    totalManualAdCostWithTax += cost * 1.07;
+                if (key.startsWith(`${dayKey}|`)) {
+                    const rawProvider = key.split('|')[1];
+                    if (rawProvider) {
+                        const provider = canonicalizeProviderName(rawProvider);
+                        // Prefer exact canonical key if multiple key variants exist for the day
+                        if (key === `${dayKey}|${provider}` || manualAdCostsByProvider[provider] === undefined) {
+                            manualAdCostsByProvider[provider] = cost;
+                        }
+                    }
                 }
             });
 
+            let totalManualAdCostWithTax = 0;
+            Object.values(manualAdCostsByProvider).forEach(cost => {
+                totalManualAdCostWithTax += cost * 1.07;
+            });
+
             const roasByProvider: Record<string, number> = {};
-            const providersWithAds = new Set([...Object.keys(adRevenueByProvider), ...Object.keys(manualAdCostsByProvider)]);
+            const rawProviders = new Set([
+                ...Object.keys(adRevenueByProvider), 
+                ...Object.keys(manualAdCostsByProvider)
+            ]);
+            const providersWithAds = new Set(Array.from(rawProviders).map(p => canonicalizeProviderName(p)));
             
             providersWithAds.forEach(p => {
                 const rev = adRevenueByProvider[p] || 0;
@@ -887,8 +933,11 @@ const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelledOrders,
                             }
                         }
                         
-                        const gp = item.deliveryGPs?.[provider?.id || ''] || 0;
-                        const tax = item.deliveryTaxes?.[provider?.id || ''] ?? taxRate;
+                        const itemGpVal = item.deliveryGPs?.[provider?.id || ''];
+                        const gp = (itemGpVal !== undefined && itemGpVal !== null) ? itemGpVal : (provider?.defaultGp ?? 0);
+                        
+                        const itemTaxVal = item.deliveryTaxes?.[provider?.id || ''];
+                        const tax = (itemTaxVal !== undefined && itemTaxVal !== null) ? itemTaxVal : (provider?.defaultTax ?? taxRate);
                         
                         const gpAmount = sellingPrice * (gp / 100);
                         const taxOnGP = gpAmount * (tax / 100);
@@ -955,15 +1004,28 @@ const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelledOrders,
         // Allow only numbers and one decimal point
         if (value !== '' && !/^\d*\.?\d*$/.test(value)) return;
 
-        const compositeKey = `${dateKey}|${providerName}`;
+        const canonical = canonicalizeProviderName(providerName);
+        const compositeKey = `${dateKey}|${canonical}`;
         // Update local string state immediately for smooth typing
-        setLocalAdCosts(prev => ({ ...prev, [compositeKey]: value }));
+        setLocalAdCosts(prev => ({ ...prev, [compositeKey]: value, [`${dateKey}|${providerName}`]: value }));
 
         const amount = parseFloat(value) || 0;
-        setManualAdCosts(prev => ({
-            ...prev,
-            [compositeKey]: amount
-        }));
+        setManualAdCosts(prev => {
+            const next = { ...prev };
+            // Remove legacy/duplicate key variants for this date and provider
+            Object.keys(next).forEach(k => {
+                if (k.startsWith(`${dateKey}|`)) {
+                    const rawP = k.split('|')[1];
+                    if (canonicalizeProviderName(rawP) === canonical) {
+                        delete next[k];
+                    }
+                }
+            });
+            if (amount > 0) {
+                next[compositeKey] = amount;
+            }
+            return next;
+        });
     };
 
     const openNumpad = (dateKey: string, providerName: string, currentValue: number) => {
@@ -1506,18 +1568,18 @@ const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelledOrders,
                                                         </span>
                                                     </div>
                                                 </td>
-                                                <td className="px-6 py-4 text-sm text-red-400 text-right">
+                                                <td className="px-6 py-4 text-sm text-red-500 text-right">
                                                     {day.gp > 0 ? (
                                                         <div className="flex flex-col items-end">
-                                                            <span>-{day.gp.toLocaleString()}</span>
+                                                            <span className="font-bold">-{day.gp.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                                                             <div className="flex flex-wrap justify-end gap-1 mt-1">
-                                                                {Object.entries(day.gpByProvider).map(([name, amount]) => (
+                                                                {Object.entries(day.gpByProvider).filter(([_, amt]) => amt > 0).map(([name, amount]) => (
                                                                     <span 
                                                                         key={name} 
-                                                                        className="text-[10px] px-1 rounded-sm text-white font-bold"
+                                                                        className="text-[10px] px-1.5 py-0.5 rounded-sm text-white font-bold"
                                                                         style={{ backgroundColor: getProviderColor(name, deliveryProviders) }}
                                                                     >
-                                                                        {name}: {amount.toLocaleString()}
+                                                                        {name}: {amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                                     </span>
                                                                 ))}
                                                             </div>
@@ -1526,26 +1588,28 @@ const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelledOrders,
                                                 </td>
                                                 <td className="px-6 py-4 text-sm text-orange-400 text-right align-top">
                                                     <div className="flex flex-col items-end gap-3">
-                                                        {deliveryProviders.filter(p => p.isEnabled).map(provider => {
-                                                            const cost = day.manualAdCostsByProvider[provider.name] || 0;
+                                                        {Array.from(new Map(deliveryProviders.filter(p => p.isEnabled).map(p => [canonicalizeProviderName(p.name), p])).values()).map(provider => {
+                                                            const providerName = canonicalizeProviderName(provider.name);
+                                                            const cost = day.manualAdCostsByProvider[providerName] || 0;
                                                             const costWithTax = cost * 1.07;
+                                                            const inputVal = localAdCosts[`${day.fullDate}|${providerName}`] ?? localAdCosts[`${day.fullDate}|${provider.name}`] ?? (cost || '');
                                                             return (
                                                                 <div key={provider.id} className="flex flex-col items-end border-b border-orange-100 pb-2 last:border-0 last:pb-0">
                                                                     <div className="flex items-center gap-2 mb-1">
-                                                                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded text-white" style={{ backgroundColor: getProviderColor(provider.name, deliveryProviders) }}>
-                                                                            {provider.name}
+                                                                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded text-white" style={{ backgroundColor: getProviderColor(providerName, deliveryProviders) }}>
+                                                                            {providerName}
                                                                         </span>
                                                                         <div className="relative flex items-center">
                                                                             <input 
                                                                                 type="text"
                                                                                 inputMode="decimal"
-                                                                                value={localAdCosts[`${day.fullDate}|${provider.name}`] ?? (cost || '')}
-                                                                                onChange={(e) => handleManualAdCostChange(day.fullDate, provider.name, e.target.value)}
+                                                                                value={inputVal}
+                                                                                onChange={(e) => handleManualAdCostChange(day.fullDate, providerName, e.target.value)}
                                                                                 className="w-24 px-2 py-1.5 text-right border border-orange-200 rounded bg-orange-50 hover:bg-orange-100 transition-colors focus:outline-none focus:ring-1 focus:ring-orange-400 text-orange-700 font-bold pr-8"
                                                                                 placeholder="0"
                                                                             />
                                                                             <button 
-                                                                                onClick={() => openNumpad(day.fullDate, provider.name, cost)}
+                                                                                onClick={() => openNumpad(day.fullDate, providerName, cost)}
                                                                                 className="absolute right-1 p-1 text-orange-400 hover:text-orange-600 transition-colors"
                                                                                 title="เปิดแป้นพิมพ์ตัวเลข"
                                                                             >
@@ -1557,9 +1621,9 @@ const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelledOrders,
                                                                         <div className="flex flex-col items-end">
                                                                             <span className="text-xs text-gray-400">ภาษี 7%: +{(cost * 0.07).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                                                                             <span className="text-sm font-bold text-orange-600">รวม: -{costWithTax.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                                                                            {day.adOrderCounts[provider.name] > 0 && (
+                                                                            {(day.adOrderCounts[providerName] || 0) > 0 && (
                                                                                 <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 mt-1">
-                                                                                    {provider.name}: {day.adOrderCounts[provider.name]}
+                                                                                    {providerName}: {day.adOrderCounts[providerName]}
                                                                                 </span>
                                                                             )}
                                                                         </div>

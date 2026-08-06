@@ -123,16 +123,20 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({
     // Helper to extract provider name from delivery orders
     const getDeliveryProviderName = (order: { orderType: string; customerName?: string; tableName?: string }) => {
         if (order.orderType !== 'lineman' && order.orderType !== 'shopeefood') return null;
+        let providerName = '';
         if (order.tableName && order.tableName !== 'Delivery' && order.tableName !== 'Unknown') {
-            return order.tableName;
+            providerName = order.tableName;
+        } else if (order.customerName && order.customerName.includes('#')) {
+            providerName = order.customerName.split('#')[0].trim();
+        } else if (order.customerName && isNaN(Number(order.customerName))) {
+            providerName = order.customerName;
+        } else {
+            providerName = order.orderType === 'lineman' ? 'LINE MAN' : 'ShopeeFood';
         }
-        if (order.customerName && order.customerName.includes('#')) {
-            return order.customerName.split('#')[0].trim();
+        if (providerName.toLowerCase().replace(/[\s\-_]/g, '') === 'lineman') {
+            return 'LINE MAN';
         }
-        if (order.customerName && isNaN(Number(order.customerName))) {
-            return order.customerName;
-        }
-        return order.orderType === 'lineman' ? 'LineMan' : 'ShopeeFood';
+        return providerName;
     };
 
     // Count Delivery orders dynamically
@@ -208,21 +212,23 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({
         ordersList.forEach(order => {
             const isCompletedOrCancelled = activeTab === 'completed' || activeTab === 'cancelled';
             if (isCompletedOrCancelled) {
-                const isDeliv = order.orderType === 'lineman' || order.orderType === 'shopeefood' || order.floor === 'Online';
+                const provider = getDeliveryProviderName(order);
+                const providerNorm = (provider || order.tableName || order.customerName || '').toLowerCase().replace(/[\s\-_]/g, '');
+                const isDeliv = order.orderType === 'lineman' || order.orderType === 'shopeefood' || order.floor === 'Online' || providerNorm.includes('lineman') || providerNorm.includes('shopee') || providerNorm.includes('delivery');
                 if (isDeliv) {
                     totalDelivery++;
-                    const provider = getDeliveryProviderName(order);
-                    if (order.orderType === 'shopeefood' || (provider && (provider.toLowerCase().includes('shopeefood') || provider.toLowerCase().includes('shopee')))) {
+                    if (order.orderType === 'shopeefood' || providerNorm.includes('shopee')) {
                         shopeefoodCount++;
                     } else {
                         linemanCount++;
                     }
                 }
             } else {
-                const isDeliv = order.tableName?.includes('LineMan') || order.tableName?.includes('Delivery') || order.tableName?.includes('ShopeeFood');
+                const tableNameNorm = (order.tableName || '').toLowerCase().replace(/[\s\-_]/g, '');
+                const isDeliv = tableNameNorm.includes('lineman') || tableNameNorm.includes('delivery') || tableNameNorm.includes('shopeefood');
                 if (isDeliv) {
                     totalDelivery++;
-                    if (order.tableName?.includes('ShopeeFood')) {
+                    if (tableNameNorm.includes('shopee')) {
                         shopeefoodCount++;
                     } else {
                         linemanCount++;
@@ -256,15 +262,17 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({
 
             let groupMatch = true;
             if (selectedGroup === 'Delivery') {
-                groupMatch = order.orderType === 'lineman' || order.orderType === 'shopeefood' || order.floor === 'Online';
+                groupMatch = order.orderType === 'lineman' || order.orderType === 'shopeefood' || order.floor === 'Online' ||
+                             (order.tableName && (order.tableName.toLowerCase().includes('lineman') || order.tableName.toLowerCase().includes('line man') || order.tableName.toLowerCase().includes('delivery') || order.tableName.toLowerCase().includes('shopee')));
             } else if (selectedGroup === 'LineMan') {
                 const provider = getDeliveryProviderName(order);
-                groupMatch = (order.orderType === 'lineman' || order.orderType === 'shopeefood') && 
-                             (!provider || provider.toLowerCase().includes('lineman') || provider === 'Delivery');
+                const providerNorm = (provider || order.tableName || order.customerName || '').toLowerCase().replace(/[\s\-_]/g, '');
+                groupMatch = (order.orderType === 'lineman' || order.orderType === 'shopeefood' || providerNorm.includes('lineman') || providerNorm.includes('delivery')) && 
+                             (!providerNorm.includes('shopee'));
             } else if (selectedGroup === 'ShopeeFood') {
                 const provider = getDeliveryProviderName(order);
-                groupMatch = (order.orderType === 'lineman' || order.orderType === 'shopeefood') && 
-                             (provider && (provider.toLowerCase().includes('shopeefood') || provider.toLowerCase().includes('shopee')));
+                const providerNorm = (provider || order.tableName || order.customerName || '').toLowerCase().replace(/[\s\-_]/g, '');
+                groupMatch = providerNorm.includes('shopee');
             } else if (selectedGroup !== 'All') {
                 groupMatch = order.floor === selectedGroup;
             }
@@ -297,15 +305,17 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({
 
             let groupMatch = true;
             if (selectedGroup === 'Delivery') {
-                groupMatch = order.orderType === 'lineman' || order.orderType === 'shopeefood' || order.floor === 'Online';
+                groupMatch = order.orderType === 'lineman' || order.orderType === 'shopeefood' || order.floor === 'Online' ||
+                             (order.tableName && (order.tableName.toLowerCase().includes('lineman') || order.tableName.toLowerCase().includes('line man') || order.tableName.toLowerCase().includes('delivery') || order.tableName.toLowerCase().includes('shopee')));
             } else if (selectedGroup === 'LineMan') {
                 const provider = getDeliveryProviderName(order);
-                groupMatch = (order.orderType === 'lineman' || order.orderType === 'shopeefood') && 
-                             (!provider || provider.toLowerCase().includes('lineman') || provider === 'Delivery');
+                const providerNorm = (provider || order.tableName || order.customerName || '').toLowerCase().replace(/[\s\-_]/g, '');
+                groupMatch = (order.orderType === 'lineman' || order.orderType === 'shopeefood' || providerNorm.includes('lineman') || providerNorm.includes('delivery')) && 
+                             (!providerNorm.includes('shopee'));
             } else if (selectedGroup === 'ShopeeFood') {
                 const provider = getDeliveryProviderName(order);
-                groupMatch = (order.orderType === 'lineman' || order.orderType === 'shopeefood') && 
-                             (provider && (provider.toLowerCase().includes('shopeefood') || provider.toLowerCase().includes('shopee')));
+                const providerNorm = (provider || order.tableName || order.customerName || '').toLowerCase().replace(/[\s\-_]/g, '');
+                groupMatch = providerNorm.includes('shopee');
             } else if (selectedGroup !== 'All') {
                 groupMatch = order.floor === selectedGroup;
             }
@@ -334,15 +344,14 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({
             else if (filterType === 'monthly') dateMatch = isSameMonth(date, selectedDate);
             else if (filterType === 'year') dateMatch = isSameYear(date, selectedDate);
 
-            // Group match note: PrintHistoryEntry might not have floor directly in some cases
-            // but we usually havetableName.
             let groupMatch = true;
+            const tblNorm = (entry.tableName || '').toLowerCase().replace(/[\s\-_]/g, '');
             if (selectedGroup === 'Delivery') {
-                groupMatch = entry.tableName?.includes('LineMan') || entry.tableName?.includes('Delivery') || entry.tableName?.includes('ShopeeFood');
+                groupMatch = tblNorm.includes('lineman') || tblNorm.includes('delivery') || tblNorm.includes('shopee');
             } else if (selectedGroup === 'LineMan') {
-                groupMatch = (entry.tableName?.includes('LineMan') || entry.tableName?.includes('Delivery')) && !entry.tableName?.includes('ShopeeFood');
+                groupMatch = (tblNorm.includes('lineman') || tblNorm.includes('delivery')) && !tblNorm.includes('shopee');
             } else if (selectedGroup === 'ShopeeFood') {
-                groupMatch = entry.tableName?.includes('ShopeeFood');
+                groupMatch = tblNorm.includes('shopee');
             } else if (selectedGroup !== 'All') {
                 groupMatch = entry.tableName?.includes(`(${selectedGroup})`);
             }

@@ -41,6 +41,8 @@ export interface DeliveryProvider {
     isEnabled: boolean;
     isDefault?: boolean; // System defaults like LineMan
     fixedAdCost?: number; // Added: Fixed advertising cost per order (e.g. 32 THB)
+    defaultGp?: number; // Added: Default GP % for auto-filling recipe prices
+    defaultTax?: number; // Added: Default Tax % for auto-filling recipe prices
 }
 
 export const DEFAULT_DELIVERY_PROVIDERS: DeliveryProvider[] = [

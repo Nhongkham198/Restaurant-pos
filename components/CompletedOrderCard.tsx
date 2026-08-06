@@ -71,8 +71,14 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({
         let adCostTax = 0;
 
         // Find delivery provider
-        const providerName = order.orderType === 'lineman' ? 'LineMan' : (order.tableName || order.customerName || 'Delivery');
-        const provider = deliveryProviders.find(p => p.name.toLowerCase() === providerName.toLowerCase());
+        const rawProviderName = order.orderType === 'lineman' ? (
+            (order.tableName && order.tableName !== 'Delivery' && order.tableName !== 'Unknown') ? order.tableName :
+            (order.customerName && order.customerName.includes('#')) ? order.customerName.split('#')[0].trim() :
+            (order.customerName && isNaN(Number(order.customerName))) ? order.customerName : 'LINE MAN'
+        ) : (order.tableName || order.customerName || 'Delivery');
+
+        const normProviderName = rawProviderName.toLowerCase().replace(/[\s\-_]/g, '');
+        const provider = deliveryProviders.find(p => p.name.toLowerCase().replace(/[\s\-_]/g, '') === normProviderName || (p.id === 'lineman' && normProviderName.includes('lineman')));
 
         // Only calculate Ad Cost if isFromAd is true
         if (order.orderType === 'lineman' && order.isFromAd) {
@@ -101,9 +107,12 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({
             }
 
             // GP and GP Tax - ALWAYS calculated for delivery
-            if (order.orderType === 'lineman') {
-                const gpPercent = item.deliveryGPs?.[provider?.id || ''] || 0;
-                const gpTaxPercent = item.deliveryTaxes?.[provider?.id || ''] || 0;
+            if (order.orderType === 'lineman' || order.orderType === 'shopeefood' || order.tableName === 'Delivery' || order.customerName?.includes('#')) {
+                const itemGpVal = item.deliveryGPs?.[provider?.id || ''];
+                const gpPercent = (itemGpVal !== undefined && itemGpVal !== null) ? itemGpVal : (provider?.defaultGp ?? 0);
+
+                const itemTaxVal = item.deliveryTaxes?.[provider?.id || ''];
+                const gpTaxPercent = (itemTaxVal !== undefined && itemTaxVal !== null) ? itemTaxVal : (provider?.defaultTax ?? 0);
                 
                 // Use the same revenue basis for GP calculation
                 const itemGP = itemRevenue * (gpPercent / 100);
@@ -132,7 +141,7 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({
             fixedAdCost: 0,
             adCostTax: 0,
             netProfit,
-            providerName: provider?.name || 'ทั่วไป'
+            providerName: provider?.name || (normProviderName.includes('lineman') ? 'LINE MAN' : 'ทั่วไป')
         };
     }, [order, recipes, deliveryProviders, taxRate]);
 
@@ -171,26 +180,34 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({
             } else if (order.customerName) {
                 providerName = order.customerName.split('#')[0].trim();
             } else {
-                providerName = 'LineMan';
+                providerName = 'LINE MAN';
             }
         } else {
             providerName = order.tableName || order.customerName || 'Dine-in';
         }
 
-        // 2. Try to find in configured providers
-        const provider = deliveryProviders.find(p => p.name.toLowerCase() === providerName.toLowerCase());
+        const normName = providerName.toLowerCase().replace(/[\s\-_]/g, '');
+
+        // 2. Try to find in configured providers by normalized name
+        const provider = deliveryProviders.find(p => p.name.toLowerCase().replace(/[\s\-_]/g, '') === normName);
         if (provider?.color) return provider.color;
 
         // 3. Fallback to standard brand colors
-        const name = providerName.toLowerCase();
-        if (name.includes('shopeefood') || name.includes('shopee')) return '#FF5722'; // Shopee Orange
-        if (name.includes('lineman')) return '#00B14F'; // LineMan Green
-        if (name.includes('grab')) return '#00B14F'; // Grab Green
-        if (name.includes('foodpanda')) return '#D70F64'; // FoodPanda Pink
-        if (name.includes('robinhood')) return '#802D8C'; // Robinhood Purple
+        if (normName.includes('shopeefood') || normName.includes('shopee')) return '#FF5722'; // Shopee Orange
+        if (normName.includes('lineman')) return '#00B14F'; // LineMan Green
+        if (normName.includes('grab')) return '#00B14F'; // Grab Green
+        if (normName.includes('foodpanda')) return '#D70F64'; // FoodPanda Pink
+        if (normName.includes('robinhood')) return '#802D8C'; // Robinhood Purple
         
         return '#3b82f6'; // Default blue
     }, [order.orderType, order.tableName, order.customerName, deliveryProviders]);
+
+    const displayTableName = useMemo(() => {
+        if (order.tableName && order.tableName.toLowerCase().replace(/[\s\-_]/g, '') === 'lineman') {
+            return 'LINE MAN';
+        }
+        return order.tableName;
+    }, [order.tableName]);
 
     const cardClasses = useMemo(() => {
         if (order.isDeleted) {
@@ -348,7 +365,7 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({
                                     {displayOrderNumber}
                                 </p>
                                 <p className={`font-semibold text-lg leading-tight ${order.isDeleted ? 'text-red-800' : 'text-gray-800'}`}>
-                                    โต๊ะ {order.tableName} <span className="whitespace-nowrap">({order.floor})</span>
+                                    โต๊ะ {displayTableName} <span className="whitespace-nowrap">({order.floor})</span>
                                 </p>
                                 {order.isDeleted && <span className="text-xs px-2 py-0.5 rounded-full bg-red-200 text-red-800 font-semibold">(ลบโดย: {order.deletedBy})</span>}
                             </div>

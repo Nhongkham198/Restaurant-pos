@@ -213,9 +213,25 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
             setCookingInstructions('');
         }
         setDeliveryPrices(menuItem.deliveryPrices || {});
-        setDeliveryGPs(menuItem.deliveryGPs || {});
-        setDeliveryTaxes(menuItem.deliveryTaxes || {});
-    }, [recipe, menuItem, stockItems]);
+        
+        const initialGPs: { [providerId: string]: number } = {};
+        const initialTaxes: { [providerId: string]: number } = {};
+        deliveryProviders.forEach(provider => {
+            if (menuItem.deliveryGPs && menuItem.deliveryGPs[provider.id] !== undefined) {
+                initialGPs[provider.id] = menuItem.deliveryGPs[provider.id];
+            } else if (provider.defaultGp !== undefined) {
+                initialGPs[provider.id] = provider.defaultGp;
+            }
+
+            if (menuItem.deliveryTaxes && menuItem.deliveryTaxes[provider.id] !== undefined) {
+                initialTaxes[provider.id] = menuItem.deliveryTaxes[provider.id];
+            } else if (provider.defaultTax !== undefined) {
+                initialTaxes[provider.id] = provider.defaultTax;
+            }
+        });
+        setDeliveryGPs(initialGPs);
+        setDeliveryTaxes(initialTaxes);
+    }, [recipe, menuItem, stockItems, deliveryProviders]);
 
     const filteredStock = stockItems.filter(item => 
         (item.name || '').toLowerCase().includes(searchTerm.toLowerCase()) &&
@@ -1141,12 +1157,12 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
                                                 <span className="text-gray-400 text-[10px] font-bold">GP</span>
                                                 <input
                                                     type="number"
-                                                    value={deliveryGPs[provider.id] || ''}
+                                                    value={deliveryGPs[provider.id] !== undefined && deliveryGPs[provider.id] !== null ? deliveryGPs[provider.id] : ''}
                                                     onChange={(e) => setDeliveryGPs({
                                                         ...deliveryGPs,
-                                                        [provider.id]: parseFloat(e.target.value) || 0
+                                                        [provider.id]: e.target.value === '' ? 0 : parseFloat(e.target.value) || 0
                                                     })}
-                                                    placeholder="0"
+                                                    placeholder={(provider.defaultGp ?? 0).toString()}
                                                     className="w-16 px-2 py-1 border border-gray-200 rounded-lg text-right font-bold text-[11px] focus:ring-2 focus:ring-red-500 outline-none"
                                                 />
                                                 <span className="text-gray-400 text-[10px] font-bold">%</span>
@@ -1155,12 +1171,12 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
                                                 <span className="text-gray-400 text-[10px] font-bold">ภาษี</span>
                                                 <input
                                                     type="number"
-                                                    value={deliveryTaxes[provider.id] || ''}
+                                                    value={deliveryTaxes[provider.id] !== undefined && deliveryTaxes[provider.id] !== null ? deliveryTaxes[provider.id] : ''}
                                                     onChange={(e) => setDeliveryTaxes({
                                                         ...deliveryTaxes,
-                                                        [provider.id]: parseFloat(e.target.value) || 0
+                                                        [provider.id]: e.target.value === '' ? 0 : parseFloat(e.target.value) || 0
                                                     })}
-                                                    placeholder="0"
+                                                    placeholder={(provider.defaultTax ?? 0).toString()}
                                                     className="w-16 px-2 py-1 border border-gray-200 rounded-lg text-right font-bold text-[11px] focus:ring-2 focus:ring-blue-500 outline-none"
                                                 />
                                                 <span className="text-gray-400 text-[10px] font-bold">%</span>

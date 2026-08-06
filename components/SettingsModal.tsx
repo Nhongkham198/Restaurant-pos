@@ -1118,7 +1118,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
         ));
     };
 
-    const handleDeliveryFieldChange = (providerId: string, field: 'name' | 'iconUrl' | 'color' | 'fixedAdCost', value: any) => {
+    const handleDeliveryFieldChange = (providerId: string, field: 'name' | 'iconUrl' | 'color' | 'fixedAdCost' | 'defaultGp' | 'defaultTax', value: any) => {
         setTempDeliveryProviders(prev => prev.map(p => 
             p.id === providerId ? { ...p, [field]: value } : p
         ));
@@ -2198,8 +2198,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
                                             </div>
                                             
                                             {/* Edit Fields */}
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-3 border-t border-gray-200/80">
-                                                <div>
+                                            <div className="grid grid-cols-1 md:grid-cols-12 gap-3 pt-3 border-t border-gray-200/80">
+                                                <div className="md:col-span-4">
                                                     <label className="block text-xs font-bold text-gray-500 mb-1">URL รูปไอคอน / โลโก้</label>
                                                     <input 
                                                         type="text" 
@@ -2209,23 +2209,49 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
                                                         className="w-full text-sm border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
                                                     />
                                                 </div>
-                                                <div>
+                                                <div className="md:col-span-4">
                                                     <label className="block text-xs font-bold text-gray-500 mb-1">สีประจำค่าย (Theme Color)</label>
                                                     <div className="flex items-center gap-2">
                                                         <input 
                                                             type="color" 
                                                             value={provider.color || '#2563eb'} 
                                                             onChange={(e) => handleDeliveryFieldChange(provider.id, 'color', e.target.value)}
-                                                            className="h-9 w-12 border border-gray-300 rounded cursor-pointer p-0.5 bg-white flex-shrink-0"
+                                                            className="h-9 w-10 border border-gray-300 rounded cursor-pointer p-0.5 bg-white flex-shrink-0"
                                                         />
                                                         <input 
                                                             type="text" 
                                                             value={provider.color || ''} 
                                                             onChange={(e) => handleDeliveryFieldChange(provider.id, 'color', e.target.value)}
                                                             placeholder="#RRGGBB"
-                                                            className="flex-1 text-sm border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 uppercase bg-white"
+                                                            className="w-full text-sm border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 uppercase bg-white font-mono"
                                                         />
                                                     </div>
+                                                </div>
+                                                <div className="md:col-span-2">
+                                                    <label className="block text-xs font-bold text-gray-500 mb-1">GP (%)</label>
+                                                    <input 
+                                                        type="number" 
+                                                        value={provider.defaultGp !== undefined && provider.defaultGp !== null ? provider.defaultGp : ''} 
+                                                        onChange={(e) => handleDeliveryFieldChange(provider.id, 'defaultGp', e.target.value === '' ? undefined : parseFloat(e.target.value))}
+                                                        placeholder="0"
+                                                        step="0.1"
+                                                        min="0"
+                                                        max="100"
+                                                        className="w-full text-sm border border-gray-300 rounded-md p-2 text-right font-bold focus:ring-blue-500 focus:border-blue-500 bg-white"
+                                                    />
+                                                </div>
+                                                <div className="md:col-span-2">
+                                                    <label className="block text-xs font-bold text-gray-500 mb-1">ภาษี (%)</label>
+                                                    <input 
+                                                        type="number" 
+                                                        value={provider.defaultTax !== undefined && provider.defaultTax !== null ? provider.defaultTax : ''} 
+                                                        onChange={(e) => handleDeliveryFieldChange(provider.id, 'defaultTax', e.target.value === '' ? undefined : parseFloat(e.target.value))}
+                                                        placeholder="0"
+                                                        step="0.1"
+                                                        min="0"
+                                                        max="100"
+                                                        className="w-full text-sm border border-gray-300 rounded-md p-2 text-right font-bold focus:ring-blue-500 focus:border-blue-500 bg-white"
+                                                    />
                                                 </div>
                                             </div>
                                         </div>
