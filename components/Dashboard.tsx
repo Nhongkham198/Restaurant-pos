@@ -102,7 +102,7 @@ const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelledOrders,
 
     // --- DYNAMIC RECIPE COSTING (LIVE CALCULATION) ---
     const liveRecipeCosts = useMemo(() => {
-        const costMap = new Map<number, { manual: number, smart: number }>();
+        const costMap = new Map<number | string, { manual: number, smart: number }>();
         const recipesArr = Array.isArray(recipes) ? recipes : [];
         const stockItemsArr = Array.isArray(stockItems) ? stockItems : [];
         const latestPricesArr = Array.isArray(latestIngredientPrices) ? latestIngredientPrices : [];
@@ -111,7 +111,7 @@ const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelledOrders,
         const priceMap = new Map();
         latestPricesArr.forEach(p => {
             if (!p) return;
-            const key = (p.name || '').trim();
+            const key = (p.stockItemName || p.name || '').trim();
             if (!key) return;
             
             const existing = priceMap.get(key);
@@ -182,10 +182,18 @@ const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelledOrders,
             const manualTotalWithHidden = manualTotal + (manualTotal * (hiddenCostPercentage / 100));
             const smartTotalWithHidden = smartSubtotal + (smartSubtotal * (hiddenCostPercentage / 100));
 
-            costMap.set(Number(r.menuItemId), { 
+            const entry = { 
                 manual: manualTotalWithHidden > 0 ? manualTotalWithHidden : (r.manualTotalCost || 0),
                 smart: smartTotalWithHidden > 0 ? smartTotalWithHidden : (r.smartTotalCost || manualTotalWithHidden)
-            });
+            };
+            if (r.menuItemId !== undefined && r.menuItemId !== null) {
+                costMap.set(Number(r.menuItemId), entry as any);
+                costMap.set(String(r.menuItemId), entry as any);
+            }
+            if (r.id !== undefined && r.id !== null) {
+                costMap.set(Number(r.id), entry as any);
+                costMap.set(String(r.id), entry as any);
+            }
         });
         
         return costMap;
@@ -272,7 +280,7 @@ const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelledOrders,
                     }
 
                     // Find recipe for cost - Dynamically calculated from latest JSON prices
-                    const costs = liveRecipeCosts.get(Number(item.id));
+                    const costs = liveRecipeCosts.get(item.id as any) || liveRecipeCosts.get(Number(item.id)) || liveRecipeCosts.get(String(item.id));
                     const manualIngredientCost = costs?.manual || 0;
                     const smartIngredientCost = costs?.smart || 0;
 

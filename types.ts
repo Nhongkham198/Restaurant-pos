@@ -6,6 +6,7 @@ export interface IngredientPrice {
     updatedAt?: number; // Added: Precise timestamp of when this was imported
     id: string;
     name: string;
+    stockItemName?: string;
     priceDiffPercent: number;
     pricePerUnit: number;
     quantity: number;

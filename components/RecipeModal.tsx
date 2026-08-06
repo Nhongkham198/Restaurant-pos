@@ -391,11 +391,9 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
 
                 // Smart Cost (JSON)
                 const latestPrice = uniqueLatestPriceMap.get((stockItem?.name || '').trim());
-                let jsonUnitPrice = ing.smartUnitPrice;
-                
-                if (jsonUnitPrice === undefined) {
-                    jsonUnitPrice = calculateSmartUnitPrice(ing, latestPrice, manualPrice);
-                }
+                let jsonUnitPrice = (ing.isSmartPriceLocked && ing.smartUnitPrice !== undefined)
+                    ? ing.smartUnitPrice
+                    : calculateSmartUnitPrice(ing, latestPrice, manualPrice);
                 sCost += ing.quantity * jsonUnitPrice;
             });
             return { mCost, sCost };
@@ -551,11 +549,9 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
                                     
                                     // Check for latest price from JSON
                                     const latestPrice = uniqueLatestPriceMap.get((stockItem?.name || '').trim());
-                                    let jsonPrice = ing.smartUnitPrice;
-                                    
-                                    if (jsonPrice === undefined) {
-                                        jsonPrice = calculateSmartUnitPrice(ing, latestPrice, currentManualPrice);
-                                    }
+                                    let jsonPrice = (ing.isSmartPriceLocked && ing.smartUnitPrice !== undefined)
+                                        ? ing.smartUnitPrice
+                                        : calculateSmartUnitPrice(ing, latestPrice, currentManualPrice);
 
                                     const rowManualCost = ing.quantity * currentManualPrice;
                                     const rowSmartCost = ing.quantity * jsonPrice;
@@ -752,12 +748,12 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
                                                     ) : (
                                                         latestPrice && (
                                                             <div 
-                                                                className="mt-1 border-t border-green-200 pt-1 flex items-center justify-end cursor-pointer hover:opacity-80 transition-opacity"
+                                                                className={`mt-1 border-t border-green-200 pt-1 flex items-center justify-end cursor-pointer hover:opacity-80 transition-opacity ${ing.excludeFromCost ? 'opacity-40 line-through' : ''}`}
                                                                 onClick={() => setForcingEdit(prev => new Set(prev).add(ing.stockItemId))}
                                                                 title="คลิกเพื่อแก้ไขราคา"
                                                             >
-                                                                <span className="text-[10px] font-bold text-green-500 mr-0.5">✓ ฿</span>
-                                                                <span className="text-[10px] font-bold text-green-500">
+                                                                <span className={`text-[10px] font-bold ${ing.excludeFromCost ? 'text-gray-400' : 'text-green-500'} mr-0.5`}>✓ ฿</span>
+                                                                <span className={`text-[10px] font-bold ${ing.excludeFromCost ? 'text-gray-400' : 'text-green-500'}`}>
                                                                     {rowSmartCost.toLocaleString(undefined, { minimumFractionDigits: 3 })}
                                                                 </span>
                                                             </div>
@@ -838,10 +834,9 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
 
                                 // Check latest price for additional items (JSON/Smart)
                                 const latestPrice = uniqueLatestPriceMap.get((stockItem?.name || '').trim());
-                                let jsonPrice = ing.smartUnitPrice;
-                                if (jsonPrice === undefined) {
-                                    jsonPrice = calculateSmartUnitPrice(ing, latestPrice, currentManualPrice);
-                                }
+                                let jsonPrice = (ing.isSmartPriceLocked && ing.smartUnitPrice !== undefined)
+                                    ? ing.smartUnitPrice
+                                    : calculateSmartUnitPrice(ing, latestPrice, currentManualPrice);
                                 const rowSmartCost = ing.quantity * jsonPrice;
                                 
                                 // Calculate the expected smart price for additional items
@@ -1026,12 +1021,12 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
                                                     ) : (
                                                         latestPrice && (
                                                             <div 
-                                                                className="flex items-center justify-end mt-1 border-t border-green-100 pt-1 cursor-pointer hover:opacity-80 transition-opacity"
+                                                                className={`flex items-center justify-end mt-1 border-t border-green-100 pt-1 cursor-pointer hover:opacity-80 transition-opacity ${ing.excludeFromCost ? 'opacity-40 line-through' : ''}`}
                                                                 onClick={() => setForcingEdit(prev => new Set(prev).add(ing.stockItemId))}
                                                                 title="คลิกเพื่อแก้ไขราคา"
                                                             >
-                                                                <span className="text-[9px] font-bold text-green-500 mr-0.5">✓ ฿</span>
-                                                                <span className="text-[9px] font-bold text-green-500">
+                                                                <span className={`text-[9px] font-bold ${ing.excludeFromCost ? 'text-gray-400' : 'text-green-500'} mr-0.5`}>✓ ฿</span>
+                                                                <span className={`text-[9px] font-bold ${ing.excludeFromCost ? 'text-gray-400' : 'text-green-500'}`}>
                                                                     {rowSmartCost.toLocaleString(undefined, { minimumFractionDigits: 3 })}
                                                                 </span>
                                                             </div>

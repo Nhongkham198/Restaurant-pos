@@ -74,7 +74,7 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({
         const rawProviderName = order.orderType === 'lineman' ? (
             (order.tableName && order.tableName !== 'Delivery' && order.tableName !== 'Unknown') ? order.tableName :
             (order.customerName && order.customerName.includes('#')) ? order.customerName.split('#')[0].trim() :
-            (order.customerName && isNaN(Number(order.customerName))) ? order.customerName : 'LINE MAN'
+            (order.customerName && isNaN(Number(order.customerName))) ? order.customerName : 'LineMan'
         ) : (order.tableName || order.customerName || 'Delivery');
 
         const normProviderName = rawProviderName.toLowerCase().replace(/[\s\-_]/g, '');
@@ -180,7 +180,7 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({
             } else if (order.customerName) {
                 providerName = order.customerName.split('#')[0].trim();
             } else {
-                providerName = 'LINE MAN';
+                providerName = 'LineMan';
             }
         } else {
             providerName = order.tableName || order.customerName || 'Dine-in';
@@ -204,7 +204,7 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({
 
     const displayTableName = useMemo(() => {
         if (order.tableName && order.tableName.toLowerCase().replace(/[\s\-_]/g, '') === 'lineman') {
-            return 'LINE MAN';
+            return 'LineMan';
         }
         return order.tableName;
     }, [order.tableName]);

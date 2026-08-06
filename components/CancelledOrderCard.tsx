@@ -19,6 +19,13 @@ export const CancelledOrderCard: React.FC<CancelledOrderCardProps> = ({ order, i
 
     const cancellationDate = useMemo(() => new Date(order.cancellationTime).toLocaleString('th-TH'), [order.cancellationTime]);
 
+    const displayTableName = useMemo(() => {
+        if (order.tableName && order.tableName.toLowerCase().replace(/[\s\-_]/g, '') === 'lineman') {
+            return 'LineMan';
+        }
+        return order.tableName;
+    }, [order.tableName]);
+
     const cardClasses = useMemo(() => {
         if (order.isDeleted) {
             return "bg-red-50/50 rounded-lg shadow-md border border-red-200 overflow-hidden transition-colors opacity-70";
@@ -52,7 +59,7 @@ export const CancelledOrderCard: React.FC<CancelledOrderCardProps> = ({ order, i
                                 <span className={order.isDeleted ? 'text-red-400' : 'text-gray-500'}>#</span>{String(order.orderNumber).padStart(3, '0')}
                             </p>
                             {/* Removed whitespace-nowrap to allow text to wrap naturally if it's too long */}
-                            <p className={`font-semibold text-lg leading-tight ${order.isDeleted ? 'text-red-800' : 'text-gray-800'}`}>โต๊ะ {order.tableName} ({order.floor})</p>
+                            <p className={`font-semibold text-lg leading-tight ${order.isDeleted ? 'text-red-800' : 'text-gray-800'}`}>โต๊ะ {displayTableName} ({order.floor})</p>
                             {order.isDeleted && <span className="text-xs px-2 py-0.5 rounded-full bg-red-200 text-red-800 font-semibold">(ลบโดย: {order.deletedBy})</span>}
                         </div>
                         <p className="text-sm text-gray-500 mt-1">{cancellationDate}</p>

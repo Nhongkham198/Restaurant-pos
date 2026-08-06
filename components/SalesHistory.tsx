@@ -131,10 +131,10 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({
         } else if (order.customerName && isNaN(Number(order.customerName))) {
             providerName = order.customerName;
         } else {
-            providerName = order.orderType === 'lineman' ? 'LINE MAN' : 'ShopeeFood';
+            providerName = order.orderType === 'lineman' ? 'LineMan' : 'ShopeeFood';
         }
         if (providerName.toLowerCase().replace(/[\s\-_]/g, '') === 'lineman') {
-            return 'LINE MAN';
+            return 'LineMan';
         }
         return providerName;
     };

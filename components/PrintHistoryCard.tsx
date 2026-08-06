@@ -14,6 +14,13 @@ export const PrintHistoryCard: React.FC<PrintHistoryCardProps> = ({ entry, isEdi
 
     const timestamp = useMemo(() => new Date(entry.timestamp).toLocaleString('th-TH'), [entry.timestamp]);
     
+    const displayTableName = useMemo(() => {
+        if (entry.tableName && entry.tableName.toLowerCase().replace(/[\s\-_]/g, '') === 'lineman') {
+            return 'LineMan';
+        }
+        return entry.tableName;
+    }, [entry.tableName]);
+    
     const cardClasses = useMemo(() => {
         if (entry.isDeleted) {
             return "bg-red-50/50 rounded-lg shadow-md border border-red-200 overflow-hidden transition-colors opacity-70";
@@ -45,7 +52,7 @@ export const PrintHistoryCard: React.FC<PrintHistoryCardProps> = ({ entry, isEdi
                             <p className={`font-bold text-xl ${entry.isDeleted ? 'text-red-700' : 'text-blue-700'}`}>
                                 <span className={entry.isDeleted ? 'text-red-400' : 'text-gray-500'}>#</span>{String(entry.orderNumber).padStart(3, '0')}
                             </p>
-                            <p className={`font-semibold text-lg truncate ${entry.isDeleted ? 'text-red-800' : 'text-gray-800'}`}>โต๊ะ {entry.tableName}</p>
+                            <p className={`font-semibold text-lg truncate ${entry.isDeleted ? 'text-red-800' : 'text-gray-800'}`}>โต๊ะ {displayTableName}</p>
                             {entry.isReprint && !entry.isDeleted && <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 font-semibold">พิมพ์ซ้ำ</span>}
                             {entry.isDeleted && <span className="text-xs px-2 py-0.5 rounded-full bg-red-200 text-red-800 font-semibold">(ลบโดย: {entry.deletedBy})</span>}
                         </div>
