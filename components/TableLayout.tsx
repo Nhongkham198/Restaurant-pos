@@ -388,8 +388,6 @@ interface TableLayoutProps {
     qrCodeUrl?: string | null; // Add this
     isEditMode?: boolean;
     onUpdateFloors?: (newFloors: string[]) => void;
-    onAddFloor?: () => void;
-    onRemoveFloor?: (floor: string) => void;
 }
 
 export const TableLayout: React.FC<TableLayoutProps> = ({ 
@@ -406,9 +404,7 @@ export const TableLayout: React.FC<TableLayoutProps> = ({
     logoUrl,
     qrCodeUrl,
     isEditMode = false,
-    onUpdateFloors,
-    onAddFloor,
-    onRemoveFloor
+    onUpdateFloors
 }) => {
     const [selectedFloor, setSelectedFloor] = useState<string>('');
 
@@ -515,34 +511,9 @@ export const TableLayout: React.FC<TableLayoutProps> = ({
                                         ▶
                                     </button>
                                 )}
-
-                                {isEditMode && onRemoveFloor && (
-                                    <button
-                                        type="button"
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            onRemoveFloor(floor);
-                                        }}
-                                        className="w-5 h-5 ml-1 flex items-center justify-center text-[10px] bg-red-100 hover:bg-red-200 text-red-600 rounded-full transition-colors border border-red-200"
-                                        title={`ลบชั้น ${floor}`}
-                                    >
-                                        ✕
-                                    </button>
-                                )}
                             </div>
                         );
                     })}
-
-                    {isEditMode && onAddFloor && (
-                        <button
-                            type="button"
-                            onClick={onAddFloor}
-                            className="px-3 py-1.5 bg-blue-600 text-white hover:bg-blue-700 text-xs font-bold rounded-full transition-colors shadow flex items-center gap-1"
-                            title="เพิ่มชั้นใหม่"
-                        >
-                            <span>+</span> เพิ่มชั้น
-                        </button>
-                    )}
                 </div>
             </div>
             
