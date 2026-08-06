@@ -990,28 +990,72 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
     };
 
     const handleSave = async () => {
-        // Detect price changes and record history
         try {
-            const branchId = localStorage.getItem('selectedBranch') ? JSON.parse(localStorage.getItem('selectedBranch')!).id : null;
-            if (branchId) {
+            const rawBranch = localStorage.getItem('selectedBranch');
+            const branchId = rawBranch ? JSON.parse(rawBranch).id : null;
+            if (branchId && db) {
+                const branchStr = branchId.toString();
+                const settingsBatch = db.batch();
+
+                // 1. Record delivery price history if changed
                 for (const newProvider of tempDeliveryProviders) {
                     const oldProvider = props.deliveryProviders.find(p => p.id === newProvider.id);
                     if (oldProvider && oldProvider.fixedAdCost !== newProvider.fixedAdCost) {
-                        // Record change in Firestore
-                        await db.collection('branches').doc(branchId.toString())
-                            .collection('deliveryPriceHistory').add({
-                                providerId: newProvider.id,
-                                providerName: newProvider.name,
-                                oldPrice: oldProvider.fixedAdCost || 0,
-                                newPrice: newProvider.fixedAdCost || 0,
-                                timestamp: Date.now(),
-                                updatedBy: auth.currentUser?.displayName || auth.currentUser?.email || 'Admin'
-                            });
+                        const historyRef = db.collection('branches').doc(branchStr)
+                            .collection('deliveryPriceHistory').doc();
+                        settingsBatch.set(historyRef, {
+                            providerId: newProvider.id,
+                            providerName: newProvider.name,
+                            oldPrice: oldProvider.fixedAdCost || 0,
+                            newPrice: newProvider.fixedAdCost || 0,
+                            timestamp: Date.now(),
+                            updatedBy: auth.currentUser?.displayName || auth.currentUser?.email || 'Admin'
+                        });
                     }
                 }
+
+                // 2. Direct batch sync to Firestore for guaranteed database persistence
+                const settingsToSave: Record<string, any> = {
+                    logoUrl: settingsForm.logoUrl ?? null,
+                    appLogoUrl: settingsForm.appLogoUrl ?? null,
+                    qrCodeUrl: settingsForm.qrCodeUrl ?? null,
+                    notificationSoundUrl: settingsForm.notificationSoundUrl ?? null,
+                    staffCallSoundUrl: settingsForm.staffCallSoundUrl ?? null,
+                    printerConfig: settingsForm.printerConfig ?? { kitchen: null, cashier: null },
+                    openingTime: settingsForm.openingTime ?? '',
+                    closingTime: settingsForm.closingTime ?? '',
+                    restaurantAddress: settingsForm.restaurantAddress ?? '',
+                    restaurantPhone: settingsForm.restaurantPhone ?? '',
+                    taxId: settingsForm.taxId ?? '',
+                    signatureUrl: settingsForm.signatureUrl ?? null,
+                    telegramBotToken: settingsForm.telegramBotToken ?? '',
+                    telegramChatId: settingsForm.telegramChatId ?? '',
+                    lineOaUrl: settingsForm.lineOaUrl ?? '',
+                    facebookPageUrl: settingsForm.facebookPageUrl ?? '',
+                    qrPopupEnabled: settingsForm.qrPopupEnabled ?? false,
+                    qrPopupImageUrl: settingsForm.qrPopupImageUrl ?? null,
+                    qrPopupMessage: settingsForm.qrPopupMessage ?? '',
+                    facebookAppId: settingsForm.facebookAppId ?? '',
+                    facebookAppSecret: settingsForm.facebookAppSecret ?? '',
+                    lineNotifyToken: settingsForm.lineNotifyToken ?? '',
+                    lineMessagingToken: settingsForm.lineMessagingToken ?? '',
+                    lineUserId: settingsForm.lineUserId ?? '',
+                    recommendedMenuItemIds: tempRecommendedIds ?? [],
+                    recommendedItemsLimit: tempRecommendedItemsLimit ?? 10,
+                    deliveryProviders: tempDeliveryProviders ?? []
+                };
+
+                for (const [key, val] of Object.entries(settingsToSave)) {
+                    const docRef = db.collection('branches').doc(branchStr).collection(key).doc('data');
+                    const sanitizedVal = JSON.parse(JSON.stringify({ value: val }, (_, v) => v === undefined ? null : v));
+                    settingsBatch.set(docRef, sanitizedVal, { merge: true });
+                }
+
+                await settingsBatch.commit();
+                console.log('[SettingsModal] Successfully committed all settings to Firestore database.');
             }
         } catch (error) {
-            console.error('Error recording price history:', error);
+            console.error('Error saving settings to Firestore:', error);
         }
 
         props.onSave(
@@ -1048,7 +1092,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
         Swal.fire({
             icon: 'success',
             title: 'บันทึกสำเร็จ',
-            text: 'ข้อมูลการตั้งค่าถูกบันทึกเรียบร้อยแล้ว',
+            text: 'บันทึกข้อมูลการตั้งค่าลงฐานข้อมูล Firestore เรียบร้อยแล้ว',
             timer: 1500,
             showConfirmButton: false
         });

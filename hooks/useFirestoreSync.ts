@@ -381,11 +381,11 @@ export function useFirestoreSync<T>(
         // Capture specific branch and collection keys in scope closure to isolate this save task
         const boundBranchId = branchId;
         const boundCollectionKey = collectionKey;
-        const boundCacheKey = `${boundCollectionKey}_${boundBranchId || 'global'}`;
+        const isBranchSpecific = !['users', 'branches', 'leaveRequests', 'employeeGoals'].includes(boundCollectionKey);
+        const boundCacheKey = `${boundCollectionKey}_${isBranchSpecific ? (boundBranchId || 'global') : 'global'}`;
 
         if (!db) return;
 
-        const isBranchSpecific = !['users', 'branches', 'leaveRequests', 'employeeGoals'].includes(boundCollectionKey);
         const isMigrated = MIGRATED_COLLECTIONS.includes(boundCollectionKey);
         
         if (isBranchSpecific && !boundBranchId) {
