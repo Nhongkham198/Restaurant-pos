@@ -28,10 +28,14 @@ const StatCard: React.FC<{ title: string; value: string; icon: React.ReactNode; 
     </div>
 );
 
-const canonicalizeProviderName = (rawName: string): string => {
-    if (!rawName) return 'LINE MAN';
-    const norm = rawName.toLowerCase().replace(/[\s\-_]/g, '');
-    if (norm.includes('lineman')) return 'LINE MAN';
+const canonicalizeProviderName = (rawName: string, deliveryProviders?: DeliveryProvider[]): string => {
+    if (!rawName) return 'LineMan';
+    const norm = rawName.toLowerCase().replace(/[\s\-_:]/g, '');
+    if (deliveryProviders && deliveryProviders.length > 0) {
+        const matched = deliveryProviders.find(p => p.name.toLowerCase().replace(/[\s\-_:]/g, '') === norm);
+        if (matched) return matched.name;
+    }
+    if (norm.includes('lineman')) return 'LineMan';
     if (norm.includes('shopee')) return 'ShopeeFood';
     if (norm.includes('grab')) return 'GrabFood';
     if (norm.includes('foodpanda') || norm.includes('panda')) return 'foodpanda';
@@ -40,17 +44,27 @@ const canonicalizeProviderName = (rawName: string): string => {
 };
 
 const getProviderColor = (name: string, deliveryProviders: DeliveryProvider[]) => {
-    const canonical = canonicalizeProviderName(name);
-    const provider = deliveryProviders.find(p => canonicalizeProviderName(p.name) === canonical);
+    const norm = name.toLowerCase().replace(/[\s\-_:]/g, '');
+    const provider = deliveryProviders.find(p => {
+        const pNorm = p.name.toLowerCase().replace(/[\s\-_:]/g, '');
+        return pNorm === norm || pNorm.includes(norm) || norm.includes(pNorm);
+    });
     if (provider?.color) return provider.color;
     
-    const lowerName = name.toLowerCase();
-    if (lowerName.includes('shopeefood') || lowerName.includes('shopee')) return '#FF5722';
-    if (lowerName.includes('lineman') || lowerName.includes('line man')) return '#00B14F';
-    if (lowerName.includes('grab')) return '#00B14F';
-    if (lowerName.includes('foodpanda')) return '#D70F64';
-    if (lowerName.includes('robinhood')) return '#802D8C';
-    return '#f97316';
+    if (norm.includes('lineman')) return '#01C73E';
+    if (norm.includes('shopee')) return '#FF5722';
+    if (norm.includes('grab')) return '#00B14F';
+    if (norm.includes('foodpanda') || norm.includes('panda')) return '#D70F64';
+    if (norm.includes('robinhood') || norm.includes('robin')) return '#7C3AED';
+    if (norm.includes('dinein') || norm.includes('ทานที่ร้าน')) return '#3b82f6';
+    if (norm.includes('takeaway') || norm.includes('กลับบ้าน')) return '#8b5cf6';
+    return '#6B7280';
+};
+
+const getProviderIndex = (provName: string, deliveryProviders: DeliveryProvider[]) => {
+    const canonical = canonicalizeProviderName(provName, deliveryProviders);
+    const idx = deliveryProviders.findIndex(p => canonicalizeProviderName(p.name, deliveryProviders) === canonical);
+    return idx >= 0 ? idx : 999;
 };
 
 const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelledOrders, openingTime, closingTime, currentUser, recipes, deliveryProviders, taxRate }) => {
@@ -205,7 +219,7 @@ const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelledOrders,
     const getDeliveryProviderName = (order: { orderType: string, customerName?: string, tableName?: string }) => {
         if (order.orderType !== 'lineman' && order.orderType !== 'shopeefood') {
             if (order.tableName && order.tableName.toLowerCase().replace(/[\s\-_]/g, '').includes('lineman')) {
-                return 'LINE MAN';
+                return 'LineMan';
             }
         }
         
@@ -217,10 +231,10 @@ const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelledOrders,
         } else if (order.customerName && isNaN(Number(order.customerName))) {
             name = order.customerName;
         } else {
-            name = order.orderType === 'lineman' ? 'LINE MAN' : 'ShopeeFood';
+            name = order.orderType === 'lineman' ? 'LineMan' : 'ShopeeFood';
         }
 
-        return canonicalizeProviderName(name);
+        return canonicalizeProviderName(name, deliveryProviders);
     };
 
     const dailyProfitData = useMemo(() => {
@@ -264,10 +278,10 @@ const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelledOrders,
                 const isDelivery = order.orderType === 'lineman' || order.tableName === 'Delivery' || order.customerName?.includes('#');
                 
                 // Identify provider name consistently using the helper and canonicalization
-                const rawName = getDeliveryProviderName(order) || 'LINE MAN';
-                const providerName = canonicalizeProviderName(rawName);
+                const rawName = getDeliveryProviderName(order) || 'LineMan';
+                const providerName = canonicalizeProviderName(rawName, deliveryProviders);
 
-                const provider = deliveryProviders.find(p => canonicalizeProviderName(p.name) === providerName);
+                const provider = deliveryProviders.find(p => canonicalizeProviderName(p.name, deliveryProviders) === providerName);
                 
                 order.items.forEach(item => {
                     const sellingPrice = item.finalPrice;
@@ -326,7 +340,7 @@ const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelledOrders,
                 if (key.startsWith(`${dayKey}|`)) {
                     const rawProvider = key.split('|')[1];
                     if (rawProvider) {
-                        const provider = canonicalizeProviderName(rawProvider);
+                        const provider = canonicalizeProviderName(rawProvider, deliveryProviders);
                         // Prefer exact canonical key if multiple key variants exist for the day
                         if (key === `${dayKey}|${provider}` || manualAdCostsByProvider[provider] === undefined) {
                             manualAdCostsByProvider[provider] = cost;
@@ -345,7 +359,7 @@ const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelledOrders,
                 ...Object.keys(adRevenueByProvider), 
                 ...Object.keys(manualAdCostsByProvider)
             ]);
-            const providersWithAds = new Set(Array.from(rawProviders).map(p => canonicalizeProviderName(p)));
+            const providersWithAds = new Set(Array.from(rawProviders).map(p => canonicalizeProviderName(p, deliveryProviders)));
             
             providersWithAds.forEach(p => {
                 const rev = adRevenueByProvider[p] || 0;
@@ -748,14 +762,8 @@ const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelledOrders,
             labels.push(name);
             data.push(count);
             
-            // Assign distinct colors based on name
-            const lowerName = name.toLowerCase();
-            if (lowerName.includes('lineman')) colors.push('#10b981'); // Emerald Green
-            else if (lowerName.includes('shopee')) colors.push('#f97316'); // Orange
-            else if (lowerName.includes('grab')) colors.push('#22c55e'); // Green
-            else if (lowerName.includes('robin')) colors.push('#a855f7'); // Purple
-            else if (lowerName.includes('panda')) colors.push('#ec4899'); // Pink
-            else colors.push('#64748b'); // Slate for unknown
+            // Assign distinct colors based on provider config or brand defaults
+            colors.push(getProviderColor(name, deliveryProviders));
         });
 
         return {
@@ -1580,8 +1588,11 @@ const Dashboard: React.FC<DashboardProps> = ({ completedOrders, cancelledOrders,
                                                     {day.gp > 0 ? (
                                                         <div className="flex flex-col items-end">
                                                             <span className="font-bold">-{day.gp.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                                                            <div className="flex flex-wrap justify-end gap-1 mt-1">
-                                                                {Object.entries(day.gpByProvider).filter(([_, amt]) => amt > 0).map(([name, amount]) => (
+                                                            <div className="flex flex-col items-end gap-1 mt-1">
+                                                                {Object.entries(day.gpByProvider)
+                                                                    .filter(([_, amt]) => amt > 0)
+                                                                    .sort(([a], [b]) => getProviderIndex(a, deliveryProviders) - getProviderIndex(b, deliveryProviders))
+                                                                    .map(([name, amount]) => (
                                                                     <span 
                                                                         key={name} 
                                                                         className="text-[10px] px-1.5 py-0.5 rounded-sm text-white font-bold"
