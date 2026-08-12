@@ -91,6 +91,17 @@ export function useFirestoreSync<T>(
         if (globalFirestoreCache.has(activeCacheKey)) {
             return globalFirestoreCache.get(activeCacheKey) as T;
         }
+        // Check localStorage persistence to make it load instantly on hard reload!
+        try {
+            const persisted = localStorage.getItem(`fs_cache_${activeCacheKey}`);
+            if (persisted) {
+                const parsed = JSON.parse(persisted);
+                globalFirestoreCache.set(activeCacheKey, parsed);
+                return parsed as T;
+            }
+        } catch (e) {
+            console.error(`Error parsing persisted cache for ${activeCacheKey}`, e);
+        }
         return initialValue;
     });
 
@@ -119,9 +130,22 @@ export function useFirestoreSync<T>(
             setValue(cached as T);
             setIsLoading(false);
         } else {
-            // No cache yet, fallback to initial and show progress indicator if needed
-            setValue(initialValueRef.current);
-            setIsLoading(false);
+            // Check localStorage
+            try {
+                const persisted = localStorage.getItem(`fs_cache_${currentCacheKey}`);
+                if (persisted) {
+                    const parsed = JSON.parse(persisted);
+                    globalFirestoreCache.set(currentCacheKey, parsed);
+                    setValue(parsed as T);
+                    setIsLoading(false);
+                } else {
+                    setValue(initialValueRef.current);
+                    setIsLoading(false);
+                }
+            } catch (e) {
+                setValue(initialValueRef.current);
+                setIsLoading(false);
+            }
         }
 
         if (!db) {
@@ -230,6 +254,11 @@ export function useFirestoreSync<T>(
                     } else {
                         // Update cache & React state
                         globalFirestoreCache.set(currentCacheKey, finalValueToSet);
+                        try {
+                            localStorage.setItem(`fs_cache_${currentCacheKey}`, JSON.stringify(finalValueToSet));
+                        } catch (e) {
+                            console.warn(`Failed to save cache for ${currentCacheKey} to localStorage`, e);
+                        }
                         setValue(finalValueToSet as unknown as T);
                     }
                     setIsLoading(false);
@@ -338,12 +367,20 @@ export function useFirestoreSync<T>(
 
                             // Update cache & React state
                             globalFirestoreCache.set(currentCacheKey, valueToSet);
+                            try {
+                                localStorage.setItem(`fs_cache_${currentCacheKey}`, JSON.stringify(valueToSet));
+                            } catch (e) {
+                                console.warn(`Failed to save cache for ${currentCacheKey} to localStorage`, e);
+                            }
                             setValue(valueToSet as T);
                         } else {
                             if (fallbackValueRef.current !== undefined) {
                                 console.log(`[Firestore] Seeding missing value for ${collectionKey}`);
                                 docRef.set({ value: fallbackValueRef.current }, { merge: true });
                                 globalFirestoreCache.set(currentCacheKey, fallbackValueRef.current);
+                                try {
+                                    localStorage.setItem(`fs_cache_${currentCacheKey}`, JSON.stringify(fallbackValueRef.current));
+                                } catch (e) {}
                                 setValue(fallbackValueRef.current);
                             } else {
                                 setValue(currentInitialValue);
@@ -354,6 +391,9 @@ export function useFirestoreSync<T>(
                             console.log(`[Firestore] Seeding new document for ${collectionKey}`);
                             docRef.set({ value: fallbackValueRef.current });
                             globalFirestoreCache.set(currentCacheKey, fallbackValueRef.current);
+                            try {
+                                localStorage.setItem(`fs_cache_${currentCacheKey}`, JSON.stringify(fallbackValueRef.current));
+                            } catch (e) {}
                             setValue(fallbackValueRef.current);
                         } else {
                             setValue(currentInitialValue);
@@ -413,6 +453,11 @@ export function useFirestoreSync<T>(
 
         // Optimistically update memory cache instantly
         globalFirestoreCache.set(boundCacheKey, resolvedValue);
+        try {
+            localStorage.setItem(`fs_cache_${boundCacheKey}`, JSON.stringify(resolvedValue));
+        } catch (e) {
+            console.warn(`Failed to save cache for ${boundCacheKey} to localStorage`, e);
+        }
 
         // Only update active hook state if we are still viewing the same branch
         const currentActiveCacheKey = `${collectionKey}_${branchId || 'global'}`;
@@ -511,10 +556,31 @@ export function useFirestoreCollection<T extends { id: number | string }>(
     collectionName: string,
     queryFn?: (ref: firebase.firestore.CollectionReference | firebase.firestore.Query) => firebase.firestore.Query
 ): [T[], CollectionActions<T>] {
-    const [data, setData] = useState<T[]>([]);
+    const cacheKey = `fscol_cache_${collectionName}_${branchId || 'global'}`;
+    const [data, setData] = useState<T[]>(() => {
+        try {
+            const persisted = localStorage.getItem(cacheKey);
+            if (persisted) {
+                return JSON.parse(persisted) as T[];
+            }
+        } catch (e) {
+            console.error(`Error parsing persisted collection cache for ${cacheKey}`, e);
+        }
+        return [];
+    });
 
     useEffect(() => {
         if (!db || !branchId) return;
+
+        const currentCacheKey = `fscol_cache_${collectionName}_${branchId}`;
+
+        // Optimistically set data from cache to prevent blank flash during branch switch
+        try {
+            const persisted = localStorage.getItem(currentCacheKey);
+            if (persisted) {
+                setData(JSON.parse(persisted) as T[]);
+            }
+        } catch (e) {}
 
         let collectionRef: firebase.firestore.CollectionReference | firebase.firestore.Query = db.collection(`branches/${branchId}/${collectionName}`);
         
@@ -536,6 +602,11 @@ export function useFirestoreCollection<T extends { id: number | string }>(
                 }
             });
             setData(items);
+            try {
+                localStorage.setItem(currentCacheKey, JSON.stringify(items));
+            } catch (e) {
+                console.warn(`Failed to save collection cache for ${currentCacheKey} to localStorage`, e);
+            }
         }, error => {
             console.error(`Error syncing collection ${collectionName}:`, error);
             if (error.code === 'permission-denied') {
@@ -544,7 +615,7 @@ export function useFirestoreCollection<T extends { id: number | string }>(
         });
 
         return () => unsubscribe();
-    }, [branchId, collectionName]);
+    }, [branchId, collectionName, queryFn]);
 
     const actions: CollectionActions<T> = React.useMemo(() => ({
         add: async (item: T) => {
