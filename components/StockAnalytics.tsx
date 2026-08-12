@@ -24,6 +24,15 @@ export const StockAnalytics: React.FC<StockAnalyticsProps> = ({ stockItems: prop
         imageUrl?: string;
         orderedQty: number;
     } | null>(null);
+    const [selectedLinkedStockItem, setSelectedLinkedStockItem] = useState<{
+        stockItemName: string;
+        linkedMenus: Array<{
+            menuItemId: number;
+            name: string;
+            imageUrl?: string;
+            orderedQty: number;
+        }>;
+    } | null>(null);
 
     // --- Date Filter State for Withdrawals ---
     type DateFilterMode = 'month' | 'today' | 'yesterday' | '7days' | 'custom';
@@ -643,9 +652,18 @@ export const StockAnalytics: React.FC<StockAnalyticsProps> = ({ stockItems: prop
                                                             </div>
                                                         ))}
                                                         {linkedMenus.length > 2 && (
-                                                            <span className="text-[11px] text-purple-600 font-semibold pl-1">
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    setSelectedLinkedStockItem({
+                                                                        stockItemName: item.name,
+                                                                        linkedMenus: linkedMenus
+                                                                    });
+                                                                }}
+                                                                className="text-[11px] text-purple-600 hover:text-purple-800 hover:underline font-semibold pl-1 text-left cursor-pointer transition-all"
+                                                            >
                                                                 + อีก {linkedMenus.length - 2} เมนูที่เกี่ยวข้อง
-                                                            </span>
+                                                            </button>
                                                         )}
                                                     </div>
                                                 ) : (
@@ -1059,6 +1077,72 @@ export const StockAnalytics: React.FC<StockAnalyticsProps> = ({ stockItems: prop
                         <div className="p-3 border-t bg-gray-50 text-right">
                             <button 
                                 onClick={() => setSelectedLinkedMenu(null)} 
+                                className="px-5 py-2 bg-gray-800 hover:bg-gray-900 text-white font-medium rounded-xl text-xs transition-colors shadow-sm"
+                            >
+                                ปิดหน้าต่าง
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* All Linked Menus Detail Modal (New) */}
+            {selectedLinkedStockItem && (
+                <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 animate-fade-in" onClick={() => setSelectedLinkedStockItem(null)}>
+                    <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh]" onClick={e => e.stopPropagation()}>
+                        {/* Header */}
+                        <div className="bg-gradient-to-r from-purple-700 to-indigo-800 text-white p-5 flex justify-between items-center">
+                            <div>
+                                <h3 className="text-lg font-bold">เมนูที่ใช้ {selectedLinkedStockItem.stockItemName}</h3>
+                                <p className="text-xs text-purple-200">ทั้งหมด {selectedLinkedStockItem.linkedMenus.length} รายการเมนู</p>
+                            </div>
+                            <button 
+                                onClick={() => setSelectedLinkedStockItem(null)} 
+                                className="p-1.5 rounded-full hover:bg-white/20 transition-colors text-white"
+                                title="ปิดหน้าต่าง"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+
+                        {/* Content */}
+                        <div className="overflow-y-auto flex-1 p-4">
+                            <div className="flex flex-col gap-2.5">
+                                {selectedLinkedStockItem.linkedMenus.map((m, mIdx) => (
+                                    <div key={mIdx} className="flex items-center justify-between gap-3 bg-purple-50/50 hover:bg-purple-100/80 border border-purple-100 rounded-xl p-3 shadow-2xs transition-all">
+                                        <div className="flex items-center gap-3 truncate">
+                                            {m.imageUrl ? (
+                                                <img src={m.imageUrl} alt={m.name} className="w-10 h-10 rounded-lg object-cover flex-shrink-0 border border-purple-200" onError={(e) => e.currentTarget.src = "https://placehold.co/100?text=Error"} />
+                                            ) : (
+                                                <div className="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center text-xl flex-shrink-0 border border-purple-200">🍲</div>
+                                            )}
+                                            <span className="font-bold text-gray-800 truncate text-sm" title={m.name}>{m.name}</span>
+                                        </div>
+                                        <button 
+                                            onClick={() => {
+                                                setSelectedLinkedMenu({
+                                                    menuItemId: m.menuItemId,
+                                                    name: m.name,
+                                                    imageUrl: m.imageUrl,
+                                                    orderedQty: m.orderedQty
+                                                });
+                                            }}
+                                            className={`px-3 py-1.5 rounded-xl font-bold text-xs whitespace-nowrap cursor-pointer transition-all ${m.orderedQty > 0 ? 'bg-purple-600 hover:bg-purple-700 text-white shadow-sm hover:shadow' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+                                            title="คลิกเพื่อดูรายการบิลขายที่เกี่ยวข้อง"
+                                        >
+                                            สั่ง {m.orderedQty} จาน
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Footer */}
+                        <div className="p-3 border-t bg-gray-50 text-right">
+                            <button 
+                                onClick={() => setSelectedLinkedStockItem(null)} 
                                 className="px-5 py-2 bg-gray-800 hover:bg-gray-900 text-white font-medium rounded-xl text-xs transition-colors shadow-sm"
                             >
                                 ปิดหน้าต่าง
