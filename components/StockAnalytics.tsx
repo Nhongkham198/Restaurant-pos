@@ -1,6 +1,6 @@
 
 import React, { useMemo, useState } from 'react';
-import type { StockItem, MenuItem } from '../types';
+import type { StockItem, MenuItem, CompletedOrder } from '../types';
 import { useData } from '../contexts/DataContext';
 import PieChart from './PieChart';
 import { SalesChart } from './SalesChart'; // Reusing SalesChart for bar display
@@ -16,6 +16,13 @@ export const StockAnalytics: React.FC<StockAnalyticsProps> = ({ stockItems: prop
 
     // State for Modal
     const [selectedGroup, setSelectedGroup] = useState<'total' | 'good' | 'low' | 'out' | null>(null);
+    const [selectedDetailItem, setSelectedDetailItem] = useState<StockItem | null>(null);
+    const [selectedLinkedMenu, setSelectedLinkedMenu] = useState<{
+        menuItemId: number;
+        name: string;
+        imageUrl?: string;
+        orderedQty: number;
+    } | null>(null);
 
     // --- Date Filter State for Withdrawals ---
     type DateFilterMode = 'month' | 'today' | 'yesterday' | '7days' | 'custom';
@@ -251,6 +258,79 @@ export const StockAnalytics: React.FC<StockAnalyticsProps> = ({ stockItems: prop
         maxValue: Math.max(...topRotationItems.map(i => i?.withdrawalCountForFilter || 0), 10)
     };
 
+    // --- Filter Stock Logs for Selected Detail Item ---
+    const selectedItemLogs = useMemo(() => {
+        if (!selectedDetailItem) return [];
+        return (stockLogs || [])
+            .filter(log => log && Number(log.stockItemId) === Number(selectedDetailItem.id))
+            .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+    }, [selectedDetailItem, stockLogs]);
+
+    // --- Filter Completed Orders for Selected Linked Menu ---
+    const selectedLinkedMenuOrders = useMemo(() => {
+        if (!selectedLinkedMenu) return [];
+        const validOrders = Array.isArray(completedOrders) ? completedOrders : [];
+
+        return validOrders.filter(order => {
+            if (!order || order.isDeleted) return false;
+            const time = order.completionTime || order.orderTime;
+            if (!time) return false;
+            const orderTimeMs = new Date(time).getTime();
+            if (orderTimeMs < filterTimeRange.startTime || orderTimeMs > filterTimeRange.endTime) return false;
+
+            return (order.items || []).some(item => Number(item.id) === Number(selectedLinkedMenu.menuItemId));
+        }).sort((a, b) => {
+            const timeA = new Date(a.completionTime || a.orderTime || 0).getTime();
+            const timeB = new Date(b.completionTime || b.orderTime || 0).getTime();
+            return timeB - timeA;
+        });
+    }, [selectedLinkedMenu, completedOrders, filterTimeRange]);
+
+    // Helper to format channel/location info
+    const getOrderChannelInfo = (order: CompletedOrder) => {
+        const orderType = order.orderType || 'dine-in';
+
+        if (orderType === 'dine-in') {
+            const tableName = order.tableName || (order.tableId ? `โต๊ะ ${order.tableId}` : 'ทานที่ร้าน');
+            const floorText = order.floor ? ` (ชั้น ${order.floor})` : '';
+            return {
+                label: `ทานที่ร้าน - ${tableName}${floorText}`,
+                badgeBg: 'bg-emerald-100 text-emerald-800 border-emerald-300 font-semibold'
+            };
+        }
+
+        if (orderType === 'takeaway') {
+            const floorText = order.floor ? ` (ชั้น ${order.floor})` : '';
+            return {
+                label: `สั่งกลับบ้าน${floorText}`,
+                badgeBg: 'bg-amber-100 text-amber-800 border-amber-300 font-semibold'
+            };
+        }
+
+        if (orderType === 'lineman') {
+            const subName = (order.tableName && order.tableName !== 'Delivery' && order.tableName !== 'Unknown')
+                ? order.tableName
+                : (order.customerName && !order.customerName.includes('Table') ? order.customerName : '');
+            return {
+                label: `LineMan${subName ? ` (${subName})` : ''}`,
+                badgeBg: 'bg-green-100 text-green-900 border-green-300 font-bold'
+            };
+        }
+
+        if (orderType === 'shopeefood') {
+            return {
+                label: 'ShopeeFood',
+                badgeBg: 'bg-orange-100 text-orange-900 border-orange-300 font-bold'
+            };
+        }
+
+        const channelName = order.tableName || order.customerName || orderType;
+        return {
+            label: channelName,
+            badgeBg: 'bg-blue-100 text-blue-900 border-blue-300 font-semibold'
+        };
+    };
+
     // --- 3. Usage Rate Analysis (Excluding Mondays) ---
     const operatingDays = useMemo(() => {
         const now = new Date();
@@ -425,6 +505,12 @@ export const StockAnalytics: React.FC<StockAnalyticsProps> = ({ stockItems: prop
                         images={rotationData.images} // Pass images to chart
                         maxValue={rotationData.maxValue}
                         formatValue={(val) => val.toLocaleString() + ' ครั้ง'} // Show number with unit
+                        onBarClick={(idx) => {
+                            const item = topRotationItems[idx];
+                            if (item) {
+                                setSelectedDetailItem(item);
+                            }
+                        }}
                     />
                 </div>
             </div>
@@ -440,7 +526,7 @@ export const StockAnalytics: React.FC<StockAnalyticsProps> = ({ stockItems: prop
                             วิเคราะห์อัตราการใช้ (Usage Rate) - Top 10
                         </h3>
                         <p className="text-sm text-gray-500 mt-1">
-                            คำนวณจากยอดเบิกเดือนนี้ หารด้วยจำนวนวันทำการ (หักวันจันทร์ออก)
+                            คำนวณจากยอดเบิกเดือนนี้ หารด้วยจำนวนวันทำการ (หักวันจันทร์ออก) (คลิกที่รายการเพื่อดูประวัติการเบิก)
                         </p>
                     </div>
                     <div className="bg-purple-50 text-purple-700 px-3 py-1 rounded-lg text-xs font-semibold border border-purple-100">
@@ -467,7 +553,12 @@ export const StockAnalytics: React.FC<StockAnalyticsProps> = ({ stockItems: prop
                                     const linkedMenus = getLinkedMenuItemsForStockItem(item.id);
 
                                     return (
-                                        <tr key={`${item.id || 'usage'}-${idx}`} className="border-b hover:bg-gray-50 transition-colors">
+                                        <tr 
+                                            key={`${item.id || 'usage'}-${idx}`} 
+                                            onClick={() => setSelectedDetailItem(item)}
+                                            className="border-b hover:bg-purple-50/50 cursor-pointer transition-colors"
+                                            title="คลิกเพื่อดูประวัติผู้เบิก และวันเวลาที่เบิก"
+                                        >
                                             <td className="px-4 py-3 font-medium text-gray-900 flex items-center gap-2">
                                                 <div className="w-8 h-8 rounded bg-gray-100 overflow-hidden border border-gray-200 flex-shrink-0">
                                                     <img src={item.imageUrl || "https://placehold.co/100?text=No+Image"} alt={item.name} className="w-full h-full object-cover" onError={(e) => e.currentTarget.src = "https://placehold.co/100?text=Error"} />
@@ -478,18 +569,41 @@ export const StockAnalytics: React.FC<StockAnalyticsProps> = ({ stockItems: prop
                                                 {linkedMenus.length > 0 ? (
                                                     <div className="flex flex-col gap-1.5 max-w-[280px]">
                                                         {linkedMenus.slice(0, 2).map((m, mIdx) => (
-                                                            <div key={mIdx} className="flex items-center justify-between gap-2 bg-purple-50/80 border border-purple-100 rounded-lg px-2.5 py-1 text-xs shadow-2xs">
-                                                                <div className="flex items-center gap-1.5 truncate">
+                                                            <div key={mIdx} className="flex items-center justify-between gap-2 bg-purple-50/80 hover:bg-purple-100 border border-purple-200 rounded-lg px-2.5 py-1 text-xs shadow-2xs transition-all">
+                                                                <div 
+                                                                    className="flex items-center gap-1.5 truncate cursor-pointer"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        setSelectedLinkedMenu({
+                                                                            menuItemId: m.menuItemId,
+                                                                            name: m.name,
+                                                                            imageUrl: m.imageUrl,
+                                                                            orderedQty: m.orderedQty
+                                                                        });
+                                                                    }}
+                                                                >
                                                                     {m.imageUrl ? (
                                                                         <img src={m.imageUrl} alt={m.name} className="w-5 h-5 rounded object-cover flex-shrink-0 border border-purple-200" />
                                                                     ) : (
                                                                         <span className="text-purple-500 text-xs">🍲</span>
                                                                     )}
-                                                                    <span className="font-medium text-gray-800 truncate" title={m.name}>{m.name}</span>
+                                                                    <span className="font-medium text-gray-800 truncate hover:text-purple-700" title={m.name}>{m.name}</span>
                                                                 </div>
-                                                                <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] whitespace-nowrap ${m.orderedQty > 0 ? 'bg-purple-200 text-purple-900 shadow-2xs' : 'bg-gray-100 text-gray-500'}`}>
+                                                                <button 
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        setSelectedLinkedMenu({
+                                                                            menuItemId: m.menuItemId,
+                                                                            name: m.name,
+                                                                            imageUrl: m.imageUrl,
+                                                                            orderedQty: m.orderedQty
+                                                                        });
+                                                                    }}
+                                                                    className={`px-2 py-0.5 rounded-full font-bold text-[10px] whitespace-nowrap cursor-pointer transition-colors ${m.orderedQty > 0 ? 'bg-purple-600 hover:bg-purple-700 text-white shadow-2xs' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+                                                                    title="คลิกเพื่อดูรายการบิลขายที่เกี่ยวข้อง"
+                                                                >
                                                                     สั่ง {m.orderedQty} จาน
-                                                                </span>
+                                                                </button>
                                                             </div>
                                                         ))}
                                                         {linkedMenus.length > 2 && (
@@ -650,6 +764,265 @@ export const StockAnalytics: React.FC<StockAnalyticsProps> = ({ stockItems: prop
                         <div className="p-4 border-t bg-gray-50 text-right">
                             <button onClick={() => setSelectedGroup(null)} className="px-6 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold rounded-lg transition-colors">
                                 ปิด
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Withdrawal History Detail Modal */}
+            {selectedDetailItem && (
+                <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 animate-fade-in" onClick={() => setSelectedDetailItem(null)}>
+                    <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]" onClick={e => e.stopPropagation()}>
+                        {/* Header */}
+                        <div className="bg-gradient-to-r from-purple-700 to-indigo-800 text-white p-5 flex justify-between items-center">
+                            <div className="flex items-center gap-3">
+                                <div className="w-12 h-12 rounded-xl bg-white/20 p-1 overflow-hidden border border-white/30 flex-shrink-0">
+                                    <img 
+                                        src={selectedDetailItem.imageUrl || "https://placehold.co/100?text=No+Image"} 
+                                        alt={selectedDetailItem.name} 
+                                        className="w-full h-full object-cover rounded-lg"
+                                        onError={(e) => e.currentTarget.src = "https://placehold.co/100?text=Error"}
+                                    />
+                                </div>
+                                <div>
+                                    <h3 className="text-xl font-bold">{selectedDetailItem.name}</h3>
+                                    <p className="text-xs text-purple-200">
+                                        หมวดหมู่: {selectedDetailItem.category} | คงเหลือปัจจุบัน: <span className="font-bold text-white">{selectedDetailItem.quantity} {selectedDetailItem.unit}</span>
+                                    </p>
+                                </div>
+                            </div>
+                            <button 
+                                onClick={() => setSelectedDetailItem(null)} 
+                                className="p-1.5 rounded-full hover:bg-white/20 transition-colors text-white"
+                                title="ปิดหน้าต่าง"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+
+                        {/* Summary Banner */}
+                        <div className="bg-purple-50 p-4 border-b border-purple-100 flex justify-between items-center text-sm">
+                            <div className="flex items-center gap-2 text-purple-900 font-semibold">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                </svg>
+                                <span>ยอดเบิกรวมตามตัวกรอง ({filterTimeRange.label}):</span>
+                            </div>
+                            <span className="text-lg font-bold text-purple-700">
+                                {(withdrawalCountsMap[selectedDetailItem.id] || 0).toLocaleString()} {selectedDetailItem.unit}
+                            </span>
+                        </div>
+
+                        {/* Log Table */}
+                        <div className="overflow-y-auto flex-1 p-4">
+                            <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 flex items-center justify-between">
+                                <span>ประวัติผู้เบิก และวัน-เวลาทำรายการ ({selectedItemLogs.length} รายการ)</span>
+                            </h4>
+
+                            {selectedItemLogs.length === 0 ? (
+                                <div className="p-10 text-center text-gray-500 flex flex-col items-center bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mb-2 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                                    </svg>
+                                    <p className="text-sm font-medium">ยังไม่มีประวัติการบันทึกเบิกในระบบสำหรับสินค้าชิ้นนี้</p>
+                                </div>
+                            ) : (
+                                <div className="border border-gray-200 rounded-xl overflow-hidden shadow-2xs">
+                                    <table className="w-full text-xs text-left">
+                                        <thead className="bg-gray-100 text-gray-700 font-bold border-b border-gray-200 sticky top-0">
+                                            <tr>
+                                                <th className="px-4 py-2.5">วัน - เวลา</th>
+                                                <th className="px-4 py-2.5">ผู้เบิก / ทำรายการ</th>
+                                                <th className="px-4 py-2.5">รายละเอียดการเบิก</th>
+                                                <th className="px-4 py-2.5">หมายเหตุ</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-100">
+                                            {selectedItemLogs.map((log) => {
+                                                const dateObj = new Date(log.timestamp);
+                                                const formattedDate = dateObj.toLocaleDateString('th-TH', {
+                                                    day: 'numeric',
+                                                    month: 'short',
+                                                    year: 'numeric'
+                                                });
+                                                const formattedTime = dateObj.toLocaleTimeString('th-TH', {
+                                                    hour: '2-digit',
+                                                    minute: '2-digit'
+                                                });
+
+                                                return (
+                                                    <tr key={log.id} className="hover:bg-purple-50/30 transition-colors">
+                                                        <td className="px-4 py-3 whitespace-nowrap text-gray-700 font-medium">
+                                                            <div>{formattedDate}</div>
+                                                            <div className="text-[10px] text-gray-400">{formattedTime} น.</div>
+                                                        </td>
+                                                        <td className="px-4 py-3 font-semibold text-gray-800">
+                                                            <div className="flex items-center gap-1.5">
+                                                                <span className="w-6 h-6 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center text-[10px] font-bold border border-purple-200">
+                                                                    {(log.performedBy || 'A')[0].toUpperCase()}
+                                                                </span>
+                                                                <span>{log.performedBy || 'ระบบ'}</span>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-4 py-3 font-medium text-purple-700">
+                                                            {log.changeDetails || 'เบิกสินค้า'}
+                                                        </td>
+                                                        <td className="px-4 py-3 text-gray-500 italic">
+                                                            {log.incompleteReason || '-'}
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Footer */}
+                        <div className="p-3 border-t bg-gray-50 text-right">
+                            <button 
+                                onClick={() => setSelectedDetailItem(null)} 
+                                className="px-5 py-2 bg-gray-800 hover:bg-gray-900 text-white font-medium rounded-xl text-xs transition-colors shadow-sm"
+                            >
+                                ปิดหน้าต่าง
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Linked Sales Bills Detail Modal */}
+            {selectedLinkedMenu && (
+                <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 animate-fade-in" onClick={() => setSelectedLinkedMenu(null)}>
+                    <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]" onClick={e => e.stopPropagation()}>
+                        {/* Header */}
+                        <div className="bg-gradient-to-r from-purple-700 to-indigo-800 text-white p-5 flex justify-between items-center">
+                            <div className="flex items-center gap-3">
+                                <div className="w-12 h-12 rounded-xl bg-white/20 p-1 overflow-hidden border border-white/30 flex-shrink-0">
+                                    {selectedLinkedMenu.imageUrl ? (
+                                        <img 
+                                            src={selectedLinkedMenu.imageUrl} 
+                                            alt={selectedLinkedMenu.name} 
+                                            className="w-full h-full object-cover rounded-lg"
+                                            onError={(e) => e.currentTarget.src = "https://placehold.co/100?text=Error"}
+                                        />
+                                    ) : (
+                                        <div className="w-full h-full flex items-center justify-center text-2xl">🍲</div>
+                                    )}
+                                </div>
+                                <div>
+                                    <h3 className="text-xl font-bold">{selectedLinkedMenu.name}</h3>
+                                    <p className="text-xs text-purple-200">
+                                        ยอดสั่งซื้อรวมช่วงที่เลือก: <span className="font-bold text-white">{selectedLinkedMenu.orderedQty} จาน</span>
+                                    </p>
+                                </div>
+                            </div>
+                            <button 
+                                onClick={() => setSelectedLinkedMenu(null)} 
+                                className="p-1.5 rounded-full hover:bg-white/20 transition-colors text-white"
+                                title="ปิดหน้าต่าง"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+
+                        {/* Summary Banner */}
+                        <div className="bg-purple-50 p-4 border-b border-purple-100 flex justify-between items-center text-sm">
+                            <div className="flex items-center gap-2 text-purple-900 font-semibold">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                                <span>รายการบิลขายที่เกี่ยวข้อง ({filterTimeRange.label}):</span>
+                            </div>
+                            <span className="text-xs font-bold text-purple-700 bg-purple-100 px-3 py-1 rounded-full border border-purple-200">
+                                พบ {selectedLinkedMenuOrders.length} บิล
+                            </span>
+                        </div>
+
+                        {/* Order Table */}
+                        <div className="overflow-y-auto flex-1 p-4">
+                            {selectedLinkedMenuOrders.length === 0 ? (
+                                <div className="p-10 text-center text-gray-500 flex flex-col items-center bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mb-2 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                                    </svg>
+                                    <p className="text-sm font-medium">ไม่พบบิลการขายสำหรับเมนูนี้ในช่วงเวลาที่เลือก</p>
+                                </div>
+                            ) : (
+                                <div className="border border-gray-200 rounded-xl overflow-hidden shadow-2xs">
+                                    <table className="w-full text-xs text-left">
+                                        <thead className="bg-gray-100 text-gray-700 font-bold border-b border-gray-200 sticky top-0">
+                                            <tr>
+                                                <th className="px-4 py-3">หมายเลขออเดอร์ / เลขบิล</th>
+                                                <th className="px-4 py-3">วัน - เวลาที่สั่งซื้อ</th>
+                                                <th className="px-4 py-3">ช่องทางการขาย / สถานที่</th>
+                                                <th className="px-4 py-3 text-right">จำนวน</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-100">
+                                            {selectedLinkedMenuOrders.map((order) => {
+                                                const timeMs = order.completionTime || order.orderTime;
+                                                const dateObj = new Date(timeMs);
+                                                const formattedDate = dateObj.toLocaleDateString('th-TH', {
+                                                    day: 'numeric',
+                                                    month: 'short',
+                                                    year: 'numeric'
+                                                });
+                                                const formattedTime = dateObj.toLocaleTimeString('th-TH', {
+                                                    hour: '2-digit',
+                                                    minute: '2-digit'
+                                                });
+
+                                                const orderNoDisplay = order.manualOrderNumber 
+                                                    ? order.manualOrderNumber 
+                                                    : `#${order.orderNumber || order.id}`;
+
+                                                const channelInfo = getOrderChannelInfo(order);
+
+                                                const itemInOrder = (order.items || []).filter(i => Number(i.id) === Number(selectedLinkedMenu.menuItemId));
+                                                const qtyInThisOrder = itemInOrder.reduce((sum, i) => sum + (Number(i.quantity) || 1), 0);
+
+                                                return (
+                                                    <tr key={order.id} className="hover:bg-purple-50/40 transition-colors">
+                                                        <td className="px-4 py-3 font-bold text-gray-900">
+                                                            <span className="text-purple-700 font-mono text-sm">{orderNoDisplay}</span>
+                                                        </td>
+                                                        <td className="px-4 py-3 text-gray-700 font-medium whitespace-nowrap">
+                                                            <div>{formattedDate}</div>
+                                                            <div className="text-[10px] text-gray-400">{formattedTime} น.</div>
+                                                        </td>
+                                                        <td className="px-4 py-3">
+                                                            <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs border ${channelInfo.badgeBg}`}>
+                                                                {channelInfo.label}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-4 py-3 text-right font-bold">
+                                                            <span className="inline-flex items-center bg-purple-100 text-purple-900 px-2.5 py-1 rounded-lg text-xs font-bold border border-purple-200">
+                                                                {qtyInThisOrder} จาน
+                                                            </span>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Footer */}
+                        <div className="p-3 border-t bg-gray-50 text-right">
+                            <button 
+                                onClick={() => setSelectedLinkedMenu(null)} 
+                                className="px-5 py-2 bg-gray-800 hover:bg-gray-900 text-white font-medium rounded-xl text-xs transition-colors shadow-sm"
+                            >
+                                ปิดหน้าต่าง
                             </button>
                         </div>
                     </div>
