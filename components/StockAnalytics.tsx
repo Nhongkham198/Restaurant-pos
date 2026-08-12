@@ -1,6 +1,7 @@
 
 import React, { useMemo, useState } from 'react';
 import type { StockItem, MenuItem, CompletedOrder } from '../types';
+import { DEFAULT_DELIVERY_PROVIDERS } from '../types';
 import { useData } from '../contexts/DataContext';
 import PieChart from './PieChart';
 import { SalesChart } from './SalesChart'; // Reusing SalesChart for bar display
@@ -11,7 +12,7 @@ interface StockAnalyticsProps {
 
 export const StockAnalytics: React.FC<StockAnalyticsProps> = ({ stockItems: propStockItems }) => {
     // Context data for linked recipes and customer orders
-    const { stockItems: dataStockItems = [], recipes = [], menuItems = [], completedOrders = [], stockLogs = [] } = useData();
+    const { stockItems: dataStockItems = [], recipes = [], menuItems = [], completedOrders = [], stockLogs = [], deliveryProviders = [] } = useData();
     const stockItems = propStockItems && propStockItems.length > 0 ? propStockItems : dataStockItems;
 
     // State for Modal
@@ -290,37 +291,72 @@ export const StockAnalytics: React.FC<StockAnalyticsProps> = ({ stockItems: prop
     const getOrderChannelInfo = (order: CompletedOrder) => {
         const orderType = order.orderType || 'dine-in';
 
+        const validFloor = (order.floor && order.floor !== 'กลับบ้าน' && order.floor !== 'takeaway' && order.floor !== 'Takeaway') 
+            ? ` (ชั้น ${order.floor})` 
+            : '';
+
         if (orderType === 'dine-in') {
             const tableName = order.tableName || (order.tableId ? `โต๊ะ ${order.tableId}` : 'ทานที่ร้าน');
-            const floorText = order.floor ? ` (ชั้น ${order.floor})` : '';
             return {
-                label: `ทานที่ร้าน - ${tableName}${floorText}`,
-                badgeBg: 'bg-emerald-100 text-emerald-800 border-emerald-300 font-semibold'
+                label: `ทานที่ร้าน - ${tableName}${validFloor}`,
+                badgeBg: 'bg-gray-100 text-gray-700 border-gray-200 font-semibold'
             };
         }
 
         if (orderType === 'takeaway') {
-            const floorText = order.floor ? ` (ชั้น ${order.floor})` : '';
             return {
-                label: `สั่งกลับบ้าน${floorText}`,
+                label: `สั่งกลับบ้าน${validFloor}`,
                 badgeBg: 'bg-amber-100 text-amber-800 border-amber-300 font-semibold'
             };
         }
 
-        if (orderType === 'lineman') {
-            const subName = (order.tableName && order.tableName !== 'Delivery' && order.tableName !== 'Unknown')
-                ? order.tableName
-                : (order.customerName && !order.customerName.includes('Table') ? order.customerName : '');
-            return {
-                label: `LineMan${subName ? ` (${subName})` : ''}`,
-                badgeBg: 'bg-green-100 text-green-900 border-green-300 font-bold'
-            };
-        }
+        // Handle delivery types (lineman, shopeefood, or other delivery types)
+        if (orderType === 'lineman' || orderType === 'shopeefood' || order.tableName === 'Delivery') {
+            let providerName = 'LineMan';
+            if (orderType === 'shopeefood') {
+                providerName = 'ShopeeFood';
+            } else {
+                const subName = (order.tableName && order.tableName !== 'Delivery' && order.tableName !== 'Unknown')
+                    ? order.tableName
+                    : (order.customerName && !order.customerName.includes('Table') ? order.customerName : '');
+                
+                if (subName) {
+                    if (subName.toLowerCase().includes('shopee')) {
+                        providerName = 'ShopeeFood';
+                    } else if (subName.toLowerCase().includes('grab')) {
+                        providerName = 'GrabFood';
+                    } else if (subName.toLowerCase().includes('panda')) {
+                        providerName = 'foodpanda';
+                    } else if (subName.toLowerCase().includes('robin')) {
+                        providerName = 'Robinhood';
+                    } else if (subName.toLowerCase().includes('line')) {
+                        providerName = 'LINE MAN';
+                    } else {
+                        providerName = subName;
+                    }
+                }
+            }
 
-        if (orderType === 'shopeefood') {
+            // Find matching provider from settings or default providers
+            const providersList = Array.isArray(deliveryProviders) && deliveryProviders.length > 0 
+                ? deliveryProviders 
+                : DEFAULT_DELIVERY_PROVIDERS;
+
+            const matchedProvider = providersList.find(p => 
+                p.name.toLowerCase().replace(/[^a-z0-9]/g, '') === providerName.toLowerCase().replace(/[^a-z0-9]/g, '') ||
+                p.id.toLowerCase().replace(/[^a-z0-9]/g, '') === providerName.toLowerCase().replace(/[^a-z0-9]/g, '')
+            ) || providersList.find(p => p.id === 'lineman') || DEFAULT_DELIVERY_PROVIDERS[0];
+
+            const brandColor = matchedProvider?.color || '#00B900';
+
             return {
-                label: 'ShopeeFood',
-                badgeBg: 'bg-orange-100 text-orange-900 border-orange-300 font-bold'
+                label: `Delivery (${matchedProvider?.name || providerName})`,
+                badgeBg: 'border-transparent font-bold',
+                style: {
+                    backgroundColor: `${brandColor}15`,
+                    color: brandColor,
+                    borderColor: `${brandColor}40`
+                }
             };
         }
 
@@ -998,7 +1034,10 @@ export const StockAnalytics: React.FC<StockAnalyticsProps> = ({ stockItems: prop
                                                             <div className="text-[10px] text-gray-400">{formattedTime} น.</div>
                                                         </td>
                                                         <td className="px-4 py-3">
-                                                            <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs border ${channelInfo.badgeBg}`}>
+                                                            <span 
+                                                                className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs border ${channelInfo.badgeBg || ''}`}
+                                                                style={channelInfo.style}
+                                                            >
                                                                 {channelInfo.label}
                                                             </span>
                                                         </td>
