@@ -537,60 +537,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     
     const [stockLogs, stockLogsActions] = useFirestoreCollection<StockLog>(heavyDataEffectiveId, 'stockLogs');
 
-    // --- AUTO-CLEANUP STOCK LOGS (Aug 10 & Feb 10) ---
-    useEffect(() => {
-        if (!stockLogs || stockLogs.length === 0) return;
-
-        const performCleanup = async () => {
-            const now = new Date();
-            const currentYear = now.getFullYear();
-            
-            // Define potential cutoffs (Current Year and Previous Year to handle Jan/early Feb cases)
-            // Month is 0-indexed: 1 = Feb, 7 = Aug
-            const cutoffs = [
-                new Date(currentYear, 7, 10, 0, 0, 0), // Aug 10 Current
-                new Date(currentYear, 1, 10, 0, 0, 0), // Feb 10 Current
-                new Date(currentYear - 1, 7, 10, 0, 0, 0), // Aug 10 Prev
-                new Date(currentYear - 1, 1, 10, 0, 0, 0)  // Feb 10 Prev
-            ];
-
-            // Find the latest cutoff that has passed
-            const targetCutoff = cutoffs.find(date => now >= date);
-
-            if (!targetCutoff) return;
-
-            const lastCleanupStr = localStorage.getItem('lastStockCleanupDate');
-            const lastCleanupDate = lastCleanupStr ? new Date(lastCleanupStr) : new Date(0);
-
-            // If we haven't cleaned up since the target cutoff
-            if (lastCleanupDate < targetCutoff) {
-                console.log(`[AutoCleanup] Checking for old stock logs. Cutoff: ${targetCutoff.toLocaleDateString()}`);
-                
-                const cutoffTime = targetCutoff.getTime();
-                // Filter logs OLDER than the cutoff
-                const logsToDelete = stockLogs.filter(log => log.timestamp < cutoffTime);
-
-                if (logsToDelete.length > 0) {
-                    console.log(`[AutoCleanup] Deleting ${logsToDelete.length} logs older than ${targetCutoff.toLocaleDateString()}...`);
-                    
-                    // Execute deletion (in batches if necessary, but Promise.all is fine for reasonable sizes)
-                    try {
-                        await Promise.all(logsToDelete.map(log => stockLogsActions.remove(log.id)));
-                        console.log('[AutoCleanup] Cleanup complete.');
-                    } catch (error) {
-                        console.error('[AutoCleanup] Error deleting logs:', error);
-                    }
-                } else {
-                    console.log('[AutoCleanup] No old logs found to delete.');
-                }
-
-                // Mark cleanup as done for this period
-                localStorage.setItem('lastStockCleanupDate', now.toISOString());
-            }
-        };
-
-        performCleanup();
-    }, [stockLogs, stockLogsActions]);
+    // AUTO-CLEANUP STOCK LOGS removed per user request (keeping all historical stock logs intact)
     
     const [staffCalls, setStaffCalls] = useFirestoreSync<StaffCall[]>(branchId, 'staffCalls', []);
     const [preOrders, preOrdersActions] = useFirestoreCollection<PreOrder>(branchId, 'preOrders');

@@ -138,30 +138,7 @@ export const StaffChat: React.FC<StaffChatProps> = ({ onAddItemsToBasket }) => {
         startOfToday.setHours(0, 0, 0, 0);
         const startTimestamp = startOfToday.getTime();
 
-        // --- AUTO CLEANUP (Admin only) ---
-        if (isAdmin) {
-            const lastCleanup = localStorage.getItem('staff_chat_last_cleanup');
-            const todayStr = new Date().toISOString().split('T')[0];
-            
-            if (lastCleanup !== todayStr) {
-                // Delete messages older than today in the branch-scoped collection
-                db.collection('branches').doc(branchIdStr).collection('staffMessages')
-                    .where('timestamp', '<', startTimestamp)
-                    .get()
-                    .then((snapshot: any) => {
-                        const batch = db.batch();
-                        snapshot.docs.forEach((doc: any) => {
-                            batch.delete(doc.ref);
-                        });
-                        return batch.commit();
-                    })
-                    .then(() => {
-                        localStorage.setItem('staff_chat_last_cleanup', todayStr);
-                        console.log("Staff Chat: Old messages cleaned up.");
-                    })
-                    .catch((err: any) => console.error("Cleanup error:", err));
-            }
-        }
+        // --- AUTO CLEANUP disabled per user request ---
 
         // Listener for messages - scoped to branch to avoid composite index requirement
         const unsubscribe = db.collection('branches').doc(branchIdStr).collection('staffMessages')

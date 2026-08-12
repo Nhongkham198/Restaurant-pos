@@ -44,13 +44,30 @@ if (isFirebaseConfigured) {
     
     storage = getStorage(app);
     
-    // Enable persistence for faster loads after the first visit
-    db.enablePersistence({ synchronizeTabs: true })
+    // Clean up stale Firestore mutation/tab-sync keys from localStorage to prevent QuotaExceededError
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        for (let i = window.localStorage.length - 1; i >= 0; i--) {
+          const key = window.localStorage.key(i);
+          if (key && (key.includes('firestore_mutations') || key.includes('firestore_clients') || key.includes('firestore_shared_state'))) {
+            window.localStorage.removeItem(key);
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("Could not clean firestore localStorage keys:", e);
+    }
+
+    // Do NOT use synchronizeTabs: true as WebStorageSharedClientState causes localStorage QuotaExceededError in web browsers
+    // Single-tab persistence can be enabled safely if needed, or disabled for max reliability
+    db.enablePersistence({ synchronizeTabs: false })
       .catch((err: any) => {
           if (err.code == 'failed-precondition') {
               console.warn('Persistence failed: Multiple tabs open');
           } else if (err.code == 'unimplemented') {
               console.warn('Persistence failed: Browser not supported.');
+          } else {
+              console.warn('Persistence failed:', err);
           }
       });
 

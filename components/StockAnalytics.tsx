@@ -1,16 +1,137 @@
 
 import React, { useMemo, useState } from 'react';
-import type { StockItem } from '../types';
+import type { StockItem, MenuItem } from '../types';
+import { useData } from '../contexts/DataContext';
 import PieChart from './PieChart';
 import { SalesChart } from './SalesChart'; // Reusing SalesChart for bar display
 
 interface StockAnalyticsProps {
-    stockItems: StockItem[];
+    stockItems?: StockItem[];
 }
 
-export const StockAnalytics: React.FC<StockAnalyticsProps> = ({ stockItems = [] }) => {
+export const StockAnalytics: React.FC<StockAnalyticsProps> = ({ stockItems: propStockItems }) => {
+    // Context data for linked recipes and customer orders
+    const { stockItems: dataStockItems = [], recipes = [], menuItems = [], completedOrders = [], stockLogs = [] } = useData();
+    const stockItems = propStockItems && propStockItems.length > 0 ? propStockItems : dataStockItems;
+
     // State for Modal
     const [selectedGroup, setSelectedGroup] = useState<'total' | 'good' | 'low' | 'out' | null>(null);
+
+    // --- Date Filter State for Withdrawals ---
+    type DateFilterMode = 'month' | 'today' | 'yesterday' | '7days' | 'custom';
+    const [dateFilterMode, setDateFilterMode] = useState<DateFilterMode>('month');
+    const [customStartDate, setCustomStartDate] = useState<string>(() => {
+        const d = new Date();
+        d.setDate(1);
+        return d.toISOString().split('T')[0];
+    });
+    const [customEndDate, setCustomEndDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
+
+    // Calculate time range based on selected filter
+    const filterTimeRange = useMemo(() => {
+        const now = new Date();
+        let start = new Date();
+        let end = new Date();
+
+        if (dateFilterMode === 'today') {
+            start.setHours(0, 0, 0, 0);
+            end.setHours(23, 59, 59, 999);
+        } else if (dateFilterMode === 'yesterday') {
+            start.setDate(start.getDate() - 1);
+            start.setHours(0, 0, 0, 0);
+            end = new Date(start);
+            end.setHours(23, 59, 59, 999);
+        } else if (dateFilterMode === '7days') {
+            start.setDate(start.getDate() - 6);
+            start.setHours(0, 0, 0, 0);
+            end.setHours(23, 59, 59, 999);
+        } else if (dateFilterMode === 'custom') {
+            if (customStartDate) {
+                start = new Date(customStartDate + 'T00:00:00');
+            }
+            if (customEndDate) {
+                end = new Date(customEndDate + 'T23:59:59.999');
+            }
+        } else {
+            // month
+            start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+            end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+        }
+
+        const ThaiDateStr = (d: Date) => d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' });
+
+        return {
+            startTime: start.getTime(),
+            endTime: end.getTime(),
+            label: dateFilterMode === 'today' ? `วันนี้ (${ThaiDateStr(start)})`
+                : dateFilterMode === 'yesterday' ? `เมื่อวาน (${ThaiDateStr(start)})`
+                : dateFilterMode === '7days' ? `7 วันล่าสุด (${ThaiDateStr(start)} - ${ThaiDateStr(end)})`
+                : dateFilterMode === 'custom' ? `ช่วง ${ThaiDateStr(start)} - ${ThaiDateStr(end)}`
+                : `เดือนปัจจุบัน`
+        };
+    }, [dateFilterMode, customStartDate, customEndDate]);
+
+    // --- Orders Summary for Recipe Linkage based on Selected Filter Period ---
+    const menuOrdersSummary = useMemo(() => {
+        const counts: Record<number, number> = {};
+        const validOrders = Array.isArray(completedOrders) ? completedOrders : [];
+        
+        validOrders.forEach(order => {
+            if (!order || order.isDeleted) return;
+            const time = order.completionTime || order.orderTime;
+            if (!time) return;
+            const orderTimeMs = new Date(time).getTime();
+            if (orderTimeMs >= filterTimeRange.startTime && orderTimeMs <= filterTimeRange.endTime) {
+                (order.items || []).forEach(item => {
+                    if (item && item.id) {
+                        counts[item.id] = (counts[item.id] || 0) + (Number(item.quantity) || 1);
+                    }
+                });
+            }
+        });
+        return counts;
+    }, [completedOrders, filterTimeRange]);
+
+    // Fast map for menu items
+    const menuItemsMap = useMemo(() => {
+        const map = new Map<number, MenuItem>();
+        (menuItems || []).forEach(m => {
+            if (m && m.id) map.set(m.id, m);
+        });
+        return map;
+    }, [menuItems]);
+
+    // Helper to get linked menu items and customer order count for a stock item
+    const getLinkedMenuItemsForStockItem = (stockItemId: number | string) => {
+        if (!stockItemId) return [];
+        const numericId = Number(stockItemId);
+        
+        const matchingRecipes = (recipes || []).filter(recipe => {
+            if (!recipe) return false;
+            const mainMatch = (recipe.ingredients || []).some(
+                ing => Number(ing.stockItemId) === numericId
+            );
+            const addMatch = (recipe.additionalIngredients || []).some(
+                ing => Number(ing.stockItemId) === numericId
+            );
+            return mainMatch || addMatch;
+        });
+
+        const linked = matchingRecipes.map(recipe => {
+            const menuItem = menuItemsMap.get(recipe.menuItemId);
+            const orderedQty = menuOrdersSummary[recipe.menuItemId] || 0;
+            return {
+                menuItemId: recipe.menuItemId,
+                name: menuItem?.name || `เมนู #${recipe.menuItemId}`,
+                imageUrl: menuItem?.imageUrl || '',
+                orderedQty,
+            };
+        });
+
+        // Sort by highest ordered count first, then by name
+        linked.sort((a, b) => b.orderedQty - a.orderedQty || a.name.localeCompare(b.name));
+        return linked;
+    };
 
     // --- 1. Calculate Status Counts & Lists ---
     const stats = useMemo(() => {
@@ -65,8 +186,44 @@ export const StockAnalytics: React.FC<StockAnalyticsProps> = ({ stockItems = [] 
         };
     }, [stockItems]);
 
-    // --- 2. Prepare Chart Data ---
-    
+    // --- Current Month Key for fallback calculations ---
+    const currentMonthKey = useMemo(() => new Date().toISOString().slice(0, 7), []);
+
+    // --- 2. Calculate Withdrawal Counts based on selected Period Filter ---
+    const withdrawalCountsMap = useMemo(() => {
+        const map: Record<number | string, number> = {};
+        const validLogs = Array.isArray(stockLogs) ? stockLogs : [];
+
+        // Filter logs within selected date/time range
+        const logsInRange = validLogs.filter(log => {
+            if (!log || !log.timestamp) return false;
+            if (log.timestamp < filterTimeRange.startTime || log.timestamp > filterTimeRange.endTime) return false;
+            // Action check
+            const isAdjust = log.action === 'adjust';
+            const isWithdraw = (log.changeDetails || '').includes('เบิกออก') || (log.changeDetails || '').includes('ปรับสต็อก (เบิกออก)');
+            return isAdjust && isWithdraw;
+        });
+
+        logsInRange.forEach(log => {
+            if (log.stockItemId) {
+                map[log.stockItemId] = (map[log.stockItemId] || 0) + 1;
+            }
+        });
+
+        // Fallback for current month if stockLogs are sparse or using legacy monthlyWithdrawals count
+        if (dateFilterMode === 'month') {
+            (stockItems || []).forEach(item => {
+                if (!item) return;
+                const monthCount = item?.monthlyWithdrawals?.[currentMonthKey] || 0;
+                if (!map[item.id] || monthCount > map[item.id]) {
+                    map[item.id] = monthCount;
+                }
+            });
+        }
+
+        return map;
+    }, [stockLogs, filterTimeRange, stockItems, currentMonthKey, dateFilterMode]);
+
     // Pie Chart: Stock Health
     const stockHealthData = {
         labels: ['ปกติ', 'ใกล้หมด', 'หมดแล้ว'],
@@ -74,26 +231,24 @@ export const StockAnalytics: React.FC<StockAnalyticsProps> = ({ stockItems = [] 
         colors: ['#10b981', '#f59e0b', '#ef4444'] // Green, Amber, Red
     };
 
-    // Bar Chart: High Withdrawal Items (Based on Monthly History)
-    const currentMonthKey = new Date().toISOString().slice(0, 7); // e.g. "2023-10"
-    
+    // Bar Chart: High Withdrawal Items (Based on Selected Filter)
     const topRotationItems = useMemo(() => {
         const validItems = Array.isArray(stockItems) ? stockItems : [];
         return [...validItems]
             .filter(Boolean)
-            .sort((a, b) => {
-                const countA = a?.monthlyWithdrawals?.[currentMonthKey] || 0;
-                const countB = b?.monthlyWithdrawals?.[currentMonthKey] || 0;
-                return countB - countA;
+            .map(i => {
+                const count = withdrawalCountsMap[i.id] || 0;
+                return { ...i, withdrawalCountForFilter: count };
             })
+            .sort((a, b) => b.withdrawalCountForFilter - a.withdrawalCountForFilter)
             .slice(0, 7); // Top 7
-    }, [stockItems, currentMonthKey]);
+    }, [stockItems, withdrawalCountsMap]);
 
     const rotationData = {
         labels: topRotationItems.map(i => i?.name || ''),
-        data: topRotationItems.map(i => i?.monthlyWithdrawals?.[currentMonthKey] || 0),
+        data: topRotationItems.map(i => i?.withdrawalCountForFilter || 0),
         images: topRotationItems.map(i => i?.imageUrl || ''), // Extract images
-        maxValue: Math.max(...topRotationItems.map(i => i?.monthlyWithdrawals?.[currentMonthKey] || 0), 10)
+        maxValue: Math.max(...topRotationItems.map(i => i?.withdrawalCountForFilter || 0), 10)
     };
 
     // --- 3. Usage Rate Analysis (Excluding Mondays) ---
@@ -120,14 +275,14 @@ export const StockAnalytics: React.FC<StockAnalyticsProps> = ({ stockItems = [] 
         return [...validItems]
             .filter(Boolean)
             .map(item => {
-                const used = item?.monthlyWithdrawals?.[currentMonthKey] || 0;
+                const used = withdrawalCountsMap[item.id] || 0;
                 const rate = used / operatingDays;
                 return { ...item, used, rate };
             })
             .filter(i => i.used > 0) // Show only items with usage
             .sort((a, b) => b.rate - a.rate) // Sort by highest usage rate
             .slice(0, 10); // Top 10 items
-    }, [stockItems, currentMonthKey, operatingDays]);
+    }, [stockItems, withdrawalCountsMap, operatingDays]);
 
     // --- Helper to get data for modal ---
     const getModalData = () => {
@@ -214,9 +369,54 @@ export const StockAnalytics: React.FC<StockAnalyticsProps> = ({ stockItems = [] 
                     />
                 </div>
                 <div className="bg-white p-6 rounded-xl shadow-sm lg:col-span-3">
-                    <div className="mb-4">
-                        <h3 className="text-lg font-bold text-gray-800">สินค้าที่มีการเบิกออกสูงสุด (เดือนปัจจุบัน)</h3>
-                        <p className="text-xs text-gray-500">*นับจากประวัติการเบิกสินค้าในเดือนนี้เท่านั้น</p>
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
+                        <div>
+                            <h3 className="text-lg font-bold text-gray-800">
+                                สินค้าที่มีการเบิกออกสูงสุด ({filterTimeRange.label})
+                            </h3>
+                            <p className="text-xs text-gray-500">
+                                *นับจากประวัติการเบิกสินค้าใน{filterTimeRange.label}เท่านั้น
+                            </p>
+                        </div>
+
+                        {/* Date / Period Filter Controls */}
+                        <div className="flex flex-wrap items-center gap-2 bg-purple-50/70 p-1.5 rounded-xl border border-purple-100 shadow-2xs">
+                            <div className="flex items-center gap-1.5 text-xs font-bold text-purple-800 px-2 py-0.5">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                </svg>
+                                <span>เลือกช่วงเวลา:</span>
+                            </div>
+                            <select
+                                value={dateFilterMode}
+                                onChange={(e) => setDateFilterMode(e.target.value as any)}
+                                className="text-xs font-semibold bg-white border border-purple-200 rounded-lg px-2.5 py-1.5 text-gray-800 shadow-2xs focus:outline-none focus:ring-2 focus:ring-purple-500 cursor-pointer hover:border-purple-300"
+                            >
+                                <option value="month">📅 เดือนปัจจุบัน</option>
+                                <option value="today">☀️ วันนี้</option>
+                                <option value="yesterday">⏳ เมื่อวาน</option>
+                                <option value="7days">📊 7 วันล่าสุด</option>
+                                <option value="custom">🗓️ กำหนดวันที่เอง</option>
+                            </select>
+
+                            {dateFilterMode === 'custom' && (
+                                <div className="flex items-center gap-1 text-xs">
+                                    <input
+                                        type="date"
+                                        value={customStartDate}
+                                        onChange={(e) => setCustomStartDate(e.target.value)}
+                                        className="border border-purple-200 rounded-lg px-2 py-1 bg-white text-gray-800 text-xs shadow-2xs focus:outline-none focus:ring-1 focus:ring-purple-500"
+                                    />
+                                    <span className="text-purple-400 font-bold">-</span>
+                                    <input
+                                        type="date"
+                                        value={customEndDate}
+                                        onChange={(e) => setCustomEndDate(e.target.value)}
+                                        className="border border-purple-200 rounded-lg px-2 py-1 bg-white text-gray-800 text-xs shadow-2xs focus:outline-none focus:ring-1 focus:ring-purple-500"
+                                    />
+                                </div>
+                            )}
+                        </div>
                     </div>
                     <SalesChart
                         title=""
@@ -253,6 +453,7 @@ export const StockAnalytics: React.FC<StockAnalyticsProps> = ({ stockItems = [] 
                         <thead className="text-gray-500 bg-purple-50 uppercase text-xs rounded-t-lg">
                             <tr>
                                 <th className="px-4 py-3 rounded-tl-lg">สินค้า</th>
+                                <th className="px-4 py-3">เมนูขายดีที่ใช้วัตถุดิบนี้ (ยอดสั่งซื้อ)</th>
                                 <th className="px-4 py-3 text-right">ยอดเบิกรวม</th>
                                 <th className="px-4 py-3 text-right">อัตราการใช้ / วัน</th>
                                 <th className="px-4 py-3 text-right">คงเหลือปัจจุบัน</th>
@@ -263,15 +464,45 @@ export const StockAnalytics: React.FC<StockAnalyticsProps> = ({ stockItems = [] 
                             {usageAnalysisItems.length > 0 ? (
                                 usageAnalysisItems.map((item, idx) => {
                                     const daysLeft = item.rate > 0 ? Number(item.quantity) / item.rate : 999;
+                                    const linkedMenus = getLinkedMenuItemsForStockItem(item.id);
+
                                     return (
                                         <tr key={`${item.id || 'usage'}-${idx}`} className="border-b hover:bg-gray-50 transition-colors">
                                             <td className="px-4 py-3 font-medium text-gray-900 flex items-center gap-2">
                                                 <div className="w-8 h-8 rounded bg-gray-100 overflow-hidden border border-gray-200 flex-shrink-0">
                                                     <img src={item.imageUrl || "https://placehold.co/100?text=No+Image"} alt={item.name} className="w-full h-full object-cover" onError={(e) => e.currentTarget.src = "https://placehold.co/100?text=Error"} />
                                                 </div>
-                                                {item.name}
+                                                <span className="font-semibold">{item.name}</span>
                                             </td>
-                                            <td className="px-4 py-3 text-right">{item.used.toLocaleString()} {item.unit}</td>
+                                            <td className="px-4 py-3">
+                                                {linkedMenus.length > 0 ? (
+                                                    <div className="flex flex-col gap-1.5 max-w-[280px]">
+                                                        {linkedMenus.slice(0, 2).map((m, mIdx) => (
+                                                            <div key={mIdx} className="flex items-center justify-between gap-2 bg-purple-50/80 border border-purple-100 rounded-lg px-2.5 py-1 text-xs shadow-2xs">
+                                                                <div className="flex items-center gap-1.5 truncate">
+                                                                    {m.imageUrl ? (
+                                                                        <img src={m.imageUrl} alt={m.name} className="w-5 h-5 rounded object-cover flex-shrink-0 border border-purple-200" />
+                                                                    ) : (
+                                                                        <span className="text-purple-500 text-xs">🍲</span>
+                                                                    )}
+                                                                    <span className="font-medium text-gray-800 truncate" title={m.name}>{m.name}</span>
+                                                                </div>
+                                                                <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] whitespace-nowrap ${m.orderedQty > 0 ? 'bg-purple-200 text-purple-900 shadow-2xs' : 'bg-gray-100 text-gray-500'}`}>
+                                                                    สั่ง {m.orderedQty} จาน
+                                                                </span>
+                                                            </div>
+                                                        ))}
+                                                        {linkedMenus.length > 2 && (
+                                                            <span className="text-[11px] text-purple-600 font-semibold pl-1">
+                                                                + อีก {linkedMenus.length - 2} เมนูที่เกี่ยวข้อง
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-gray-400 text-xs italic bg-gray-100/80 px-2 py-0.5 rounded">ไม่อยู่ในสูตรอาหาร</span>
+                                                )}
+                                            </td>
+                                            <td className="px-4 py-3 text-right font-medium">{item.used.toLocaleString()} {item.unit}</td>
                                             <td className="px-4 py-3 text-right font-bold text-purple-600">
                                                 {item.rate.toFixed(2)} {item.unit}/วัน
                                             </td>
@@ -286,7 +517,7 @@ export const StockAnalytics: React.FC<StockAnalyticsProps> = ({ stockItems = [] 
                                 })
                             ) : (
                                 <tr>
-                                    <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
+                                    <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
                                         ยังไม่มีข้อมูลการเบิกสินค้าในเดือนนี้
                                     </td>
                                 </tr>
