@@ -162,7 +162,7 @@ const SidebarPrinterStatus: React.FC<{
     return (
         <div 
             ref={containerRef}
-            className="relative"
+            className=""
         >
             <button 
                 onClick={(e) => {
@@ -180,7 +180,7 @@ const SidebarPrinterStatus: React.FC<{
             {/* Click Dropdown / Popover */}
             {showDropdown && !isCollapsed && type === 'kitchen' && (
                 <div 
-                    className="absolute left-0 bottom-full mb-1.5 z-50 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl p-3 w-64 text-left text-gray-200"
+                    className="absolute left-0 right-0 bottom-full mb-1.5 z-50 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl p-3 w-full text-left text-gray-200"
                     onClick={(e) => e.stopPropagation()}
                 >
                     <div className="flex items-center justify-between border-b border-gray-850 pb-1.5 mb-2">
@@ -225,7 +225,7 @@ const SidebarPrinterStatus: React.FC<{
 
             {showDropdown && !isCollapsed && type === 'cashier' && (
                 <div 
-                    className="absolute right-0 bottom-full mb-1.5 z-50 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl p-3 w-64 text-left text-gray-200"
+                    className="absolute left-0 right-0 bottom-full mb-1.5 z-50 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl p-3 w-full text-left text-gray-200"
                     onClick={(e) => e.stopPropagation()}
                 >
                     <div className="flex items-center justify-between border-b border-gray-850 pb-1.5 mb-2">
@@ -586,7 +586,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({
                     </div>
 
                     {/* Printer Status (Added) */}
-                    <div className={`grid grid-cols-2 gap-2 mt-1 ${isCollapsed ? 'hidden' : 'block'}`}>
+                    <div className={`grid grid-cols-2 gap-2 mt-1 relative ${isCollapsed ? 'hidden' : 'block'}`}>
                         <SidebarPrinterStatus 
                             type="kitchen" 
                             status={kitchenStatus} 
