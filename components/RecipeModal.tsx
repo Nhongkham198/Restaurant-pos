@@ -202,7 +202,8 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
                 return sum + (ing.quantity * price);
             }, 0);
             
-            setMiscCost((recipe.additionalCost || 0) - packagingSum);
+            const calculatedMisc = (recipe.additionalCost || 0) - packagingSum;
+            setMiscCost(Math.round(calculatedMisc * 10000) / 10000);
             setHiddenCostPercentage(recipe.hiddenCostPercentage || 0);
             setCookingInstructions(recipe.instructions || '');
         } else {

@@ -1153,7 +1153,11 @@ export const App: React.FC = () => {
     }, [setCurrentView]);
 
     const handleConfirmExpensePassword = useCallback((password: string) => {
-        if (password === currentUser?.password) {
+        const matchingAdmin = users.find(u => 
+            (u.role === 'admin' || u.role === 'branch-admin') && u.password === password
+        );
+
+        if (matchingAdmin) {
             if (pendingView) {
                 setCurrentView(pendingView);
             }
@@ -1168,7 +1172,7 @@ export const App: React.FC = () => {
                 showConfirmButton: false
             });
         }
-    }, [currentUser, pendingView, setCurrentView]);
+    }, [users, pendingView, setCurrentView]);
 
     useEffect(() => {
         if (currentUser) {
