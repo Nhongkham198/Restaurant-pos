@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import type { MenuItem, MenuOption, MenuOptionGroup } from '../types';
+import type { MenuItem, MenuOption, MenuOptionGroup, KitchenPrinterSettings } from '../types';
 import Swal from 'sweetalert2';
 import { storage } from '../firebaseConfig';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -13,6 +13,7 @@ interface MenuItemModalProps {
     itemToEdit: MenuItem | null;
     categories: any[];
     onAddCategory: (name: string) => void;
+    kitchenPrinters?: KitchenPrinterSettings[];
 }
 
 const initialFormState: Omit<MenuItem, 'id'> = {
@@ -24,9 +25,18 @@ const initialFormState: Omit<MenuItem, 'id'> = {
     imageUrl: '',
     cookingTime: 15,
     optionGroups: [],
+    targetPrinterId: '',
 };
 
-export const MenuItemModal: React.FC<MenuItemModalProps> = ({ isOpen, onClose, onSave, itemToEdit, categories, onAddCategory }) => {
+export const MenuItemModal: React.FC<MenuItemModalProps> = ({ 
+    isOpen, 
+    onClose, 
+    onSave, 
+    itemToEdit, 
+    categories, 
+    onAddCategory,
+    kitchenPrinters = [] 
+}) => {
     const [formState, setFormState] = useState(initialFormState);
     const [priceString, setPriceString] = useState('0');
     const [originalPriceString, setOriginalPriceString] = useState('');
@@ -58,7 +68,8 @@ export const MenuItemModal: React.FC<MenuItemModalProps> = ({ isOpen, onClose, o
                     ...itemToEdit, 
                     nameEn: itemToEdit.nameEn || '', // Handle edit case
                     cookingTime: itemToEdit.cookingTime ?? 15,
-                    optionGroups: JSON.parse(JSON.stringify(itemToEdit.optionGroups || [])) 
+                    optionGroups: JSON.parse(JSON.stringify(itemToEdit.optionGroups || [])) ,
+                    targetPrinterId: itemToEdit.targetPrinterId || ''
                 });
                 setPriceString(String(itemToEdit.price));
                 setOriginalPriceString(itemToEdit.originalPrice ? String(itemToEdit.originalPrice) : '');
@@ -217,6 +228,11 @@ export const MenuItemModal: React.FC<MenuItemModalProps> = ({ isOpen, onClose, o
             return;
         }
 
+        if (!formState.targetPrinterId) {
+            Swal.fire('กรุณาเลือกเครื่องพิมพ์', 'กรุณาเลือกเครื่องพิมพ์สำหรับส่งออเดอร์เข้าครัว', 'warning');
+            return;
+        }
+
         const cleanedGroups = (formState.optionGroups || [])
             .map(group => ({
                 ...group,
@@ -285,6 +301,21 @@ export const MenuItemModal: React.FC<MenuItemModalProps> = ({ isOpen, onClose, o
                                     <button type="button" onClick={() => setIsAddingCategory(true)} className="px-3 py-2 bg-blue-100 text-blue-800 rounded-md hover:bg-blue-200 h-[42px]">+</button>
                                 </div>
                             )}
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700">เครื่องพิมพ์ส่งออเดอร์ในครัว</label>
+                            <select 
+                                value={formState.targetPrinterId || ''} 
+                                onChange={(e) => setFormState(prev => ({...prev, targetPrinterId: e.target.value}))} 
+                                className={inputClasses}
+                            >
+                                <option value="" disabled>-- กรุณาเลือกเครื่องพิมพ์ในครัว --</option>
+                                {kitchenPrinters.map(printer => (
+                                    <option key={printer.id || printer.name} value={printer.id || printer.name}>
+                                        {printer.name} ({printer.connectionType === 'network' ? printer.targetPrinterIp || printer.ipAddress : 'USB'})
+                                    </option>
+                                ))}
+                            </select>
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-700">รูปภาพเมนู</label>

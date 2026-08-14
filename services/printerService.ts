@@ -1,6 +1,7 @@
 
 
-import type { ActiveOrder, KitchenPrinterSettings, Table, CompletedOrder, CashierPrinterSettings, ReceiptPrintSettings, PrinterConnectionType } from '../types';
+import type { ActiveOrder, KitchenPrinterSettings, Table, CompletedOrder, CashierPrinterSettings, ReceiptPrintSettings, PrinterConnectionType, OrderItem } from '../types';
+import Swal from 'sweetalert2';
 
 declare global {
     interface Window {
@@ -167,7 +168,68 @@ const generateImageFromHtml = async (htmlContent: string, targetWidthPx: number)
 
 export const printerService = {
     // --- 1. Kitchen Order Printing ---
-    printKitchenOrder: async (order: ActiveOrder, config: KitchenPrinterSettings): Promise<void> => {
+    getRouteItemsForPrinter: (items: OrderItem[], printerName: string, allPrinters: KitchenPrinterSettings[]): OrderItem[] => {
+        if (allPrinters.length <= 1) {
+            return items;
+        }
+
+        const nameLower = (printerName || '').toLowerCase();
+        
+        const isDrinkPrinter = /บาร์น้ำ|น้ำ|เครื่องดื่ม|drink|bar|beverage|cafe|กาแฟ|ชา|เบียร์|เหล้า|wine|cocktail|juice/i.test(nameLower);
+        const isDessertPrinter = /ของหวาน|ขนม|หวาน|dessert|bakery|cake|เค้ก|ไอศกรีม|ice cream|crepe|waffle/i.test(nameLower);
+        const isFoodPrinter = !isDrinkPrinter && !isDessertPrinter;
+
+        const isDrinkItem = (item: OrderItem) => {
+            const cat = (item.category || '').toLowerCase();
+            return /เครื่องดื่ม|น้ำ|กาแฟ|ชา|ชาไข่มุก|บาร์|เหล้า|เบียร์|wine|drink|beverage/i.test(cat);
+        };
+
+        const isDessertItem = (item: OrderItem) => {
+            const cat = (item.category || '').toLowerCase();
+            return /ของหวาน|ขนม|หวาน|เค้ก|dessert|bakery|cake|ice cream/i.test(cat);
+        };
+
+        // Filter items
+        let filtered = items.filter(item => {
+            if (isDrinkPrinter) {
+                return isDrinkItem(item);
+            }
+            if (isDessertPrinter) {
+                return isDessertItem(item);
+            }
+            if (isFoodPrinter) {
+                return !isDrinkItem(item) && !isDessertItem(item);
+            }
+            return false;
+        });
+
+        // Fallback mechanism to prevent orphan items
+        const firstFoodPrinter = allPrinters.find(p => {
+            const pName = (p.name || '').toLowerCase();
+            return !/บาร์น้ำ|น้ำ|เครื่องดื่ม|drink|bar|beverage|cafe|กาแฟ|ชา|เบียร์|เหล้า|wine|cocktail|juice/i.test(pName) &&
+                   !/ของหวาน|ขนม|หวาน|dessert|bakery|cake|เค้ก|ไอศกรีม|ice cream|crepe|waffle/i.test(pName);
+        });
+
+        const isFirstFoodPrinter = firstFoodPrinter ? firstFoodPrinter.id === allPrinters.find(p => p.name === printerName)?.id : false;
+        const isFallbackPrinter = isFirstFoodPrinter || (!allPrinters.some(p => {
+            const pName = (p.name || '').toLowerCase();
+            return !/บาร์น้ำ|น้ำ|เครื่องดื่ม|drink|bar|beverage|cafe|กาแฟ|ชา|เบียร์|เหล้า|wine|cocktail|juice/i.test(pName) &&
+                   !/ของหวาน|ขนม|หวาน|dessert|bakery|cake|เค้ก|ไอศกรีม|ice cream|crepe|waffle/i.test(pName);
+        }) && allPrinters[0]?.name === printerName);
+
+        if (isFallbackPrinter) {
+            const leftoverItems = items.filter(item => !isDrinkItem(item) && !isDessertItem(item));
+            leftoverItems.forEach(item => {
+                if (!filtered.some(f => f.cartItemId === item.cartItemId)) {
+                    filtered.push(item);
+                }
+            });
+        }
+
+        return filtered;
+    },
+
+    printSingleKitchenOrder: async (order: ActiveOrder, config: KitchenPrinterSettings): Promise<void> => {
         if (!config.ipAddress) throw new Error("ไม่ได้ตั้งค่า IP ของ Print Server");
 
         const url = `http://${config.ipAddress}:${config.port || 3000}/print-image`;
@@ -296,6 +358,119 @@ export const printerService = {
             }
         } catch (error: any) {
             throw new Error("พิมพ์ล้มเหลว: " + error.message);
+        }
+    },
+
+    analyzeOrderRouting: (items: OrderItem[], allPrinters: KitchenPrinterSettings[]): {
+        toPrint: { [printerIdOrName: string]: { printer: KitchenPrinterSettings, items: OrderItem[] } },
+        unassigned: { item: OrderItem, guessedPrinterName: string }[]
+    } => {
+        const toPrint: { [printerIdOrName: string]: { printer: KitchenPrinterSettings, items: OrderItem[] } } = {};
+        const unassigned: { item: OrderItem, guessedPrinterName: string }[] = [];
+
+        if (allPrinters.length === 0) {
+            return { toPrint, unassigned };
+        }
+
+        // 1. Identify which kitchen printers we have
+        const drinkPrinters = allPrinters.filter(p => /บาร์น้ำ|น้ำ|เครื่องดื่ม|drink|bar|beverage|cafe|กาแฟ|ชา|เบียร์|เหล้า|wine|cocktail|juice/i.test(p.name || ''));
+        const dessertPrinters = allPrinters.filter(p => /ของหวาน|ขนม|หวาน|dessert|bakery|cake|เค้ก|ไอศกรีม|ice cream|crepe|waffle/i.test(p.name || ''));
+        const foodPrinters = allPrinters.filter(p => !drinkPrinters.includes(p) && !dessertPrinters.includes(p));
+
+        const getGuessedPrinterForItem = (item: OrderItem): KitchenPrinterSettings => {
+            const cat = (item.category || '').toLowerCase();
+            const isDrink = /เครื่องดื่ม|น้ำ|กาแฟ|ชา|ชาไข่มุก|บาร์|เหล้า|เบียร์|wine|drink|beverage/i.test(cat);
+            const isDessert = /ของหวาน|ขนม|หวาน|เค้ก|dessert|bakery|cake|ice cream/i.test(cat);
+
+            if (isDrink && drinkPrinters.length > 0) {
+                return drinkPrinters[0];
+            }
+            if (isDessert && dessertPrinters.length > 0) {
+                return dessertPrinters[0];
+            }
+            if (foodPrinters.length > 0) {
+                return foodPrinters[0];
+            }
+            return allPrinters[0];
+        };
+
+        items.forEach(item => {
+            if (item.targetPrinterId) {
+                // Find printer by ID or Name
+                const foundPrinter = allPrinters.find(p => p.id === item.targetPrinterId || p.name === item.targetPrinterId);
+                if (foundPrinter) {
+                    const printerKey = foundPrinter.id || foundPrinter.name || 'default';
+                    if (!toPrint[printerKey]) {
+                        toPrint[printerKey] = { printer: foundPrinter, items: [] };
+                    }
+                    toPrint[printerKey].items.push(item);
+                } else {
+                    const guessed = getGuessedPrinterForItem(item);
+                    unassigned.push({ item, guessedPrinterName: guessed.name || 'ไม่ทราบครัว' });
+                }
+            } else {
+                const guessed = getGuessedPrinterForItem(item);
+                unassigned.push({ item, guessedPrinterName: guessed.name || 'ไม่ทราบครัว' });
+            }
+        });
+
+        return { toPrint, unassigned };
+    },
+
+    printKitchenOrder: async (order: ActiveOrder, config: KitchenPrinterSettings, allKitchens?: KitchenPrinterSettings[]): Promise<void> => {
+        const kitchensToPrint = allKitchens && allKitchens.length > 0 ? allKitchens : (config ? [config] : []);
+        if (kitchensToPrint.length === 0) {
+            throw new Error("ไม่มีเครื่องพิมพ์ครัวให้ทำงาน");
+        }
+
+        const analysis = printerService.analyzeOrderRouting(order.items, kitchensToPrint);
+        const errors: string[] = [];
+        
+        // 1. Print only the explicitly bound items
+        for (const printerKey of Object.keys(analysis.toPrint)) {
+            const { printer, items: routedItems } = analysis.toPrint[printerKey];
+            if (!printer.ipAddress) continue;
+
+            const subOrder: ActiveOrder = {
+                ...order,
+                items: routedItems
+            };
+
+            try {
+                await printerService.printSingleKitchenOrder(subOrder, printer);
+            } catch (err: any) {
+                console.error(`[printerService] Printing to ${printer.name || 'unnamed kitchen printer'} failed:`, err);
+                errors.push(`${printer.name || 'ครัว'}: ${err.message}`);
+            }
+        }
+
+        // 2. Trigger warning popup alert for unassigned/Automatic items
+        if (analysis.unassigned.length > 0) {
+            const listHtml = analysis.unassigned.map(({ item, guessedPrinterName }) => 
+                `<li><strong>${item.name}</strong> x${item.quantity} (ระบบคาดเดา: <span style="color: #2563eb; font-weight: bold;">${guessedPrinterName}</span>)</li>`
+            ).join('');
+
+            Swal.fire({
+                title: 'พบเมนูที่ไม่มีการผูกเครื่องพิมพ์',
+                html: `
+                    <div style="text-align: left; font-size: 15px; font-family: 'Sarabun', sans-serif;">
+                        <p style="margin-bottom: 10px; color: #dc2626; font-weight: bold;">⚠️ ออเดอร์ของเมนูเหล่านี้ไม่ได้ถูกส่งพิมพ์ไปยังห้องครัว:</p>
+                        <ul style="list-style-type: decimal; padding-left: 20px; margin-bottom: 15px; line-height: 1.6;">
+                            ${listHtml}
+                        </ul>
+                        <p style="color: #4b5563; font-size: 13px; margin-top: 10px; border-top: 1px solid #e5e7eb; padding-top: 10px;">
+                            *กรุณาแจ้งพนักงานในครัวด้วยตนเอง หรือเข้าสู่โหมดแก้ไขเมนูเพื่อผูกเครื่องพิมพ์สำหรับการพิมพ์ครั้งถัดไป
+                        </p>
+                    </div>
+                `,
+                icon: 'warning',
+                confirmButtonText: 'รับทราบ',
+                confirmButtonColor: '#2563eb'
+            });
+        }
+
+        if (errors.length > 0) {
+            throw new Error(errors.join(', '));
         }
     },
 

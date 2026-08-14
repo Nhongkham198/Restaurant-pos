@@ -2217,7 +2217,7 @@ export const App: React.FC = () => {
 
             {/* Modals ... (Keep existing modals) ... */}
             <LoginModal isOpen={false} onClose={() => {}} />
-            <MenuItemModal isOpen={modalState.isMenuItem} onClose={handleModalClose} onSave={handleSaveMenuItemAndCloseModal} itemToEdit={itemToEdit} categories={categories} onAddCategory={handleAddCategory} />
+            <MenuItemModal isOpen={modalState.isMenuItem} onClose={handleModalClose} onSave={handleSaveMenuItemAndCloseModal} itemToEdit={itemToEdit} categories={categories} onAddCategory={handleAddCategory} kitchenPrinters={printerConfig?.kitchens || []} />
             <OrderSuccessModal isOpen={modalState.isOrderSuccess} onClose={handleModalClose} orderId={lastPlacedOrderId!} />
             <SplitBillModal isOpen={modalState.isSplitBill} order={orderForModal as ActiveOrder | null} onClose={handleModalClose} onConfirmSplit={handleConfirmSplit} />
             <TableBillModal 

@@ -111,6 +111,7 @@ export interface MenuItem {
     deliveryGPs?: { [providerId: string]: number }; // Added: GP percentage for different delivery platforms
     deliveryTaxes?: { [providerId: string]: number }; // Added: Tax percentage for different delivery platforms
     position?: number;
+    targetPrinterId?: string; // Target printer ID for routing
 }
 
 export type TakeawayCutleryOption = 'spoon-fork' | 'chopsticks' | 'other' | 'none';
@@ -259,6 +260,8 @@ export interface ReceiptPrintSettings {
 export type PrinterConnectionType = 'network' | 'usb';
 
 export interface KitchenPrinterSettings {
+    id?: string;       // Unique ID for multiple kitchen printers
+    name?: string;     // Name of the kitchen printer/room (e.g., "ครัวร้อน", "บาร์น้ำ")
     connectionType: PrinterConnectionType;
     ipAddress: string; // The Node.js Server IP
     port?: string;     // The Node.js Server Port
@@ -287,6 +290,7 @@ export interface CashierPrinterSettings {
 
 export interface PrinterConfig {
     kitchen: KitchenPrinterSettings | null;
+    kitchens?: KitchenPrinterSettings[];
     cashier: CashierPrinterSettings | null;
 }
 

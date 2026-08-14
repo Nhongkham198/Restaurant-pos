@@ -202,9 +202,11 @@ export const useOrderLogic = () => {
                 setModalState(prev => ({ ...prev, isOrderSuccess: true })); 
             }
         
-            if (isPrintedImmediatelyByThisDevice && printerConfig?.kitchen?.ipAddress) {
+            const hasKitchens = printerConfig?.kitchens && printerConfig.kitchens.some(k => k.ipAddress);
+            if (isPrintedImmediatelyByThisDevice && (hasKitchens || printerConfig?.kitchen?.ipAddress)) {
                 // Fire-and-forget printing to avoid blocking the UI
-                printerService.printKitchenOrder(newOrder, printerConfig.kitchen)
+                const defaultKitchen = printerConfig.kitchen || printerConfig.kitchens?.[0];
+                printerService.printKitchenOrder(newOrder, defaultKitchen!, printerConfig.kitchens)
                     .catch((printError: any) => {
                         console.error("Kitchen print failed (Direct):", printError);
                         Swal.fire({
@@ -416,7 +418,8 @@ export const useOrderLogic = () => {
     const handlePrintKitchenOrder = async (orderId: number) => { 
         const order = activeOrders.find(o => o.id === orderId); 
         if (!order) return; 
-        if (!printerConfig?.kitchen) { 
+        const hasKitchens = printerConfig?.kitchens && printerConfig.kitchens.length > 0;
+        if (!printerConfig?.kitchen && !hasKitchens) { 
             Swal.fire('ไม่พบเครื่องพิมพ์', 'กรุณาตั้งค่าเครื่องพิมพ์ครัวก่อน', 'warning'); 
             return; 
         } 
@@ -428,7 +431,8 @@ export const useOrderLogic = () => {
                 showConfirmButton: false, 
                 didOpen: () => { Swal.showLoading(); } 
             }); 
-            await printerService.printKitchenOrder(order, printerConfig.kitchen); 
+            const defaultKitchen = printerConfig.kitchen || printerConfig.kitchens?.[0];
+            await printerService.printKitchenOrder(order, defaultKitchen!, printerConfig.kitchens); 
         } catch (error: any) { 
             console.error("Reprint failed:", error); 
             Swal.fire('พิมพ์ไม่สำเร็จ', error.message || 'ไม่สามารถเชื่อมต่อเครื่องพิมพ์ได้', 'error'); 

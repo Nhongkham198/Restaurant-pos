@@ -499,7 +499,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
         qrCodeUrl: props.currentQrCodeUrl,
         notificationSoundUrl: props.currentNotificationSoundUrl,
         staffCallSoundUrl: props.currentStaffCallSoundUrl,
-        printerConfig: props.currentPrinterConfig || { kitchen: null, cashier: null },
+        printerConfig: (() => {
+            const initial = props.currentPrinterConfig ? { ...props.currentPrinterConfig } : { kitchen: null, cashier: null };
+            if (!initial.kitchens) {
+                initial.kitchens = [];
+                if (initial.kitchen) {
+                    initial.kitchens.push({
+                        ...initial.kitchen,
+                        id: 'kitchen-default',
+                        name: 'ครัวมาตรฐาน'
+                    });
+                }
+            }
+            return initial;
+        })(),
         openingTime: props.currentOpeningTime,
         closingTime: props.currentClosingTime,
         restaurantAddress: props.currentRestaurantAddress,
@@ -524,6 +537,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
         kitchen: 'idle',
         cashier: 'idle'
     });
+
+    const [kitchenPrinterStatus, setKitchenPrinterStatus] = useState<Record<string, PrinterStatus>>({});
 
     const [tempRecommendedIds, setTempRecommendedIds] = useState<number[]>(props.currentRecommendedMenuItemIds || []);
     const [tempRecommendedItemsLimit, setTempRecommendedItemsLimit] = useState<number>(props.recommendedItemsLimit || 10);
@@ -795,6 +810,152 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
                 }
             };
         });
+    };
+
+    const handleAddKitchenPrinter = () => {
+        setSettingsForm(prev => {
+            const kitchens = prev.printerConfig?.kitchens || [];
+            const newKitchen: KitchenPrinterSettings = {
+                id: `kitchen-${Date.now()}`,
+                name: `ครัวใหม่ ${kitchens.length + 1}`,
+                connectionType: 'network',
+                ipAddress: '',
+                port: '3000',
+                paperWidth: '80mm',
+                targetPrinterIp: '',
+                targetPrinterPort: '9100'
+            };
+            return {
+                ...prev,
+                printerConfig: {
+                    ...prev.printerConfig,
+                    kitchens: [...kitchens, newKitchen]
+                }
+            };
+        });
+    };
+
+    const handleRemoveKitchenPrinter = (id: string) => {
+        setSettingsForm(prev => {
+            const kitchens = (prev.printerConfig?.kitchens || []).filter(k => k.id !== id);
+            return {
+                ...prev,
+                printerConfig: {
+                    ...prev.printerConfig,
+                    kitchens
+                }
+            };
+        });
+    };
+
+    const handleKitchenPrinterChange = (id: string, field: string, value: any) => {
+        setSettingsForm(prev => {
+            const kitchens = (prev.printerConfig?.kitchens || []).map(k => {
+                if (k.id === id) {
+                    const updated = { ...k, [field]: value };
+                    if (field === 'connectionType') {
+                        if (value === 'usb') {
+                            if (!updated.vid) updated.vid = '';
+                            if (!updated.pid) updated.pid = '';
+                        }
+                    }
+                    return updated;
+                }
+                return k;
+            });
+            return {
+                ...prev,
+                printerConfig: {
+                    ...prev.printerConfig,
+                    kitchens
+                }
+            };
+        });
+    };
+
+    const handleCheckKitchenPrinterStatus = async (printer: KitchenPrinterSettings) => {
+        if (!printer.ipAddress) {
+            Swal.fire('ข้อมูลไม่ครบ', 'กรุณาระบุ Print Server IP', 'warning');
+            return;
+        }
+        const pId = printer.id || 'default';
+        setKitchenPrinterStatus(prev => ({ ...prev, [pId]: 'checking' }));
+        try {
+            const result = await printerService.checkPrinterStatus(
+                printer.ipAddress, 
+                printer.port || '3000',
+                printer.targetPrinterIp || '',
+                printer.targetPrinterPort || '9100',
+                printer.connectionType,
+                printer.vid,
+                printer.pid
+            );
+            setKitchenPrinterStatus(prev => ({ ...prev, [pId]: result.online ? 'success' : 'error' }));
+            if (!result.online) {
+                Swal.fire('เชื่อมต่อไม่ได้', result.message, 'error');
+            }
+        } catch (error: any) {
+            setKitchenPrinterStatus(prev => ({ ...prev, [pId]: 'error' }));
+            Swal.fire('เกิดข้อผิดพลาด', error.message, 'error');
+        }
+    };
+
+    const handleTestKitchenPrint = async (printer: KitchenPrinterSettings) => {
+        try {
+            await printerService.printTest(
+                printer.ipAddress, 
+                printer.paperWidth, 
+                printer.port || '3000',
+                printer.targetPrinterIp,
+                printer.targetPrinterPort,
+                printer.connectionType,
+                printer.vid, 
+                printer.pid 
+            );
+            Swal.fire({ icon: 'success', title: 'ส่งคำสั่งสำเร็จ', text: 'กรุณาตรวจสอบที่เครื่องพิมพ์', timer: 1500, showConfirmButton: false });
+        } catch (error: any) {
+            Swal.fire({ icon: 'error', title: 'พิมพ์ไม่สำเร็จ', text: error.message });
+        }
+    };
+
+    const handleScanKitchenUsb = async (printer: KitchenPrinterSettings) => {
+        if (!printer.ipAddress) {
+            Swal.fire('ข้อมูลไม่ครบ', 'กรุณาระบุ Print Server IP เพื่อสแกน', 'warning');
+            return;
+        }
+        try {
+            Swal.fire({ title: 'กำลังสแกน...', didOpen: () => { Swal.showLoading(); } });
+            const devices = await printerService.scanUsbDevices(printer.ipAddress, printer.port || '3000');
+            Swal.close();
+
+            if (devices.length === 0) {
+                Swal.fire('ไม่พบอุปกรณ์', 'ไม่พบเครื่องพิมพ์ USB ที่เชื่อมต่ออยู่', 'info');
+                return;
+            }
+
+            const options: Record<string, string> = {};
+            devices.forEach((d, idx) => {
+                options[`${d.vid}|${d.pid}`] = `Printer ${idx + 1} (VID:${d.vid} PID:${d.pid})`;
+            });
+
+            const { value } = await Swal.fire({
+                title: 'เลือกอุปกรณ์',
+                input: 'select',
+                inputOptions: options,
+                inputPlaceholder: 'เลือกเครื่องพิมพ์',
+                showCancelButton: true,
+            });
+
+            if (value) {
+                const [vid, pid] = value.split('|');
+                handleKitchenPrinterChange(printer.id || '', 'vid', vid);
+                handleKitchenPrinterChange(printer.id || '', 'pid', pid);
+                Swal.fire('สำเร็จ', `เลือก VID:${vid} PID:${pid} แล้ว`, 'success');
+            }
+        } catch (error: any) {
+            Swal.close();
+            Swal.fire('Error', error.message, 'error');
+        }
     };
 
     const handleCheckPrinterStatus = async (type: 'kitchen' | 'cashier') => {
@@ -1337,6 +1498,214 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
                         </div>
                     )}
                 </div>
+            </div>
+        );
+    };
+
+    const renderKitchenPrinters = () => {
+        const kitchens = settingsForm.printerConfig?.kitchens || [];
+
+        return (
+            <div className="space-y-6">
+                <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2 mb-4">
+                    <p className="text-xs text-gray-500">คุณสามารถตั้งค่าเครื่องพิมพ์ในห้องครัวแยกเป็นแผนกต่างๆ ได้หลายเครื่อง</p>
+                    <button
+                        type="button"
+                        onClick={handleAddKitchenPrinter}
+                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded shadow-sm flex items-center justify-center gap-1.5 transition-colors"
+                    >
+                        <span>➕</span> เพิ่มเครื่องพิมพ์ในครัว
+                    </button>
+                </div>
+
+                {kitchens.length === 0 ? (
+                    <div className="text-center py-8 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50">
+                        <p className="text-gray-500 mb-2">ยังไม่มีเครื่องพิมพ์ห้องครัวในระบบ</p>
+                        <button
+                            type="button"
+                            onClick={handleAddKitchenPrinter}
+                            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded shadow-sm"
+                        >
+                            เพิ่มตอนนี้
+                        </button>
+                    </div>
+                ) : (
+                    <div className="space-y-4">
+                        {kitchens.map((k, index) => {
+                            const pId = k.id || `k-${index}`;
+                            const status = kitchenPrinterStatus[pId] || 'idle';
+                            return (
+                                <div key={pId} className="bg-gray-50 p-4 rounded-lg border border-gray-200 space-y-4 relative">
+                                    <div className="flex justify-between items-center pb-2 border-b border-gray-200">
+                                        <div className="flex items-center gap-2 flex-1 max-w-md">
+                                            <span className="text-gray-700 font-bold text-xs whitespace-nowrap">เครื่องที่ {index + 1}:</span>
+                                            <input
+                                                type="text"
+                                                value={k.name || ''}
+                                                onChange={(e) => handleKitchenPrinterChange(pId, 'name', e.target.value)}
+                                                placeholder="ระบุชื่อห้อง/แผนก เช่น ครัวร้อน, บาร์น้ำ"
+                                                className="block w-full border border-gray-300 p-1.5 rounded-md text-xs font-bold text-gray-900 focus:outline-none focus:border-blue-500"
+                                            />
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleRemoveKitchenPrinter(pId)}
+                                            className="text-red-500 hover:text-red-700 font-bold text-xs flex items-center gap-1 transition-colors ml-4"
+                                            title="ลบเครื่องพิมพ์นี้"
+                                        >
+                                            <span>🗑️</span> ลบเครื่องพิมพ์
+                                        </button>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="bg-white p-3 rounded-md border border-gray-200 space-y-3">
+                                            <div>
+                                                <label className="block text-xs font-bold text-gray-700 mb-1">ประเภทการเชื่อมต่อ</label>
+                                                <div className="flex gap-2">
+                                                    <button 
+                                                        type="button" 
+                                                        onClick={() => handleKitchenPrinterChange(pId, 'connectionType', 'network')} 
+                                                        className={`flex-1 py-1 px-3 text-xs rounded font-bold border transition-all ${k.connectionType === 'network' ? 'bg-blue-600 text-white border-blue-700 shadow-inner' : 'bg-white text-gray-600 border-gray-300'}`}
+                                                    >
+                                                        WiFi / Network
+                                                    </button>
+                                                    <button 
+                                                        type="button" 
+                                                        onClick={() => handleKitchenPrinterChange(pId, 'connectionType', 'usb')} 
+                                                        className={`flex-1 py-1 px-3 text-xs rounded font-bold border transition-all ${k.connectionType === 'usb' ? 'bg-orange-600 text-white border-orange-700 shadow-inner' : 'bg-white text-gray-600 border-gray-300'}`}
+                                                    >
+                                                        USB (ต่อตรง)
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-xs font-bold text-gray-700 mb-1">ขนาดหน้ากว้างกระดาษ</label>
+                                                <div className="flex gap-2">
+                                                    <label className={`flex-1 flex items-center justify-center gap-1 p-1 text-xs rounded border cursor-pointer transition-all ${k.paperWidth === '80mm' ? 'border-blue-600 bg-blue-50 text-blue-800 font-bold' : 'border-gray-200 bg-white text-gray-600'}`}>
+                                                        <input
+                                                            type="radio"
+                                                            name={`paperWidth-${pId}`}
+                                                            value="80mm"
+                                                            checked={k.paperWidth === '80mm'}
+                                                            onChange={() => handleKitchenPrinterChange(pId, 'paperWidth', '80mm')}
+                                                            className="hidden"
+                                                        />
+                                                        <span>80mm</span>
+                                                    </label>
+                                                    <label className={`flex-1 flex items-center justify-center gap-1 p-1 text-xs rounded border cursor-pointer transition-all ${k.paperWidth === '58mm' ? 'border-blue-600 bg-blue-50 text-blue-800 font-bold' : 'border-gray-200 bg-white text-gray-600'}`}>
+                                                        <input
+                                                            type="radio"
+                                                            name={`paperWidth-${pId}`}
+                                                            value="58mm"
+                                                            checked={k.paperWidth === '58mm'}
+                                                            onChange={() => handleKitchenPrinterChange(pId, 'paperWidth', '58mm')}
+                                                            className="hidden"
+                                                        />
+                                                        <span>58mm</span>
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <div className="grid grid-cols-12 gap-2">
+                                                <div className="col-span-8">
+                                                    <label className="block text-xs font-bold text-blue-700">Print Server IP (Node.js)</label>
+                                                    <input 
+                                                        type="text" 
+                                                        value={k.ipAddress} 
+                                                        onChange={(e) => handleKitchenPrinterChange(pId, 'ipAddress', e.target.value)} 
+                                                        placeholder="เช่น 192.168.1.13" 
+                                                        className="mt-1 block w-full border border-gray-300 p-1.5 rounded text-xs text-gray-900" 
+                                                    />
+                                                </div>
+                                                <div className="col-span-4">
+                                                    <label className="block text-xs font-bold text-blue-700">Port</label>
+                                                    <input 
+                                                        type="text" 
+                                                        value={k.port || '3000'} 
+                                                        onChange={(e) => handleKitchenPrinterChange(pId, 'port', e.target.value)} 
+                                                        placeholder="3000" 
+                                                        className="mt-1 block w-full border border-gray-300 p-1.5 rounded text-xs text-gray-900" 
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            {k.connectionType === 'network' && (
+                                                <div>
+                                                    <label className="block text-xs font-bold text-green-700">Printer IP (ตัวเครื่องพิมพ์)</label>
+                                                    <input 
+                                                        type="text" 
+                                                        value={k.targetPrinterIp || ''} 
+                                                        onChange={(e) => handleKitchenPrinterChange(pId, 'targetPrinterIp', e.target.value)} 
+                                                        placeholder="เช่น 192.168.1.200" 
+                                                        className="mt-1 block w-full border border-gray-300 p-1.5 rounded text-xs text-gray-900" 
+                                                    />
+                                                </div>
+                                            )}
+
+                                            {k.connectionType === 'usb' && (
+                                                <div className="bg-orange-50 p-2 rounded border border-orange-200 space-y-2">
+                                                    <p className="text-[10px] text-gray-700 font-bold">ระบุอุปกรณ์ USB (Optional)</p>
+                                                    <div className="flex gap-2 items-end">
+                                                        <div className="flex-1">
+                                                            <label className="text-[10px] text-orange-700 block">VID</label>
+                                                            <input 
+                                                                type="text" 
+                                                                value={k.vid || ''} 
+                                                                onChange={(e) => handleKitchenPrinterChange(pId, 'vid', e.target.value)} 
+                                                                placeholder="0x...." 
+                                                                className="w-full border border-gray-300 p-1 rounded text-xs" 
+                                                            />
+                                                        </div>
+                                                        <div className="flex-1">
+                                                            <label className="text-[10px] text-orange-700 block">PID</label>
+                                                            <input 
+                                                                type="text" 
+                                                                value={k.pid || ''} 
+                                                                onChange={(e) => handleKitchenPrinterChange(pId, 'pid', e.target.value)} 
+                                                                placeholder="0x...." 
+                                                                className="w-full border border-gray-300 p-1 rounded text-xs" 
+                                                            />
+                                                        </div>
+                                                        <button 
+                                                            type="button" 
+                                                            onClick={() => handleScanKitchenUsb(k)} 
+                                                            className="px-2 py-1 bg-orange-600 text-white font-bold text-xs rounded hover:bg-orange-700 shadow-sm"
+                                                        >
+                                                            สแกน
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-center justify-between pt-2 border-t border-gray-200">
+                                        <StatusIndicator status={status} label="สถานะเครื่องพิมพ์" />
+                                        <div className="flex gap-2">
+                                            <button 
+                                                type="button" 
+                                                onClick={() => handleCheckKitchenPrinterStatus(k)} 
+                                                className="px-3 py-1 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded"
+                                            >
+                                                ตรวจสอบสถานะ
+                                            </button>
+                                            <button 
+                                                type="button" 
+                                                onClick={() => handleTestKitchenPrint(k)} 
+                                                className="px-3 py-1 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 text-xs font-bold rounded"
+                                            >
+                                                ทดสอบพิมพ์
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
             </div>
         );
     };
@@ -2017,7 +2386,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
                                 <h3 className="text-xl font-bold text-gray-800 border-b pb-4 mb-4 flex items-center gap-2">
                                     <span className="text-2xl">🍳</span> เครื่องพิมพ์ครัว (Kitchen)
                                 </h3>
-                                {renderPrinterSettings('kitchen')}
+                                {renderKitchenPrinters()}
                             </div>
                             <div className="bg-white p-6 rounded-lg shadow-sm">
                                 <h3 className="text-xl font-bold text-gray-800 border-b pb-4 mb-4 flex items-center gap-2">
