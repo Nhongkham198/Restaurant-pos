@@ -1,6 +1,6 @@
 
 import React, { useState, ReactNode, useRef, useMemo, useEffect } from 'react';
-import type { User, View, PrinterConfig, PrinterStatus } from '../types';
+import type { User, View, PrinterConfig, PrinterStatus, KitchenPrinterSettings } from '../types';
 import Swal from 'sweetalert2';
 import { printerService } from '../services/printerService';
 
@@ -128,7 +128,28 @@ const SidebarPrinterStatus: React.FC<{
     status: PrinterStatus;
     onClick: () => void;
     isCollapsed: boolean;
-}> = ({ type, status, onClick, isCollapsed }) => {
+    kitchenPrintersList?: { id: string; name: string; status: PrinterStatus; connectionType: string; target: string }[];
+    onRecheckIndividual?: (id: string) => void;
+    cashierConfig?: any;
+}> = ({ type, status, onClick, isCollapsed, kitchenPrintersList = [], onRecheckIndividual, cashierConfig }) => {
+    const [showDropdown, setShowDropdown] = useState(false);
+    const containerRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+                setShowDropdown(false);
+            }
+        };
+
+        if (showDropdown) {
+            document.addEventListener('mousedown', handleClickOutside);
+        }
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, [showDropdown]);
+
     const icon = type === 'kitchen' ? (
         <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
     ) : (
@@ -139,15 +160,104 @@ const SidebarPrinterStatus: React.FC<{
     const label = type === 'kitchen' ? 'ครัว' : 'แคชเชียร์';
 
     return (
-        <button 
-            onClick={onClick}
-            className="flex items-center gap-2 p-1.5 rounded hover:bg-gray-700 w-full transition-colors text-gray-400 hover:text-white"
-            title={`คลิกเพื่อตรวจสอบสถานะ: ${label}`}
+        <div 
+            ref={containerRef}
+            className="relative"
         >
-            <div className={`w-2 h-2 rounded-full ${color} ${status === 'checking' ? 'animate-pulse' : ''}`}></div>
-            {icon}
-            {!isCollapsed && <span className="text-xs font-medium">{label}</span>}
-        </button>
+            <button 
+                onClick={(e) => {
+                    e.stopPropagation();
+                    setShowDropdown(prev => !prev);
+                }}
+                className="flex items-center gap-2 p-1.5 rounded hover:bg-gray-700 w-full transition-colors text-gray-400 hover:text-white"
+                title={`คลิกเพื่อตรวจสอบสถานะ: ${label}`}
+            >
+                <div className={`w-2 h-2 rounded-full ${color} ${status === 'checking' ? 'animate-pulse' : ''}`}></div>
+                {icon}
+                {!isCollapsed && <span className="text-xs font-medium">{label}</span>}
+            </button>
+
+            {/* Click Dropdown / Popover */}
+            {showDropdown && !isCollapsed && type === 'kitchen' && (
+                <div 
+                    className="absolute left-0 bottom-full mb-1.5 z-50 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl p-3 w-64 text-left text-gray-200"
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    <div className="flex items-center justify-between border-b border-gray-850 pb-1.5 mb-2">
+                        <span className="text-[11px] font-bold text-gray-400">สถานะเครื่องพิมพ์ครัว</span>
+                        <button 
+                            onClick={(e) => { e.stopPropagation(); onClick(); }}
+                            className="text-[10px] text-blue-400 hover:text-blue-300 font-medium px-1.5 py-0.5 rounded hover:bg-gray-800 flex items-center gap-1"
+                        >
+                            รีเฟรชทั้งหมด
+                        </button>
+                    </div>
+                    <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                        {kitchenPrintersList.length === 0 ? (
+                            <p className="text-xs text-gray-500 py-1 text-center">ไม่ได้ตั้งค่าเครื่องพิมพ์</p>
+                        ) : (
+                            kitchenPrintersList.map((p) => {
+                                const dotColor = p.status === 'success' ? 'bg-green-500' : p.status === 'error' ? 'bg-red-500' : p.status === 'checking' ? 'bg-yellow-500' : 'bg-gray-500';
+                                return (
+                                    <div key={p.id} className="flex items-center justify-between p-1 rounded hover:bg-gray-800/60 transition-colors">
+                                        <div className="flex items-center gap-2 overflow-hidden">
+                                            <div className={`w-1.5 h-1.5 rounded-full ${dotColor} ${p.status === 'checking' ? 'animate-pulse' : ''}`}></div>
+                                            <div className="text-xs truncate">
+                                                <p className="font-semibold text-white truncate max-w-[140px] leading-none mb-1">{p.name}</p>
+                                                <p className="text-[9px] text-gray-500 truncate max-w-[140px]">{p.target}</p>
+                                            </div>
+                                        </div>
+                                        <button 
+                                            onClick={(e) => { e.stopPropagation(); onRecheckIndividual?.(p.id); }}
+                                            className="p-1 hover:bg-gray-750 rounded text-gray-400 hover:text-white transition-colors"
+                                            title="ทดสอบเชื่อมต่อเครื่องนี้"
+                                            disabled={p.status === 'checking'}
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" className={`h-3 w-3 ${p.status === 'checking' ? 'animate-spin text-yellow-500' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 4.89M9 11l3-3 3 3m-3-3v12" /></svg>
+                                        </button>
+                                    </div>
+                                );
+                            })
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {showDropdown && !isCollapsed && type === 'cashier' && (
+                <div 
+                    className="absolute right-0 bottom-full mb-1.5 z-50 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl p-3 w-64 text-left text-gray-200"
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    <div className="flex items-center justify-between border-b border-gray-850 pb-1.5 mb-2">
+                        <span className="text-[11px] font-bold text-gray-400">สถานะเครื่องพิมพ์แคชเชียร์</span>
+                        <button 
+                            onClick={(e) => { e.stopPropagation(); onClick(); }}
+                            className="text-[10px] text-blue-400 hover:text-blue-300 font-medium px-1.5 py-0.5 rounded hover:bg-gray-800"
+                            disabled={status === 'checking'}
+                        >
+                            รีเช็ค
+                        </button>
+                    </div>
+                    {cashierConfig ? (
+                        <div className="p-1.5 rounded bg-gray-800/30">
+                            <div className="flex items-center gap-2 mb-1">
+                                <div className={`w-1.5 h-1.5 rounded-full ${color} ${status === 'checking' ? 'animate-pulse' : ''}`}></div>
+                                <p className="text-xs font-semibold text-white">เครื่องพิมพ์ใบเสร็จ</p>
+                            </div>
+                            <p className="text-[10px] text-gray-400">
+                                {cashierConfig.connectionType === 'usb' 
+                                    ? `USB (${cashierConfig.vid || 'Auto'}, ${cashierConfig.pid || 'Auto'})`
+                                    : `Network (${cashierConfig.targetPrinterIp || ''})`
+                                }
+                            </p>
+                            <p className="text-[9px] text-gray-500 mt-1">Print Server: {cashierConfig.ipAddress}:{cashierConfig.port || '3000'}</p>
+                        </div>
+                    ) : (
+                        <p className="text-xs text-gray-500 py-1 text-center">ไม่ได้ตั้งค่าเครื่องพิมพ์</p>
+                    )}
+                </div>
+            )}
+        </div>
     );
 };
 
@@ -195,19 +305,22 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({
     // Printer Status
     const [kitchenStatus, setKitchenStatus] = useState<PrinterStatus>('idle');
     const [cashierStatus, setCashierStatus] = useState<PrinterStatus>('idle');
+    const [kitchenPrintersList, setKitchenPrintersList] = useState<{ id: string; name: string; status: PrinterStatus; connectionType: string; target: string }[]>([]);
 
-    const checkPrinter = async (type: 'kitchen' | 'cashier') => {
+    const checkKitchenPrinterIndividual = async (id: string) => {
         if (!printerConfig) return;
-        const config = printerConfig[type];
+        const kitchens = printerConfig.kitchens || [];
+        let config: KitchenPrinterSettings | null = null;
         
-        if (!config || !config.ipAddress) {
-            if (type === 'kitchen') setKitchenStatus('idle');
-            else setCashierStatus('idle');
-            return;
+        if (id === 'default-kitchen') {
+            config = printerConfig.kitchen;
+        } else {
+            config = kitchens.find(k => k.id === id) || null;
         }
 
-        if (type === 'kitchen') setKitchenStatus('checking');
-        else setCashierStatus('checking');
+        if (!config || !config.ipAddress) return;
+
+        setKitchenPrintersList(prev => prev.map(p => p.id === id ? { ...p, status: 'checking' } : p));
 
         try {
             const res = await printerService.checkPrinterStatus(
@@ -217,21 +330,104 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({
                 config.targetPrinterPort || '9100',
                 config.connectionType
             );
-            
-            if (type === 'kitchen') setKitchenStatus(res.online ? 'success' : 'error');
-            else setCashierStatus(res.online ? 'success' : 'error');
+            const nextStatus = res.online ? 'success' : 'error';
+            setKitchenPrintersList(prev => prev.map(p => p.id === id ? { ...p, status: nextStatus } : p));
+            return nextStatus;
         } catch (error) {
-            if (type === 'kitchen') setKitchenStatus('error');
-            else setCashierStatus('error');
+            setKitchenPrintersList(prev => prev.map(p => p.id === id ? { ...p, status: 'error' } : p));
+            return 'error';
+        }
+    };
+
+    const checkAllPrinters = async () => {
+        if (!printerConfig) return;
+
+        // Cashier check
+        const cashierConf = printerConfig.cashier;
+        if (cashierConf && cashierConf.ipAddress) {
+            setCashierStatus('checking');
+            printerService.checkPrinterStatus(
+                cashierConf.ipAddress,
+                cashierConf.port || '3000',
+                cashierConf.targetPrinterIp || '',
+                cashierConf.targetPrinterPort || '9100',
+                cashierConf.connectionType
+            ).then(res => setCashierStatus(res.online ? 'success' : 'error'))
+             .catch(() => setCashierStatus('error'));
+        } else {
+            setCashierStatus('idle');
+        }
+
+        // Kitchen check
+        const kitchens = printerConfig.kitchens || [];
+        const listToCheck: { id: string; name: string; config: KitchenPrinterSettings }[] = [];
+        
+        if (kitchens.length > 0) {
+            kitchens.forEach((k, idx) => {
+                listToCheck.push({
+                    id: k.id || `kitchen-${idx}`,
+                    name: k.name || `ครัว ${idx + 1}`,
+                    config: k
+                });
+            });
+        } else if (printerConfig.kitchen) {
+            listToCheck.push({
+                id: 'default-kitchen',
+                name: printerConfig.kitchen.name || 'ครัวหลัก',
+                config: printerConfig.kitchen
+            });
+        }
+
+        if (listToCheck.length === 0) {
+            setKitchenStatus('idle');
+            setKitchenPrintersList([]);
+            return;
+        }
+
+        setKitchenStatus('checking');
+        
+        // Populate checking states in list
+        setKitchenPrintersList(listToCheck.map(p => ({
+            id: p.id,
+            name: p.name,
+            status: 'checking',
+            connectionType: p.config.connectionType,
+            target: p.config.connectionType === 'usb' ? `USB (${p.config.vid || 'Auto'}, ${p.config.pid || 'Auto'})` : `Network (${p.config.targetPrinterIp || ''})`
+        })));
+
+        const results = await Promise.all(
+            listToCheck.map(async (p) => {
+                try {
+                    const res = await printerService.checkPrinterStatus(
+                        p.config.ipAddress,
+                        p.config.port || '3000',
+                        p.config.targetPrinterIp || '',
+                        p.config.targetPrinterPort || '9100',
+                        p.config.connectionType
+                    );
+                    const status = res.online ? 'success' : 'error';
+                    setKitchenPrintersList(prev => prev.map(item => item.id === p.id ? { ...item, status } : item));
+                    return status;
+                } catch (error) {
+                    setKitchenPrintersList(prev => prev.map(item => item.id === p.id ? { ...item, status: 'error' } : item));
+                    return 'error';
+                }
+            })
+        );
+
+        if (results.every(r => r === 'success')) {
+            setKitchenStatus('success');
+        } else if (results.some(r => r === 'success')) {
+            setKitchenStatus('success'); // At least one kitchen printer is working
+        } else {
+            setKitchenStatus('error');
         }
     };
 
     useEffect(() => {
-        checkPrinter('kitchen');
-        checkPrinter('cashier');
+        checkAllPrinters();
         const interval = setInterval(() => {
-            checkPrinter('kitchen');
-            checkPrinter('cashier');
+            checkAllPrinters();
         }, 60000);
         return () => clearInterval(interval);
     }, [printerConfig]);
@@ -391,8 +587,21 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({
 
                     {/* Printer Status (Added) */}
                     <div className={`grid grid-cols-2 gap-2 mt-1 ${isCollapsed ? 'hidden' : 'block'}`}>
-                        <SidebarPrinterStatus type="kitchen" status={kitchenStatus} onClick={() => checkPrinter('kitchen')} isCollapsed={isCollapsed} />
-                        <SidebarPrinterStatus type="cashier" status={cashierStatus} onClick={() => checkPrinter('cashier')} isCollapsed={isCollapsed} />
+                        <SidebarPrinterStatus 
+                            type="kitchen" 
+                            status={kitchenStatus} 
+                            onClick={checkAllPrinters} 
+                            isCollapsed={isCollapsed} 
+                            kitchenPrintersList={kitchenPrintersList}
+                            onRecheckIndividual={checkKitchenPrinterIndividual}
+                        />
+                        <SidebarPrinterStatus 
+                            type="cashier" 
+                            status={cashierStatus} 
+                            onClick={checkAllPrinters} 
+                            isCollapsed={isCollapsed} 
+                            cashierConfig={printerConfig?.cashier}
+                        />
                     </div>
 
                     {/* Order Notification Toggle */}
