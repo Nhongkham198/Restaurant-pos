@@ -1084,7 +1084,8 @@ export const App: React.FC = () => {
                     await orderRef.update({ isPrintedToKitchen: true });
     
                     // Now that we've claimed it, print it.
-                    await printerService.printKitchenOrder(order, printerConfig.kitchen!);
+                    const defaultKitchen = printerConfig.kitchen || printerConfig.kitchens?.[0];
+                    await printerService.printKitchenOrder(order, defaultKitchen!, printerConfig.kitchens);
                     console.log(`[AutoPrint] Success #${order.orderNumber}`);
                 } catch (err) {
                      console.error(`[AutoPrint] Failed to claim or print order #${order.orderNumber}:`, err);

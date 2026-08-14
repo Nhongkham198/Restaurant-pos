@@ -338,13 +338,20 @@ export const printerService = {
 
         try {
             const base64Image = await generateImageFromHtml(htmlContent, targetWidth);
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 8000);
+
             const res = await fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
+                signal: controller.signal,
                 body: JSON.stringify({
                     image: base64Image,
                     connectionType: config.connectionType,
+                    printerName: config.name || '',
                     targetPrinter: {
+                        name: config.name || '',
+                        printerName: config.name || '',
                         ip: config.targetPrinterIp || '',
                         port: config.targetPrinterPort || '9100',
                         vid: config.vid || '',
@@ -352,12 +359,17 @@ export const printerService = {
                     }
                 })
             });
+            clearTimeout(timeoutId);
+
             if (!res.ok) {
                 const errData = await res.json().catch(() => ({}));
                 throw new Error(errData.error || `Server returned ${res.status}`);
             }
         } catch (error: any) {
-            throw new Error("พิมพ์ล้มเหลว: " + error.message);
+            if (error.name === 'AbortError' || error.message?.includes('Failed to fetch') || error.message?.includes('NetworkError')) {
+                throw new Error(`ไม่สามารถเชื่อมต่อ Print Server (${config.ipAddress}:${config.port || 3000}) ได้ กรุณาตรวจสอบว่าเปิดโปรแกรม Print Server หรือยัง`);
+            }
+            throw new Error(error.message || 'พิมพ์ล้มเหลว');
         }
     },
 
@@ -587,14 +599,21 @@ export const printerService = {
 
         try {
             const base64Image = await generateImageFromHtml(htmlContent, targetWidth);
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 8000);
+
             const res = await fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
+                signal: controller.signal,
                 body: JSON.stringify({
                     image: base64Image,
                     connectionType: config.connectionType,
+                    printerName: (config as any).name || '',
                     // Use VID/PID for Star Micronics support
                     targetPrinter: {
+                        name: (config as any).name || '',
+                        printerName: (config as any).name || '',
                         ip: config.targetPrinterIp || '',
                         port: config.targetPrinterPort || '9100',
                         vid: config.vid || '',
@@ -602,12 +621,17 @@ export const printerService = {
                     }
                 })
             });
+            clearTimeout(timeoutId);
+
             if (!res.ok) {
                 const errData = await res.json().catch(() => ({}));
                 throw new Error(errData.error || `Server returned ${res.status}`);
             }
         } catch (error: any) {
-            throw new Error("พิมพ์ล้มเหลว: " + error.message);
+            if (error.name === 'AbortError' || error.message?.includes('Failed to fetch') || error.message?.includes('NetworkError')) {
+                throw new Error(`ไม่สามารถเชื่อมต่อ Print Server (${config.ipAddress}:${config.port || 3000}) ได้ กรุณาตรวจสอบว่าเปิดโปรแกรม Print Server หรือยัง`);
+            }
+            throw new Error(error.message || 'พิมพ์ล้มเหลว');
         }
     },
 
@@ -682,13 +706,20 @@ export const printerService = {
         const url = `http://${config.ipAddress}:${config.port || 3000}/print-image`;
         try {
             const base64Image = await generateImageFromHtml(htmlContent, targetWidth);
-            await fetch(url, {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+            const res = await fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
+                signal: controller.signal,
                 body: JSON.stringify({
                     image: base64Image,
                     connectionType: config.connectionType,
+                    printerName: (config as any).name || '',
                     targetPrinter: {
+                        name: (config as any).name || '',
+                        printerName: (config as any).name || '',
                         ip: config.targetPrinterIp || '',
                         port: config.targetPrinterPort || '9100',
                         vid: config.vid || '',
@@ -696,8 +727,17 @@ export const printerService = {
                     }
                 })
             });
+            clearTimeout(timeoutId);
+
+            if (!res.ok) {
+                const errData = await res.json().catch(() => ({}));
+                throw new Error(errData.error || `Server returned ${res.status}`);
+            }
         } catch (error: any) {
-            throw new Error("พิมพ์ล้มเหลว: " + error.message);
+            if (error.name === 'AbortError' || error.message?.includes('Failed to fetch') || error.message?.includes('NetworkError')) {
+                throw new Error(`ไม่สามารถเชื่อมต่อ Print Server (${config.ipAddress}:${config.port || 3000}) ได้ กรุณาตรวจสอบว่าเปิดโปรแกรม Print Server หรือยัง`);
+            }
+            throw new Error(error.message || 'พิมพ์ล้มเหลว');
         }
     },
 
@@ -755,24 +795,43 @@ export const printerService = {
         const imageBase64 = await generateImageFromHtml(html, targetWidth);
         const url = `http://${config.ipAddress}:${config.port || 3000}/print-image`;
         
-        await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                image: imageBase64,
-                connectionType: config.connectionType,
-                targetPrinter: {
-                    ip: config.targetPrinterIp || '',
-                    port: config.targetPrinterPort || '9100',
-                    vid: config.vid || '',
-                    pid: config.pid || ''
-                }
-            })
-        });
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+        try {
+            const res = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                signal: controller.signal,
+                body: JSON.stringify({
+                    image: imageBase64,
+                    connectionType: config.connectionType,
+                    printerName: config.name || '',
+                    targetPrinter: {
+                        name: config.name || '',
+                        printerName: config.name || '',
+                        ip: config.targetPrinterIp || '',
+                        port: config.targetPrinterPort || '9100',
+                        vid: config.vid || '',
+                        pid: config.pid || ''
+                    }
+                })
+            });
+            clearTimeout(timeoutId);
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || `Server returned ${res.status}`);
+            }
+        } catch (error: any) {
+            if (error.name === 'AbortError' || error.message?.includes('Failed to fetch') || error.message?.includes('NetworkError')) {
+                throw new Error(`ไม่สามารถเชื่อมต่อ Print Server (${config.ipAddress}:${config.port || 3000}) ได้ กรุณาตรวจสอบว่าเปิดโปรแกรม Print Server หรือยัง`);
+            }
+            throw new Error(error.message || 'พิมพ์ล้มเหลว');
+        }
     },
 
     // --- 6. Test & Check ---
-    printTest: async (ip: string, paperWidth: string, port: string, targetPrinterIp?: string, targetPrinterPort?: string, connectionType: PrinterConnectionType = 'network', vid?: string, pid?: string): Promise<boolean> => {
+    printTest: async (ip: string, paperWidth: string, port: string, targetPrinterIp?: string, targetPrinterPort?: string, connectionType: PrinterConnectionType = 'network', vid?: string, pid?: string, printerName?: string): Promise<boolean> => {
         const url = `http://${ip}:${port || 3000}/print-image`;
         
         const is58mm = paperWidth === '58mm';
@@ -801,13 +860,20 @@ export const printerService = {
 
         try {
             const imageBase64 = await generateImageFromHtml(html, targetWidth);
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 8000);
+
             const res = await fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
+                signal: controller.signal,
                 body: JSON.stringify({
                     image: imageBase64,
                     connectionType,
+                    printerName: printerName || '',
                     targetPrinter: { 
+                        name: printerName || '',
+                        printerName: printerName || '',
                         ip: targetPrinterIp || '', 
                         port: targetPrinterPort || '9100',
                         vid: vid || '', 
@@ -815,9 +881,17 @@ export const printerService = {
                     }
                 })
             });
+            clearTimeout(timeoutId);
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || `Server returned ${res.status}`);
+            }
             return res.ok;
-        } catch (error) {
+        } catch (error: any) {
             console.error("Test print error:", error);
+            if (error.name === 'AbortError' || error.message?.includes('Failed to fetch') || error.message?.includes('NetworkError')) {
+                throw new Error(`ไม่สามารถเชื่อมต่อ Print Server (${ip}:${port || 3000}) ได้ กรุณาตรวจสอบว่าเปิดโปรแกรม Print Server หรือยัง`);
+            }
             throw error;
         }
     },

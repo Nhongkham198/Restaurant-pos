@@ -910,7 +910,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
                 printer.targetPrinterPort,
                 printer.connectionType,
                 printer.vid, 
-                printer.pid 
+                printer.pid,
+                printer.name
             );
             Swal.fire({ icon: 'success', title: 'ส่งคำสั่งสำเร็จ', text: 'กรุณาตรวจสอบที่เครื่องพิมพ์', timer: 1500, showConfirmButton: false });
         } catch (error: any) {
@@ -1083,7 +1084,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
                 printer.targetPrinterPort,
                 printer.connectionType,
                 printer.vid, 
-                printer.pid 
+                printer.pid,
+                (printer as any).name
             );
             Swal.fire({ icon: 'success', title: 'ส่งคำสั่งสำเร็จ', text: 'กรุณาตรวจสอบที่เครื่องพิมพ์', timer: 1500, showConfirmButton: false });
         } catch (error: any) {
