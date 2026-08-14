@@ -919,44 +919,113 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
         }
     };
 
-    const handleScanKitchenUsb = async (printer: KitchenPrinterSettings) => {
-        if (!printer.ipAddress) {
-            Swal.fire('ข้อมูลไม่ครบ', 'กรุณาระบุ Print Server IP เพื่อสแกน', 'warning');
-            return;
-        }
-        try {
-            Swal.fire({ title: 'กำลังสแกน...', didOpen: () => { Swal.showLoading(); } });
-            const devices = await printerService.scanUsbDevices(printer.ipAddress, printer.port || '3000');
-            Swal.close();
+    const performUsbDeviceScan = async (
+        currentIp: string, 
+        currentPort: string, 
+        onSelect: (vid: string, pid: string, label?: string) => void
+    ) => {
+        const presets: Record<string, { vid: string, pid: string, name: string }> = {
+            'xprinter': { vid: '0x0fe6', pid: '0x811e', name: 'Xprinter (XP-58 / XP-80 / XP-N160)' },
+            'epson': { vid: '0x04b8', pid: '0x0202', name: 'Epson (TM-T82 / TM-T88 / TM-U220)' },
+            'rongta': { vid: '0x0fe6', pid: '0x811e', name: 'Rongta / Gprinter / POS80' },
+            'sprt': { vid: '0x0416', pid: '0x5011', name: 'SPRT / EasyPos' },
+            'auto_first': { vid: '', pid: '', name: '⚡ อัตโนมัติ (พิมพ์ออกเครื่องแรกที่เสียบ USB)' }
+        };
 
-            if (devices.length === 0) {
-                Swal.fire('ไม่พบอุปกรณ์', 'ไม่พบเครื่องพิมพ์ USB ที่เชื่อมต่ออยู่', 'info');
+        const inputOptions: Record<string, string> = {};
+        if (typeof (navigator as any)?.usb?.requestDevice === 'function') {
+            inputOptions['webusb'] = '🔍 [แนะนำ] สแกนตรวจหา USB อัตโนมัติ (WebUSB)';
+        }
+        inputOptions['server_scan'] = '📡 สแกนผ่าน Print Server';
+        inputOptions['preset_xprinter'] = `📋 รุ่น: ${presets.xprinter.name}`;
+        inputOptions['preset_epson'] = `📋 รุ่น: ${presets.epson.name}`;
+        inputOptions['preset_rongta'] = `📋 รุ่น: ${presets.rongta.name}`;
+        inputOptions['preset_sprt'] = `📋 รุ่น: ${presets.sprt.name}`;
+        inputOptions['preset_auto_first'] = `⚡ ${presets.auto_first.name}`;
+
+        const { value: choice } = await Swal.fire({
+            title: 'เลือกวิธีสแกน / ระบุ USB',
+            input: 'select',
+            inputOptions,
+            inputPlaceholder: '-- กรุณาเลือกวิธี --',
+            showCancelButton: true,
+            confirmButtonText: 'ถัดไป',
+            cancelButtonText: 'ยกเลิก'
+        });
+
+        if (!choice) return;
+
+        if (choice === 'webusb') {
+            try {
+                const device = await (navigator as any).usb.requestDevice({ filters: [] });
+                if (device) {
+                    const vid = '0x' + Number(device.vendorId).toString(16).padStart(4, '0').toLowerCase();
+                    const pid = '0x' + Number(device.productId).toString(16).padStart(4, '0').toLowerCase();
+                    const name = device.productName || 'USB Printer';
+                    onSelect(vid, pid, name);
+                    Swal.fire('สำเร็จ', `ตรวจพบ: ${name}\nVID: ${vid}, PID: ${pid}`, 'success');
+                }
+            } catch (err: any) {
+                if (err.name !== 'NotFoundError') {
+                    Swal.fire('ข้อความแจ้งเตือน', 'ไม่สามารถเชื่อมต่อ WebUSB ได้: ' + (err.message || ''), 'warning');
+                }
+            }
+        } else if (choice.startsWith('preset_')) {
+            const key = choice.replace('preset_', '');
+            const preset = presets[key];
+            if (preset) {
+                onSelect(preset.vid, preset.pid, preset.name);
+                Swal.fire('สำเร็จ', `เลือก: ${preset.name}\nVID: ${preset.vid || 'Auto'}, PID: ${preset.pid || 'Auto'}`, 'success');
+            }
+        } else if (choice === 'server_scan') {
+            if (!currentIp) {
+                Swal.fire('ข้อมูลไม่ครบ', 'กรุณาระบุ Print Server IP ก่อนสแกนผ่านเซิร์ฟเวอร์', 'warning');
                 return;
             }
+            try {
+                Swal.fire({ title: 'กำลังค้นหาผ่าน Print Server...', didOpen: () => { Swal.showLoading(); } });
+                const devices = await printerService.scanUsbDevices(currentIp, currentPort || '3000');
+                Swal.close();
 
-            const options: Record<string, string> = {};
-            devices.forEach((d, idx) => {
-                options[`${d.vid}|${d.pid}`] = `Printer ${idx + 1} (VID:${d.vid} PID:${d.pid})`;
-            });
+                if (!devices || devices.length === 0) {
+                    Swal.fire('ไม่พบอุปกรณ์', 'Print Server ไม่พบอุปกรณ์ USB ที่เสียบอยู่ หรือยังไม่รองรับการส่งรายชื่อ', 'info');
+                    return;
+                }
 
-            const { value } = await Swal.fire({
-                title: 'เลือกอุปกรณ์',
-                input: 'select',
-                inputOptions: options,
-                inputPlaceholder: 'เลือกเครื่องพิมพ์',
-                showCancelButton: true,
-            });
+                const devOptions: Record<string, string> = {};
+                devices.forEach((d: any, idx: number) => {
+                    devOptions[`${d.vid}|${d.pid}`] = `เครื่องพิมพ์ ${idx + 1} (${d.name || ''} VID:${d.vid} PID:${d.pid})`;
+                });
 
-            if (value) {
-                const [vid, pid] = value.split('|');
+                const { value: selectedDev } = await Swal.fire({
+                    title: 'เลือกเครื่องพิมพ์ USB',
+                    input: 'select',
+                    inputOptions: devOptions,
+                    inputPlaceholder: 'เลือกเครื่องพิมพ์',
+                    showCancelButton: true,
+                });
+
+                if (selectedDev) {
+                    const [vid, pid] = selectedDev.split('|');
+                    onSelect(vid, pid);
+                    Swal.fire('สำเร็จ', `เลือก VID:${vid} PID:${pid} แล้ว`, 'success');
+                }
+            } catch (error: any) {
+                Swal.close();
+                Swal.fire('คำแนะนำ', error.message + '\n\n💡 แนะนำให้เลือกเมนู "เลือกรุ่นเครื่องพิมพ์" หรือ "อัตโนมัติ" แทนได้ครับ', 'info');
+            }
+        }
+    };
+
+    const handleScanKitchenUsb = async (printer: KitchenPrinterSettings) => {
+        await performUsbDeviceScan(
+            printer.ipAddress, 
+            printer.port || '3000', 
+            (vid, pid) => {
                 handleKitchenPrinterChange(printer.id || '', 'vid', vid);
                 handleKitchenPrinterChange(printer.id || '', 'pid', pid);
-                Swal.fire('สำเร็จ', `เลือก VID:${vid} PID:${pid} แล้ว`, 'success');
             }
-        } catch (error: any) {
-            Swal.close();
-            Swal.fire('Error', error.message, 'error');
-        }
+        );
     };
 
     const handleCheckPrinterStatus = async (type: 'kitchen' | 'cashier') => {
@@ -992,45 +1061,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
 
     const handleScanUsb = async (type: 'kitchen' | 'cashier') => {
         const config = settingsForm.printerConfig[type];
-        if (!config || !config.ipAddress) {
-            Swal.fire('ข้อมูลไม่ครบ', 'กรุณาระบุ Print Server IP เพื่อสแกน', 'warning');
-            return;
-        }
-
-        try {
-            Swal.fire({ title: 'กำลังสแกน...', didOpen: () => { Swal.showLoading(); } });
-            const devices = await printerService.scanUsbDevices(config.ipAddress, config.port || '3000');
-            Swal.close();
-
-            if (devices.length === 0) {
-                Swal.fire('ไม่พบอุปกรณ์', 'ไม่พบเครื่องพิมพ์ USB ที่เชื่อมต่ออยู่', 'info');
-                return;
-            }
-
-            const options: Record<string, string> = {};
-            devices.forEach((d, idx) => {
-                options[`${d.vid}|${d.pid}`] = `Printer ${idx + 1} (VID:${d.vid} PID:${d.pid})`;
-            });
-
-            const { value } = await Swal.fire({
-                title: 'เลือกอุปกรณ์',
-                input: 'select',
-                inputOptions: options,
-                inputPlaceholder: 'เลือกเครื่องพิมพ์',
-                showCancelButton: true,
-            });
-
-            if (value) {
-                const [vid, pid] = value.split('|');
+        await performUsbDeviceScan(
+            config?.ipAddress || '', 
+            config?.port || '3000', 
+            (vid, pid) => {
                 handlePrinterChange(type, 'vid', vid);
                 handlePrinterChange(type, 'pid', pid);
-                Swal.fire('สำเร็จ', `เลือก VID:${vid} PID:${pid} แล้ว`, 'success');
             }
-
-        } catch (error: any) {
-            Swal.close();
-            Swal.fire('Error', error.message, 'error');
-        }
+        );
     };
 
     const handleShowZadigHelp = () => {

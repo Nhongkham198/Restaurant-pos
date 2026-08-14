@@ -913,12 +913,16 @@ export const printerService = {
     scanUsbDevices: async (serverIp: string, serverPort: string): Promise<any[]> => {
         const url = `http://${serverIp}:${serverPort || 3000}/scan-usb`;
         try {
-            const res = await fetch(url);
-            if (!res.ok) throw new Error('Scan failed');
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 4000);
+            const res = await fetch(url, { signal: controller.signal });
+            clearTimeout(timeoutId);
+            if (!res.ok) throw new Error(`Print Server status ${res.status}`);
             const data = await res.json();
             return data.devices || [];
         } catch (error: any) {
-            throw new Error("Scan failed: " + error.message);
+            console.warn("Print Server scan-usb not supported or reachable:", error.message);
+            throw new Error("Print Server ยังไม่รองรับการสแกนอัตโนมัติ (/scan-usb) หรือติดต่อไม่ได้");
         }
     }
 };
