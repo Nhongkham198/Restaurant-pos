@@ -448,6 +448,40 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         }
     }, [isCustomerMode, selectedBranch, branches, urlBranchId, currentUser]);
 
+    // SECURITY GUARD: Prevent cross-branch URL tampering and access violation
+    useEffect(() => {
+        if (!currentUser) return;
+        
+        // Admin role has full access to all branches, so bypass verification for admin
+        if (currentUser.role === 'admin') return;
+
+        const currentActiveBranchIdStr = urlBranchId || (selectedBranch ? selectedBranch.id.toString() : null);
+        
+        if (currentActiveBranchIdStr) {
+            const currentActiveBranchId = parseInt(currentActiveBranchIdStr, 10);
+            const isAllowed = currentUser.allowedBranchIds && currentUser.allowedBranchIds.map(Number).includes(currentActiveBranchId);
+            
+            if (!isAllowed) {
+                console.error('[DataContext] SECURITY VIOLATION: User', currentUser.username, 'attempted unauthorized access to branch ID:', currentActiveBranchId);
+                
+                // Clear state, force logout and reset sessions instantly
+                setCurrentUser(null);
+                setSelectedBranch(null);
+                localStorage.removeItem('currentUser');
+                localStorage.removeItem('selectedBranch');
+                
+                // Clean up URL parameter tampering
+                const url = new URL(window.location.href);
+                url.searchParams.delete('branchId');
+                url.searchParams.delete('tableId');
+                window.history.replaceState(null, '', url.pathname);
+                
+                // Custom UI notification to alert user of violation
+                alert('🚨 ตรวจพบความพยายามเข้าถึงระบบในสาขาที่คุณไม่มีสิทธิ์ใช้งาน! เพื่อความปลอดภัยและป้องกันการทุจริตในองค์กร ระบบได้ระงับเซสชันการทำงานของคุณโดยอัตโนมัติแล้ว กรุณาเข้าสู่ระบบใหม่อีกครั้ง');
+            }
+        }
+    }, [currentUser, selectedBranch, urlBranchId, setCurrentUser, setSelectedBranch]);
+
     // --- AUTO-CLEANUP STOCK LOGS (Aug 10 & Feb 10) ---
     // Moved to after stockLogs definition
 

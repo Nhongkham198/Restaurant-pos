@@ -25,6 +25,15 @@ export const BranchSelectionScreen: React.FC<BranchSelectionScreenProps> = ({
         return branches.filter(branch => currentUser.allowedBranchIds?.includes(branch.id));
     }, [branches, currentUser, isAdmin]);
 
+    const handleSelectBranchWithGuard = (branch: Branch) => {
+        if (!isAdmin && !currentUser.allowedBranchIds?.includes(branch.id)) {
+            alert('ขออภัย คุณไม่มีสิทธิ์เข้าใช้งานสาขานี้');
+            onLogout();
+            return;
+        }
+        onSelectBranch(branch);
+    };
+
     return (
         <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
             <div className="max-w-4xl w-full bg-white rounded-2xl shadow-lg p-8 space-y-6 text-center">
@@ -40,7 +49,7 @@ export const BranchSelectionScreen: React.FC<BranchSelectionScreenProps> = ({
                         {branchesToShow.map((branch) => (
                             <button
                                 key={branch.id}
-                                onClick={() => onSelectBranch(branch)}
+                                onClick={() => handleSelectBranchWithGuard(branch)}
                                 className="p-6 bg-white border-2 border-gray-200 rounded-xl shadow-sm hover:border-blue-500 hover:shadow-lg hover:-translate-y-1 transform transition-all duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 min-w-[240px]"
                             >
                                 <h2 className="text-xl font-semibold text-black">{branch.name}</h2>
