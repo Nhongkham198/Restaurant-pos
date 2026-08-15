@@ -153,6 +153,109 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
     const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
     const [draggedType, setDraggedType] = useState<'main' | 'additional' | null>(null);
 
+    // Floating Touch Numpad States
+    const [activeNumpad, setActiveNumpad] = useState<{
+        stockItemId: number;
+        type: 'quantity' | 'price';
+        isAdditional: boolean;
+        inputLabel: string;
+    } | null>(null);
+    const [numpadValue, setNumpadValue] = useState('');
+    const [numpadOriginalValue, setNumpadOriginalValue] = useState<number>(0);
+    const [numpadPos, setNumpadPos] = useState({ x: 200, y: 150 });
+    const [isNumpadDragging, setIsNumpadDragging] = useState(false);
+    const [numpadDragOffset, setNumpadDragOffset] = useState({ x: 0, y: 0 });
+
+    useEffect(() => {
+        if (typeof window !== 'undefined' && activeNumpad) {
+            setNumpadPos({
+                x: Math.max(20, window.innerWidth - 320),
+                y: Math.max(20, window.innerHeight / 2 - 180)
+            });
+        }
+    }, [activeNumpad]);
+
+    const handlePointerDown = (e: React.PointerEvent) => {
+        setIsNumpadDragging(true);
+        setNumpadDragOffset({
+            x: e.clientX - numpadPos.x,
+            y: e.clientY - numpadPos.y
+        });
+        const target = e.currentTarget as HTMLElement;
+        target.setPointerCapture(e.pointerId);
+    };
+
+    const handlePointerMove = (e: React.PointerEvent) => {
+        if (!isNumpadDragging) return;
+        setNumpadPos({
+            x: e.clientX - numpadDragOffset.x,
+            y: e.clientY - numpadDragOffset.y
+        });
+    };
+
+    const handlePointerUp = (e: React.PointerEvent) => {
+        setIsNumpadDragging(false);
+        const target = e.currentTarget as HTMLElement;
+        try {
+            target.releasePointerCapture(e.pointerId);
+        } catch (err) {}
+    };
+
+    const handleInputFocus = (stockItemId: number, type: 'quantity' | 'price', currentVal: number, isAdditional: boolean, label: string) => {
+        setActiveNumpad({
+            stockItemId,
+            type,
+            isAdditional,
+            inputLabel: label
+        });
+        setNumpadValue(currentVal === 0 ? '' : currentVal.toString());
+        setNumpadOriginalValue(currentVal);
+    };
+
+    const handleCancelNumpad = () => {
+        if (!activeNumpad) return;
+        
+        // Restore the original value
+        if (activeNumpad.type === 'quantity') {
+            updateQuantity(activeNumpad.stockItemId, numpadOriginalValue, activeNumpad.isAdditional);
+        } else {
+            updateUnitPrice(activeNumpad.stockItemId, numpadOriginalValue, activeNumpad.isAdditional);
+        }
+        
+        setActiveNumpad(null);
+    };
+
+    const handleNumpadPress = (val: string) => {
+        if (!activeNumpad) return;
+
+        let nextVal = numpadValue;
+
+        if (val === 'C') {
+            nextVal = '';
+        } else if (val === '⌫') {
+            nextVal = numpadValue.slice(0, -1);
+        } else if (val === '.') {
+            if (!numpadValue.includes('.')) {
+                nextVal = numpadValue === '' ? '0.' : numpadValue + '.';
+            }
+        } else {
+            if (numpadValue === '0' && val !== '0') {
+                nextVal = val;
+            } else {
+                nextVal = numpadValue + val;
+            }
+        }
+
+        setNumpadValue(nextVal);
+
+        const num = parseFloat(nextVal) || 0;
+        if (activeNumpad.type === 'quantity') {
+            updateQuantity(activeNumpad.stockItemId, num, activeNumpad.isAdditional);
+        } else {
+            updateUnitPrice(activeNumpad.stockItemId, num, activeNumpad.isAdditional);
+        }
+    };
+
     const handleDragStart = (index: number, type: 'main' | 'additional') => {
         setDraggedIndex(index);
         setDraggedType(type);
@@ -669,7 +772,20 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
                                                         type="number"
                                                         value={ing.quantity}
                                                         onChange={(e) => updateQuantity(ing.stockItemId, parseFloat(e.target.value) || 0)}
-                                                        className="w-16 px-2 py-1.5 border border-gray-200 rounded-lg text-center font-bold text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                                        onFocus={(e) => {
+                                                            e.target.inputMode = 'none';
+                                                            handleInputFocus(ing.stockItemId, 'quantity', ing.quantity, false, `${stockItem?.name || 'วัตถุดิบ'} (ปริมาณ)`);
+                                                        }}
+                                                        onClick={(e) => {
+                                                            const target = e.target as HTMLInputElement;
+                                                            target.inputMode = 'none';
+                                                            handleInputFocus(ing.stockItemId, 'quantity', ing.quantity, false, `${stockItem?.name || 'วัตถุดิบ'} (ปริมาณ)`);
+                                                        }}
+                                                        className={`w-16 px-2 py-1.5 border rounded-lg text-center font-bold text-sm outline-none transition-all ${
+                                                            activeNumpad?.stockItemId === ing.stockItemId && activeNumpad?.type === 'quantity' && !activeNumpad?.isAdditional
+                                                                ? 'border-blue-500 ring-2 ring-blue-400/50 bg-blue-50/20 text-blue-900 scale-105'
+                                                                : 'border-gray-200 focus:ring-2 focus:ring-blue-500'
+                                                        }`}
                                                         step="0.01"
                                                     />
                                                 </div>
@@ -701,12 +817,25 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
                                                 <div className="flex flex-col">
                                                     <span className="text-[10px] text-gray-400 font-bold mb-1 ml-1">ราคา/หน่วย</span>
                                                     <div className="relative">
-                                                        <span className="absolute left-2 top-1.5 text-xs text-gray-400">฿</span>
+                                                        <span className="absolute left-2 top-1.5 text-xs text-gray-400 z-10">฿</span>
                                                         <input
                                                             type="number"
                                                             value={currentManualPrice}
                                                             onChange={(e) => updateUnitPrice(ing.stockItemId, parseFloat(e.target.value) || 0)}
-                                                            className="w-20 pl-5 pr-2 py-1.5 border border-gray-200 rounded-lg text-right font-bold text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                                            onFocus={(e) => {
+                                                                e.target.inputMode = 'none';
+                                                                handleInputFocus(ing.stockItemId, 'price', currentManualPrice, false, `${stockItem?.name || 'วัตถุดิบ'} (ราคา/หน่วย)`);
+                                                            }}
+                                                            onClick={(e) => {
+                                                                const target = e.target as HTMLInputElement;
+                                                                target.inputMode = 'none';
+                                                                handleInputFocus(ing.stockItemId, 'price', currentManualPrice, false, `${stockItem?.name || 'วัตถุดิบ'} (ราคา/หน่วย)`);
+                                                            }}
+                                                            className={`w-20 pl-5 pr-2 py-1.5 border rounded-lg text-right font-bold text-sm outline-none transition-all ${
+                                                                activeNumpad?.stockItemId === ing.stockItemId && activeNumpad?.type === 'price' && !activeNumpad?.isAdditional
+                                                                    ? 'border-blue-500 ring-2 ring-blue-400/50 bg-blue-50/20 text-blue-900 scale-105'
+                                                                    : 'border-gray-200 focus:ring-2 focus:ring-blue-500'
+                                                            }`}
                                                             step="0.01"
                                                         />
                                                     </div>
@@ -949,7 +1078,20 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
                                                         type="number"
                                                         value={ing.quantity}
                                                         onChange={(e) => updateQuantity(ing.stockItemId, parseFloat(e.target.value) || 0, true)}
-                                                        className="w-14 px-1.5 py-1 border border-blue-200 rounded-lg text-center font-bold text-xs focus:ring-1 focus:ring-blue-500 outline-none bg-white"
+                                                        onFocus={(e) => {
+                                                            e.target.inputMode = 'none';
+                                                            handleInputFocus(ing.stockItemId, 'quantity', ing.quantity, true, `${stockItem?.name || 'วัตถุดิบ'} (ปริมาณ)`);
+                                                        }}
+                                                        onClick={(e) => {
+                                                            const target = e.target as HTMLInputElement;
+                                                            target.inputMode = 'none';
+                                                            handleInputFocus(ing.stockItemId, 'quantity', ing.quantity, true, `${stockItem?.name || 'วัตถุดิบ'} (ปริมาณ)`);
+                                                        }}
+                                                        className={`w-14 px-1.5 py-1 border rounded-lg text-center font-bold text-xs outline-none bg-white transition-all ${
+                                                            activeNumpad?.stockItemId === ing.stockItemId && activeNumpad?.type === 'quantity' && activeNumpad?.isAdditional
+                                                                ? 'border-blue-500 ring-2 ring-blue-400/30 bg-blue-50/30 text-blue-900 scale-105'
+                                                                : 'border-blue-200 focus:ring-1 focus:ring-blue-500'
+                                                        }`}
                                                         step="0.01"
                                                     />
                                                 </div>
@@ -979,12 +1121,25 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
                                                 <div className="flex flex-col">
                                                     <span className="text-[9px] text-gray-400 font-bold mb-1 ml-0.5">ราคา/หน่วย</span>
                                                     <div className="relative">
-                                                        <span className="absolute left-1.5 top-1 text-[9px] text-gray-400">฿</span>
+                                                        <span className="absolute left-1.5 top-1 text-[9px] text-gray-400 z-10">฿</span>
                                                         <input
                                                             type="number"
                                                             value={currentManualPrice}
                                                             onChange={(e) => updateUnitPrice(ing.stockItemId, parseFloat(e.target.value) || 0, true)}
-                                                            className="w-16 pl-4 pr-1 py-1 border border-blue-200 rounded-lg text-right font-bold text-xs focus:ring-1 focus:ring-blue-500 outline-none bg-white"
+                                                            onFocus={(e) => {
+                                                                e.target.inputMode = 'none';
+                                                                handleInputFocus(ing.stockItemId, 'price', currentManualPrice, true, `${stockItem?.name || 'วัตถุดิบ'} (ราคา/หน่วย)`);
+                                                            }}
+                                                            onClick={(e) => {
+                                                                const target = e.target as HTMLInputElement;
+                                                                target.inputMode = 'none';
+                                                                handleInputFocus(ing.stockItemId, 'price', currentManualPrice, true, `${stockItem?.name || 'วัตถุดิบ'} (ราคา/หน่วย)`);
+                                                            }}
+                                                            className={`w-16 pl-4 pr-1 py-1 border rounded-lg text-right font-bold text-xs outline-none bg-white transition-all ${
+                                                                activeNumpad?.stockItemId === ing.stockItemId && activeNumpad?.type === 'price' && activeNumpad?.isAdditional
+                                                                    ? 'border-blue-500 ring-2 ring-blue-400/30 bg-blue-50/30 text-blue-900 scale-105'
+                                                                    : 'border-blue-200 focus:ring-1 focus:ring-blue-500'
+                                                            }`}
                                                             step="0.01"
                                                         />
                                                     </div>
@@ -1232,6 +1387,127 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
                     </div>
                 </div>
             </div>
+
+            {/* Draggable Virtual Numpad */}
+            {activeNumpad && (
+                <div
+                    style={{
+                        position: 'fixed',
+                        left: `${numpadPos.x}px`,
+                        top: `${numpadPos.y}px`,
+                    }}
+                    className="z-[9999] w-72 bg-gray-950/95 backdrop-blur-md rounded-2xl border border-gray-800 shadow-[0_10px_50px_rgba(0,0,0,0.6)] select-none text-white overflow-hidden transition-shadow"
+                >
+                    {/* Header (Drag Handle) */}
+                    <div
+                        onPointerDown={handlePointerDown}
+                        onPointerMove={handlePointerMove}
+                        onPointerUp={handlePointerUp}
+                        className="bg-gray-900 px-3 py-2 border-b border-gray-800 flex items-center justify-between cursor-grab active:cursor-grabbing select-none"
+                    >
+                        <div className="flex items-center gap-1.5">
+                            <div className="flex flex-col gap-0.5">
+                                <span className="w-4 h-0.5 bg-gray-500 rounded"></span>
+                                <span className="w-4 h-0.5 bg-gray-500 rounded"></span>
+                            </div>
+                            <span className="text-[11px] font-bold text-gray-400 tracking-wider">
+                                ลากเพื่อย้ายคีย์บอร์ด
+                            </span>
+                        </div>
+                        <button
+                            onClick={handleCancelNumpad}
+                            onPointerDown={(e) => e.stopPropagation()}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            className="p-1.5 hover:bg-gray-800 text-gray-500 hover:text-white rounded transition-colors cursor-pointer"
+                            title="ปิดและยกเลิกการเปลี่ยนแปลง"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+
+                    {/* Input Details */}
+                    <div className="p-3 bg-gray-900/40 border-b border-gray-850 text-center">
+                        <span className="text-[13px] md:text-[14px] uppercase tracking-wider font-extrabold text-blue-400 block px-1 leading-relaxed">
+                            {activeNumpad.inputLabel}
+                        </span>
+                        <div className="text-2xl font-black font-mono tracking-tight text-white mt-1.5 min-h-[32px] flex items-center justify-center bg-gray-950/80 rounded-lg p-1.5 border border-gray-800">
+                            {numpadValue || '0'}
+                            <span className="animate-pulse text-blue-400 font-normal">|</span>
+                        </div>
+                    </div>
+
+                    {/* Numpad Buttons Grid */}
+                    <div className="p-3 grid grid-cols-4 gap-1.5 bg-gray-950">
+                        {['7', '8', '9', 'C'].map((btn) => (
+                            <button
+                                key={btn}
+                                onClick={() => handleNumpadPress(btn)}
+                                className={`h-11 text-lg font-bold rounded-lg transition-all flex items-center justify-center active:scale-95 ${
+                                    btn === 'C'
+                                        ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30 border border-red-500/30'
+                                        : 'bg-gray-850 hover:bg-gray-800 text-white border border-gray-800/50'
+                                }`}
+                            >
+                                {btn}
+                            </button>
+                        ))}
+
+                        {['4', '5', '6', '⌫'].map((btn) => (
+                            <button
+                                key={btn}
+                                onClick={() => handleNumpadPress(btn)}
+                                className={`h-11 text-lg font-bold rounded-lg transition-all flex items-center justify-center active:scale-95 ${
+                                    btn === '⌫'
+                                        ? 'bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 border border-amber-500/30'
+                                        : 'bg-gray-850 hover:bg-gray-800 text-white border border-gray-800/50'
+                                }`}
+                            >
+                                {btn}
+                            </button>
+                        ))}
+
+                        {/* Row 3: Numbers 1, 2, 3 and Cancel button */}
+                        {['1', '2', '3'].map((btn) => (
+                            <button
+                                key={btn}
+                                onClick={() => handleNumpadPress(btn)}
+                                className="h-11 text-lg font-bold bg-gray-850 hover:bg-gray-800 rounded-lg transition-all border border-gray-800/50 flex items-center justify-center active:scale-95"
+                            >
+                                {btn}
+                            </button>
+                        ))}
+
+                        <button
+                            onClick={handleCancelNumpad}
+                            className="h-11 bg-red-600 hover:bg-red-500 text-white font-black rounded-lg transition-all border border-red-500/40 flex flex-col items-center justify-center shadow-[0_4px_12px_rgba(239,68,68,0.25)] active:scale-95"
+                            title="ยกเลิกการแก้ไขและคืนค่าเดิม"
+                        >
+                            <span className="text-[11px] tracking-wider uppercase">ยกเลิก</span>
+                        </button>
+
+                        {/* Row 4: Numbers 0, 00, . and Confirm button */}
+                        {['0', '00', '.'].map((btn) => (
+                            <button
+                                key={btn}
+                                onClick={() => handleNumpadPress(btn)}
+                                className="h-11 text-lg font-bold bg-gray-850 hover:bg-gray-800 rounded-lg transition-all border border-gray-800/50 flex items-center justify-center active:scale-95"
+                            >
+                                {btn}
+                            </button>
+                        ))}
+
+                        <button
+                            onClick={() => setActiveNumpad(null)}
+                            className="h-11 bg-blue-600 hover:bg-blue-500 text-white font-black rounded-lg transition-all border border-blue-500/40 flex flex-col items-center justify-center shadow-[0_4px_12px_rgba(59,130,246,0.3)] active:scale-95"
+                            title="บันทึกและปิดคีย์บอร์ด"
+                        >
+                            <span className="text-[11px] tracking-wider uppercase">ตกลง</span>
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
