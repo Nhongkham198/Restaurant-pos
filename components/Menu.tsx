@@ -639,7 +639,7 @@ export const Menu: React.FC<MenuProps> = ({
             </div>
             
             {/* Menu Grid */}
-            <div className="flex-1 overflow-y-auto grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-4 content-start pb-4">
+            <div className="flex-1 overflow-y-auto grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3.5 md:gap-4 content-start pb-4">
                 {isEditMode && (
                     <div
                         onClick={onAddNewItem}
