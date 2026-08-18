@@ -2473,8 +2473,8 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                                                 <td className="px-6 py-3 font-medium text-gray-900">
                                                     {log.performedBy}
                                                 </td>
-                                                <td className="px-6 py-3">
-                                                    <span className={`px-2 py-1 rounded-full text-xs font-semibold 
+                                                <td className="px-6 py-3 whitespace-nowrap">
+                                                    <span className={`px-2 py-1 rounded-full text-xs font-semibold whitespace-nowrap 
                                                         ${log.action === 'create' ? 'bg-green-100 text-green-700' : 
                                                           log.action === 'update' ? 'bg-blue-100 text-blue-700' :
                                                           log.action === 'delete' ? 'bg-red-100 text-red-700' :
