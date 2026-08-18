@@ -1187,7 +1187,7 @@ export const StockManagement: React.FC<StockManagementProps> = ({
                         const diff = Number(itemToSave.quantity) - (Number(oldItem.quantity) || 0);
                         if (diff > 0 && (Number(oldItem.orderedQuantity) || 0) > 0) {
                             itemWithTimestamp.lastReceivedQuantity = diff;
-                            itemWithTimestamp.receivedDate = Date.now();
+                            itemWithTimestamp.receivedDate = itemToSave.receivedDate || Date.now();
                             itemWithTimestamp.lastOrderedQuantity = Number(oldItem.orderedQuantity) || 0;
                             itemWithTimestamp.orderedQuantity = Math.max(0, (Number(oldItem.orderedQuantity) || 0) - diff);
                         }

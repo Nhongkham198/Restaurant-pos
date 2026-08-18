@@ -44,24 +44,41 @@ export const StockItemModal: React.FC<StockItemModalProps> = ({
     const [isUnitManagerOpen, setIsUnitManagerOpen] = useState(false);
     const [isCategoryManagerOpen, setIsCategoryManagerOpen] = useState(false);
     const [numpadConfig, setNumpadConfig] = useState<{ isOpen: boolean; field: 'quantity' | 'reorderPoint' | null; title: string }>({ isOpen: false, field: null, title: '' });
+    const [receivedQtyInput, setReceivedQtyInput] = useState<number | undefined>(undefined);
+    const [isReceivingActive, setIsReceivingActive] = useState(false);
 
     // Effect to reset/init form ONLY when modal opens
     useEffect(() => {
         if (isOpen) {
             if (itemToEdit) {
+                const hasPendingOrder = (Number(itemToEdit.orderedQuantity) || 0) > 0;
+                // Default receivedDate to today's date if there is an active pending order
+                const defaultReceivedDate = hasPendingOrder ? (itemToEdit.receivedDate || Date.now()) : itemToEdit.receivedDate;
+
                 setFormState({
                     ...itemToEdit,
                     // Ensure numbers are numbers, fallback to 0 if null/undefined/NaN
                     quantity: Number(itemToEdit.quantity) || 0,
                     reorderPoint: Number(itemToEdit.reorderPoint) || 0,
-                    imageUrl: itemToEdit.imageUrl || '' 
+                    imageUrl: itemToEdit.imageUrl || '',
+                    receivedDate: defaultReceivedDate
                 });
+
+                if (hasPendingOrder) {
+                    setReceivedQtyInput(Number(itemToEdit.orderedQuantity) || 0);
+                    setIsReceivingActive(true);
+                } else {
+                    setReceivedQtyInput(undefined);
+                    setIsReceivingActive(false);
+                }
             } else {
                 setFormState({ 
                     ...initialFormState, 
                     category: categories.length > 0 ? categories[0] : '', 
                     unit: units.length > 0 ? units[0] : '' 
                 });
+                setReceivedQtyInput(undefined);
+                setIsReceivingActive(false);
             }
         }
     }, [isOpen, itemToEdit]); 
@@ -118,15 +135,84 @@ export const StockItemModal: React.FC<StockItemModalProps> = ({
                                 <input type="text" name="imageUrl" value={formState.imageUrl || ''} onChange={(e) => setFormState(prev => ({ ...prev, imageUrl: e.target.value }))} className={inputClasses} placeholder="https://..." />
                             </div>
                         </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700">จำนวนเริ่มต้น</label>
-                            <div
-                                onClick={() => setNumpadConfig({ isOpen: true, field: 'quantity', title: 'จำนวนเริ่มต้น' })}
-                                className={`${inputClasses} cursor-pointer h-[42px] flex items-center`}
-                            >
-                                {safeNumber(formState.quantity).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                        {isReceivingActive && itemToEdit ? (
+                            <div className="bg-orange-50 p-4 rounded-xl border border-orange-200 space-y-3 my-2 animate-in fade-in slide-in-from-top-2 duration-200">
+                                <div className="flex justify-between items-center">
+                                    <span className="text-xs font-bold text-orange-800 bg-orange-100 px-2.5 py-1 rounded-full flex items-center gap-1.5">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse"></span>
+                                        กำลังรอตรวจรับของค้างส่ง ({Number(itemToEdit.orderedQuantity) || 0} {formState.unit})
+                                    </span>
+                                    <button 
+                                        type="button"
+                                        onClick={() => {
+                                            setIsReceivingActive(false);
+                                            // Reset quantity back to original
+                                            setFormState(prev => ({ ...prev, quantity: Number(itemToEdit?.quantity) || 0 }));
+                                        }}
+                                        className="text-xs text-gray-500 hover:text-red-500 font-semibold"
+                                    >
+                                        ยกเลิกการตรวจรับ
+                                    </button>
+                                </div>
+                                
+                                <div className="grid grid-cols-2 gap-3 pt-1">
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-700 mb-1">ระบุจำนวนที่ได้รับจริง</label>
+                                        <div className="relative">
+                                            <input 
+                                                type="number"
+                                                step="0.01"
+                                                className="w-full px-3 py-2 border border-orange-300 rounded-lg text-center font-black outline-none text-lg text-orange-700 focus:ring-2 focus:ring-orange-500 bg-white"
+                                                value={receivedQtyInput !== undefined ? receivedQtyInput : ""}
+                                                onChange={(e) => {
+                                                    const val = e.target.value === "" ? 0 : Number(e.target.value);
+                                                    setReceivedQtyInput(val);
+                                                    // Update the total quantity automatically!
+                                                    setFormState(prev => ({
+                                                        ...prev,
+                                                        quantity: (Number(itemToEdit?.quantity) || 0) + val
+                                                    }));
+                                                }}
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setNumpadConfig({ 
+                                                        isOpen: true, 
+                                                        field: null,
+                                                        title: 'ระบุจำนวนที่ได้รับจริง' 
+                                                    });
+                                                }}
+                                                className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-orange-500"
+                                            >
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 11h.01M12 7h.01M15 11h.01M12 14h.01M15 7h.01M15 14h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                                </svg>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div className="flex flex-col justify-center bg-white px-3 py-2 border border-orange-100 rounded-lg shadow-sm">
+                                        <span className="text-[10px] text-gray-500 block font-medium">ยอดสต็อกรวมใหม่</span>
+                                        <span className="text-sm font-black text-green-600">
+                                            {(Number(itemToEdit?.quantity) || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })} + {(receivedQtyInput || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                                        </span>
+                                        <span className="text-base font-black text-gray-800 border-t border-dashed border-gray-100 mt-1 pt-0.5">
+                                            = {((Number(itemToEdit?.quantity) || 0) + (receivedQtyInput || 0)).toLocaleString(undefined, { maximumFractionDigits: 2 })} {formState.unit}
+                                        </span>
+                                    </div>
+                                </div>
                             </div>
-                        </div>
+                        ) : (
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">จำนวนเริ่มต้น</label>
+                                <div
+                                    onClick={() => setNumpadConfig({ isOpen: true, field: 'quantity', title: 'จำนวนเริ่มต้น' })}
+                                    className={`${inputClasses} cursor-pointer h-[42px] flex items-center`}
+                                >
+                                    {safeNumber(formState.quantity).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                                </div>
+                            </div>
+                        )}
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">หมวดหมู่</label>
                             <div className="flex items-center gap-2">
@@ -207,7 +293,16 @@ export const StockItemModal: React.FC<StockItemModalProps> = ({
                                 <input type="date" value={toInputDate(formState.orderDate)} onChange={e => setFormState(prev => ({...prev, orderDate: fromInputDate(e.target.value)}))} className={inputClasses} />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700">วันที่รับของ</label>
+                                <div className="flex justify-between items-center">
+                                    <label className="block text-sm font-medium text-gray-700">วันที่รับของ</label>
+                                    <button 
+                                        type="button" 
+                                        onClick={() => setFormState(prev => ({ ...prev, receivedDate: Date.now() }))}
+                                        className="text-[10px] font-bold text-blue-600 hover:text-blue-800 hover:underline"
+                                    >
+                                        ใช้วันนี้ (Today)
+                                    </button>
+                                </div>
                                 <input type="date" value={toInputDate(formState.receivedDate)} onChange={e => setFormState(prev => ({...prev, receivedDate: fromInputDate(e.target.value)}))} className={inputClasses} />
                             </div>
                         </div>
@@ -241,11 +336,20 @@ export const StockItemModal: React.FC<StockItemModalProps> = ({
                 title={numpadConfig.title}
                 initialValue={numpadConfig.field ? (formState[numpadConfig.field] || 0) : 0}
                 onSubmit={(newValue) => {
+                    const numVal = Number(newValue) || 0;
                     if (numpadConfig.field) {
                         setFormState(prev => ({
                             ...prev,
-                            [numpadConfig.field!]: newValue
+                            [numpadConfig.field!]: numVal
                         }));
+                    } else if (numpadConfig.title === 'ระบุจำนวนที่ได้รับจริง') {
+                        setReceivedQtyInput(numVal);
+                        if (itemToEdit) {
+                            setFormState(prev => ({
+                                ...prev,
+                                quantity: (Number(itemToEdit.quantity) || 0) + numVal
+                            }));
+                        }
                     }
                 }}
             />
