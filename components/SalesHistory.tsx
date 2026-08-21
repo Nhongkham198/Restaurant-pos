@@ -23,6 +23,7 @@ interface SalesHistoryProps {
     onDeleteHistory: (completedIds: number[], cancelledIds: number[], printIds: number[]) => Promise<void>;
     currentUser: User | null;
     onReprintReceipt: (order: CompletedOrder) => void;
+    onPrintKitchenOrder?: (order: CompletedOrder) => void;
     recipes: Recipe[];
     deliveryProviders: DeliveryProvider[];
     taxRate: number;
@@ -42,6 +43,7 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({
     onDeleteHistory,
     currentUser,
     onReprintReceipt,
+    onPrintKitchenOrder,
     recipes,
     deliveryProviders,
     taxRate,
@@ -1030,6 +1032,7 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({
                                     isSelected={selectedCompletedIds.has(order.id)}
                                     onToggleSelection={(id) => toggleSelect(id, 'completed')}
                                     onReprintReceipt={onReprintReceipt} // Pass new prop
+                                    onPrintKitchenOrder={onPrintKitchenOrder}
                                     recipes={recipes}
                                     deliveryProviders={deliveryProviders}
                                     taxRate={taxRate}

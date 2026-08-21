@@ -415,8 +415,11 @@ export const useOrderLogic = () => {
         } 
     };
 
-    const handlePrintKitchenOrder = async (orderId: number) => { 
-        const order = activeOrders.find(o => o.id === orderId); 
+    const handlePrintKitchenOrder = async (orderId: number, completedOrderFallback?: CompletedOrder) => { 
+        let order = activeOrders.find(o => o.id === orderId) as any; 
+        if (!order && completedOrderFallback) {
+            order = completedOrderFallback;
+        }
         if (!order) return; 
         const hasKitchens = printerConfig?.kitchens && printerConfig.kitchens.length > 0;
         if (!printerConfig?.kitchen && !hasKitchens) { 
