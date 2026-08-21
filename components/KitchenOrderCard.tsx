@@ -153,8 +153,8 @@ export const KitchenOrderCard: React.FC<KitchenOrderCardProps> = ({
             if (providerName.includes('panda')) return 'bg-pink-500'; // FoodPanda = Pink
             return 'bg-green-600'; // LineMan, Grab, others = Green (Default)
         }
-        if (isOverdue) return 'bg-red-600';
-        if (isCooking) return 'bg-green-600'; 
+        if (isOverdue) return 'bg-red-800';
+        if (isCooking) return 'bg-red-600'; 
         return 'bg-blue-600'; // Waiting
     }, [isCooking, isOverdue, isLineMan, order.tableName]);
 
