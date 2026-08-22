@@ -1,4 +1,62 @@
 
+// --- SAFARI & WEBKIT DATE PARSING COMPATIBILITY PATCH ---
+// Safari has a strict constraint on date string parsing (e.g., failing on dashes and space-separated date times).
+// This monkey-patch interceptor guarantees safe Date conversion across the entire application and external libraries.
+(function() {
+  const OriginalDate = window.Date;
+  
+  function PatchedDate(this: any, ...args: any[]) {
+    if (!(this instanceof PatchedDate)) {
+      // Called as a function: Date()
+      return (OriginalDate as any)();
+    }
+    
+    if (args.length === 1 && typeof args[0] === 'string') {
+      let val = args[0].trim();
+      
+      // 1. Format: YYYY-MM-DD HH:mm:ss -> YYYY-MM-DDTHH:mm:ss
+      if (/^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}(:\d{2})?/.test(val)) {
+        val = val.replace(/\s+/, 'T');
+      }
+      // 2. Format: YYYY-MM-DD -> YYYY/MM/DD
+      else if (/^\d{4}-\d{2}-\d{2}$/.test(val)) {
+        val = val.replace(/-/g, '/');
+      }
+      
+      // Try parsing with OriginalDate. If it fails, replace dashes with slashes
+      let d = new OriginalDate(val);
+      if (isNaN(d.getTime())) {
+        const withSlashes = val.replace(/-/g, '/');
+        const dSlash = new OriginalDate(withSlashes);
+        if (!isNaN(dSlash.getTime())) {
+          val = withSlashes;
+        }
+      }
+      return new OriginalDate(val);
+    }
+    
+    return new (OriginalDate as any)(...args);
+  }
+  
+  // Copy all static methods from native Date
+  Object.getOwnPropertyNames(OriginalDate).forEach(key => {
+    if (key in PatchedDate) return;
+    try {
+      const desc = Object.getOwnPropertyDescriptor(OriginalDate, key);
+      if (desc) {
+        Object.defineProperty(PatchedDate, key, desc);
+      }
+    } catch (e) {
+      (PatchedDate as any)[key] = (OriginalDate as any)[key];
+    }
+  });
+  
+  PatchedDate.prototype = OriginalDate.prototype;
+  PatchedDate.prototype.constructor = PatchedDate;
+  
+  window.Date = PatchedDate as any;
+})();
+
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';

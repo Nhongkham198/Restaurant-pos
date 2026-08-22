@@ -1,4 +1,5 @@
 import type { IngredientPrice, RecipeIngredient } from '../types';
+import { safeParseDate } from './dateUtils';
 
 /**
  * Parses a Thai date string (e.g. "28 พ.ค. 2569") to a timestamp.
@@ -8,7 +9,7 @@ export const parseThaiDateToTimestamp = (dateStr: string | undefined): number =>
     
     // Support standard timestamp numbers or ISO strings just in case
     if (/^\d+$/.test(dateStr)) return parseInt(dateStr, 10);
-    const parsedIso = new Date(dateStr).getTime();
+    const parsedIso = safeParseDate(dateStr).getTime();
     if (!isNaN(parsedIso)) return parsedIso;
 
     try {
