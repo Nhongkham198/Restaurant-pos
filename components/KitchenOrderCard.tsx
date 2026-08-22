@@ -18,7 +18,7 @@ const formatTime = (totalSeconds: number) => {
     return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 };
 
-export const KitchenOrderCard: React.FC<KitchenOrderCardProps> = ({ 
+const KitchenOrderCardComponent: React.FC<KitchenOrderCardProps> = ({ 
     order, 
     onCompleteOrder, 
     onStartCooking, 
@@ -28,6 +28,15 @@ export const KitchenOrderCard: React.FC<KitchenOrderCardProps> = ({
     const { recipes, stockItems, activeOrdersActions, currentUser } = useData();
 
     const [elapsedSeconds, setElapsedSeconds] = useState(0);
+    const [localDoneItems, setLocalDoneItems] = useState<Record<string, boolean>>({});
+
+    useEffect(() => {
+        const sync: Record<string, boolean> = {};
+        order.items.forEach(item => {
+            sync[item.cartItemId] = !!item.isDone;
+        });
+        setLocalDoneItems(sync);
+    }, [order.items]);
 
     const isCooking = order.status === 'cooking';
     const isPendingPayment = order.status === 'pending_payment';
@@ -70,9 +79,18 @@ export const KitchenOrderCard: React.FC<KitchenOrderCardProps> = ({
             return;
         }
 
+        const currentVal = localDoneItems[cartItemId] !== undefined ? localDoneItems[cartItemId] : !!order.items.find(i => i.cartItemId === cartItemId)?.isDone;
+        const newVal = !currentVal;
+
+        // Optimistic UI Update instantly
+        setLocalDoneItems(prev => ({
+            ...prev,
+            [cartItemId]: newVal
+        }));
+
         const updatedItems = order.items.map(item => {
             if (item.cartItemId === cartItemId) {
-                return { ...item, isDone: !item.isDone };
+                return { ...item, isDone: newVal };
             }
             return item;
         });
@@ -81,6 +99,11 @@ export const KitchenOrderCard: React.FC<KitchenOrderCardProps> = ({
             await activeOrdersActions.update(order.id, { items: updatedItems });
         } catch (e) {
             console.error("Failed to update kitchen checked state", e);
+            // Revert state on database update failure
+            setLocalDoneItems(prev => ({
+                ...prev,
+                [cartItemId]: currentVal
+            }));
         }
     };
 
@@ -234,7 +257,7 @@ export const KitchenOrderCard: React.FC<KitchenOrderCardProps> = ({
             <div className="p-3 flex-1 flex flex-col gap-2">
                 <ul className="space-y-3">
                     {order.items.map((item, idx) => {
-                        const isChecked = !!item.isDone;
+                        const isChecked = localDoneItems[item.cartItemId] !== undefined ? localDoneItems[item.cartItemId] : !!item.isDone;
                         
                         return (
                             <li 
@@ -377,3 +400,7 @@ export const KitchenOrderCard: React.FC<KitchenOrderCardProps> = ({
         </div>
     );
 };
+
+export const KitchenOrderCard = React.memo(KitchenOrderCardComponent, (prevProps, nextProps) => {
+    return prevProps.order === nextProps.order;
+});

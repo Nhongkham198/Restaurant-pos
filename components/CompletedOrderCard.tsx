@@ -22,7 +22,7 @@ interface CompletedOrderCardProps {
     onUpdateOrder?: (orderId: number, updates: Partial<CompletedOrder>) => Promise<void>;
 }
 
-export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({ 
+const CompletedOrderCardComponent: React.FC<CompletedOrderCardProps> = ({ 
     order, 
     onSplitOrder, 
     isEditMode, 
@@ -39,6 +39,11 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({
 }) => {
     const { currentUser, menuItems, stockItems } = useData();
     const [isExpanded, setIsExpanded] = useState(false);
+    const [localIsFromAd, setLocalIsFromAd] = useState(!!order.isFromAd);
+
+    useEffect(() => {
+        setLocalIsFromAd(!!order.isFromAd);
+    }, [order.isFromAd]);
     
     // --- Add Item State ---
     const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
@@ -83,7 +88,7 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({
         const provider = deliveryProviders.find(p => p.name.toLowerCase().replace(/[\s\-_]/g, '') === normProviderName || (p.id === 'lineman' && normProviderName.includes('lineman')));
 
         // Only calculate Ad Cost if isFromAd is true
-        if (order.orderType === 'lineman' && order.isFromAd) {
+        if (order.orderType === 'lineman' && localIsFromAd) {
             // Use recorded values if available (snapshot), otherwise fallback to current settings
             if (order.recordedAdCost !== undefined) {
                 fixedAdCost = order.recordedAdCost;
@@ -129,7 +134,7 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({
         // But the original code added order.taxAmount to totalRevenue.
         // If isFromAd is false, totalRevenue starts as 0 and adds item.finalPrice * qty.
         // We should add order.taxAmount if isFromAd is false.
-        if (!order.isFromAd) {
+        if (!localIsFromAd) {
             totalRevenue += order.taxAmount;
         }
 
@@ -145,12 +150,16 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({
             netProfit,
             providerName: provider?.name || (normProviderName.includes('lineman') ? 'LINE MAN' : 'ทั่วไป')
         };
-    }, [order, recipes, deliveryProviders, taxRate]);
+    }, [order, recipes, deliveryProviders, taxRate, localIsFromAd]);
 
     const handleToggleAd = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (onUpdateOrder) {
+            const isFromAd = e.target.checked;
+            
+            // Optimistic UI Update instantly
+            setLocalIsFromAd(isFromAd);
+            
             try {
-                const isFromAd = e.target.checked;
                 const updates: Partial<CompletedOrder> = { isFromAd };
                 
                 // Fixed ad cost per order is removed, so we just toggle the flag
@@ -160,6 +169,10 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({
                 await onUpdateOrder(order.id, updates);
             } catch (error) {
                 console.error('Failed to update ad status:', error);
+                
+                // Revert state on failure
+                setLocalIsFromAd(!isFromAd);
+                
                 Swal.fire({
                     icon: 'error',
                     title: 'เกิดข้อผิดพลาด',
@@ -218,13 +231,13 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({
         let base = "relative bg-white rounded-lg shadow-md border overflow-hidden transition-colors ";
         if (isEditMode && isSelected) {
             base += "border-blue-400 bg-blue-50 ring-2 ring-blue-300";
-        } else if (order.isFromAd) {
+        } else if (localIsFromAd) {
             base += "border-2";
         } else {
             base += "border-gray-200";
         }
         return base;
-    }, [isEditMode, isSelected, order.isDeleted, order.isFromAd]);
+    }, [isEditMode, isSelected, order.isDeleted, localIsFromAd]);
 
     const handleViewSlip = (e: React.MouseEvent) => {
         e.stopPropagation();
@@ -333,8 +346,8 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({
 
     return (
         <>
-            <div className={cardClasses} style={order.isFromAd ? { borderColor: providerColor } : {}}>
-                {order.isFromAd && (
+            <div className={cardClasses} style={localIsFromAd ? { borderColor: providerColor } : {}}>
+                {localIsFromAd && (
                     <div 
                         className="absolute top-0 right-0 px-2 py-0.5 text-[10px] font-bold text-white rounded-bl-lg z-10 shadow-sm"
                         style={{ backgroundColor: providerColor }}
@@ -458,7 +471,7 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({
                                         <label className="flex items-center gap-2 cursor-pointer bg-blue-50 px-2 py-1 rounded border border-blue-100 hover:bg-blue-100 transition-colors">
                                             <input 
                                                 type="checkbox" 
-                                                checked={!!order.isFromAd} 
+                                                checked={!!localIsFromAd} 
                                                 onChange={handleToggleAd}
                                                 className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
                                             />
@@ -467,7 +480,7 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({
                                     )}
                                 </div>
                                 <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-                                    <div className="text-gray-500">{order.isFromAd ? 'ยอดขาย Delivery:' : 'ยอดขายรวม:'}</div>
+                                    <div className="text-gray-500">{localIsFromAd ? 'ยอดขาย Delivery:' : 'ยอดขายรวม:'}</div>
                                     <div className="text-right font-medium text-gray-800">{profitDetails.totalRevenue.toLocaleString(undefined, { minimumFractionDigits: 2 })} ฿</div>
                                     
                                     <div className="text-gray-500">ต้นทุนวัตถุดิบ:</div>
@@ -679,3 +692,14 @@ export const CompletedOrderCard: React.FC<CompletedOrderCardProps> = ({
         </>
     );
 };
+
+export const CompletedOrderCard = React.memo(CompletedOrderCardComponent, (prevProps, nextProps) => {
+    return (
+        prevProps.isSelected === nextProps.isSelected &&
+        prevProps.isEditMode === nextProps.isEditMode &&
+        prevProps.taxRate === nextProps.taxRate &&
+        prevProps.order === nextProps.order &&
+        prevProps.recipes === nextProps.recipes &&
+        prevProps.deliveryProviders === nextProps.deliveryProviders
+    );
+});
