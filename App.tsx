@@ -1398,9 +1398,8 @@ export const App: React.FC = () => {
                     return;
                 }
 
-                // Update users collection
-                const updatedUsers = users.map(u => u.id === user.id ? { ...u, leaveQuotas: newQuotas } : u);
-                setUsers(updatedUsers);
+                // Update users collection using functional update to prevent stale closures
+                setUsers(prevUsers => prevUsers.map(u => u.id === user.id ? { ...u, leaveQuotas: newQuotas } : u));
                 
                 // If the updated user is the current user, update current user state too
                 if (currentUser && currentUser.id === user.id) {
@@ -1464,9 +1463,8 @@ export const App: React.FC = () => {
                     newQuotas[newQuotaKey] = Math.max(0, newQuotas[newQuotaKey] - duration);
                 }
 
-                // Update state
-                const updatedUsers = users.map(u => u.id === user.id ? { ...u, leaveQuotas: newQuotas } : u);
-                setUsers(updatedUsers);
+                // Update state using functional update to prevent stale closures
+                setUsers(prevUsers => prevUsers.map(u => u.id === user.id ? { ...u, leaveQuotas: newQuotas } : u));
                 
                 if (currentUser && currentUser.id === user.id) {
                     setCurrentUser({ ...currentUser, leaveQuotas: newQuotas });
@@ -1537,8 +1535,8 @@ export const App: React.FC = () => {
                 if (['sick', 'personal', 'vacation'].includes(type)) {
                     newQuotas[type] = newQuotas[type] + duration;
                     
-                    const updatedUsers = users.map(u => u.id === user.id ? { ...u, leaveQuotas: newQuotas } : u);
-                    setUsers(updatedUsers);
+                    // Update state using functional update to prevent stale closures
+                    setUsers(prevUsers => prevUsers.map(u => u.id === user.id ? { ...u, leaveQuotas: newQuotas } : u));
                     
                     if (currentUser && currentUser.id === user.id) {
                         setCurrentUser({ ...currentUser, leaveQuotas: newQuotas });
