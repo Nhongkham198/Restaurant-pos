@@ -266,10 +266,16 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
         Swal.fire({
             title: 'ตั้งค่าโควต้าวันลา',
             html: `
-                <select id="swal-employee-select" class="swal2-input">${employeeOptions}</select>
-                <input id="swal-sick-days" type="number" class="swal2-input" placeholder="วันลาป่วย">
-                <input id="swal-personal-days" type="number" class="swal2-input" placeholder="วันลากิจ">
-                <input id="swal-vacation-days" type="number" class="swal2-input" placeholder="วันลาไม่รับเงินเดือน">
+                <div class="flex flex-col gap-3 text-left p-2">
+                    <label class="text-xs font-semibold text-gray-400">เลือกพนักงาน</label>
+                    <select id="swal-employee-select" class="swal2-select w-full m-0 bg-gray-800 text-white border border-gray-700 rounded-md p-2">${employeeOptions}</select>
+                    
+                    <label class="text-xs font-semibold text-gray-400 mt-2">จำนวนวันลาป่วยสูงสุดต่อปี</label>
+                    <input id="swal-sick-days" type="number" class="swal2-input w-full m-0 bg-gray-800 text-white border border-gray-700 rounded-md p-2" placeholder="วันลาป่วย (เริ่มต้น 30)" value="30">
+                    
+                    <label class="text-xs font-semibold text-gray-400 mt-2">จำนวนวันลากิจสูงสุดต่อปี</label>
+                    <input id="swal-personal-days" type="number" class="swal2-input w-full m-0 bg-gray-800 text-white border border-gray-700 rounded-md p-2" placeholder="วันลากิจ (เริ่มต้น 6)" value="6">
+                </div>
             `,
             focusConfirm: false,
             preConfirm: () => {
@@ -277,13 +283,12 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                     userId: parseInt((document.getElementById('swal-employee-select') as HTMLSelectElement).value),
                     sick: parseInt((document.getElementById('swal-sick-days') as HTMLInputElement).value) || 0,
                     personal: parseInt((document.getElementById('swal-personal-days') as HTMLInputElement).value) || 0,
-                    vacation: parseInt((document.getElementById('swal-vacation-days') as HTMLInputElement).value) || 0,
                 }
             }
         }).then((result) => {
             if (result.isConfirmed) {
                 const { userId, ...quotas } = result.value;
-                setUsers(prevUsers => prevUsers.map(u => u.id === userId ? { ...u, leaveQuotas: quotas } : u));
+                setUsers(prevUsers => prevUsers.map(u => u.id === userId ? { ...u, leaveQuotas: { ...quotas, vacation: 0 } } : u));
                 Swal.fire('สำเร็จ', 'ตั้งค่าโควต้าวันลาเรียบร้อยแล้ว', 'success');
             }
         });
@@ -326,24 +331,6 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                         setPayrollRecords(prev => prev.filter(item => !selectedItems.includes(item.id as any)));
                         break;
                     case 'leave':
-                        // Restore quotas for approved leaves being deleted
-                        selectedItems.forEach(id => {
-                            const request = leaveRequests.find(r => r.id === id);
-                            if (request && request.status === 'approved') {
-                                const user = users.find(u => u.id === request.userId);
-                                if (user && user.leaveQuotas) {
-                                    const diffTime = Math.abs(request.endDate - request.startDate);
-                                    const duration = request.isHalfDay ? 0.5 : Math.max(1, Math.round(diffTime / (1000 * 60 * 60 * 24)));
-                                    
-                                    const newQuotas = { ...user.leaveQuotas };
-                                    const type = request.type as keyof typeof newQuotas;
-                                    if (['sick', 'personal', 'vacation'].includes(type)) {
-                                        newQuotas[type] = newQuotas[type] + duration;
-                                        setUsers(prevUsers => prevUsers.map(u => u.id === user.id ? { ...u, leaveQuotas: newQuotas } : u));
-                                    }
-                                }
-                            }
-                        });
                         setLeaveRequests(prev => prev.filter(item => !selectedItems.includes(item.id as any)));
                         break;
                 }
@@ -922,32 +909,16 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                         icon: 'warning',
                     });
                 }
-                
-                // Also update quota for vacation type if it's the one used
-                if (leaveRequest.type === 'vacation' && employee && employee.leaveQuotas) {
-                    const newQuotas = { ...employee.leaveQuotas };
-                    newQuotas.vacation = Math.max(0, newQuotas.vacation - leaveDuration);
-                    setUsers(prevUsers => prevUsers.map(u => u.id === employee.id ? { ...u, leaveQuotas: newQuotas } : u));
-                }
             } else if (['sick', 'personal'].includes(leaveRequest.type)) {
-                // Update quota for standard leave types
-                if (employee && employee.leaveQuotas) {
-                    const newQuotas = { ...employee.leaveQuotas };
-                    const type = leaveRequest.type as keyof typeof newQuotas;
-                    newQuotas[type] = Math.max(0, newQuotas[type] - leaveDuration);
-                    
-                    setUsers(prevUsers => prevUsers.map(u => u.id === employee.id ? { ...u, leaveQuotas: newQuotas } : u));
-                    
-                    Swal.fire({
-                        toast: true,
-                        position: 'top-end',
-                        icon: 'success',
-                        title: `อนุมัติแล้ว หักโควต้า ${leaveDuration} วัน`,
-                        showConfirmButton: false,
-                        timer: 3000
-                    });
-                    return; // Avoid double toast
-                }
+                Swal.fire({
+                    toast: true,
+                    position: 'top-end',
+                    icon: 'success',
+                    title: `อนุมัติการลาประเภท ${leaveRequest.type === 'sick' ? 'ลาป่วย' : 'ลากิจ'} จำนวน ${leaveDuration} วัน`,
+                    showConfirmButton: false,
+                    timer: 3000
+                });
+                return; // Avoid double toast
             }
         }
 
@@ -2686,14 +2657,22 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                             usedDaysMap[key] = (usedDaysMap[key] || 0) + duration;
                                         });
 
-                                        return leaveRequests.map((l, index) => {
+                                        const sortedLeaves = [...leaveRequests].sort((a, b) => {
+                                            const timeA = a.startDate ? new Date(a.startDate).getTime() : 0;
+                                            const timeB = b.startDate ? new Date(b.startDate).getTime() : 0;
+                                            return timeB - timeA;
+                                        });
+
+                                        return sortedLeaves.map((l, index) => {
                                             // Try to find user by ID, or fallback to matching name via employment contract
                                             const user = findUserByEmployeeName(l.employeeName, users, jobApplications) ||
                                                          users.find(u => u.id === l.userId) || 
                                                          users.find(u => employmentContracts.some(c => c.userId === u.id && c.employeeName === l.employeeName));
                                             
-                                            const quotas = user?.leaveQuotas ?? { sick: 0, personal: 0, vacation: 0 };
-                                            const remainingDays = quotas[l.type as keyof typeof quotas] ?? 0;
+                                            // Directly pull the remaining leave days mapped from the user's leaveQuotas (managed on the User Management page)
+                                            const remainingSick = user?.leaveQuotas?.sick ?? 30;
+                                            const remainingPersonal = user?.leaveQuotas?.personal ?? 6;
+                                            const remainingTotalPaid = remainingSick + remainingPersonal;
 
                                             return (
                                             <tr key={l.id || index} className="hover:bg-gray-700/50">
@@ -2710,9 +2689,24 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                                     {l.startDate && !isNaN(new Date(l.startDate).getTime()) ? new Date(l.startDate).toLocaleDateString('th-TH') : '-'} - {l.endDate && !isNaN(new Date(l.endDate).getTime()) ? new Date(l.endDate).toLocaleDateString('th-TH') : '-'}
                                                 </td>
                                                 <td className="p-3 font-medium text-white">{user?.username || l.employeeName}</td>
-                                                <td className="p-3">{l.type}</td>
+                                                <td className="p-3">{l.type === 'sick' ? 'ลาป่วย' : l.type === 'personal' ? 'ลากิจ' : 'ลาไม่รับเงินเดือน'}</td>
                                                 <td className="p-3">{l.reason}</td>
-                                                <td className="p-3 font-semibold">{remainingDays > 0 ? remainingDays : 0} วัน</td>
+                                                <td className="p-3">
+                                                    <div className="flex items-center gap-1.5 whitespace-nowrap text-xs">
+                                                        <div className="bg-gray-800 text-gray-200 border border-gray-700/80 px-2 py-1 rounded font-medium text-center min-w-[70px]">
+                                                            <div className="text-[10px] text-gray-400 font-normal leading-tight">รวม (ป่วย+กิจ)</div>
+                                                            <div className="text-xs font-bold text-white">{remainingTotalPaid} วัน</div>
+                                                        </div>
+                                                        <div className="bg-blue-950/80 text-blue-200 border border-blue-900/50 px-2 py-1 rounded font-medium text-center min-w-[65px]">
+                                                            <div className="text-[10px] text-blue-300 font-normal leading-tight">ป่วยคงเหลือ</div>
+                                                            <div className="text-xs font-bold text-blue-400">{remainingSick} วัน</div>
+                                                        </div>
+                                                        <div className="bg-emerald-950/80 text-emerald-200 border border-emerald-900/50 px-2 py-1 rounded font-medium text-center min-w-[65px]">
+                                                            <div className="text-[10px] text-emerald-300 font-normal leading-tight">กิจคงเหลือ</div>
+                                                            <div className="text-xs font-bold text-emerald-400">{remainingPersonal} วัน</div>
+                                                        </div>
+                                                    </div>
+                                                </td>
                                                 <td className="p-3">
                                                     {isEditMode ? (
                                                         <select

@@ -77,17 +77,33 @@ export const LeaveRequestModal: React.FC<LeaveRequestModalProps> = ({ isOpen, on
     }, [startDate, endDate, isHalfDay]);
 
     const quotas = useMemo(() => {
-        const defaultQuotas = { sick: 30, personal: 6, vacation: 6 }; 
+        const defaultQuotas = { sick: 30, personal: 6 }; 
         if (!currentUser) return { total: defaultQuotas, remaining: defaultQuotas };
 
         const userQuotas = currentUser.leaveQuotas || defaultQuotas;
 
-        return { total: userQuotas, remaining: userQuotas };
-    }, [currentUser]);
+        // Calculate approved leaves for this user
+        const approvedUserLeaves = leaveRequests.filter(r => r.userId === currentUser.id && r.status === 'approved');
+        
+        const used = { sick: 0, personal: 0 };
+        approvedUserLeaves.forEach(req => {
+            if (req.type === 'sick' || req.type === 'personal') {
+                const diffTime = Math.abs(req.endDate - req.startDate);
+                const duration = req.isHalfDay ? 0.5 : Math.max(1, Math.round(diffTime / (1000 * 60 * 60 * 24)));
+                used[req.type as 'sick' | 'personal'] += duration;
+            }
+        });
+
+        const remaining = {
+            sick: Math.max(0, (userQuotas.sick ?? 30) - used.sick),
+            personal: Math.max(0, (userQuotas.personal ?? 6) - used.personal)
+        };
+
+        return { total: userQuotas, remaining };
+    }, [currentUser, leaveRequests]);
 
     const remainingPersonal = quotas.remaining.personal;
     const remainingSick = quotas.remaining.sick;
-    const remainingVacation = quotas.remaining.vacation;
 
     // Auto-switch type if current selection is invalid due to quota
     useEffect(() => {
@@ -97,23 +113,13 @@ export const LeaveRequestModal: React.FC<LeaveRequestModalProps> = ({ isOpen, on
         if (type === 'personal' && remainingPersonal <= 0) {
             if (remainingSick > 0) {
                 setType('sick');
-            } else if (remainingVacation > 0) {
-                setType('vacation');
             }
         } else if (type === 'sick' && remainingSick <= 0) {
             if (remainingPersonal > 0) {
                 setType('personal');
-            } else if (remainingVacation > 0) {
-                setType('vacation');
-            }
-        } else if (type === 'vacation' && remainingVacation <= 0) {
-            if (remainingPersonal > 0) {
-                setType('personal');
-            } else if (remainingSick > 0) {
-                setType('sick');
             }
         }
-    }, [isOpen, type, remainingPersonal, remainingSick, remainingVacation]);
+    }, [isOpen, type, remainingPersonal, remainingSick]);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -207,17 +213,15 @@ export const LeaveRequestModal: React.FC<LeaveRequestModalProps> = ({ isOpen, on
                         <select value={type} onChange={(e) => setType(e.target.value as LeaveRequest['type'])} className={inputClasses} required>
                             <option value="sick" disabled={remainingSick <= 0}>ลาป่วย (เหลือ {remainingSick} วัน)</option>
                             <option value="personal" disabled={remainingPersonal <= 0}>ลากิจ (เหลือ {remainingPersonal} วัน)</option>
-                            <option value="vacation" disabled={remainingVacation <= 0}>ลาไม่รับเงินเดือน (เหลือ {remainingVacation} วัน)</option>
                         </select>
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-gray-700">เหตุผล</label>
                         <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3} className={inputClasses} required />
                     </div>
-                    <div className="text-sm text-gray-500 grid grid-cols-3 gap-2">
-                        <p className="text-blue-600 font-bold">ลาป่วย: {remainingSick} วัน</p>
-                        <p className="text-green-600 font-bold">ลากิจ: {remainingPersonal} วัน</p>
-                        <p className="text-purple-600 font-bold">ลาไม่รับเงินเดือน: {remainingVacation} วัน</p>
+                    <div className="text-sm text-gray-500 grid grid-cols-2 gap-2">
+                        <p className="text-blue-600 font-bold">ลาป่วยคงเหลือ: {remainingSick} วัน</p>
+                        <p className="text-green-600 font-bold">ลากิจคงเหลือ: {remainingPersonal} วัน</p>
                     </div>
                     <div className="flex justify-end gap-2 pt-4">
                         <button type="button" onClick={onClose} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300">ยกเลิก</button>
