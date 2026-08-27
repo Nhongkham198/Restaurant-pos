@@ -287,24 +287,11 @@ export const LeaveCalendarView: React.FC<LeaveCalendarViewProps> = ({ leaveReque
     const remainingQuotas = useMemo(() => {
         if (!currentUser) return null;
         const total = currentUser.leaveQuotas ?? { sick: 30, personal: 6 };
-        
-        // Calculate approved leaves for this user
-        const approvedUserLeaves = leaveRequests.filter(r => r.userId === currentUser.id && r.status === 'approved');
-        
-        const used = { sick: 0, personal: 0 };
-        approvedUserLeaves.forEach(req => {
-            if (req.type === 'sick' || req.type === 'personal') {
-                const diffTime = Math.abs(req.endDate - req.startDate);
-                const duration = req.isHalfDay ? 0.5 : Math.max(1, Math.round(diffTime / (1000 * 60 * 60 * 24)));
-                used[req.type as 'sick' | 'personal'] += duration;
-            }
-        });
-
         return {
-            sick: Math.max(0, (total.sick ?? 30) - used.sick),
-            personal: Math.max(0, (total.personal ?? 6) - used.personal)
+            sick: total.sick ?? 30,
+            personal: total.personal ?? 6
         };
-    }, [currentUser, leaveRequests]);
+    }, [currentUser]);
 
     return (
         <>

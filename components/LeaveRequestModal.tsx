@@ -82,25 +82,13 @@ export const LeaveRequestModal: React.FC<LeaveRequestModalProps> = ({ isOpen, on
 
         const userQuotas = currentUser.leaveQuotas || defaultQuotas;
 
-        // Calculate approved leaves for this user
-        const approvedUserLeaves = leaveRequests.filter(r => r.userId === currentUser.id && r.status === 'approved');
-        
-        const used = { sick: 0, personal: 0 };
-        approvedUserLeaves.forEach(req => {
-            if (req.type === 'sick' || req.type === 'personal') {
-                const diffTime = Math.abs(req.endDate - req.startDate);
-                const duration = req.isHalfDay ? 0.5 : Math.max(1, Math.round(diffTime / (1000 * 60 * 60 * 24)));
-                used[req.type as 'sick' | 'personal'] += duration;
-            }
-        });
-
         const remaining = {
-            sick: Math.max(0, (userQuotas.sick ?? 30) - used.sick),
-            personal: Math.max(0, (userQuotas.personal ?? 6) - used.personal)
+            sick: userQuotas.sick ?? 30,
+            personal: userQuotas.personal ?? 6
         };
 
         return { total: userQuotas, remaining };
-    }, [currentUser, leaveRequests]);
+    }, [currentUser]);
 
     const remainingPersonal = quotas.remaining.personal;
     const remainingSick = quotas.remaining.sick;
