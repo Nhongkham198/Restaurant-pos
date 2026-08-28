@@ -123,6 +123,8 @@ export const PreOrderCustomer: React.FC = () => {
     const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
     const [customerName, setCustomerName] = useState('');
     const [customerPhone, setCustomerPhone] = useState('');
+    const [pickupDate, setPickupDate] = useState('');
+    const [pickupTime, setPickupTime] = useState('');
     const [customerCount, setCustomerCount] = useState<number>(1);
     const [orderType, setOrderType] = useState<'dine-in' | 'takeaway'>('dine-in');
     const [notes, setNotes] = useState('');
@@ -389,11 +391,11 @@ export const PreOrderCustomer: React.FC = () => {
             return;
         }
 
-        if (!customerName.trim() || !customerPhone.trim() || cart.length === 0) {
+        if (!customerName.trim() || !customerPhone.trim() || !pickupDate || !pickupTime || cart.length === 0) {
             Swal.fire({
                 icon: 'error',
                 title: t('ข้อมูลไม่ครบถ้วน'),
-                text: t('กรุณาระบุชื่อและเบอร์โทรศัพท์เพื่อให้พนักงานติดต่อกลับได้ครับ'),
+                text: t('กรุณาระบุชื่อ เบอร์โทรศัพท์ และวันเวลานัดรับสินค้าด้วยครับ'),
                 confirmButtonColor: '#3b82f6'
             });
             return;
@@ -425,6 +427,8 @@ export const PreOrderCustomer: React.FC = () => {
                 id: preOrderId,
                 customerName: customerName.trim(),
                 customerPhone: customerPhone.trim(),
+                pickupDate,
+                pickupTime,
                 customerCount: orderType === 'takeaway' ? 0 : customerCount,
                 orderType,
                 items: itemsToSend,
@@ -449,6 +453,8 @@ export const PreOrderCustomer: React.FC = () => {
             setIsCheckoutOpen(false);
             setCustomerName('');
             setCustomerPhone('');
+            setPickupDate('');
+            setPickupTime('');
             setNotes('');
         } catch (error) {
             console.error("Error submitting preOrder:", error);
@@ -920,6 +926,24 @@ export const PreOrderCustomer: React.FC = () => {
                                             value={customerPhone}
                                             onChange={(e) => setCustomerPhone(e.target.value)}
                                             placeholder={t('เบอร์ติดต่อ')}
+                                            className="w-full bg-gray-50 border-2 border-transparent focus:border-blue-600 focus:bg-white rounded-2xl p-4 text-sm font-bold transition-all outline-none"
+                                        />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-black text-gray-400 mb-2 uppercase tracking-widest">{t('วันและเวลานัดรับสินค้า')}</label>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <input 
+                                            type="date" 
+                                            min={new Date().toISOString().split('T')[0]}
+                                            value={pickupDate}
+                                            onChange={(e) => setPickupDate(e.target.value)}
+                                            className="w-full bg-gray-50 border-2 border-transparent focus:border-blue-600 focus:bg-white rounded-2xl p-4 text-sm font-bold transition-all outline-none"
+                                        />
+                                        <input 
+                                            type="time" 
+                                            value={pickupTime}
+                                            onChange={(e) => setPickupTime(e.target.value)}
                                             className="w-full bg-gray-50 border-2 border-transparent focus:border-blue-600 focus:bg-white rounded-2xl p-4 text-sm font-bold transition-all outline-none"
                                         />
                                     </div>

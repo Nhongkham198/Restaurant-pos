@@ -392,6 +392,8 @@ export interface PreOrder {
     notes?: string;
     totalAmount: number;
     orderType?: 'dine-in' | 'takeaway'; // Added: Type of order
+    pickupDate?: string; // Added: pickup date (e.g., "YYYY-MM-DD")
+    pickupTime?: string; // Added: pickup time (e.g., "HH:MM")
 }
 
 export type View = 'pos' | 'kitchen' | 'tables' | 'dashboard' | 'history' | 'stock' | 'stock-analytics' | 'recipes' | 'leave' | 'leave-analytics' | 'maintenance' | 'closing-checklist' | 'hr' | 'hr-payroll' | 'expense-analysis' | 'pre-order-management' | 'pre-order-customer' | 'goal';

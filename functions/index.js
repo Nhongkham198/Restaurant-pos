@@ -759,3 +759,163 @@ exports.sendLeaveRequestNotification = functions.region('asia-southeast1').fires
 
         return null;
     });
+
+/**
+ * This Cloud Function triggers when a NEW document is created in the 'preOrders' collection.
+ */
+exports.sendPreOrderNotification = functions.region('asia-southeast1').firestore
+    .document('branches/{branchId}/preOrders/{preOrderId}')
+    .onCreate(async (snap, context) => {
+        const newPreOrder = snap.data();
+
+        if (!newPreOrder) {
+            console.log('No preOrder data found.');
+            return null;
+        }
+
+        console.log(`New pre-order detected: ${newPreOrder.customerName} in branch ${context.params.branchId}`);
+
+        try {
+            // 1. Get Notification Configs (Telegram & LINE)
+            const [telTokenDoc, telChatIdDoc, lineTokenDoc, lineUserIdDoc, lineNotifyTokenDoc] = await Promise.all([
+                admin.firestore().doc(`branches/${context.params.branchId}/telegramBotToken/data`).get(),
+                admin.firestore().doc(`branches/${context.params.branchId}/telegramChatId/data`).get(),
+                admin.firestore().doc(`branches/${context.params.branchId}/lineMessagingToken/data`).get(),
+                admin.firestore().doc(`branches/${context.params.branchId}/lineUserId/data`).get(),
+                admin.firestore().doc(`branches/${context.params.branchId}/lineNotifyToken/data`).get()
+            ]);
+
+            const telToken = telTokenDoc.exists ? telTokenDoc.data().value : null;
+            const telChatId = telChatIdDoc.exists ? telChatIdDoc.data().value : null;
+            const lineToken = lineTokenDoc.exists ? lineTokenDoc.data().value : null;
+            const lineUserId = lineUserIdDoc.exists ? lineUserIdDoc.data().value : null;
+            const lineNotifyToken = lineNotifyTokenDoc.exists ? lineNotifyTokenDoc.data().value : null;
+
+            // 2. Construct Message
+            const totalAmount = Math.round(newPreOrder.totalAmount || 0);
+            const itemsList = newPreOrder.items.map(item => {
+                let itemText = `• ${item.name} x${item.quantity}`;
+                if (item.selectedOptions && item.selectedOptions.length > 0) {
+                    const optionsText = item.selectedOptions.map(opt => opt.name).join(', ');
+                    itemText += `\n(${optionsText})`;
+                }
+                return itemText;
+            }).join('\n');
+
+            const orderTypeLabel = newPreOrder.orderType === 'takeaway' ? 'สั่งกลับบ้าน (Takeaway)' : `ทานที่ร้าน (Dine-in) จำนวน ${newPreOrder.customerCount || 1} ท่าน`;
+            
+            // Format Date for displaying
+            let pickupDisplay = 'ไม่ระบุ';
+            if (newPreOrder.pickupDate && newPreOrder.pickupTime) {
+                try {
+                    const dateObj = new Date(newPreOrder.pickupDate);
+                    const formattedDate = isNaN(dateObj.getTime()) 
+                        ? newPreOrder.pickupDate 
+                        : dateObj.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' });
+                    pickupDisplay = `${formattedDate} เวลา ${newPreOrder.pickupTime} น.`;
+                } catch {
+                    pickupDisplay = `${newPreOrder.pickupDate} ${newPreOrder.pickupTime}`;
+                }
+            }
+
+            // HTML version for Telegram
+            const htmlMessageText = `📅 <b>[ออเดอร์จองล่วงหน้าใหม่!]</b>\n` +
+                                `👤 ลูกค้า: <b>${newPreOrder.customerName}</b>\n` +
+                                `📞 เบอร์โทร: ${newPreOrder.customerPhone || 'ไม่ระบุ'}\n` +
+                                `🕒 <b>เวลานัดรับ: ${pickupDisplay}</b>\n` +
+                                `🍽️ รูปแบบ: ${orderTypeLabel}\n` +
+                                `📝 หมายเหตุ: ${newPreOrder.notes || '-'}\n` +
+                                `--------------------------\n` +
+                                `${itemsList}\n` +
+                                `--------------------------\n` +
+                                `💰 ยอดรวม: <b>฿${totalAmount}</b>`;
+
+            // Plain text version for LINE
+            const plainMessageText = `📅 [ออเดอร์จองล่วงหน้าใหม่!]\n` +
+                                `👤 ลูกค้า: ${newPreOrder.customerName}\n` +
+                                `📞 เบอร์โทร: ${newPreOrder.customerPhone || 'ไม่ระบุ'}\n` +
+                                `🕒 เวลานัดรับ: ${pickupDisplay}\n` +
+                                `🍽️ รูปแบบ: ${orderTypeLabel}\n` +
+                                `📝 หมายเหตุ: ${newPreOrder.notes || '-'}\n` +
+                                `--------------------------\n` +
+                                `${itemsList}\n` +
+                                `--------------------------\n` +
+                                `💰 ยอดรวม: ฿${totalAmount}`;
+
+            // 3. Send Notifications
+            const notificationPromises = [];
+
+            // Telegram
+            if (telToken && telChatId) {
+                notificationPromises.push(sendTelegramMessage(telToken, telChatId, htmlMessageText));
+            }
+
+            // LINE Messaging API (Bot)
+            if (lineToken && lineUserId) {
+                notificationPromises.push(sendLineMessage(lineToken, lineUserId, plainMessageText));
+            }
+
+            // LINE Notify
+            if (lineNotifyToken) {
+                notificationPromises.push(sendLineNotifyMessage(lineNotifyToken, plainMessageText));
+            }
+
+            await Promise.all(notificationPromises);
+        } catch (error) {
+            console.error('Failed to send preorder notifications:', error);
+        }
+
+        // Get all users from the 'users/data' document to find tokens for POS/Staff.
+        try {
+            const usersDoc = await admin.firestore().collection('users').doc('data').get();
+            if (usersDoc.exists) {
+                const allUsers = usersDoc.data().value || [];
+                const branchIdNumber = parseInt(context.params.branchId, 10);
+                const targetRoles = ['pos', 'admin', 'branch-admin']; // Send to POS, Admin
+                const allStaffTokens = allUsers
+                    .filter(user => 
+                        targetRoles.includes(user.role) && 
+                        user.fcmTokens && Array.isArray(user.fcmTokens) && user.fcmTokens.length > 0 &&
+                        user.allowedBranchIds &&
+                        user.allowedBranchIds.includes(branchIdNumber)
+                    )
+                    .flatMap(user => user.fcmTokens); 
+
+                const staffTokens = [...new Set(allStaffTokens)];
+
+                if (staffTokens.length > 0) {
+                    const notificationTitle = '📅 มีออเดอร์จองล่วงหน้าใหม่!';
+                    const notificationBody = `คุณ ${newPreOrder.customerName} นัดรับ ${newPreOrder.pickupTime || ''}`;
+
+                    const message = {
+                        notification: {
+                            title: notificationTitle,
+                            body: notificationBody,
+                        },
+                        data: {
+                            title: notificationTitle,
+                            body: notificationBody,
+                            icon: '/icon.svg',
+                            sound: 'https://firebasestorage.googleapis.com/v0/b/restaurant-pos-f8bd4.appspot.com/o/sounds%2Fdefault-notification.mp3?alt=media',
+                            vibrate: '[200, 100, 200]',
+                            url: '/?view=pre-order-management'
+                        },
+                        android: {
+                            priority: 'high',
+                            notification: {
+                                channelId: 'high_importance_channel',
+                                sound: 'default'
+                            }
+                        },
+                        tokens: staffTokens
+                    };
+
+                    await admin.messaging().sendMulticast(message);
+                }
+            }
+        } catch (fcmError) {
+            console.error('Error sending pre-order FCM:', fcmError);
+        }
+
+        return null;
+    });

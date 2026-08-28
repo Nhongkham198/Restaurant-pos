@@ -6,6 +6,17 @@ import { useFirestoreCollection } from '../hooks/useFirestoreSync';
 import Swal from 'sweetalert2';
 import { motion, AnimatePresence } from 'framer-motion';
 
+const formatPickupDate = (dateStr?: string) => {
+    if (!dateStr) return '';
+    try {
+        const date = new Date(dateStr);
+        if (isNaN(date.getTime())) return dateStr;
+        return date.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' });
+    } catch {
+        return dateStr;
+    }
+};
+
 export const PreOrderManagement: React.FC = () => {
     const { 
         selectedBranch, 
@@ -25,7 +36,16 @@ export const PreOrderManagement: React.FC = () => {
     const pendingPreOrders = useMemo(() => {
         return [...preOrders]
             .filter(po => po.status === 'pending')
-            .sort((a, b) => b.timestamp - a.timestamp);
+            .sort((a, b) => {
+                if (a.pickupDate && a.pickupTime && b.pickupDate && b.pickupTime) {
+                    const dtA = `${a.pickupDate}T${a.pickupTime}`;
+                    const dtB = `${b.pickupDate}T${b.pickupTime}`;
+                    return dtA.localeCompare(dtB);
+                }
+                if (a.pickupDate && a.pickupTime) return -1;
+                if (b.pickupDate && b.pickupTime) return 1;
+                return b.timestamp - a.timestamp;
+            });
     }, [preOrders]);
 
     const handleCancelPreOrder = async (preOrder: PreOrder) => {
@@ -250,6 +270,14 @@ export const PreOrderManagement: React.FC = () => {
                                                 </svg>
                                                 <span className="font-black underline decoration-blue-200 underline-offset-4">{po.customerPhone}</span>
                                             </a>
+                                        )}
+                                        {po.pickupDate && po.pickupTime && (
+                                            <div className="mt-2 flex items-center gap-1.5 bg-amber-50 border border-amber-200/60 rounded-xl px-3 py-1.5 text-[12px] font-bold text-amber-800">
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-amber-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                </svg>
+                                                <span>เวลานัดรับ: <span className="font-black underline">{formatPickupDate(po.pickupDate)} เวลา {po.pickupTime} น.</span></span>
+                                            </div>
                                         )}
                                     </div>
 
