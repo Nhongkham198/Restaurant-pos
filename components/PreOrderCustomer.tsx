@@ -869,13 +869,53 @@ export const PreOrderCustomer: React.FC = () => {
                                 ))}
                             </div>
 
-                            <div className="p-8 bg-gray-50 shrink-0">
+                            <div className="p-8 bg-gray-50 shrink-0 border-t border-gray-100">
+                                {/* Pickup Date & Time Selection */}
+                                <div className="mb-6 bg-white p-4 rounded-3xl border border-gray-200/60 shadow-sm space-y-3">
+                                    <div className="flex items-center gap-2">
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                        <span className="text-sm font-black text-gray-800">{t('ระบุเวลานัดรับอาหาร')}</span>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="block text-[10px] font-black text-gray-400 mb-1 uppercase tracking-widest">{t('วันที่')}</label>
+                                            <input 
+                                                type="date" 
+                                                min={new Date().toISOString().split('T')[0]}
+                                                value={pickupDate}
+                                                onChange={(e) => setPickupDate(e.target.value)}
+                                                className="w-full bg-gray-50 border-2 border-transparent focus:border-blue-600 focus:bg-white rounded-2xl px-3 py-3 text-xs font-bold transition-all outline-none"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-black text-gray-400 mb-1 uppercase tracking-widest">{t('เวลา')}</label>
+                                            <input 
+                                                type="time" 
+                                                value={pickupTime}
+                                                onChange={(e) => setPickupTime(e.target.value)}
+                                                className="w-full bg-gray-50 border-2 border-transparent focus:border-blue-600 focus:bg-white rounded-2xl px-3 py-3 text-xs font-bold transition-all outline-none"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+
                                 <div className="flex justify-between items-center mb-6">
                                     <span className="text-sm font-black text-gray-400 uppercase tracking-widest">{t('ยอดรวมทั้งหมด')}</span>
                                     <span className="text-3xl font-black text-blue-600">{totalAmount.toLocaleString()}.-</span>
                                 </div>
                                 <button 
                                     onClick={() => {
+                                        if (!pickupDate || !pickupTime) {
+                                            Swal.fire({
+                                                icon: 'warning',
+                                                title: t('กรุณาระบุเวลานัดรับ'),
+                                                text: t('โปรดเลือกวันและเวลาที่ต้องการมารับอาหารในกล่องด้านบนด้วยครับ'),
+                                                confirmButtonColor: '#3b82f6'
+                                            });
+                                            return;
+                                        }
                                         setIsCartOpen(false);
                                         setIsCheckoutOpen(true);
                                     }}
@@ -930,24 +970,7 @@ export const PreOrderCustomer: React.FC = () => {
                                         />
                                     </div>
                                 </div>
-                                <div>
-                                    <label className="block text-xs font-black text-gray-400 mb-2 uppercase tracking-widest">{t('วันและเวลานัดรับสินค้า')}</label>
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <input 
-                                            type="date" 
-                                            min={new Date().toISOString().split('T')[0]}
-                                            value={pickupDate}
-                                            onChange={(e) => setPickupDate(e.target.value)}
-                                            className="w-full bg-gray-50 border-2 border-transparent focus:border-blue-600 focus:bg-white rounded-2xl p-4 text-sm font-bold transition-all outline-none"
-                                        />
-                                        <input 
-                                            type="time" 
-                                            value={pickupTime}
-                                            onChange={(e) => setPickupTime(e.target.value)}
-                                            className="w-full bg-gray-50 border-2 border-transparent focus:border-blue-600 focus:bg-white rounded-2xl p-4 text-sm font-bold transition-all outline-none"
-                                        />
-                                    </div>
-                                </div>
+
                                 {orderType === 'dine-in' && (
                                     <div>
                                         <label className="block text-xs font-black text-gray-400 mb-2 uppercase tracking-widest">{t('จำนวนลูกค้า (ท่าน)')}</label>
