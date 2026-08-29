@@ -1378,13 +1378,19 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
             )}
 
             {isCartOpen && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-end sm:justify-center items-end sm:items-center">
-                    <div className="bg-white w-full sm:max-w-md h-[90vh] sm:h-[80vh] rounded-t-2xl sm:rounded-2xl shadow-2xl flex flex-col animate-slide-up">
+                <div 
+                    className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-end sm:justify-center items-end sm:items-center"
+                    onClick={() => setIsCartOpen(false)}
+                >
+                    <div 
+                        className="bg-white w-full sm:max-w-md h-[82vh] sm:h-[80vh] rounded-t-2xl sm:rounded-2xl shadow-2xl flex flex-col animate-slide-up pb-safe"
+                        onClick={(e) => e.stopPropagation()}
+                    >
                         <div className="p-4 border-b flex justify-between items-center">
                             <h2 className="text-xl font-bold text-gray-800">{t('รายการในตะกร้า (ยังไม่สั่ง)')}</h2>
-                            <button onClick={() => setIsCartOpen(false)} className="p-2 bg-gray-100 rounded-full hover:bg-gray-200">
+                            <button onClick={() => setIsCartOpen(false)} className="p-2.5 bg-gray-100 rounded-full hover:bg-gray-200 min-w-[44px] min-h-[44px] flex items-center justify-center">
                                 <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
                                 </svg>
                             </button>
                         </div>
@@ -1397,7 +1403,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                                         {item.notes && <p className="text-sm text-yellow-600">** {item.notes}</p>}
                                         <p className="text-blue-600 font-semibold mt-1">{item.finalPrice.toLocaleString()} ฿ x {item.quantity}</p>
                                     </div>
-                                    <button onClick={() => handleRemoveItem(item.cartItemId)} className="text-red-500 p-2">{t('ลบ')}</button>
+                                    <button onClick={() => handleRemoveItem(item.cartItemId)} className="text-red-500 p-2 font-bold min-w-[44px] min-h-[44px] text-right">{t('ลบ')}</button>
                                 </div>
                             ))}
                             {cartItems.length === 0 && <div className="text-center text-gray-400 py-10">{t('ไม่มีสินค้าในตะกร้า')}</div>}
@@ -1407,7 +1413,8 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                                 <span>{t('ยอดในตะกร้า')}</span>
                                 <span>{cartTotalAmount.toLocaleString()} ฿</span>
                             </div>
-                            <button onClick={handleSubmitOrder} className="w-full bg-green-600 text-white font-bold py-4 rounded-xl shadow-lg hover:bg-green-700 transition-colors text-lg">{t('ยืนยันสั่งอาหาร 🚀')}</button>
+                            <button onClick={handleSubmitOrder} className="w-full bg-green-600 text-white font-bold py-3.5 rounded-xl shadow-lg hover:bg-green-700 transition-colors text-lg">{t('ยืนยันสั่งอาหาร 🚀')}</button>
+                            <button onClick={() => setIsCartOpen(false)} className="w-full mt-2 bg-white text-gray-600 font-bold py-2.5 rounded-xl border border-gray-200/80 hover:bg-gray-100 transition-colors text-sm flex items-center justify-center gap-1.5 shadow-sm">{t('← เลือกอาหารเพิ่ม')}</button>
                         </div>
                     </div>
                 </div>
