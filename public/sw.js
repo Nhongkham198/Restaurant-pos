@@ -69,7 +69,7 @@ self.addEventListener('notificationclick', function(event) {
 // --- ADVANCED CACHING SERVICE WORKER ---
 
 // Define cache names for better management
-const STATIC_CACHE_NAME = 'restaurant-pos-static-v6'; // For app shell files
+const STATIC_CACHE_NAME = 'restaurant-pos-static-v7'; // For app shell files - Incremented to v7 for cache busting
 const IMAGE_CACHE_NAME = 'restaurant-pos-images-v1';  // Dedicated cache for images
 
 // List of core app files to cache on install
@@ -86,6 +86,7 @@ const urlsToCache = [
 // Pre-cache the essential app shell files.
 self.addEventListener('install', event => {
   console.log('[SW] Install event');
+  self.skipWaiting(); // Force the waiting service worker to become active immediately
   event.waitUntil(
     caches.open(STATIC_CACHE_NAME)
       .then(cache => {
@@ -102,6 +103,7 @@ self.addEventListener('install', event => {
 // Clean up old caches to save space and ensure new versions are used.
 self.addEventListener('activate', event => {
   console.log('[SW] Activate event');
+  self.clients.claim(); // Claim uncontrolled clients/pages immediately
   const cacheWhitelist = [STATIC_CACHE_NAME, IMAGE_CACHE_NAME]; // Keep both current caches
   event.waitUntil(
     caches.keys().then(cacheNames => {
@@ -159,6 +161,29 @@ self.addEventListener('fetch', event => {
       })
     );
     return; // End execution for media requests
+  }
+
+  // --- HTML Requests Strategy: Network First, Cache Fallback ---
+  // This prevents loading old index.html versions with broken dynamic chunk hashes while online,
+  // while still allowing the app to open and function offline using cached index.html.
+  const isHtmlRequest = url.pathname === '/' || url.pathname.endsWith('/index.html') || (event.request.headers.get('accept') && event.request.headers.get('accept').includes('text/html'));
+
+  if (isHtmlRequest) {
+    event.respondWith(
+      fetch(event.request)
+        .then(async (networkResponse) => {
+          if (networkResponse.ok) {
+            const cache = await caches.open(STATIC_CACHE_NAME);
+            cache.put(event.request, networkResponse.clone());
+          }
+          return networkResponse;
+        })
+        .catch(async () => {
+          const cachedResponse = await caches.match(event.request);
+          return cachedResponse || Response.error();
+        })
+    );
+    return;
   }
 
   // --- App Shell & Other Requests Strategy: Stale-While-Revalidate ---

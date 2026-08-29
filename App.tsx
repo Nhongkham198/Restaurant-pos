@@ -2058,10 +2058,10 @@ export const App: React.FC = () => {
                                         onOpenTagRegistration={() => setModalState(prev => ({ ...prev, isTagRegistration: true }))}
                                     />
                                     <div className="flex-1 overflow-y-auto">
-                                        <LocalErrorBoundary title="ไม่สามารถแสดงเนื้อหาของหน้าต่างนี้ได้ชั่วคราว">
-                                            <Suspense fallback={<PageLoading />}>
-                                                {/* KitchenView passed with NEW Props */}
-                                                {currentView === 'kitchen' && (
+                                        <Suspense fallback={<PageLoading />}>
+                                            {/* KitchenView passed with NEW Props */}
+                                            {currentView === 'kitchen' && (
+                                                <LocalErrorBoundary title="ไม่สามารถแสดงส่วนหน้าต่างครัวได้ชั่วคราว">
                                                     <KitchenView 
                                                         activeOrders={activeOrders} 
                                                         onCompleteOrder={handleCompleteOrder} 
@@ -2071,12 +2071,16 @@ export const App: React.FC = () => {
                                                         isAutoPrintEnabled={isAutoPrintEnabled} // Pass prop
                                                         onToggleAutoPrint={toggleAutoPrint}     // Pass handler
                                                     />
-                                                )}
-                                                {currentView === 'pre-order-management' && (
+                                                </LocalErrorBoundary>
+                                            )}
+                                            {currentView === 'pre-order-management' && (
+                                                <LocalErrorBoundary title="ไม่สามารถแสดงระบบออเดอร์ล่วงหน้าได้ชั่วคราว">
                                                     <PreOrderManagement />
-                                                )}
-                                                {/* ... Other mobile views ... */}
-                                                {currentView === 'leave' && (
+                                                </LocalErrorBoundary>
+                                            )}
+                                            {/* ... Other mobile views ... */}
+                                            {currentView === 'leave' && (
+                                                <LocalErrorBoundary title="ไม่สามารถแสดงระบบวันลาได้ชั่วคราว">
                                                     <LeaveCalendarView 
                                                         leaveRequests={visibleLeaveRequests} 
                                                         currentUser={currentUser} 
@@ -2092,23 +2096,55 @@ export const App: React.FC = () => {
                                                         selectedBranch={selectedBranch}
                                                         isEditMode={isEditMode}
                                                     />
-                                                )}
-                                                {currentView === 'tables' && <TableLayout tables={tables} activeOrders={activeOrders} onTableSelect={(id) => { setSelectedTableId(id); handleViewChange('pos'); }} onShowBill={handleShowBill} onGeneratePin={handleGeneratePin} currentUser={currentUser} printerConfig={printerConfig} floors={floors} selectedBranch={selectedBranch} restaurantName={restaurantName} logoUrl={logoUrl} qrCodeUrl={qrCodeUrl} isEditMode={isEditMode} onUpdateFloors={setFloors} />}
-                                                {currentView === 'dashboard' && <Dashboard completedOrders={completedOrders} cancelledOrders={cancelledOrders} openingTime={openingTime || '10:00'} closingTime={closingTime || '22:00'} currentUser={currentUser} recipes={recipes} deliveryProviders={deliveryProviders} taxRate={taxRate} />}
-                                                {currentView === 'history' && <SalesHistory completedOrders={completedOrders} cancelledOrders={cancelledOrders} printHistory={printHistory} onReprint={() => {}} onSplitOrder={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isSplitCompleted: true}))}} isEditMode={isEditMode} onEditOrder={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isEditCompleted: true}))}} onInitiateCashBill={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isCashBill: true}))}} onDeleteHistory={handleDeleteHistory} currentUser={currentUser} onReprintReceipt={handleReprintReceipt} onPrintKitchenOrder={(order) => handlePrintKitchenOrder(order.id, order)} recipes={recipes} deliveryProviders={deliveryProviders} taxRate={taxRate} onUpdateCompletedOrder={newCompletedOrdersActions.update} floors={floors} />}
-                                                {currentView === 'stock' && <StockManagement stockItems={stockItems} setStockItems={setStockItems} stockTags={stockTags} setStockTags={setStockTags} stockCategories={stockCategories} setStockCategories={setStockCategories} stockUnits={stockUnits} setStockUnits={setStockUnits} stockLogs={stockLogs} stockLogsActions={stockLogsActions} currentUser={currentUser} isTagModalOpen={modalState.isTagRegistration} onOpenTagModal={() => setModalState(prev => ({ ...prev, isTagRegistration: true }))} onCloseTagModal={() => setModalState(prev => ({ ...prev, isTagRegistration: false }))} />}
-                                                {currentView === 'recipes' && <RecipeManagement menuItems={menuItems} setMenuItems={setMenuItems} recipes={recipes} setRecipes={setRecipes} stockItems={stockItems} currentUser={currentUser} />}
-                                                {currentView === 'stock-analytics' && <StockAnalytics stockItems={stockItems} />}
-                                                {currentView === 'leave-analytics' && <LeaveAnalytics leaveRequests={visibleLeaveRequests} users={users} />}
-                                                {currentView === 'closing-checklist' && (
+                                                </LocalErrorBoundary>
+                                            )}
+                                            {currentView === 'tables' && (
+                                                <LocalErrorBoundary title="ไม่สามารถแสดงผังโต๊ะได้ชั่วคราว">
+                                                    <TableLayout tables={tables} activeOrders={activeOrders} onTableSelect={(id) => { setSelectedTableId(id); handleViewChange('pos'); }} onShowBill={handleShowBill} onGeneratePin={handleGeneratePin} currentUser={currentUser} printerConfig={printerConfig} floors={floors} selectedBranch={selectedBranch} restaurantName={restaurantName} logoUrl={logoUrl} qrCodeUrl={qrCodeUrl} isEditMode={isEditMode} onUpdateFloors={setFloors} />
+                                                </LocalErrorBoundary>
+                                            )}
+                                            {currentView === 'dashboard' && (
+                                                <LocalErrorBoundary title="ไม่สามารถแสดงรายงานยอดขายได้ชั่วคราว">
+                                                    <Dashboard completedOrders={completedOrders} cancelledOrders={cancelledOrders} openingTime={openingTime || '10:00'} closingTime={closingTime || '22:00'} currentUser={currentUser} recipes={recipes} deliveryProviders={deliveryProviders} taxRate={taxRate} />
+                                                </LocalErrorBoundary>
+                                            )}
+                                            {currentView === 'history' && (
+                                                <LocalErrorBoundary title="ไม่สามารถแสดงประวัติยอดขายได้ชั่วคราว">
+                                                    <SalesHistory completedOrders={completedOrders} cancelledOrders={cancelledOrders} printHistory={printHistory} onReprint={() => {}} onSplitOrder={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isSplitCompleted: true}))}} isEditMode={isEditMode} onEditOrder={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isEditCompleted: true}))}} onInitiateCashBill={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isCashBill: true}))}} onDeleteHistory={handleDeleteHistory} currentUser={currentUser} onReprintReceipt={handleReprintReceipt} onPrintKitchenOrder={(order) => handlePrintKitchenOrder(order.id, order)} recipes={recipes} deliveryProviders={deliveryProviders} taxRate={taxRate} onUpdateCompletedOrder={newCompletedOrdersActions.update} floors={floors} />
+                                                </LocalErrorBoundary>
+                                            )}
+                                            {currentView === 'stock' && (
+                                                <LocalErrorBoundary title="ไม่สามารถแสดงการจัดการสต็อกสินค้าได้ชั่วคราว">
+                                                    <StockManagement stockItems={stockItems} setStockItems={setStockItems} stockTags={stockTags} setStockTags={setStockTags} stockCategories={stockCategories} setStockCategories={setStockCategories} stockUnits={stockUnits} setStockUnits={setStockUnits} stockLogs={stockLogs} stockLogsActions={stockLogsActions} currentUser={currentUser} isTagModalOpen={modalState.isTagRegistration} onOpenTagModal={() => setModalState(prev => ({ ...prev, isTagRegistration: true }))} onCloseTagModal={() => setModalState(prev => ({ ...prev, isTagRegistration: false }))} />
+                                                </LocalErrorBoundary>
+                                            )}
+                                            {currentView === 'recipes' && (
+                                                <LocalErrorBoundary title="ไม่สามารถแสดงสูตรอาหารได้ชั่วคราว">
+                                                    <RecipeManagement menuItems={menuItems} setMenuItems={setMenuItems} recipes={recipes} setRecipes={setRecipes} stockItems={stockItems} currentUser={currentUser} />
+                                                </LocalErrorBoundary>
+                                            )}
+                                            {currentView === 'stock-analytics' && (
+                                                <LocalErrorBoundary title="ไม่สามารถแสดงระบบวิเคราะห์สต็อกได้ชั่วคราว">
+                                                    <StockAnalytics stockItems={stockItems} />
+                                                </LocalErrorBoundary>
+                                            )}
+                                            {currentView === 'leave-analytics' && (
+                                                <LocalErrorBoundary title="ไม่สามารถแสดงระบบวิเคราะห์วันลาได้ชั่วคราว">
+                                                    <LeaveAnalytics leaveRequests={visibleLeaveRequests} users={users} />
+                                                </LocalErrorBoundary>
+                                            )}
+                                            {currentView === 'closing-checklist' && (
+                                                <LocalErrorBoundary title="ไม่สามารถแสดงเช็คลิสต์ก่อนกลับบ้านได้ชั่วคราว">
                                                     <ClosingChecklistView 
                                                         currentUser={currentUser}
                                                         selectedBranch={selectedBranch}
                                                         branches={branches}
                                                         isEditMode={isEditMode}
                                                     />
-                                                )}
-                                                {currentView === 'maintenance' && (
+                                                </LocalErrorBoundary>
+                                            )}
+                                            {currentView === 'maintenance' && (
+                                                <LocalErrorBoundary title="ไม่สามารถแสดงระบบบำรุงรักษาได้ชั่วคราว">
                                                     <MaintenanceView 
                                                         maintenanceItems={maintenanceItems}
                                                         setMaintenanceItems={setMaintenanceItems}
@@ -2117,15 +2153,19 @@ export const App: React.FC = () => {
                                                         currentUser={currentUser}
                                                         isEditMode={isEditMode}
                                                     />
-                                                )}
-                                                {(currentView === 'hr' || currentView === 'hr-payroll' || currentView === 'goal') && (
+                                                </LocalErrorBoundary>
+                                            )}
+                                            {(currentView === 'hr' || currentView === 'hr-payroll' || currentView === 'goal') && (
+                                                <LocalErrorBoundary title="ไม่สามารถแสดงระบบจัดการบุคคลได้ชั่วคราว">
                                                     <HRManagementView 
                                                         isEditMode={isEditMode} 
                                                         onOpenUserManager={handleOpenUserManagerWithData} 
                                                         initialTab={currentView === 'hr-payroll' ? 'payroll' : (currentView === 'goal' ? 'goal' : 'application')}
                                                     />
-                                                )}
-                                                {currentView === 'expense-analysis' && (
+                                                </LocalErrorBoundary>
+                                            )}
+                                            {currentView === 'expense-analysis' && (
+                                                <LocalErrorBoundary title="ไม่สามารถแสดงวิเคราะห์ค่าใช้จ่ายได้ชั่วคราว">
                                                     <div className="h-full w-full bg-white">
                                                         <iframe 
                                                             src={`https://store-expense-visualizer-v2.vercel.app/${selectedExpenseBranchId ? `?branchId=${selectedExpenseBranchId}` : ''}`} 
@@ -2133,9 +2173,9 @@ export const App: React.FC = () => {
                                                             title="Expense Analysis"
                                                         />
                                                     </div>
-                                                )}
-                                            </Suspense>
-                                        </LocalErrorBoundary>
+                                                </LocalErrorBoundary>
+                                            )}
+                                        </Suspense>
                                     </div>
                                 </div>
                             )}
@@ -2144,10 +2184,10 @@ export const App: React.FC = () => {
 
                     {/* Desktop Other Views */}
                     {isDesktop && currentView !== 'pos' && (
-                        <LocalErrorBoundary title="ไม่สามารถแสดงเนื้อหาของหน้าต่างนี้ได้ชั่วคราว">
-                            <Suspense fallback={<PageLoading />}>
-                                {/* KitchenView passed with NEW Props */}
-                                {currentView === 'kitchen' && (
+                        <Suspense fallback={<PageLoading />}>
+                            {/* KitchenView passed with NEW Props */}
+                            {currentView === 'kitchen' && (
+                                <LocalErrorBoundary title="ไม่สามารถแสดงส่วนหน้าต่างครัวได้ชั่วคราว">
                                     <KitchenView 
                                         activeOrders={activeOrders} 
                                         onCompleteOrder={handleCompleteOrder} 
@@ -2157,17 +2197,45 @@ export const App: React.FC = () => {
                                         isAutoPrintEnabled={isAutoPrintEnabled} // Pass prop
                                         onToggleAutoPrint={toggleAutoPrint}     // Pass handler
                                     />
-                                )}
-                                {currentView === 'pre-order-management' && (
+                                </LocalErrorBoundary>
+                            )}
+                            {currentView === 'pre-order-management' && (
+                                <LocalErrorBoundary title="ไม่สามารถแสดงระบบออเดอร์ล่วงหน้าได้ชั่วคราว">
                                     <PreOrderManagement />
-                                )}
-                                {currentView === 'tables' && <TableLayout tables={tables} activeOrders={activeOrders} onTableSelect={(id) => { setSelectedTableId(id); handleViewChange('pos'); }} onShowBill={handleShowBill} onGeneratePin={handleGeneratePin} currentUser={currentUser} printerConfig={printerConfig} floors={floors} selectedBranch={selectedBranch} restaurantName={restaurantName} logoUrl={logoUrl} qrCodeUrl={qrCodeUrl} isEditMode={isEditMode} onUpdateFloors={setFloors} />}
-                                {currentView === 'dashboard' && <Dashboard completedOrders={completedOrders} cancelledOrders={cancelledOrders} openingTime={openingTime || '10:00'} closingTime={closingTime || '22:00'} currentUser={currentUser} recipes={recipes} deliveryProviders={deliveryProviders} taxRate={taxRate} />}
-                                {currentView === 'history' && <SalesHistory completedOrders={completedOrders} cancelledOrders={cancelledOrders} printHistory={printHistory} onReprint={() => {}} onSplitOrder={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isSplitCompleted: true}))}} isEditMode={isEditMode} onEditOrder={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isEditCompleted: true}))}} onInitiateCashBill={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isCashBill: true}))}} onDeleteHistory={handleDeleteHistory} currentUser={currentUser} onReprintReceipt={handleReprintReceipt} onPrintKitchenOrder={(order) => handlePrintKitchenOrder(order.id, order)} recipes={recipes} deliveryProviders={deliveryProviders} taxRate={taxRate} onUpdateCompletedOrder={newCompletedOrdersActions.update} floors={floors} />}
-                                {currentView === 'stock' && <StockManagement stockItems={stockItems} setStockItems={setStockItems} stockTags={stockTags} setStockTags={setStockTags} stockCategories={stockCategories} setStockCategories={setStockCategories} stockUnits={stockUnits} setStockUnits={setStockUnits} stockLogs={stockLogs} stockLogsActions={stockLogsActions} currentUser={currentUser} isTagModalOpen={modalState.isTagRegistration} onOpenTagModal={() => setModalState(prev => ({ ...prev, isTagRegistration: true }))} onCloseTagModal={() => setModalState(prev => ({ ...prev, isTagRegistration: false }))} />}
-                                {currentView === 'recipes' && <RecipeManagement menuItems={menuItems} setMenuItems={setMenuItems} recipes={recipes} setRecipes={setRecipes} stockItems={stockItems} currentUser={currentUser} />}
-                                {currentView === 'stock-analytics' && <StockAnalytics stockItems={stockItems} />}
-                                {currentView === 'leave' && (
+                                </LocalErrorBoundary>
+                            )}
+                            {currentView === 'tables' && (
+                                <LocalErrorBoundary title="ไม่สามารถแสดงผังโต๊ะได้ชั่วคราว">
+                                    <TableLayout tables={tables} activeOrders={activeOrders} onTableSelect={(id) => { setSelectedTableId(id); handleViewChange('pos'); }} onShowBill={handleShowBill} onGeneratePin={handleGeneratePin} currentUser={currentUser} printerConfig={printerConfig} floors={floors} selectedBranch={selectedBranch} restaurantName={restaurantName} logoUrl={logoUrl} qrCodeUrl={qrCodeUrl} isEditMode={isEditMode} onUpdateFloors={setFloors} />
+                                </LocalErrorBoundary>
+                            )}
+                            {currentView === 'dashboard' && (
+                                <LocalErrorBoundary title="ไม่สามารถแสดงรายงานยอดขายได้ชั่วคราว">
+                                    <Dashboard completedOrders={completedOrders} cancelledOrders={cancelledOrders} openingTime={openingTime || '10:00'} closingTime={closingTime || '22:00'} currentUser={currentUser} recipes={recipes} deliveryProviders={deliveryProviders} taxRate={taxRate} />
+                                </LocalErrorBoundary>
+                            )}
+                            {currentView === 'history' && (
+                                <LocalErrorBoundary title="ไม่สามารถแสดงประวัติยอดขายได้ชั่วคราว">
+                                    <SalesHistory completedOrders={completedOrders} cancelledOrders={cancelledOrders} printHistory={printHistory} onReprint={() => {}} onSplitOrder={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isSplitCompleted: true}))}} isEditMode={isEditMode} onEditOrder={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isEditCompleted: true}))}} onInitiateCashBill={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isCashBill: true}))}} onDeleteHistory={handleDeleteHistory} currentUser={currentUser} onReprintReceipt={handleReprintReceipt} onPrintKitchenOrder={(order) => handlePrintKitchenOrder(order.id, order)} recipes={recipes} deliveryProviders={deliveryProviders} taxRate={taxRate} onUpdateCompletedOrder={newCompletedOrdersActions.update} floors={floors} />
+                                </LocalErrorBoundary>
+                            )}
+                            {currentView === 'stock' && (
+                                <LocalErrorBoundary title="ไม่สามารถแสดงการจัดการสต็อกสินค้าได้ชั่วคราว">
+                                    <StockManagement stockItems={stockItems} setStockItems={setStockItems} stockTags={stockTags} setStockTags={setStockTags} stockCategories={stockCategories} setStockCategories={setStockCategories} stockUnits={stockUnits} setStockUnits={setStockUnits} stockLogs={stockLogs} stockLogsActions={stockLogsActions} currentUser={currentUser} isTagModalOpen={modalState.isTagRegistration} onOpenTagModal={() => setModalState(prev => ({ ...prev, isTagRegistration: true }))} onCloseTagModal={() => setModalState(prev => ({ ...prev, isTagRegistration: false }))} />
+                                </LocalErrorBoundary>
+                            )}
+                            {currentView === 'recipes' && (
+                                <LocalErrorBoundary title="ไม่สามารถแสดงสูตรอาหารได้ชั่วคราว">
+                                    <RecipeManagement menuItems={menuItems} setMenuItems={setMenuItems} recipes={recipes} setRecipes={setRecipes} stockItems={stockItems} currentUser={currentUser} />
+                                </LocalErrorBoundary>
+                            )}
+                            {currentView === 'stock-analytics' && (
+                                <LocalErrorBoundary title="ไม่สามารถแสดงระบบวิเคราะห์สต็อกได้ชั่วคราว">
+                                    <StockAnalytics stockItems={stockItems} />
+                                </LocalErrorBoundary>
+                            )}
+                            {currentView === 'leave' && (
+                                <LocalErrorBoundary title="ไม่สามารถแสดงระบบวันลาได้ชั่วคราว">
                                     <LeaveCalendarView 
                                         leaveRequests={visibleLeaveRequests} 
                                         currentUser={currentUser} 
@@ -2183,17 +2251,25 @@ export const App: React.FC = () => {
                                         selectedBranch={selectedBranch}
                                         isEditMode={isEditMode}
                                     />
-                                )}
-                                {currentView === 'leave-analytics' && <LeaveAnalytics leaveRequests={visibleLeaveRequests} users={users} />}
-                                {currentView === 'closing-checklist' && (
+                                </LocalErrorBoundary>
+                            )}
+                            {currentView === 'leave-analytics' && (
+                                <LocalErrorBoundary title="ไม่สามารถแสดงระบบวิเคราะห์วันลาได้ชั่วคราว">
+                                    <LeaveAnalytics leaveRequests={visibleLeaveRequests} users={users} />
+                                </LocalErrorBoundary>
+                            )}
+                            {currentView === 'closing-checklist' && (
+                                <LocalErrorBoundary title="ไม่สามารถแสดงเช็คลิสต์ก่อนกลับบ้านได้ชั่วคราว">
                                     <ClosingChecklistView 
                                         currentUser={currentUser}
                                         selectedBranch={selectedBranch}
                                         branches={branches}
                                         isEditMode={isEditMode}
                                     />
-                                )}
-                                {currentView === 'maintenance' && (
+                                </LocalErrorBoundary>
+                            )}
+                            {currentView === 'maintenance' && (
+                                <LocalErrorBoundary title="ไม่สามารถแสดงระบบบำรุงรักษาได้ชั่วคราว">
                                     <MaintenanceView 
                                         maintenanceItems={maintenanceItems}
                                         setMaintenanceItems={setMaintenanceItems}
@@ -2202,15 +2278,19 @@ export const App: React.FC = () => {
                                         currentUser={currentUser}
                                         isEditMode={isEditMode}
                                     />
-                                )}
-                                {(currentView === 'hr' || currentView === 'hr-payroll' || currentView === 'goal') && (
+                                </LocalErrorBoundary>
+                            )}
+                            {(currentView === 'hr' || currentView === 'hr-payroll' || currentView === 'goal') && (
+                                <LocalErrorBoundary title="ไม่สามารถแสดงระบบจัดการบุคคลได้ชั่วคราว">
                                     <HRManagementView 
                                         isEditMode={isEditMode} 
                                         onOpenUserManager={handleOpenUserManagerWithData} 
                                         initialTab={currentView === 'hr-payroll' ? 'payroll' : (currentView === 'goal' ? 'goal' : 'application')}
                                     />
-                                )}
-                                {currentView === 'expense-analysis' && (
+                                </LocalErrorBoundary>
+                            )}
+                            {currentView === 'expense-analysis' && (
+                                <LocalErrorBoundary title="ไม่สามารถแสดงวิเคราะห์ค่าใช้จ่ายได้ชั่วคราว">
                                     <div className="h-full w-full bg-white">
                                         <iframe 
                                             src={`https://store-expense-visualizer-v2.vercel.app/${selectedExpenseBranchId ? `?branchId=${selectedExpenseBranchId}` : ''}`} 
@@ -2218,9 +2298,9 @@ export const App: React.FC = () => {
                                             title="Expense Analysis"
                                         />
                                     </div>
-                                )}
-                            </Suspense>
-                        </LocalErrorBoundary>
+                                </LocalErrorBoundary>
+                            )}
+                        </Suspense>
                     )}
                 </main>
             </div>

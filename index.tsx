@@ -76,13 +76,18 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boole
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error("Uncaught error:", error, errorInfo);
     
-    // Check if error is a chunk load error
-    const isChunkLoadError = 
+    // Check if error is a chunk load error or Hook duplication mismatch due to caching issues
+    const isChunkOrHookMismatchError = 
       error.name === 'ChunkLoadError' || 
       /Failed to fetch dynamically imported module/.test(error.message) ||
-      /Loading chunk .* failed/.test(error.message);
+      /Loading chunk .* failed/.test(error.message) ||
+      /Invalid hook call/.test(error.message) ||
+      /reading 'useState'/.test(error.message) ||
+      /reading 'useRef'/.test(error.message) ||
+      /reading 'useMemo'/.test(error.message) ||
+      /reading 'useCallback'/.test(error.message);
 
-    if (isChunkLoadError) {
+    if (isChunkOrHookMismatchError) {
       // Use sessionStorage to prevent infinite refresh loops
       const hasReloaded = sessionStorage.getItem('last_chunk_error_reload');
       const now = Date.now();
@@ -90,7 +95,7 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boole
       // If we haven't reloaded in the last 10 seconds for this reason
       if (!hasReloaded || now - parseInt(hasReloaded) > 10000) {
         sessionStorage.setItem('last_chunk_error_reload', now.toString());
-        console.warn("Chunk load error detected. Attempting automatic recovery via refresh...");
+        console.warn("Chunk loading or Hook mismatch error detected. Attempting automatic recovery via cache refresh...");
         window.location.reload();
       }
     }
