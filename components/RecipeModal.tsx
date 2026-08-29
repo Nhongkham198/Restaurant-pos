@@ -107,12 +107,14 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
     onSave,
     currentUser
 }) => {
-    const { stockUnits, setStockUnits, deliveryProviders, latestIngredientPrices } = useData();
+    const { stockUnits = [], setStockUnits, deliveryProviders = [], latestIngredientPrices = [] } = useData() || {};
     
     // Memoized map of unique latest prices by date
     const uniqueLatestPriceMap = React.useMemo(() => {
         const priceMap = new Map();
-        latestIngredientPrices.forEach(p => {
+        const pricesArr = Array.isArray(latestIngredientPrices) ? latestIngredientPrices : [];
+        pricesArr.forEach(p => {
+            if (!p) return;
             const key = (p.name || '').trim();
             if (!key) return;
             

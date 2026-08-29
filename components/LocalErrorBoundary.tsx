@@ -9,16 +9,17 @@ interface Props {
 interface State {
   hasError: boolean;
   error: Error | null;
+  isRetrying: boolean;
 }
 
 export class LocalErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = { hasError: false, error: null, isRetrying: false };
   }
 
   static getDerivedStateFromError(error: Error): State {
-    return { hasError: true, error };
+    return { hasError: true, error, isRetrying: false };
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
@@ -26,10 +27,22 @@ export class LocalErrorBoundary extends Component<Props, State> {
   }
 
   handleRetry = () => {
-    this.setState({ hasError: false, error: null });
+    this.setState({ isRetrying: true });
+    setTimeout(() => {
+      this.setState({ hasError: false, error: null, isRetrying: false });
+    }, 450); // Elegant 450ms loading spinner
   };
 
   render() {
+    if (this.state.isRetrying) {
+      return (
+        <div className={`flex flex-col items-center justify-center p-12 text-center ${this.props.className || ''}`}>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-500"></div>
+          <p className="mt-3 text-xs font-semibold text-gray-500">กำลังรีเซ็ตและโหลดข้อมูลส่วนนี้ใหม่...</p>
+        </div>
+      );
+    }
+
     if (this.state.hasError) {
       return (
         <div className={`flex flex-col items-center justify-center p-8 bg-amber-50/50 border border-amber-200/60 rounded-3xl text-center max-w-lg mx-auto my-6 ${this.props.className || ''}`}>

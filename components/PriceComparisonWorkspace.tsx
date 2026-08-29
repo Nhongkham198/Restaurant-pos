@@ -21,7 +21,7 @@ interface PriceComparisonWorkspaceProps {
 }
 
 export const PriceComparisonWorkspace: React.FC<PriceComparisonWorkspaceProps> = ({ stockItems }) => {
-    const { latestIngredientPrices, latestImportFilename } = useData();
+    const { latestIngredientPrices = [], latestImportFilename = null } = useData() || {};
     const [attachedImage, setAttachedImage] = useState<string | null>(null);
     const [rows, setRows] = useState<ComparisonRow[]>([]);
     const [searchTerm, setSearchTerm] = useState('');

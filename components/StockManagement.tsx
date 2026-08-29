@@ -576,7 +576,7 @@ export const StockManagement: React.FC<StockManagementProps> = ({
         }
     };
 
-    const { latestIngredientPrices, setLatestIngredientPrices, latestImportFilename, setLatestImportFilename } = useData();
+    const { latestIngredientPrices = [], setLatestIngredientPrices, latestImportFilename = null, setLatestImportFilename } = useData() || {};
 
     const filteredItems = useMemo(() => {
         // Safety check: Ensure stockItems is an array

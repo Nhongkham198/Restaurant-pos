@@ -118,12 +118,14 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedMenuItem, setSelectedMenuItem] = useState<MenuItem | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const { deliveryProviders, taxRate, latestIngredientPrices, latestImportFilename, branchId } = useData();
+    const { deliveryProviders = [], taxRate = 7, latestIngredientPrices = [], latestImportFilename = null, branchId = null } = useData() || {};
 
     // Generate priceMap for the latest prices by date
     const priceMap = useMemo(() => {
         const pMap = new Map();
-        latestIngredientPrices.forEach(p => {
+        const pricesArr = Array.isArray(latestIngredientPrices) ? latestIngredientPrices : [];
+        pricesArr.forEach(p => {
+            if (!p) return;
             const key = (p.name || '').trim();
             if (!key) return;
             const existing = pMap.get(key);
@@ -995,7 +997,8 @@ export const RecipeManagement: React.FC<RecipeManagementProps> = ({
                         const stockMap = new Map();
                         stockItems.forEach(s => stockMap.set(String(s.id), s));
                         
-                        const latestImportTime = latestIngredientPrices.reduce((max, p) => p.updatedAt ? Math.max(max, p.updatedAt) : max, 0);
+                        const pricesArr = Array.isArray(latestIngredientPrices) ? latestIngredientPrices : [];
+                        const latestImportTime = pricesArr.reduce((max, p) => p && p.updatedAt ? Math.max(max, p.updatedAt) : max, 0);
                         
                         const getVal = (v: any): number => {
                             if (!v) return 0;
