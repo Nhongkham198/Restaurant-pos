@@ -121,6 +121,7 @@ const HRManagementView = lazy(() => import('./components/HRManagementView'));
 const PrivacyPolicy = lazy(() => import('./components/PrivacyPolicy').then(m => ({ default: m.PrivacyPolicy })));
 const PreOrderManagement = lazy(() => import('./components/PreOrderManagement').then(m => ({ default: m.PreOrderManagement })));
 const PreOrderCustomer = lazy(() => import('./components/PreOrderCustomer').then(m => ({ default: m.PreOrderCustomer })));
+import { LocalErrorBoundary } from './components/LocalErrorBoundary';
 
 import { BottomNavBar } from './components/BottomNavBar';
 
@@ -1633,17 +1634,21 @@ export const App: React.FC = () => {
             );
         }
         return (
-            <Suspense fallback={<PageLoading />}>
-                <PreOrderCustomer />
-            </Suspense>
+            <LocalErrorBoundary title="ไม่สามารถแสดงระบบสั่งอาหารล่วงหน้าได้ชั่วคราว">
+                <Suspense fallback={<PageLoading />}>
+                    <PreOrderCustomer />
+                </Suspense>
+            </LocalErrorBoundary>
         );
     }
 
     if (isPrivacyPolicyMode) {
         return (
-            <Suspense fallback={<PageLoading />}>
-                <PrivacyPolicy />
-            </Suspense>
+            <LocalErrorBoundary title="ไม่สามารถแสดงนโยบายความเป็นส่วนตัวได้ชั่วคราว">
+                <Suspense fallback={<PageLoading />}>
+                    <PrivacyPolicy />
+                </Suspense>
+            </LocalErrorBoundary>
         );
     }
 
@@ -1659,13 +1664,15 @@ export const App: React.FC = () => {
         if (!selectedBranch) return <PageLoading />;
 
         return (
-            <Suspense fallback={<PageLoading />}>
-                <QueueDisplay
-                    activeOrders={activeOrders}
-                    restaurantName={restaurantName}
-                    logoUrl={appLogoUrl || logoUrl}
-                />
-            </Suspense>
+            <LocalErrorBoundary title="ไม่สามารถแสดงระบบจอแสดงคิวได้ชั่วคราว">
+                <Suspense fallback={<PageLoading />}>
+                    <QueueDisplay
+                        activeOrders={activeOrders}
+                        restaurantName={restaurantName}
+                        logoUrl={appLogoUrl || logoUrl}
+                    />
+                </Suspense>
+            </LocalErrorBoundary>
         );
     }
 
@@ -1718,77 +1725,79 @@ export const App: React.FC = () => {
         if (customerTable) {
              const visibleMenuItems = menuItems.filter(item => item.isVisible !== false);
              return (
-                <Suspense fallback={<PageLoading />}>
-                    <CustomerView 
-                        table={customerTable}
-                        menuItems={visibleMenuItems}
-                        categories={categories}
-                        activeOrders={activeOrders.filter(o => o.tableId === targetTableId)}
-                        allBranchOrders={activeOrders}
-                        completedOrders={completedOrders}
-                        onPlaceOrder={(items, name, count, slipUrl, phone, lat, lng, nearby) => handlePlaceOrder(items, name, count, customerTable, false, undefined, undefined, slipUrl, phone, lat, lng, nearby)}
-                        onStaffCall={(table, custName, msg) => {
-                            const now = Date.now();
-                            const currentBranchId = selectedBranch ? selectedBranch.id : Number(branchId || 0);
-                            const tableNameWithFloor = `${table.name} (${table.floor})`;
-                            
-                            // 1. Save to local/Firestore staffCalls state
-                            setStaffCalls(prev => [...prev, {
-                                id: now, 
-                                tableId: table.id, 
-                                tableName: tableNameWithFloor, 
-                                customerName: custName, 
-                                message: msg, 
-                                branchId: currentBranchId, 
-                                timestamp: now
-                            }]);
+                <LocalErrorBoundary title="ไม่สามารถแสดงเมนูสั่งอาหารได้ชั่วคราว">
+                    <Suspense fallback={<PageLoading />}>
+                        <CustomerView 
+                            table={customerTable}
+                            menuItems={visibleMenuItems}
+                            categories={categories}
+                            activeOrders={activeOrders.filter(o => o.tableId === targetTableId)}
+                            allBranchOrders={activeOrders}
+                            completedOrders={completedOrders}
+                            onPlaceOrder={(items, name, count, slipUrl, phone, lat, lng, nearby) => handlePlaceOrder(items, name, count, customerTable, false, undefined, undefined, slipUrl, phone, lat, lng, nearby)}
+                            onStaffCall={(table, custName, msg) => {
+                                const now = Date.now();
+                                const currentBranchId = selectedBranch ? selectedBranch.id : Number(branchId || 0);
+                                const tableNameWithFloor = `${table.name} (${table.floor})`;
+                                
+                                // 1. Save to local/Firestore staffCalls state
+                                setStaffCalls(prev => [...prev, {
+                                    id: now, 
+                                    tableId: table.id, 
+                                    tableName: tableNameWithFloor, 
+                                    customerName: custName, 
+                                    message: msg, 
+                                    branchId: currentBranchId, 
+                                    timestamp: now
+                                }]);
 
-                            // 2. Client-side fallback send notifications to Telegram for this branch
-                            try {
-                                if (telegramBotToken && telegramChatId) {
-                                    const timeStr = new Date(now).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-                                    const messageText = `<b>🙋 ลูกค้าเรียกพนักงาน!</b>\n` +
-                                                        `📍 โต๊ะ: ${tableNameWithFloor}\n` +
-                                                        `👤 ลูกค้า: ${custName}\n` +
-                                                        `🕒 เวลา: ${timeStr}` +
-                                                        (msg ? `\n💬 ข้อความเพิ่มเติม: <b>${msg}</b>` : '');
-                                    sendTelegramMessage({ botToken: telegramBotToken, chatId: telegramChatId }, messageText).catch(console.error);
+                                // 2. Client-side fallback send notifications to Telegram for this branch
+                                try {
+                                    if (telegramBotToken && telegramChatId) {
+                                        const timeStr = new Date(now).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                                        const messageText = `<b>🙋 ลูกค้าเรียกพนักงาน!</b>\n` +
+                                                            `📍 โต๊ะ: ${tableNameWithFloor}\n` +
+                                                            `👤 ลูกค้า: ${custName}\n` +
+                                                            `🕒 เวลา: ${timeStr}` +
+                                                            (msg ? `\n💬 ข้อความเพิ่มเติม: <b>${msg}</b>` : '');
+                                        sendTelegramMessage({ botToken: telegramBotToken, chatId: telegramChatId }, messageText).catch(console.error);
+                                    }
+                                } catch (e) {
+                                    console.error('Error sending staff call Telegram notification:', e);
                                 }
-                            } catch (e) {
-                                console.error('Error sending staff call Telegram notification:', e);
-                            }
 
-                            // 3. Client-side fallback send notifications to LINE for this branch
-                            try {
-                                if (lineMessagingToken && lineUserId) {
-                                    const text = `🔔 ลูกค้าเรียกพนักงาน!\nโต๊ะ: ${tableNameWithFloor}\nคุณ: ${custName}` + (msg ? `\nข้อความเพิ่มเติม: ${msg}` : '\nต้องการความช่วยเหลือ');
-                                    sendLineMessage({ messagingToken: lineMessagingToken, userId: lineUserId }, text).catch(console.error);
-                                } else if (lineNotifyToken) {
-                                    const text = `🔔 ลูกค้าเรียกพนักงาน!\nโต๊ะ: ${tableNameWithFloor}\nคุณ: ${custName}` + (msg ? `\nข้อความเพิ่มเติม: ${msg}` : '\nต้องการความช่วยเหลือ');
-                                    sendLineMessage({ notifyToken: lineNotifyToken }, text).catch(console.error);
+                                // 3. Client-side fallback send notifications to LINE for this branch
+                                try {
+                                    if (lineMessagingToken && lineUserId) {
+                                        const text = `🔔 ลูกค้าเรียกพนักงาน!\nโต๊ะ: ${tableNameWithFloor}\nคุณ: ${custName}` + (msg ? `\nข้อความเพิ่มเติม: ${msg}` : '\nต้องการความช่วยเหลือ');
+                                        sendLineMessage({ messagingToken: lineMessagingToken, userId: lineUserId }, text).catch(console.error);
+                                    } else if (lineNotifyToken) {
+                                        const text = `🔔 ลูกค้าเรียกพนักงาน!\nโต๊ะ: ${tableNameWithFloor}\nคุณ: ${custName}` + (msg ? `\nข้อความเพิ่มเติม: ${msg}` : '\nต้องการความช่วยเหลือ');
+                                        sendLineMessage({ notifyToken: lineNotifyToken }, text).catch(console.error);
+                                    }
+                                } catch (e) {
+                                    console.error('Error sending staff call LINE notification:', e);
                                 }
-                            } catch (e) {
-                                console.error('Error sending staff call LINE notification:', e);
-                            }
-                        }}
-                        recommendedMenuItemIds={recommendedMenuItemIds}
-                        logoUrl={appLogoUrl || logoUrl}
-                        qrCodeUrl={qrCodeUrl}
-                        restaurantName={restaurantName}
-                        // NEW: Pass branchName prop to display it on customer view
-                        branchName={selectedBranch ? selectedBranch.name : (branches.find(b => b.id.toString() === branchId)?.name || '')}
-                        onLogout={handleLogout}
-                        // FIX: Pass branchId to enable peeking feature for instant updates
-                        branchId={branchId}
-                        lineOaUrl={lineOaUrl}
-                        facebookPageUrl={facebookPageUrl}
-                        openingTime={openingTime}
-                        closingTime={closingTime}
-                        qrPopupEnabled={qrPopupEnabled}
-                        qrPopupImageUrl={qrPopupImageUrl}
-                        qrPopupMessage={qrPopupMessage}
-                    />
-                </Suspense>
+                            }}
+                            recommendedMenuItemIds={recommendedMenuItemIds}
+                            logoUrl={appLogoUrl || logoUrl}
+                            qrCodeUrl={qrCodeUrl}
+                            restaurantName={restaurantName}
+                            // NEW: Pass branchName prop to display it on customer view
+                            branchName={selectedBranch ? selectedBranch.name : (branches.find(b => b.id.toString() === branchId)?.name || '')}
+                            onLogout={handleLogout}
+                            // FIX: Pass branchId to enable peeking feature for instant updates
+                            branchId={branchId}
+                            lineOaUrl={lineOaUrl}
+                            facebookPageUrl={facebookPageUrl}
+                            openingTime={openingTime}
+                            closingTime={closingTime}
+                            qrPopupEnabled={qrPopupEnabled}
+                            qrPopupImageUrl={qrPopupImageUrl}
+                            qrPopupMessage={qrPopupMessage}
+                        />
+                    </Suspense>
+                </LocalErrorBoundary>
              );
         }
 
@@ -2049,82 +2058,84 @@ export const App: React.FC = () => {
                                         onOpenTagRegistration={() => setModalState(prev => ({ ...prev, isTagRegistration: true }))}
                                     />
                                     <div className="flex-1 overflow-y-auto">
-                                        <Suspense fallback={<PageLoading />}>
-                                            {/* KitchenView passed with NEW Props */}
-                                            {currentView === 'kitchen' && (
-                                                <KitchenView 
-                                                    activeOrders={activeOrders} 
-                                                    onCompleteOrder={handleCompleteOrder} 
-                                                    onStartCooking={handleStartCooking} 
-                                                    onPrintOrder={handlePrintKitchenOrder}
-                                                    onCancelOrder={handleCancelOrder}
-                                                    isAutoPrintEnabled={isAutoPrintEnabled} // Pass prop
-                                                    onToggleAutoPrint={toggleAutoPrint}     // Pass handler
-                                                />
-                                            )}
-                                            {currentView === 'pre-order-management' && (
-                                                <PreOrderManagement />
-                                            )}
-                                            {/* ... Other mobile views ... */}
-                                            {currentView === 'leave' && (
-                                                <LeaveCalendarView 
-                                                    leaveRequests={visibleLeaveRequests} 
-                                                    currentUser={currentUser} 
-                                                    users={users} 
-                                                    onOpenRequestModal={(date) => { 
-                                                        setLeaveRequestInitialDate(date); 
-                                                        setModalState(prev => ({...prev, isLeaveRequest: true})); 
-                                                    }} 
-                                                    branches={branches} 
-                                                    onUpdateStatus={handleUpdateLeaveStatus} 
-                                                    onUpdateType={handleUpdateLeaveType}
-                                                    onDeleteRequest={handleDeleteLeaveRequest} 
-                                                    selectedBranch={selectedBranch}
-                                                    isEditMode={isEditMode}
-                                                />
-                                            )}
-                                            {currentView === 'tables' && <TableLayout tables={tables} activeOrders={activeOrders} onTableSelect={(id) => { setSelectedTableId(id); handleViewChange('pos'); }} onShowBill={handleShowBill} onGeneratePin={handleGeneratePin} currentUser={currentUser} printerConfig={printerConfig} floors={floors} selectedBranch={selectedBranch} restaurantName={restaurantName} logoUrl={logoUrl} qrCodeUrl={qrCodeUrl} isEditMode={isEditMode} onUpdateFloors={setFloors} />}
-                                            {currentView === 'dashboard' && <Dashboard completedOrders={completedOrders} cancelledOrders={cancelledOrders} openingTime={openingTime || '10:00'} closingTime={closingTime || '22:00'} currentUser={currentUser} recipes={recipes} deliveryProviders={deliveryProviders} taxRate={taxRate} />}
-                                            {currentView === 'history' && <SalesHistory completedOrders={completedOrders} cancelledOrders={cancelledOrders} printHistory={printHistory} onReprint={() => {}} onSplitOrder={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isSplitCompleted: true}))}} isEditMode={isEditMode} onEditOrder={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isEditCompleted: true}))}} onInitiateCashBill={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isCashBill: true}))}} onDeleteHistory={handleDeleteHistory} currentUser={currentUser} onReprintReceipt={handleReprintReceipt} onPrintKitchenOrder={(order) => handlePrintKitchenOrder(order.id, order)} recipes={recipes} deliveryProviders={deliveryProviders} taxRate={taxRate} onUpdateCompletedOrder={newCompletedOrdersActions.update} floors={floors} />}
-                                            {currentView === 'stock' && <StockManagement stockItems={stockItems} setStockItems={setStockItems} stockTags={stockTags} setStockTags={setStockTags} stockCategories={stockCategories} setStockCategories={setStockCategories} stockUnits={stockUnits} setStockUnits={setStockUnits} stockLogs={stockLogs} stockLogsActions={stockLogsActions} currentUser={currentUser} isTagModalOpen={modalState.isTagRegistration} onOpenTagModal={() => setModalState(prev => ({ ...prev, isTagRegistration: true }))} onCloseTagModal={() => setModalState(prev => ({ ...prev, isTagRegistration: false }))} />}
-                                            {currentView === 'recipes' && <RecipeManagement menuItems={menuItems} setMenuItems={setMenuItems} recipes={recipes} setRecipes={setRecipes} stockItems={stockItems} currentUser={currentUser} />}
-                                            {currentView === 'stock-analytics' && <StockAnalytics stockItems={stockItems} />}
-                                            {currentView === 'leave-analytics' && <LeaveAnalytics leaveRequests={visibleLeaveRequests} users={users} />}
-                                            {currentView === 'closing-checklist' && (
-                                                <ClosingChecklistView 
-                                                    currentUser={currentUser}
-                                                    selectedBranch={selectedBranch}
-                                                    branches={branches}
-                                                    isEditMode={isEditMode}
-                                                />
-                                            )}
-                                            {currentView === 'maintenance' && (
-                                                <MaintenanceView 
-                                                    maintenanceItems={maintenanceItems}
-                                                    setMaintenanceItems={setMaintenanceItems}
-                                                    maintenanceLogs={maintenanceLogs}
-                                                    maintenanceLogsActions={maintenanceLogsActions}
-                                                    currentUser={currentUser}
-                                                    isEditMode={isEditMode}
-                                                />
-                                            )}
-                                            {(currentView === 'hr' || currentView === 'hr-payroll' || currentView === 'goal') && (
-                                                <HRManagementView 
-                                                    isEditMode={isEditMode} 
-                                                    onOpenUserManager={handleOpenUserManagerWithData} 
-                                                    initialTab={currentView === 'hr-payroll' ? 'payroll' : (currentView === 'goal' ? 'goal' : 'application')}
-                                                />
-                                            )}
-                                            {currentView === 'expense-analysis' && (
-                                                <div className="h-full w-full bg-white">
-                                                    <iframe 
-                                                        src={`https://store-expense-visualizer-v2.vercel.app/${selectedExpenseBranchId ? `?branchId=${selectedExpenseBranchId}` : ''}`} 
-                                                        className="w-full h-full border-none"
-                                                        title="Expense Analysis"
+                                        <LocalErrorBoundary title="ไม่สามารถแสดงเนื้อหาของหน้าต่างนี้ได้ชั่วคราว">
+                                            <Suspense fallback={<PageLoading />}>
+                                                {/* KitchenView passed with NEW Props */}
+                                                {currentView === 'kitchen' && (
+                                                    <KitchenView 
+                                                        activeOrders={activeOrders} 
+                                                        onCompleteOrder={handleCompleteOrder} 
+                                                        onStartCooking={handleStartCooking} 
+                                                        onPrintOrder={handlePrintKitchenOrder}
+                                                        onCancelOrder={handleCancelOrder}
+                                                        isAutoPrintEnabled={isAutoPrintEnabled} // Pass prop
+                                                        onToggleAutoPrint={toggleAutoPrint}     // Pass handler
                                                     />
-                                                </div>
-                                            )}
-                                        </Suspense>
+                                                )}
+                                                {currentView === 'pre-order-management' && (
+                                                    <PreOrderManagement />
+                                                )}
+                                                {/* ... Other mobile views ... */}
+                                                {currentView === 'leave' && (
+                                                    <LeaveCalendarView 
+                                                        leaveRequests={visibleLeaveRequests} 
+                                                        currentUser={currentUser} 
+                                                        users={users} 
+                                                        onOpenRequestModal={(date) => { 
+                                                            setLeaveRequestInitialDate(date); 
+                                                            setModalState(prev => ({...prev, isLeaveRequest: true})); 
+                                                        }} 
+                                                        branches={branches} 
+                                                        onUpdateStatus={handleUpdateLeaveStatus} 
+                                                        onUpdateType={handleUpdateLeaveType}
+                                                        onDeleteRequest={handleDeleteLeaveRequest} 
+                                                        selectedBranch={selectedBranch}
+                                                        isEditMode={isEditMode}
+                                                    />
+                                                )}
+                                                {currentView === 'tables' && <TableLayout tables={tables} activeOrders={activeOrders} onTableSelect={(id) => { setSelectedTableId(id); handleViewChange('pos'); }} onShowBill={handleShowBill} onGeneratePin={handleGeneratePin} currentUser={currentUser} printerConfig={printerConfig} floors={floors} selectedBranch={selectedBranch} restaurantName={restaurantName} logoUrl={logoUrl} qrCodeUrl={qrCodeUrl} isEditMode={isEditMode} onUpdateFloors={setFloors} />}
+                                                {currentView === 'dashboard' && <Dashboard completedOrders={completedOrders} cancelledOrders={cancelledOrders} openingTime={openingTime || '10:00'} closingTime={closingTime || '22:00'} currentUser={currentUser} recipes={recipes} deliveryProviders={deliveryProviders} taxRate={taxRate} />}
+                                                {currentView === 'history' && <SalesHistory completedOrders={completedOrders} cancelledOrders={cancelledOrders} printHistory={printHistory} onReprint={() => {}} onSplitOrder={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isSplitCompleted: true}))}} isEditMode={isEditMode} onEditOrder={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isEditCompleted: true}))}} onInitiateCashBill={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isCashBill: true}))}} onDeleteHistory={handleDeleteHistory} currentUser={currentUser} onReprintReceipt={handleReprintReceipt} onPrintKitchenOrder={(order) => handlePrintKitchenOrder(order.id, order)} recipes={recipes} deliveryProviders={deliveryProviders} taxRate={taxRate} onUpdateCompletedOrder={newCompletedOrdersActions.update} floors={floors} />}
+                                                {currentView === 'stock' && <StockManagement stockItems={stockItems} setStockItems={setStockItems} stockTags={stockTags} setStockTags={setStockTags} stockCategories={stockCategories} setStockCategories={setStockCategories} stockUnits={stockUnits} setStockUnits={setStockUnits} stockLogs={stockLogs} stockLogsActions={stockLogsActions} currentUser={currentUser} isTagModalOpen={modalState.isTagRegistration} onOpenTagModal={() => setModalState(prev => ({ ...prev, isTagRegistration: true }))} onCloseTagModal={() => setModalState(prev => ({ ...prev, isTagRegistration: false }))} />}
+                                                {currentView === 'recipes' && <RecipeManagement menuItems={menuItems} setMenuItems={setMenuItems} recipes={recipes} setRecipes={setRecipes} stockItems={stockItems} currentUser={currentUser} />}
+                                                {currentView === 'stock-analytics' && <StockAnalytics stockItems={stockItems} />}
+                                                {currentView === 'leave-analytics' && <LeaveAnalytics leaveRequests={visibleLeaveRequests} users={users} />}
+                                                {currentView === 'closing-checklist' && (
+                                                    <ClosingChecklistView 
+                                                        currentUser={currentUser}
+                                                        selectedBranch={selectedBranch}
+                                                        branches={branches}
+                                                        isEditMode={isEditMode}
+                                                    />
+                                                )}
+                                                {currentView === 'maintenance' && (
+                                                    <MaintenanceView 
+                                                        maintenanceItems={maintenanceItems}
+                                                        setMaintenanceItems={setMaintenanceItems}
+                                                        maintenanceLogs={maintenanceLogs}
+                                                        maintenanceLogsActions={maintenanceLogsActions}
+                                                        currentUser={currentUser}
+                                                        isEditMode={isEditMode}
+                                                    />
+                                                )}
+                                                {(currentView === 'hr' || currentView === 'hr-payroll' || currentView === 'goal') && (
+                                                    <HRManagementView 
+                                                        isEditMode={isEditMode} 
+                                                        onOpenUserManager={handleOpenUserManagerWithData} 
+                                                        initialTab={currentView === 'hr-payroll' ? 'payroll' : (currentView === 'goal' ? 'goal' : 'application')}
+                                                    />
+                                                )}
+                                                {currentView === 'expense-analysis' && (
+                                                    <div className="h-full w-full bg-white">
+                                                        <iframe 
+                                                            src={`https://store-expense-visualizer-v2.vercel.app/${selectedExpenseBranchId ? `?branchId=${selectedExpenseBranchId}` : ''}`} 
+                                                            className="w-full h-full border-none"
+                                                            title="Expense Analysis"
+                                                        />
+                                                    </div>
+                                                )}
+                                            </Suspense>
+                                        </LocalErrorBoundary>
                                     </div>
                                 </div>
                             )}
@@ -2133,81 +2144,83 @@ export const App: React.FC = () => {
 
                     {/* Desktop Other Views */}
                     {isDesktop && currentView !== 'pos' && (
-                        <Suspense fallback={<PageLoading />}>
-                            {/* KitchenView passed with NEW Props */}
-                            {currentView === 'kitchen' && (
-                                <KitchenView 
-                                    activeOrders={activeOrders} 
-                                    onCompleteOrder={handleCompleteOrder} 
-                                    onStartCooking={handleStartCooking} 
-                                    onPrintOrder={handlePrintKitchenOrder}
-                                    onCancelOrder={handleCancelOrder}
-                                    isAutoPrintEnabled={isAutoPrintEnabled} // Pass prop
-                                    onToggleAutoPrint={toggleAutoPrint}     // Pass handler
-                                />
-                            )}
-                            {currentView === 'pre-order-management' && (
-                                <PreOrderManagement />
-                            )}
-                            {currentView === 'tables' && <TableLayout tables={tables} activeOrders={activeOrders} onTableSelect={(id) => { setSelectedTableId(id); handleViewChange('pos'); }} onShowBill={handleShowBill} onGeneratePin={handleGeneratePin} currentUser={currentUser} printerConfig={printerConfig} floors={floors} selectedBranch={selectedBranch} restaurantName={restaurantName} logoUrl={logoUrl} qrCodeUrl={qrCodeUrl} isEditMode={isEditMode} onUpdateFloors={setFloors} />}
-                            {currentView === 'dashboard' && <Dashboard completedOrders={completedOrders} cancelledOrders={cancelledOrders} openingTime={openingTime || '10:00'} closingTime={closingTime || '22:00'} currentUser={currentUser} recipes={recipes} deliveryProviders={deliveryProviders} taxRate={taxRate} />}
-                            {currentView === 'history' && <SalesHistory completedOrders={completedOrders} cancelledOrders={cancelledOrders} printHistory={printHistory} onReprint={() => {}} onSplitOrder={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isSplitCompleted: true}))}} isEditMode={isEditMode} onEditOrder={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isEditCompleted: true}))}} onInitiateCashBill={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isCashBill: true}))}} onDeleteHistory={handleDeleteHistory} currentUser={currentUser} onReprintReceipt={handleReprintReceipt} onPrintKitchenOrder={(order) => handlePrintKitchenOrder(order.id, order)} recipes={recipes} deliveryProviders={deliveryProviders} taxRate={taxRate} onUpdateCompletedOrder={newCompletedOrdersActions.update} floors={floors} />}
-                            {currentView === 'stock' && <StockManagement stockItems={stockItems} setStockItems={setStockItems} stockTags={stockTags} setStockTags={setStockTags} stockCategories={stockCategories} setStockCategories={setStockCategories} stockUnits={stockUnits} setStockUnits={setStockUnits} stockLogs={stockLogs} stockLogsActions={stockLogsActions} currentUser={currentUser} isTagModalOpen={modalState.isTagRegistration} onOpenTagModal={() => setModalState(prev => ({ ...prev, isTagRegistration: true }))} onCloseTagModal={() => setModalState(prev => ({ ...prev, isTagRegistration: false }))} />}
-                            {currentView === 'recipes' && <RecipeManagement menuItems={menuItems} setMenuItems={setMenuItems} recipes={recipes} setRecipes={setRecipes} stockItems={stockItems} currentUser={currentUser} />}
-                            {currentView === 'stock-analytics' && <StockAnalytics stockItems={stockItems} />}
-                            {currentView === 'leave' && (
-                                <LeaveCalendarView 
-                                    leaveRequests={visibleLeaveRequests} 
-                                    currentUser={currentUser} 
-                                    users={users} 
-                                    onOpenRequestModal={(date) => { 
-                                        setLeaveRequestInitialDate(date); 
-                                        setModalState(prev => ({...prev, isLeaveRequest: true})); 
-                                    }} 
-                                    branches={branches} 
-                                    onUpdateStatus={handleUpdateLeaveStatus} 
-                                    onUpdateType={handleUpdateLeaveType}
-                                    onDeleteRequest={handleDeleteLeaveRequest} 
-                                    selectedBranch={selectedBranch}
-                                    isEditMode={isEditMode}
-                                />
-                            )}
-                            {currentView === 'leave-analytics' && <LeaveAnalytics leaveRequests={visibleLeaveRequests} users={users} />}
-                            {currentView === 'closing-checklist' && (
-                                <ClosingChecklistView 
-                                    currentUser={currentUser}
-                                    selectedBranch={selectedBranch}
-                                    branches={branches}
-                                    isEditMode={isEditMode}
-                                />
-                            )}
-                            {currentView === 'maintenance' && (
-                                <MaintenanceView 
-                                    maintenanceItems={maintenanceItems}
-                                    setMaintenanceItems={setMaintenanceItems}
-                                    maintenanceLogs={maintenanceLogs}
-                                    maintenanceLogsActions={maintenanceLogsActions}
-                                    currentUser={currentUser}
-                                    isEditMode={isEditMode}
-                                />
-                            )}
-                            {(currentView === 'hr' || currentView === 'hr-payroll' || currentView === 'goal') && (
-                                <HRManagementView 
-                                    isEditMode={isEditMode} 
-                                    onOpenUserManager={handleOpenUserManagerWithData} 
-                                    initialTab={currentView === 'hr-payroll' ? 'payroll' : (currentView === 'goal' ? 'goal' : 'application')}
-                                />
-                            )}
-                            {currentView === 'expense-analysis' && (
-                                <div className="h-full w-full bg-white">
-                                    <iframe 
-                                        src={`https://store-expense-visualizer-v2.vercel.app/${selectedExpenseBranchId ? `?branchId=${selectedExpenseBranchId}` : ''}`} 
-                                        className="w-full h-full border-none"
-                                        title="Expense Analysis"
+                        <LocalErrorBoundary title="ไม่สามารถแสดงเนื้อหาของหน้าต่างนี้ได้ชั่วคราว">
+                            <Suspense fallback={<PageLoading />}>
+                                {/* KitchenView passed with NEW Props */}
+                                {currentView === 'kitchen' && (
+                                    <KitchenView 
+                                        activeOrders={activeOrders} 
+                                        onCompleteOrder={handleCompleteOrder} 
+                                        onStartCooking={handleStartCooking} 
+                                        onPrintOrder={handlePrintKitchenOrder}
+                                        onCancelOrder={handleCancelOrder}
+                                        isAutoPrintEnabled={isAutoPrintEnabled} // Pass prop
+                                        onToggleAutoPrint={toggleAutoPrint}     // Pass handler
                                     />
-                                </div>
-                            )}
-                        </Suspense>
+                                )}
+                                {currentView === 'pre-order-management' && (
+                                    <PreOrderManagement />
+                                )}
+                                {currentView === 'tables' && <TableLayout tables={tables} activeOrders={activeOrders} onTableSelect={(id) => { setSelectedTableId(id); handleViewChange('pos'); }} onShowBill={handleShowBill} onGeneratePin={handleGeneratePin} currentUser={currentUser} printerConfig={printerConfig} floors={floors} selectedBranch={selectedBranch} restaurantName={restaurantName} logoUrl={logoUrl} qrCodeUrl={qrCodeUrl} isEditMode={isEditMode} onUpdateFloors={setFloors} />}
+                                {currentView === 'dashboard' && <Dashboard completedOrders={completedOrders} cancelledOrders={cancelledOrders} openingTime={openingTime || '10:00'} closingTime={closingTime || '22:00'} currentUser={currentUser} recipes={recipes} deliveryProviders={deliveryProviders} taxRate={taxRate} />}
+                                {currentView === 'history' && <SalesHistory completedOrders={completedOrders} cancelledOrders={cancelledOrders} printHistory={printHistory} onReprint={() => {}} onSplitOrder={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isSplitCompleted: true}))}} isEditMode={isEditMode} onEditOrder={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isEditCompleted: true}))}} onInitiateCashBill={(order) => {setOrderForModal(order); setModalState(prev => ({...prev, isCashBill: true}))}} onDeleteHistory={handleDeleteHistory} currentUser={currentUser} onReprintReceipt={handleReprintReceipt} onPrintKitchenOrder={(order) => handlePrintKitchenOrder(order.id, order)} recipes={recipes} deliveryProviders={deliveryProviders} taxRate={taxRate} onUpdateCompletedOrder={newCompletedOrdersActions.update} floors={floors} />}
+                                {currentView === 'stock' && <StockManagement stockItems={stockItems} setStockItems={setStockItems} stockTags={stockTags} setStockTags={setStockTags} stockCategories={stockCategories} setStockCategories={setStockCategories} stockUnits={stockUnits} setStockUnits={setStockUnits} stockLogs={stockLogs} stockLogsActions={stockLogsActions} currentUser={currentUser} isTagModalOpen={modalState.isTagRegistration} onOpenTagModal={() => setModalState(prev => ({ ...prev, isTagRegistration: true }))} onCloseTagModal={() => setModalState(prev => ({ ...prev, isTagRegistration: false }))} />}
+                                {currentView === 'recipes' && <RecipeManagement menuItems={menuItems} setMenuItems={setMenuItems} recipes={recipes} setRecipes={setRecipes} stockItems={stockItems} currentUser={currentUser} />}
+                                {currentView === 'stock-analytics' && <StockAnalytics stockItems={stockItems} />}
+                                {currentView === 'leave' && (
+                                    <LeaveCalendarView 
+                                        leaveRequests={visibleLeaveRequests} 
+                                        currentUser={currentUser} 
+                                        users={users} 
+                                        onOpenRequestModal={(date) => { 
+                                            setLeaveRequestInitialDate(date); 
+                                            setModalState(prev => ({...prev, isLeaveRequest: true})); 
+                                        }} 
+                                        branches={branches} 
+                                        onUpdateStatus={handleUpdateLeaveStatus} 
+                                        onUpdateType={handleUpdateLeaveType}
+                                        onDeleteRequest={handleDeleteLeaveRequest} 
+                                        selectedBranch={selectedBranch}
+                                        isEditMode={isEditMode}
+                                    />
+                                )}
+                                {currentView === 'leave-analytics' && <LeaveAnalytics leaveRequests={visibleLeaveRequests} users={users} />}
+                                {currentView === 'closing-checklist' && (
+                                    <ClosingChecklistView 
+                                        currentUser={currentUser}
+                                        selectedBranch={selectedBranch}
+                                        branches={branches}
+                                        isEditMode={isEditMode}
+                                    />
+                                )}
+                                {currentView === 'maintenance' && (
+                                    <MaintenanceView 
+                                        maintenanceItems={maintenanceItems}
+                                        setMaintenanceItems={setMaintenanceItems}
+                                        maintenanceLogs={maintenanceLogs}
+                                        maintenanceLogsActions={maintenanceLogsActions}
+                                        currentUser={currentUser}
+                                        isEditMode={isEditMode}
+                                    />
+                                )}
+                                {(currentView === 'hr' || currentView === 'hr-payroll' || currentView === 'goal') && (
+                                    <HRManagementView 
+                                        isEditMode={isEditMode} 
+                                        onOpenUserManager={handleOpenUserManagerWithData} 
+                                        initialTab={currentView === 'hr-payroll' ? 'payroll' : (currentView === 'goal' ? 'goal' : 'application')}
+                                    />
+                                )}
+                                {currentView === 'expense-analysis' && (
+                                    <div className="h-full w-full bg-white">
+                                        <iframe 
+                                            src={`https://store-expense-visualizer-v2.vercel.app/${selectedExpenseBranchId ? `?branchId=${selectedExpenseBranchId}` : ''}`} 
+                                            className="w-full h-full border-none"
+                                            title="Expense Analysis"
+                                        />
+                                    </div>
+                                )}
+                            </Suspense>
+                        </LocalErrorBoundary>
                     )}
                 </main>
             </div>
