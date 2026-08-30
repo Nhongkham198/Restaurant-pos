@@ -26,11 +26,51 @@ export class LocalErrorBoundary extends Component<Props, State> {
     console.error("LocalErrorBoundary caught an error:", error, errorInfo);
   }
 
-  handleRetry = () => {
+  handleRetry = async () => {
+    const error = this.state.error;
+    const isCriticalCacheOrHookError = error && (
+      error.name === 'ChunkLoadError' ||
+      /Failed to fetch dynamically imported module/.test(error.message) ||
+      /Loading chunk .* failed/.test(error.message) ||
+      /Invalid hook call/.test(error.message) ||
+      /reading 'useState'/.test(error.message) ||
+      /reading 'useRef'/.test(error.message) ||
+      /reading 'useMemo'/.test(error.message) ||
+      /reading 'useCallback'/.test(error.message)
+    );
+
     this.setState({ isRetrying: true });
-    setTimeout(() => {
-      this.setState({ hasError: false, error: null, isRetrying: false });
-    }, 450); // Elegant 450ms loading spinner
+
+    if (isCriticalCacheOrHookError) {
+      console.warn("Critical React Hook or Cache Mismatch detected inside LocalErrorBoundary. Initiating hard recovery...");
+      try {
+        // 1. Clear all storage cache
+        if ('caches' in window) {
+          const cacheKeys = await caches.keys();
+          await Promise.all(cacheKeys.map(key => caches.delete(key)));
+          console.log("Cached storage cleared successfully.");
+        }
+        
+        // 2. Unregister all service workers to ensure fresh code fetching
+        if ('serviceWorker' in navigator) {
+          const registrations = await navigator.serviceWorker.getRegistrations();
+          await Promise.all(registrations.map(reg => reg.unregister()));
+          console.log("Service workers unregistered successfully.");
+        }
+
+        // 3. Clear transient storage to avoid loop traps
+        sessionStorage.removeItem('last_chunk_error_reload');
+      } catch (e) {
+        console.error("Self-healing cache clearance encountered an issue:", e);
+      } finally {
+        // 4. Trigger hard reload from the server
+        window.location.reload();
+      }
+    } else {
+      setTimeout(() => {
+        this.setState({ hasError: false, error: null, isRetrying: false });
+      }, 450); // Elegant 450ms loading spinner
+    }
   };
 
   render() {
