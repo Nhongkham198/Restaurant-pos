@@ -170,7 +170,17 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     qrPopupMessage
 }) => {
     // ... (Keep existing state hooks)
-    const [lang, setLang] = useState<'TH' | 'EN'>('TH');
+    const [lang, setLang] = useState<'TH' | 'EN'>(() => {
+        try {
+            const browserLang = navigator.language || (navigator as any).userLanguage;
+            if (browserLang && !browserLang.toLowerCase().startsWith('th')) {
+                return 'EN';
+            }
+        } catch (e) {
+            console.error("Failed to auto-detect browser language:", e);
+        }
+        return 'TH';
+    });
 
     const isClosed = useMemo(() => {
         if (!openingTime || !closingTime) return false;
@@ -207,6 +217,10 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         return saved ? parseInt(saved) : 1;
     });
     const [hasSetInitialCount, setHasSetInitialCount] = useState(false);
+    const [showGuestCountModal, setShowGuestCountModal] = useState(false);
+    const [guestCountVal, setGuestCountVal] = useState(1);
+    const [isWelcomeBack, setIsWelcomeBack] = useState(false);
+    const [existingCountVal, setExistingCountVal] = useState<number | null>(null);
 
     const [isSessionCompleted, setIsSessionCompleted] = useState(() => {
         return sessionStorage.getItem(`customer_completed_${table.id}`) === 'true';
@@ -511,71 +525,39 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                 return;
             }
 
-            let title = 'มากี่ท่านคะ?';
-            let html = '<p class="text-gray-600 mb-4">เพื่อความสะดวกในการเตรียมอุปกรณ์ (จาน, ช้อน, ส้อม) ให้ครบถ้วน</p>';
-            let initialValue = existingCount || customerCount || 1;
-
-            if (existingCount !== null && (!savedCount || parseInt(savedCount) !== existingCount)) {
-                title = 'ยินดีต้อนรับกลับค่ะ!';
-                html = `
-                    <div class="text-left space-y-2">
-                        <p class="text-sm text-gray-600">ขณะนี้มีรายการอาหารสั่งไว้ที่โต๊ะนี้แล้ว</p>
-                        <p class="text-sm font-bold text-blue-600">จำนวนท่านที่บันทึกไว้: ${existingCount} ท่าน</p>
-                        <p class="text-xs text-gray-400 font-medium border-t pt-2">หากท่านมาเพิ่ม หรือต้องการแก้ไขจำนวนจาน/ช้อน สามารถระบุใหม่ด้านล่างได้เลยค่ะ</p>
-                    </div>
-                `;
-                initialValue = existingCount;
-            }
-
-            const { value: count } = await Swal.fire({
-                title: title,
-                html: html,
-                input: 'number',
-                inputValue: initialValue,
-                inputAttributes: {
-                    min: '1',
-                    max: '50',
-                    step: '1'
-                },
-                showConfirmButton: true,
-                confirmButtonText: 'ยืนยันจำนวน',
-                confirmButtonColor: '#3b82f6',
-                allowOutsideClick: false,
-                inputValidator: (value) => {
-                    if (!value || parseInt(value) < 1) {
-                        return 'กรุณาระบุจำนวนอย่างน้อย 1 ท่านค่ะ';
-                    }
-                    return null;
-                }
-            });
-
-            if (count) {
-                const newCount = parseInt(count);
-                const prevCount = existingCount || (savedCount ? parseInt(savedCount) : 0);
-                
-                setCustomerCount(newCount);
-                localStorage.setItem(countKey, newCount.toString());
-                setHasSetInitialCount(true);
-
-                // If count increased, alert staff to bring more equipment
-                if (existingCount !== null && newCount > existingCount) {
-                    const diff = newCount - existingCount;
-                    onStaffCall(table, customerName, `ลูกค้ามาเพิ่ม ${diff} ท่าน (รวมเป็น ${newCount} ท่าน) กรุณาเตรียมจาน/ช้อนเพิ่มครับ/ค่ะ`);
-                    
-                    Swal.fire({
-                        toast: true,
-                        position: 'top-end',
-                        icon: 'success',
-                        title: 'แจ้งพนักงานเตรียมอุปกรณ์เพิ่มแล้ว',
-                        showConfirmButton: false,
-                        timer: 3000
-                    });
-                }
-            }
+            setExistingCountVal(existingCount);
+            setGuestCountVal(existingCount || customerCount || 1);
+            setIsWelcomeBack(existingCount !== null && (!savedCount || parseInt(savedCount) !== existingCount));
+            setShowGuestCountModal(true);
         };
 
         checkCount();
     }, [isAuthenticated, isSessionCompleted, table.id, table.floor, allBranchOrders, hasSetInitialCount]);
+
+    const handleGuestCountSubmit = () => {
+        if (guestCountVal < 1) return;
+
+        const newCount = guestCountVal;
+        setCustomerCount(newCount);
+        localStorage.setItem(countKey, newCount.toString());
+        setHasSetInitialCount(true);
+        setShowGuestCountModal(false);
+
+        // If count increased, alert staff to bring more equipment
+        if (existingCountVal !== null && newCount > existingCountVal) {
+            const diff = newCount - existingCountVal;
+            onStaffCall(table, customerName, `ลูกค้ามาเพิ่ม ${diff} ท่าน (รวมเป็น ${newCount} ท่าน) กรุณาเตรียมจาน/ช้อนเพิ่มครับ/ค่ะ`);
+            
+            Swal.fire({
+                toast: true,
+                position: 'top-end',
+                icon: 'success',
+                title: lang === 'TH' ? 'แจ้งพนักงานเตรียมอุปกรณ์เพิ่มแล้ว' : 'Notified staff to bring more equipment',
+                showConfirmButton: false,
+                timer: 3000
+            });
+        }
+    };
 
     const handlePaymentCompleteLock = () => {
         localStorage.removeItem(cartKey);
@@ -1760,6 +1742,114 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                                 <span>{lang === 'TH' ? 'ตกลง' : 'OK'}</span>
                             </button>
                         </div>
+                    </div>
+                </div>
+            )}
+            {/* CUSTOM GUEST COUNT MODAL - TOUCH-FRIENDLY & BILINGUAL */}
+            {showGuestCountModal && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden relative border border-gray-100 p-6 text-center animate-in fade-in zoom-in-95 duration-200">
+                        
+                        {/* Premium Top Right Flag Icons Language Selector */}
+                        <div className="absolute top-4 right-4 flex items-center gap-2">
+                            <button 
+                                type="button"
+                                onClick={() => setLang('TH')} 
+                                className={`flex items-center justify-center w-10 h-8 rounded-lg text-lg border transition-all ${lang === 'TH' ? 'border-blue-500 bg-blue-50 shadow-sm scale-105' : 'border-gray-200 bg-white hover:bg-gray-50'}`}
+                                title="ภาษาไทย"
+                            >
+                                🇹🇭
+                            </button>
+                            <button 
+                                type="button"
+                                onClick={() => setLang('EN')} 
+                                className={`flex items-center justify-center w-10 h-8 rounded-lg text-lg border transition-all ${lang === 'EN' ? 'border-blue-500 bg-blue-50 shadow-sm scale-105' : 'border-gray-200 bg-white hover:bg-gray-50'}`}
+                                title="English"
+                            >
+                                🇬🇧
+                            </button>
+                        </div>
+
+                        {/* Cutlery / Guest Elegant SVG Icon */}
+                        <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-amber-50 border border-amber-100 mb-4">
+                            <svg className="h-8 w-8 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            </svg>
+                        </div>
+
+                        {/* Title Text */}
+                        <h3 className="text-xl font-bold text-gray-900">
+                            {isWelcomeBack 
+                                ? (lang === 'TH' ? 'ยินดีต้อนรับกลับค่ะ!' : 'Welcome Back!')
+                                : (lang === 'TH' ? 'มากี่ท่านคะ?' : 'How many guests?')}
+                        </h3>
+
+                        {/* Subtitle Description */}
+                        <div className="mt-2 text-gray-600 text-sm">
+                            {isWelcomeBack ? (
+                                <div className="text-left space-y-2 mt-2 bg-blue-50/50 p-3 rounded-xl border border-blue-100/50">
+                                    <p className="text-sm text-gray-700">
+                                        {lang === 'TH' ? 'ขณะนี้มีรายการอาหารสั่งไว้ที่โต๊ะนี้แล้ว' : 'There are active orders already placed for this table.'}
+                                    </p>
+                                    <p className="text-sm font-bold text-blue-600">
+                                        {lang === 'TH' ? `จำนวนท่านที่บันทึกไว้: ${existingCountVal} ท่าน` : `Current guests: ${existingCountVal} guests`}
+                                    </p>
+                                    <p className="text-xs text-gray-400 font-medium border-t border-gray-200/60 pt-2 mt-2">
+                                        {lang === 'TH' 
+                                            ? 'หากท่านมาเพิ่ม หรือต้องการแก้ไขจำนวนจาน/ช้อน สามารถระบุใหม่ด้านล่างได้เลยค่ะ' 
+                                            : 'If you have additional guests or wish to adjust the guest count, please update below.'}
+                                    </p>
+                                </div>
+                            ) : (
+                                <p className="leading-relaxed">
+                                    {lang === 'TH' 
+                                        ? 'เพื่อความสะดวกในการเตรียมอุปกรณ์ (จาน, ช้อน, ส้อม) ให้ครบถ้วน' 
+                                        : 'To help us prepare the table and cutlery (plates, spoons, forks) for you.'}
+                                </p>
+                            )}
+                        </div>
+
+                        {/* Touch-friendly stepping controls */}
+                        <div className="flex items-center justify-center gap-4 mt-6">
+                            <button 
+                                type="button"
+                                onClick={() => setGuestCountVal(prev => Math.max(1, prev - 1))}
+                                className="w-12 h-12 rounded-xl bg-gray-100 hover:bg-gray-200 active:scale-95 text-xl font-bold flex items-center justify-center text-gray-700 transition-all select-none"
+                            >
+                                -
+                            </button>
+                            
+                            <input 
+                                type="number"
+                                value={guestCountVal}
+                                onChange={(e) => {
+                                    const val = parseInt(e.target.value, 10);
+                                    if (!isNaN(val)) {
+                                        setGuestCountVal(Math.max(1, Math.min(50, val)));
+                                    }
+                                }}
+                                min="1"
+                                max="50"
+                                className="w-20 h-12 text-center text-2xl font-bold border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            />
+
+                            <button 
+                                type="button"
+                                onClick={() => setGuestCountVal(prev => Math.min(50, prev + 1))}
+                                className="w-12 h-12 rounded-xl bg-gray-100 hover:bg-gray-200 active:scale-95 text-xl font-bold flex items-center justify-center text-gray-700 transition-all select-none"
+                            >
+                                +
+                            </button>
+                        </div>
+
+                        {/* Bottom Action Submit Button */}
+                        <button
+                            type="button"
+                            onClick={handleGuestCountSubmit}
+                            className="mt-6 w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white font-bold rounded-xl transition-all shadow-md shadow-blue-500/10 text-center"
+                        >
+                            {lang === 'TH' ? 'ยืนยันจำนวน' : 'Confirm'}
+                        </button>
                     </div>
                 </div>
             )}
