@@ -105,7 +105,17 @@ export const PreOrderCustomer: React.FC = () => {
         facebookPageUrl
     } = useData();
 
-    const [lang, setLang] = useState<'TH' | 'EN'>('TH');
+    const [lang, setLang] = useState<'TH' | 'EN'>(() => {
+        try {
+            const browserLang = navigator.language || (navigator as any).userLanguage;
+            if (browserLang && !browserLang.toLowerCase().startsWith('th')) {
+                return 'EN';
+            }
+        } catch (e) {
+            console.error("Failed to auto-detect browser language:", e);
+        }
+        return 'TH';
+    });
 
     const t = (text: string) => {
         if (!text) return '';
@@ -130,6 +140,9 @@ export const PreOrderCustomer: React.FC = () => {
     const [notes, setNotes] = useState('');
     const [isInAppBrowser, setIsInAppBrowser] = useState(false);
     const [hasSetCustomerCount, setHasSetCustomerCount] = useState(false);
+    const [showOrderTypeModal, setShowOrderTypeModal] = useState(false);
+    const [showGuestCountModal, setShowGuestCountModal] = useState(false);
+    const [guestCountVal, setGuestCountVal] = useState(1);
     const [showQrPopup, setShowQrPopup] = useState(false);
     const isMonday = new Date().getDay() === 1;
     const isReadOnlyMode = useMemo(() => {
@@ -219,57 +232,12 @@ export const PreOrderCustomer: React.FC = () => {
     useEffect(() => {
         if (!selectedBranch || hasSetCustomerCount || isViewOnly) return;
 
-        const timer = setTimeout(async () => {
-            const { value: type } = await Swal.fire({
-                title: t('สนใจรับประทานแบบไหนดีคะ?'),
-                icon: 'question',
-                showCancelButton: true,
-                confirmButtonText: t('ทานที่ร้าน'),
-                cancelButtonText: t('สั่งกลับบ้าน'),
-                confirmButtonColor: '#3b82f6',
-                cancelButtonColor: '#fbbf24',
-                allowOutsideClick: false,
-                reverseButtons: true
-            });
-
-            if (type) {
-                // User chose Dine-in
-                setOrderType('dine-in');
-                const { value: count } = await Swal.fire({
-                    title: t('มากี่ท่านคะ?'),
-                    text: t('เพื่อความสะดวกในการจัดเตรียมโต๊ะและอุปกรณ์สำหรับท่าน'),
-                    input: 'number',
-                    inputValue: 1,
-                    inputAttributes: {
-                        min: '1',
-                        max: '50',
-                        step: '1'
-                    },
-                    confirmButtonText: t('ตกลง'),
-                    confirmButtonColor: '#3b82f6',
-                    allowOutsideClick: false,
-                    inputValidator: (value) => {
-                        if (!value || parseInt(value) < 1) {
-                            return t('กรุณาระบุจำนวนอย่างน้อย 1 ท่านค่ะ');
-                        }
-                        return null;
-                    }
-                });
-
-                if (count) {
-                    setCustomerCount(parseInt(count));
-                    setHasSetCustomerCount(true);
-                }
-            } else {
-                // User chose Takeaway (Clicked "cancel" button which we labeled "สั่งกลับบ้าน")
-                setOrderType('takeaway');
-                setCustomerCount(0);
-                setHasSetCustomerCount(true);
-            }
+        const timer = setTimeout(() => {
+            setShowOrderTypeModal(true);
         }, 800);
 
         return () => clearTimeout(timer);
-    }, [selectedBranch, hasSetCustomerCount, lang]);
+    }, [selectedBranch, hasSetCustomerCount, isViewOnly]);
 
     const handleCopyLink = () => {
         const currentUrl = window.location.href;
@@ -1107,6 +1075,170 @@ export const PreOrderCustomer: React.FC = () => {
                             </svg>
                         </a>
                     )}
+                </div>
+            )}
+
+            {/* PRE-ORDER DINING TYPE MODAL */}
+            {showOrderTypeModal && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden relative border border-gray-100 p-6 text-center animate-in fade-in zoom-in-95 duration-200">
+                        {/* Premium Flag Selectors */}
+                        <div className="absolute top-4 right-4 flex items-center gap-2">
+                            <button 
+                                type="button"
+                                onClick={() => setLang('TH')} 
+                                className={`flex items-center justify-center w-10 h-8 rounded-lg text-lg border transition-all ${lang === 'TH' ? 'border-blue-500 bg-blue-50 shadow-sm scale-105' : 'border-gray-200 bg-white hover:bg-gray-50'}`}
+                                title="ภาษาไทย"
+                            >
+                                🇹🇭
+                            </button>
+                            <button 
+                                type="button"
+                                onClick={() => setLang('EN')} 
+                                className={`flex items-center justify-center w-10 h-8 rounded-lg text-lg border transition-all ${lang === 'EN' ? 'border-blue-500 bg-blue-50 shadow-sm scale-105' : 'border-gray-200 bg-white hover:bg-gray-50'}`}
+                                title="English"
+                            >
+                                🇬🇧
+                            </button>
+                        </div>
+
+                        {/* Icon */}
+                        <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-blue-50 border border-blue-100 mb-4">
+                            <svg className="h-8 w-8 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                        </div>
+
+                        {/* Title & Description */}
+                        <h3 className="text-xl font-bold text-gray-900 mt-2">
+                            {lang === 'TH' ? 'สนใจรับประทานแบบไหนดีคะ?' : 'How would you like to dine today?'}
+                        </h3>
+                        <p className="text-sm text-gray-500 mt-2">
+                            {lang === 'TH' ? 'กรุณาเลือกรูปแบบการสั่งอาหารล่วงหน้า' : 'Please select your preferred pre-order option'}
+                        </p>
+
+                        {/* Order Type Choice Buttons */}
+                        <div className="grid grid-cols-2 gap-4 mt-6">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setOrderType('dine-in');
+                                    setShowOrderTypeModal(false);
+                                    setShowGuestCountModal(true);
+                                }}
+                                className="flex flex-col items-center justify-center p-4 border-2 border-gray-150 hover:border-blue-500 hover:bg-blue-50/50 rounded-2xl transition-all group"
+                            >
+                                <span className="text-3xl mb-2 group-hover:scale-110 transition-transform">🍽️</span>
+                                <span className="font-bold text-gray-800">{t('ทานที่ร้าน')}</span>
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setOrderType('takeaway');
+                                    setCustomerCount(0);
+                                    setHasSetCustomerCount(true);
+                                    setShowOrderTypeModal(false);
+                                }}
+                                className="flex flex-col items-center justify-center p-4 border-2 border-gray-150 hover:border-amber-500 hover:bg-amber-50/50 rounded-2xl transition-all group"
+                            >
+                                <span className="text-3xl mb-2 group-hover:scale-110 transition-transform">🛍️</span>
+                                <span className="font-bold text-gray-800">{t('สั่งกลับบ้าน')}</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* PRE-ORDER GUEST COUNT MODAL */}
+            {showGuestCountModal && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden relative border border-gray-100 p-6 text-center animate-in fade-in zoom-in-95 duration-200">
+                        {/* Premium Flag Selectors */}
+                        <div className="absolute top-4 right-4 flex items-center gap-2">
+                            <button 
+                                type="button"
+                                onClick={() => setLang('TH')} 
+                                className={`flex items-center justify-center w-10 h-8 rounded-lg text-lg border transition-all ${lang === 'TH' ? 'border-blue-500 bg-blue-50 shadow-sm scale-105' : 'border-gray-200 bg-white hover:bg-gray-50'}`}
+                                title="ภาษาไทย"
+                            >
+                                🇹🇭
+                            </button>
+                            <button 
+                                type="button"
+                                onClick={() => setLang('EN')} 
+                                className={`flex items-center justify-center w-10 h-8 rounded-lg text-lg border transition-all ${lang === 'EN' ? 'border-blue-500 bg-blue-50 shadow-sm scale-105' : 'border-gray-200 bg-white hover:bg-gray-50'}`}
+                                title="English"
+                            >
+                                🇬🇧
+                            </button>
+                        </div>
+
+                        {/* Icon */}
+                        <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-amber-50 border border-amber-100 mb-4">
+                            <svg className="h-8 w-8 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                            </svg>
+                        </div>
+
+                        {/* Title & Description */}
+                        <h3 className="text-xl font-bold text-gray-900 mt-2">
+                            {lang === 'TH' ? 'มากี่ท่านคะ?' : 'How many guests?'}
+                        </h3>
+                        <p className="text-sm text-gray-500 mt-2 leading-relaxed px-4">
+                            {lang === 'TH' 
+                                ? 'เพื่อความสะดวกในการจัดเตรียมโต๊ะและอุปกรณ์สำหรับท่าน' 
+                                : 'To help us prepare the table and cutlery for you.'}
+                        </p>
+
+                        {/* Touch-friendly stepping controls */}
+                        <div className="flex items-center justify-center gap-4 mt-6">
+                            <button 
+                                type="button"
+                                onClick={() => setGuestCountVal(prev => Math.max(1, prev - 1))}
+                                className="w-12 h-12 rounded-xl bg-gray-100 hover:bg-gray-200 active:scale-95 text-xl font-bold flex items-center justify-center text-gray-700 transition-all select-none"
+                            >
+                                -
+                            </button>
+                            
+                            <input 
+                                type="number"
+                                value={guestCountVal}
+                                onChange={(e) => {
+                                    const val = parseInt(e.target.value, 10);
+                                    if (!isNaN(val)) {
+                                        setGuestCountVal(Math.max(1, Math.min(50, val)));
+                                    }
+                                }}
+                                min="1"
+                                max="50"
+                                className="w-20 h-12 text-center text-2xl font-bold border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            />
+
+                            <button 
+                                type="button"
+                                onClick={() => setGuestCountVal(prev => Math.min(50, prev + 1))}
+                                className="w-12 h-12 rounded-xl bg-gray-100 hover:bg-gray-200 active:scale-95 text-xl font-bold flex items-center justify-center text-gray-700 transition-all select-none"
+                            >
+                                +
+                            </button>
+                        </div>
+
+                        {/* Confirm Button */}
+                        <button
+                            type="button"
+                            onClick={() => {
+                                if (guestCountVal >= 1) {
+                                    setCustomerCount(guestCountVal);
+                                    setHasSetCustomerCount(true);
+                                    setShowGuestCountModal(false);
+                                }
+                            }}
+                            className="mt-6 w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white font-bold rounded-xl transition-all shadow-md shadow-blue-500/10 text-center"
+                        >
+                            {lang === 'TH' ? 'ตกลง' : 'OK'}
+                        </button>
+                    </div>
                 </div>
             )}
         </div>
