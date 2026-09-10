@@ -359,11 +359,11 @@ export const PreOrderCustomer: React.FC = () => {
             return;
         }
 
-        if (!customerName.trim() || !customerPhone.trim() || !pickupDate || !pickupTime || cart.length === 0) {
+        if (!customerName.trim() || !customerPhone.trim() || customerPhone.trim().length !== 10 || !pickupDate || !pickupTime || cart.length === 0) {
             Swal.fire({
                 icon: 'error',
                 title: t('ข้อมูลไม่ครบถ้วน'),
-                text: t('กรุณาระบุชื่อ เบอร์โทรศัพท์ และวันเวลานัดรับสินค้าด้วยครับ'),
+                text: t('กรุณาระบุชื่อ เบอร์โทรศัพท์ 10 หลัก และวันเวลานัดรับสินค้าด้วยครับ'),
                 confirmButtonColor: '#3b82f6'
             });
             return;
@@ -837,7 +837,44 @@ export const PreOrderCustomer: React.FC = () => {
                                 ))}
                             </div>
 
-                            <div className="p-8 bg-gray-50 shrink-0 border-t border-gray-100">
+                            <div className="p-8 bg-gray-50 shrink-0 border-t border-gray-100 overflow-y-auto max-h-[50vh]">
+                                {/* Customer Name & Phone Number Fields (Mandatory for Pre-orders) */}
+                                <div className="mb-4 bg-white p-4 rounded-3xl border border-gray-200/60 shadow-sm space-y-3">
+                                    <div className="flex items-center gap-2">
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                        </svg>
+                                        <span className="text-sm font-black text-gray-800">{t('ข้อมูลผู้สั่งอาหาร (จำเป็น)')}</span>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="block text-[10px] font-black text-gray-400 mb-1 uppercase tracking-widest">{t('ชื่อผู้สั่ง')}</label>
+                                            <input 
+                                                type="text" 
+                                                value={customerName}
+                                                onChange={(e) => setCustomerName(e.target.value)}
+                                                placeholder={t('ระบุชื่อของคุณ')}
+                                                className="w-full bg-gray-50 border-2 border-transparent focus:border-blue-600 focus:bg-white rounded-2xl px-3 py-3 text-xs font-bold transition-all outline-none"
+                                                required
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-black text-gray-400 mb-1 uppercase tracking-widest">{t('เบอร์โทรศัพท์')}</label>
+                                            <input 
+                                                type="tel" 
+                                                value={customerPhone}
+                                                onChange={(e) => {
+                                                    const val = e.target.value.replace(/[^0-9]/g, '');
+                                                    setCustomerPhone(val);
+                                                }}
+                                                placeholder={t('เบอร์ติดต่อ')}
+                                                className="w-full bg-gray-50 border-2 border-transparent focus:border-blue-600 focus:bg-white rounded-2xl px-3 py-3 text-xs font-bold transition-all outline-none"
+                                                required
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+
                                 {/* Pickup Date & Time Selection */}
                                 <div className="mb-6 bg-white p-4 rounded-3xl border border-gray-200/60 shadow-sm space-y-3">
                                     <div className="flex items-center gap-2">
@@ -875,6 +912,24 @@ export const PreOrderCustomer: React.FC = () => {
                                 </div>
                                 <button 
                                     onClick={() => {
+                                        if (!customerName.trim()) {
+                                            Swal.fire({
+                                                icon: 'warning',
+                                                title: t('กรุณาระบุชื่อผู้สั่ง'),
+                                                text: t('โปรดกรอกชื่อของคุณในกล่องข้อมูลด้านบนเพื่อยืนยันออเดอร์ค่ะ'),
+                                                confirmButtonColor: '#3b82f6'
+                                            });
+                                            return;
+                                        }
+                                        if (!customerPhone.trim() || customerPhone.trim().length !== 10) {
+                                            Swal.fire({
+                                                icon: 'warning',
+                                                title: t('กรุณาระบุเบอร์โทรศัพท์'),
+                                                text: t('โปรดกรอกเบอร์โทรศัพท์ที่ถูกต้อง (ต้องเป็น 10 หลักเท่านั้น) เพื่อให้ร้านติดต่อกลับค่ะ'),
+                                                confirmButtonColor: '#3b82f6'
+                                            });
+                                            return;
+                                        }
                                         if (!pickupDate || !pickupTime) {
                                             Swal.fire({
                                                 icon: 'warning',
