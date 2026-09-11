@@ -531,6 +531,23 @@ export interface Recipe {
     instructions?: string; // Added: Cooking instructions
 }
 
+export interface SalaryAdvanceRecord {
+    id: number;
+    employeeName: string;
+    userId?: number;
+    amount: number;
+    requestDate: string; // YYYY-MM-DD
+    paymentMethod: 'cash' | 'transfer'; // 'cash' (เงินสด) or 'transfer' (โอนเงิน)
+    reason?: string;
+    approvedBy?: string;
+    slipUrl?: string; // สลิปโอนเงิน (กรณีโอน)
+    status: 'pending' | 'deducted' | 'cancelled'; // pending: รอหักในเงินเดือน, deducted: หักในเงินเดือนแล้ว, cancelled: ยกเลิก
+    payrollRecordId?: number; // รหัสรอบเงินเดือนที่หักไป
+    deductedDate?: string; // วันที่หักในเงินเดือน
+    notes?: string;
+    createdAt?: number;
+}
+
 export interface PayrollRecord {
     id: number;
     employeeName: string;
@@ -548,6 +565,8 @@ export interface PayrollRecord {
     paymentCycle?: 7 | 14 | 30; // Added: Cycle in days (7, 14, or 30)
     workedDays?: number; // Added: Number of actual worked days for probation/daily-pay
     workedDates?: string[]; // Added: List of YYYY-MM-DD dates actually worked
+    advanceDeduction?: number; // Added: ยอดหักเบิกเงินล่วงหน้า
+    advanceRecordIds?: number[]; // Added: รายการไอดีการเบิกที่ถูกหักในรอบนี้
 }
 
 export interface DeliveryPriceHistoryEntry {

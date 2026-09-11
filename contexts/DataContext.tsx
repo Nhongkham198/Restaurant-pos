@@ -6,6 +6,7 @@ import {
     StockItem, StockTag, StockLog, PrintHistoryEntry, MaintenanceItem, MaintenanceLog, 
     OrderCounter, StaffCall, LeaveRequest, PrinterConfig, DeliveryProvider, DEFAULT_DELIVERY_PROVIDERS,
     User, Branch, JobApplication, EmploymentContract, TimeRecord, PayrollRecord,
+    SalaryAdvanceRecord,
     Recipe, IngredientPrice
 } from '../types';
 import { 
@@ -100,6 +101,8 @@ interface DataContextType {
     setTimeRecords: React.Dispatch<React.SetStateAction<TimeRecord[]>>;
     payrollRecords: PayrollRecord[];
     setPayrollRecords: React.Dispatch<React.SetStateAction<PayrollRecord[]>>;
+    salaryAdvances: SalaryAdvanceRecord[];
+    setSalaryAdvances: React.Dispatch<React.SetStateAction<SalaryAdvanceRecord[]>>;
     jobPositions: string[];
     setJobPositions: React.Dispatch<React.SetStateAction<string[]>>;
 
@@ -583,6 +586,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     const [employmentContracts, employmentContractsActions] = useFirestoreCollection<EmploymentContract>(branchId, 'employmentContracts');
     const [timeRecords, setTimeRecords] = useFirestoreSync<TimeRecord[]>(branchId, 'timeRecords', []);
     const [payrollRecords, setPayrollRecords] = useFirestoreSync<PayrollRecord[]>(branchId, 'payrollRecords', []);
+    const [salaryAdvances, setSalaryAdvances] = useFirestoreSync<SalaryAdvanceRecord[]>(branchId, 'salaryAdvances', []);
     const [jobPositions, setJobPositions] = useFirestoreSync<string[]>(branchId, 'jobPositions', []);
 
     // --- SETTINGS ---
@@ -645,7 +649,8 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         lastSalesCleanupDate, setLastSalesCleanupDate,
         
         jobApplications, jobApplicationsActions, employmentContracts, employmentContractsActions,
-        timeRecords, setTimeRecords, payrollRecords, setPayrollRecords, jobPositions, setJobPositions,
+        timeRecords, setTimeRecords, payrollRecords, setPayrollRecords,
+        salaryAdvances, setSalaryAdvances, jobPositions, setJobPositions,
 
         logoUrl, setLogoUrl, appLogoUrl, setAppLogoUrl, restaurantName, setRestaurantName,
         restaurantAddress, setRestaurantAddress, restaurantPhone, setRestaurantPhone, taxId, setTaxId,
@@ -678,7 +683,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         stockLogs, stockLogsActions, printHistory, maintenanceItems, maintenanceLogs, maintenanceLogsActions,
         orderCounter, staffCalls, preOrders, preOrdersActions, leaveRequests, lastSalesCleanupDate,
         jobApplications, jobApplicationsActions, employmentContracts, 
-        employmentContractsActions, timeRecords, payrollRecords, jobPositions,
+        employmentContractsActions, timeRecords, payrollRecords, salaryAdvances, jobPositions,
         logoUrl, appLogoUrl, restaurantName, restaurantAddress, restaurantPhone, 
         taxId, signatureUrl, qrCodeUrl, notificationSoundUrl, staffCallSoundUrl,
         printerConfig, openingTime, closingTime, isTaxEnabled, taxRate, 

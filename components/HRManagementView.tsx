@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useData } from '../contexts/DataContext';
-import { JobApplication, EmploymentContract, TimeRecord, PayrollRecord, LeaveRequest, EmployeeGoal, GoalItem, PeerEvaluation } from '../types';
+import { JobApplication, EmploymentContract, TimeRecord, PayrollRecord, SalaryAdvanceRecord, LeaveRequest, EmployeeGoal, GoalItem, PeerEvaluation } from '../types';
 import { DEFAULT_JOB_APPLICATIONS, DEFAULT_EMPLOYMENT_CONTRACTS } from '../constants';
 import Swal from 'sweetalert2';
 import * as XLSX from 'xlsx';
@@ -78,6 +78,7 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
         employmentContracts, employmentContractsActions,
         timeRecords, setTimeRecords,
         payrollRecords, setPayrollRecords,
+        salaryAdvances, setSalaryAdvances,
         leaveRequests, setLeaveRequests,
         users, setUsers, branchId,
         jobPositions, setJobPositions,
@@ -328,6 +329,12 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                         setTimeRecords(prev => prev.filter(item => !selectedItems.includes(item.id as any)));
                         break;
                     case 'payroll':
+                        setSalaryAdvances(prev => prev.map(item => {
+                            if (item.payrollRecordId && selectedItems.includes(item.payrollRecordId as any)) {
+                                return { ...item, status: 'pending', payrollRecordId: undefined, deductedDate: undefined };
+                            }
+                            return item;
+                        }));
                         setPayrollRecords(prev => prev.filter(item => !selectedItems.includes(item.id as any)));
                         break;
                     case 'leave':
@@ -934,6 +941,460 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
         }
     };
 
+    // --- SALARY ADVANCE LOGIC (การเบิกเงินล่วงหน้า) ---
+    const handleRecordAdvance = () => {
+        const options = employmentContracts.map(c => 
+            `<option value="${c.id}" data-salary="${c.salary}" data-name="${c.employeeName}" data-userid="${c.userId || ''}">${c.employeeName} (${c.position || 'พนักงาน'})</option>`
+        ).join('');
+
+        const todayStr = new Date().toISOString().split('T')[0];
+
+        Swal.fire({
+            title: '💸 บันทึกเบิกเงินล่วงหน้า',
+            html: `
+                <div class="text-left text-sm text-gray-300 mb-1 font-medium">เลือกพนักงาน (จากสัญญาจ้าง):</div>
+                <select id="swal-adv-emp" class="swal2-input m-0 mb-3 w-full text-sm bg-gray-700 text-white border-gray-600">
+                    <option value="">-- กรุณาเลือกพนักงาน --</option>
+                    ${options}
+                </select>
+                
+                <div id="swal-adv-emp-info" class="hidden text-left text-xs bg-gray-800 p-3 rounded-lg mb-3 border border-gray-700 shadow-inner">
+                    <div class="flex justify-between items-center text-gray-300 mb-1">
+                        <span>เงินเดือนฐาน: <strong id="swal-adv-base-salary" class="text-emerald-400 font-bold">-</strong></span>
+                        <span>ยอดเบิกรอหักสะสม: <strong id="swal-adv-pending-total" class="text-rose-400 font-bold">0 บาท</strong></span>
+                    </div>
+                    <div id="swal-adv-history-hint" class="text-[11px] text-gray-400"></div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2 mb-3">
+                    <div class="text-left">
+                        <label class="text-xs text-gray-400 block mb-1">วันที่ขอเบิก:</label>
+                        <input id="swal-adv-date" type="date" value="${todayStr}" class="swal2-input m-0 w-full text-sm bg-gray-700 text-white border-gray-600">
+                    </div>
+                    <div class="text-left">
+                        <label class="text-xs text-gray-400 block mb-1">ช่องทางการจ่าย:</label>
+                        <select id="swal-adv-method" class="swal2-input m-0 w-full text-sm bg-gray-700 text-white border-gray-600">
+                            <option value="cash">💵 เงินสดหน้าร้าน</option>
+                            <option value="transfer">📱 โอนผ่านบัญชีธนาคาร</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="text-left mb-3">
+                    <label class="text-xs text-gray-400 block mb-1">จำนวนเงินที่ขอเบิก (บาท):</label>
+                    <input id="swal-adv-amount" type="number" min="1" class="swal2-input m-0 w-full text-lg font-bold text-amber-400 bg-gray-700 border-gray-600" placeholder="ระบุจำนวนเงิน เช่น 500, 1000">
+                    <div class="flex flex-wrap gap-1.5 mt-2">
+                        <button type="button" class="swal-adv-quick text-xs bg-gray-700 hover:bg-gray-600 text-gray-200 px-2.5 py-1 rounded border border-gray-600" data-val="300">+300</button>
+                        <button type="button" class="swal-adv-quick text-xs bg-gray-700 hover:bg-gray-600 text-gray-200 px-2.5 py-1 rounded border border-gray-600" data-val="500">+500</button>
+                        <button type="button" class="swal-adv-quick text-xs bg-gray-700 hover:bg-gray-600 text-gray-200 px-2.5 py-1 rounded border border-gray-600" data-val="1000">+1,000</button>
+                        <button type="button" class="swal-adv-quick text-xs bg-gray-700 hover:bg-gray-600 text-gray-200 px-2.5 py-1 rounded border border-gray-600" data-val="2000">+2,000</button>
+                    </div>
+                </div>
+
+                <div class="text-left mb-3">
+                    <label class="text-xs text-gray-400 block mb-1">เหตุผลการเบิก / รายละเอียด:</label>
+                    <input id="swal-adv-reason" class="swal2-input m-0 w-full text-sm bg-gray-700 text-white border-gray-600" placeholder="เช่น ค่าใช้จ่ายฉุกเฉิน, ค่าเดินทาง, ซื้อของ">
+                </div>
+
+                <div class="text-left mb-2">
+                    <label class="text-xs text-gray-400 block mb-1">แนบลิงก์รูปสลิป/หลักฐาน (URL ถ้ามี):</label>
+                    <input id="swal-adv-slip" class="swal2-input m-0 w-full text-sm bg-gray-700 text-white border-gray-600" placeholder="https://example.com/slip.jpg">
+                </div>
+            `,
+            focusConfirm: false,
+            showCancelButton: true,
+            confirmButtonText: 'บันทึกการเบิกเงิน',
+            cancelButtonText: 'ยกเลิก',
+            confirmButtonColor: '#d97706',
+            didOpen: () => {
+                const empSelect = document.getElementById('swal-adv-emp') as HTMLSelectElement;
+                const empInfo = document.getElementById('swal-adv-emp-info') as HTMLDivElement;
+                const baseSalarySpan = document.getElementById('swal-adv-base-salary') as HTMLElement;
+                const pendingTotalSpan = document.getElementById('swal-adv-pending-total') as HTMLElement;
+                const historyHint = document.getElementById('swal-adv-history-hint') as HTMLElement;
+                const amountInput = document.getElementById('swal-adv-amount') as HTMLInputElement;
+
+                document.querySelectorAll('.swal-adv-quick').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        const val = Number((e.currentTarget as HTMLElement).dataset.val || 0);
+                        const current = Number(amountInput.value || 0);
+                        amountInput.value = String(current + val);
+                    });
+                });
+
+                empSelect.addEventListener('change', () => {
+                    const opt = empSelect.options[empSelect.selectedIndex];
+                    if (!opt || !opt.value) {
+                        empInfo.classList.add('hidden');
+                        return;
+                    }
+                    const name = opt.getAttribute('data-name') || '';
+                    const salary = Number(opt.getAttribute('data-salary') || 0);
+                    const userId = Number(opt.getAttribute('data-userid') || 0);
+
+                    const pendingAdv = salaryAdvances.filter(a => 
+                        (a.employeeName === name || (userId && a.userId === userId)) &&
+                        a.status === 'pending'
+                    );
+                    const totalPending = pendingAdv.reduce((sum, a) => sum + (a.amount || 0), 0);
+
+                    baseSalarySpan.innerText = `${salary.toLocaleString()} บาท`;
+                    pendingTotalSpan.innerText = `${totalPending.toLocaleString()} บาท`;
+                    if (pendingAdv.length > 0) {
+                        historyHint.innerHTML = `<span class="text-amber-400 font-medium">⚠️ มีรายการเบิกรอหักในรอบนี้ ${pendingAdv.length} รายการ</span>`;
+                    } else {
+                        historyHint.innerHTML = `<span class="text-emerald-400">✓ ไม่มีรายการเบิกค้างอยู่</span>`;
+                    }
+                    empInfo.classList.remove('hidden');
+                });
+            },
+            preConfirm: () => {
+                const empSelect = document.getElementById('swal-adv-emp') as HTMLSelectElement;
+                const opt = empSelect.options[empSelect.selectedIndex];
+                if (!opt || !opt.value) {
+                    Swal.showValidationMessage('กรุณาเลือกพนักงาน');
+                    return false;
+                }
+                const empName = opt.getAttribute('data-name') || '';
+                const userId = Number(opt.getAttribute('data-userid') || 0);
+                const date = (document.getElementById('swal-adv-date') as HTMLInputElement).value;
+                const method = (document.getElementById('swal-adv-method') as HTMLSelectElement).value as 'cash' | 'transfer';
+                const amount = Number((document.getElementById('swal-adv-amount') as HTMLInputElement).value);
+                const reason = (document.getElementById('swal-adv-reason') as HTMLInputElement).value.trim();
+                const slipUrl = (document.getElementById('swal-adv-slip') as HTMLInputElement).value.trim();
+
+                if (!date) {
+                    Swal.showValidationMessage('กรุณาระบุวันที่ขอเบิก');
+                    return false;
+                }
+                if (!amount || amount <= 0) {
+                    Swal.showValidationMessage('กรุณาระบุจำนวนเงินที่ถูกต้อง (มากกว่า 0)');
+                    return false;
+                }
+
+                return {
+                    empName,
+                    userId,
+                    date,
+                    method,
+                    amount,
+                    reason,
+                    slipUrl
+                };
+            }
+        }).then((result) => {
+            if (result.isConfirmed && result.value) {
+                const val = result.value;
+                const newRecord: SalaryAdvanceRecord = {
+                    id: Date.now(),
+                    employeeName: val.empName,
+                    userId: val.userId || undefined,
+                    amount: val.amount,
+                    requestDate: val.date,
+                    paymentMethod: val.method,
+                    reason: val.reason || undefined,
+                    slipUrl: val.slipUrl || undefined,
+                    approvedBy: currentUser?.username || 'ผู้ดูแลระบบ',
+                    status: 'pending',
+                    createdAt: Date.now()
+                };
+
+                setSalaryAdvances(prev => [newRecord, ...prev]);
+
+                Swal.fire({
+                    icon: 'success',
+                    title: 'บันทึกการเบิกเงินสำเร็จ',
+                    html: `
+                        <div class="text-left text-sm space-y-1">
+                            <p>พนักงาน: <strong>${val.empName}</strong></p>
+                            <p>จำนวนเงิน: <strong class="text-rose-400 text-base">${val.amount.toLocaleString()} บาท</strong></p>
+                            <p>ช่องทาง: <strong>${val.method === 'cash' ? '💵 เงินสดหน้าร้าน' : '📱 โอนเงิน'}</strong></p>
+                            <p>วันที่: <strong>${new Date(val.date).toLocaleDateString('th-TH')}</strong></p>
+                            <p class="text-xs text-amber-400 mt-2 bg-amber-950/40 p-2 rounded border border-amber-800">
+                                💡 ยอดนี้จะถูกนำไปแสดงและหักอัตโนมัติเมื่อกด "บันทึกเงินเดือน" ให้พนักงานคนนี้
+                            </p>
+                        </div>
+                    `,
+                    confirmButtonText: 'ตกลง',
+                    confirmButtonColor: '#10b981'
+                });
+            }
+        });
+    };
+
+    const handleShowPayrollAdvanceDetails = (record: PayrollRecord) => {
+        const linkedAdvances = salaryAdvances.filter(a => 
+            (a.payrollRecordId === record.id) || 
+            (record.advanceRecordIds && record.advanceRecordIds.includes(a.id))
+        );
+
+        let contentHtml = '';
+        if (linkedAdvances.length > 0) {
+            contentHtml = `
+                <div class="text-left text-sm">
+                    <div class="bg-gray-800 p-3 rounded-lg border border-gray-700 mb-3">
+                        <p class="text-gray-300">พนักงาน: <strong class="text-white">${record.employeeName}</strong></p>
+                        <p class="text-gray-300">รอบเงินเดือน: <strong class="text-white">${record.month ? new Date(record.month).toLocaleDateString('th-TH') : '-'}</strong></p>
+                        <p class="text-amber-400 font-bold text-base mt-1">ยอดหักเบิกเงินล่วงหน้ารวม: ${(record.advanceDeduction || 0).toLocaleString()} บาท</p>
+                    </div>
+                    <div class="text-xs font-semibold text-gray-400 mb-1.5">รายการเบิกเงินล่วงหน้าที่ถูกหักในรอบนี้ (${linkedAdvances.length} รายการ):</div>
+                    <div class="space-y-2 max-h-60 overflow-y-auto pr-1">
+                        ${linkedAdvances.map(a => `
+                            <div class="bg-gray-700/60 p-2.5 rounded border border-gray-600">
+                                <div class="flex justify-between items-center mb-1">
+                                    <span class="font-bold text-white text-xs">${new Date(a.requestDate).toLocaleDateString('th-TH')}</span>
+                                    <span class="font-bold text-rose-400 text-sm">-${a.amount.toLocaleString()} บาท</span>
+                                </div>
+                                <div class="text-xs text-gray-300 flex justify-between">
+                                    <span>ช่องทาง: ${a.paymentMethod === 'cash' ? '💵 เงินสดหน้าร้าน' : '📱 โอนเงิน'}</span>
+                                    <span class="text-gray-400">อนุมัติโดย: ${a.approvedBy || '-'}</span>
+                                </div>
+                                ${a.reason ? `<p class="text-xs text-amber-200/90 mt-1">เหตุผล: ${a.reason}</p>` : ''}
+                                ${a.slipUrl ? `<a href="${a.slipUrl}" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:underline text-xs inline-block mt-1">🔗 ดูสลิปการเบิก</a>` : ''}
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        } else {
+            contentHtml = `
+                <div class="text-left text-sm">
+                    <div class="bg-gray-800 p-3 rounded-lg border border-gray-700 mb-2">
+                        <p class="text-gray-300">พนักงาน: <strong class="text-white">${record.employeeName}</strong></p>
+                        <p class="text-gray-300">รอบเงินเดือน: <strong class="text-white">${record.month ? new Date(record.month).toLocaleDateString('th-TH') : '-'}</strong></p>
+                        <p class="text-amber-400 font-bold mt-2">ยอดหักเบิกเงินล่วงหน้า: ${(record.advanceDeduction || 0).toLocaleString()} บาท</p>
+                    </div>
+                    <p class="text-xs text-gray-400">บันทึกยอดหักในการคำนวณเงินเดือนรอบนี้</p>
+                </div>
+            `;
+        }
+
+        Swal.fire({
+            title: '💸 รายละเอียดการหักเบิกเงินล่วงหน้า',
+            html: contentHtml,
+            confirmButtonText: 'ปิด',
+            confirmButtonColor: '#4b5563'
+        });
+    };
+
+    const handleViewAdvanceHistory = () => {
+        let currentFilter: string = 'all';
+        let currentSearch: string = '';
+
+        const getFilteredList = (filterStatus: string, searchQuery: string) => {
+            let list = salaryAdvances;
+            if (filterStatus !== 'all') {
+                list = list.filter(a => a.status === filterStatus);
+            }
+            if (searchQuery.trim()) {
+                const q = searchQuery.trim().toLowerCase();
+                list = list.filter(a => 
+                    a.employeeName.toLowerCase().includes(q) || 
+                    (a.reason && a.reason.toLowerCase().includes(q)) ||
+                    (a.approvedBy && a.approvedBy.toLowerCase().includes(q))
+                );
+            }
+            return list;
+        };
+
+        const renderContent = (filterStatus: string, searchQuery: string) => {
+            const filtered = getFilteredList(filterStatus, searchQuery);
+            const pendingTotal = salaryAdvances.filter(a => a.status === 'pending').reduce((sum, a) => sum + (a.amount || 0), 0);
+            const deductedTotal = salaryAdvances.filter(a => a.status === 'deducted').reduce((sum, a) => sum + (a.amount || 0), 0);
+
+            const rowsHtml = filtered.length === 0 ? `
+                <tr>
+                    <td colspan="7" class="text-center p-6 text-gray-400 text-sm">ไม่พบรายการเบิกเงินล่วงหน้า</td>
+                </tr>
+            ` : filtered.map((a) => {
+                const statusBadge = a.status === 'pending'
+                    ? '<span class="bg-amber-900/70 text-amber-300 border border-amber-500/50 px-2 py-0.5 rounded text-[11px] font-medium whitespace-nowrap">🟡 รอหักเงินเดือน</span>'
+                    : a.status === 'deducted'
+                    ? `<span class="bg-emerald-900/70 text-emerald-300 border border-emerald-500/50 px-2 py-0.5 rounded text-[11px] font-medium whitespace-nowrap" title="หักในรอบ ${a.deductedDate || ''}">🟢 หักเงินเดือนแล้ว</span>`
+                    : '<span class="bg-gray-700 text-gray-400 px-2 py-0.5 rounded text-[11px] font-medium whitespace-nowrap">⚪ ยกเลิก</span>';
+
+                const methodText = a.paymentMethod === 'cash' ? '💵 เงินสด' : '📱 โอนเงิน';
+
+                return `
+                    <tr class="border-b border-gray-700/60 hover:bg-gray-700/30 text-xs transition-colors">
+                        <td class="p-2.5 text-gray-300 whitespace-nowrap">${new Date(a.requestDate).toLocaleDateString('th-TH')}</td>
+                        <td class="p-2.5 font-semibold text-white whitespace-nowrap">${a.employeeName}</td>
+                        <td class="p-2.5 font-bold text-amber-400 whitespace-nowrap">${(a.amount || 0).toLocaleString()} ฿</td>
+                        <td class="p-2.5 text-gray-300 whitespace-nowrap">${methodText}</td>
+                        <td class="p-2.5 text-gray-300 max-w-[140px] truncate" title="${a.reason || ''}">${a.reason || '-'}</td>
+                        <td class="p-2.5 whitespace-nowrap">${statusBadge}</td>
+                        <td class="p-2.5 text-center whitespace-nowrap">
+                            <div class="flex items-center justify-center gap-1.5">
+                                ${a.slipUrl ? `<a href="${a.slipUrl}" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:text-blue-300 text-xs underline" title="ดูสลิป">สลิป</a>` : ''}
+                                ${a.status === 'pending' ? `
+                                    <button class="swal-cancel-adv text-amber-400 hover:text-amber-300 px-1.5 py-0.5 rounded border border-amber-600/50 text-[10px] cursor-pointer" data-id="${a.id}" title="ยกเลิกรายการนี้">ยกเลิก</button>
+                                    <button class="swal-del-adv text-rose-400 hover:text-rose-300 px-1.5 py-0.5 rounded border border-rose-600/50 text-[10px] cursor-pointer" data-id="${a.id}" title="ลบรายการนี้">🗑️</button>
+                                ` : a.status === 'cancelled' ? `
+                                    <button class="swal-del-adv text-rose-400 hover:text-rose-300 px-1.5 py-0.5 rounded border border-rose-600/50 text-[10px] cursor-pointer" data-id="${a.id}" title="ลบรายการนี้">🗑️</button>
+                                ` : ''}
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+
+            return `
+                <div class="text-left">
+                    <div class="grid grid-cols-2 gap-2 mb-3">
+                        <div class="bg-amber-950/40 border border-amber-600/50 p-2.5 rounded-lg">
+                            <div class="text-[11px] text-amber-300 font-medium">🟡 ยอดรอหักเงินเดือนสะสม</div>
+                            <div class="text-base font-bold text-amber-400 mt-0.5">${pendingTotal.toLocaleString()} บาท</div>
+                        </div>
+                        <div class="bg-emerald-950/40 border border-emerald-600/50 p-2.5 rounded-lg">
+                            <div class="text-[11px] text-emerald-300 font-medium">🟢 ยอดที่หักเงินเดือนแล้ว</div>
+                            <div class="text-base font-bold text-emerald-400 mt-0.5">${deductedTotal.toLocaleString()} บาท</div>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+                        <div class="flex flex-wrap gap-1">
+                            <button class="swal-filter-btn px-2.5 py-1 text-xs rounded transition-colors ${filterStatus === 'all' ? 'bg-amber-600 text-white font-semibold' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}" data-status="all">ทั้งหมด (${salaryAdvances.length})</button>
+                            <button class="swal-filter-btn px-2.5 py-1 text-xs rounded transition-colors ${filterStatus === 'pending' ? 'bg-amber-600 text-white font-semibold' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}" data-status="pending">รอหัก (${salaryAdvances.filter(a => a.status === 'pending').length})</button>
+                            <button class="swal-filter-btn px-2.5 py-1 text-xs rounded transition-colors ${filterStatus === 'deducted' ? 'bg-amber-600 text-white font-semibold' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}" data-status="deducted">หักแล้ว (${salaryAdvances.filter(a => a.status === 'deducted').length})</button>
+                            <button class="swal-filter-btn px-2.5 py-1 text-xs rounded transition-colors ${filterStatus === 'cancelled' ? 'bg-amber-600 text-white font-semibold' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}" data-status="cancelled">ยกเลิก (${salaryAdvances.filter(a => a.status === 'cancelled').length})</button>
+                        </div>
+                        <div class="flex items-center gap-1.5 flex-grow sm:flex-grow-0">
+                            <input id="swal-adv-search" type="text" value="${searchQuery}" placeholder="ค้นหาชื่อพนักงาน..." class="bg-gray-700 text-white px-2.5 py-1 text-xs rounded border border-gray-600 focus:outline-none focus:border-amber-500 w-full sm:w-44">
+                        </div>
+                    </div>
+
+                    <div class="overflow-x-auto max-h-[320px] overflow-y-auto rounded-lg border border-gray-700">
+                        <table class="w-full text-left">
+                            <thead class="bg-gray-800 text-gray-300 uppercase text-[11px] sticky top-0 z-10 border-b border-gray-700">
+                                <tr>
+                                    <th class="p-2.5">วันที่</th>
+                                    <th class="p-2.5">พนักงาน</th>
+                                    <th class="p-2.5">ยอดเบิก</th>
+                                    <th class="p-2.5">ช่องทาง</th>
+                                    <th class="p-2.5">เหตุผล</th>
+                                    <th class="p-2.5">สถานะ</th>
+                                    <th class="p-2.5 text-center">จัดการ</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-700/60 bg-gray-900/50">
+                                ${rowsHtml}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="flex justify-between items-center mt-3 pt-2 border-t border-gray-700 text-xs">
+                        <button id="swal-adv-export-btn" type="button" class="bg-emerald-700 hover:bg-emerald-600 text-white px-3 py-1.5 rounded flex items-center gap-1 cursor-pointer">
+                            📊 Export Excel
+                        </button>
+                        <button id="swal-adv-add-new-btn" type="button" class="bg-amber-600 hover:bg-amber-500 text-white font-medium px-3 py-1.5 rounded flex items-center gap-1 cursor-pointer">
+                            ➕ บันทึกเบิกเงินใหม่
+                        </button>
+                    </div>
+                </div>
+            `;
+        };
+
+        const openModal = () => {
+            Swal.fire({
+                title: '📋 ประวัติการเบิกเงินล่วงหน้า',
+                html: renderContent(currentFilter, currentSearch),
+                width: '800px',
+                showConfirmButton: false,
+                showCloseButton: true,
+                didOpen: () => {
+                    const searchInput = document.getElementById('swal-adv-search') as HTMLInputElement;
+                    searchInput?.addEventListener('input', (e) => {
+                        currentSearch = (e.target as HTMLInputElement).value;
+                        const container = Swal.getHtmlContainer();
+                        if (container) {
+                            container.innerHTML = renderContent(currentFilter, currentSearch);
+                            attachEvents();
+                            const newSearch = document.getElementById('swal-adv-search') as HTMLInputElement;
+                            if (newSearch) {
+                                newSearch.focus();
+                                newSearch.setSelectionRange(newSearch.value.length, newSearch.value.length);
+                            }
+                        }
+                    });
+
+                    const attachEvents = () => {
+                        document.querySelectorAll('.swal-filter-btn').forEach(btn => {
+                            btn.addEventListener('click', (e) => {
+                                currentFilter = (e.currentTarget as HTMLElement).dataset.status || 'all';
+                                const container = Swal.getHtmlContainer();
+                                if (container) {
+                                    container.innerHTML = renderContent(currentFilter, currentSearch);
+                                    attachEvents();
+                                }
+                            });
+                        });
+
+                        document.querySelectorAll('.swal-cancel-adv').forEach(btn => {
+                            btn.addEventListener('click', (e) => {
+                                const advId = Number((e.currentTarget as HTMLElement).dataset.id);
+                                Swal.fire({
+                                    title: 'ยืนยันยกเลิกรายการเบิกเงิน?',
+                                    text: 'สถานะจะเปลี่ยนเป็นยกเลิก และยอดนี้จะไม่ถูกนำไปหักในเงินเดือน',
+                                    icon: 'warning',
+                                    showCancelButton: true,
+                                    confirmButtonText: 'ยืนยันยกเลิก',
+                                    cancelButtonText: 'ย้อนกลับ',
+                                    confirmButtonColor: '#f59e0b'
+                                }).then((res) => {
+                                    if (res.isConfirmed) {
+                                        setSalaryAdvances(prev => prev.map(a => a.id === advId ? { ...a, status: 'cancelled' } : a));
+                                        Swal.fire('สำเร็จ', 'ยกเลิกรายการเบิกเงินแล้ว', 'success').then(() => {
+                                            openModal();
+                                        });
+                                    } else {
+                                        openModal();
+                                    }
+                                });
+                            });
+                        });
+
+                        document.querySelectorAll('.swal-del-adv').forEach(btn => {
+                            btn.addEventListener('click', (e) => {
+                                const advId = Number((e.currentTarget as HTMLElement).dataset.id);
+                                Swal.fire({
+                                    title: 'ยืนยันลบรายการนี้?',
+                                    text: 'ข้อมูลจะถูกลบออกจากระบบอย่างถาวร',
+                                    icon: 'warning',
+                                    showCancelButton: true,
+                                    confirmButtonText: 'ลบรายการ',
+                                    cancelButtonText: 'ย้อนกลับ',
+                                    confirmButtonColor: '#ef4444'
+                                }).then((res) => {
+                                    if (res.isConfirmed) {
+                                        setSalaryAdvances(prev => prev.filter(a => a.id !== advId));
+                                        Swal.fire('สำเร็จ', 'ลบรายการแล้ว', 'success').then(() => {
+                                            openModal();
+                                        });
+                                    } else {
+                                        openModal();
+                                    }
+                                });
+                            });
+                        });
+
+                        document.getElementById('swal-adv-export-btn')?.addEventListener('click', () => {
+                            exportToExcel(salaryAdvances, 'Salary_Advances');
+                        });
+
+                        document.getElementById('swal-adv-add-new-btn')?.addEventListener('click', () => {
+                            Swal.close();
+                            handleRecordAdvance();
+                        });
+                    };
+
+                    attachEvents();
+                }
+            });
+        };
+
+        openModal();
+    };
+
     // --- PAYROLL LOGIC ---
     const handleAddPayroll = () => {
         // Filter contracts to suggest employees
@@ -968,6 +1429,8 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
             }
             return dates;
         };
+
+        let currentPendingAdvances: SalaryAdvanceRecord[] = [];
 
         Swal.fire({
             title: 'บันทึกเงินเดือน',
@@ -1013,6 +1476,19 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                     </select>
                     <input id="swal-pay-next-date" class="swal2-input m-0 w-1/2 bg-gray-100" placeholder="วันจ่ายครั้งถัดไป" readonly>
                 </div>
+                <div id="swal-pay-advance-section" class="hidden mb-3 p-3 bg-amber-950/40 border border-amber-600/50 rounded-lg text-left">
+                    <div class="flex items-center justify-between mb-1.5">
+                        <span class="text-xs font-bold text-amber-400 flex items-center gap-1">💸 รายการเบิกเงินล่วงหน้า (รอหัก):</span>
+                        <span id="swal-pay-advance-total-badge" class="text-xs font-bold text-rose-400">0.00 บาท</span>
+                    </div>
+                    <div class="flex items-center gap-2 mb-2">
+                        <label class="text-xs text-gray-300 whitespace-nowrap">ยอดหักรอบนี้:</label>
+                        <input id="swal-pay-advance-deduct" type="number" min="0" class="swal2-input m-0 flex-grow py-1 h-8 text-sm bg-gray-700 text-amber-300 border-gray-600" placeholder="จำนวนเงิน">
+                        <button id="swal-pay-advance-all-btn" type="button" class="bg-amber-600 hover:bg-amber-500 text-white text-xs px-2.5 py-1 rounded h-8 whitespace-nowrap cursor-pointer">หักทั้งหมด</button>
+                        <button id="swal-pay-advance-zero-btn" type="button" class="bg-gray-600 hover:bg-gray-500 text-white text-xs px-2 py-1 rounded h-8 whitespace-nowrap cursor-pointer">ไม่หัก</button>
+                    </div>
+                    <div id="swal-pay-advance-list" class="text-[11px] text-gray-300 bg-gray-900/70 p-2 rounded border border-gray-800 space-y-1 max-h-24 overflow-y-auto"></div>
+                </div>
                 <input id="swal-pay-base" type="text" class="swal2-input" placeholder="ยอดจ่ายสุทธิ" readonly>
                 <div id="swal-pay-calc-info" class="text-left text-sm text-gray-500 mt-2 p-3 bg-gray-700 rounded-lg hidden"></div>
             `,
@@ -1027,6 +1503,15 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                  const probationCheckbox = document.getElementById('swal-pay-probation') as HTMLInputElement;
                  const dailyRateContainer = document.getElementById('swal-pay-daily-rate-container') as HTMLDivElement;
                  const dailyRateInput = document.getElementById('swal-pay-daily-rate') as HTMLInputElement;
+                 const advanceSection = document.getElementById('swal-pay-advance-section') as HTMLDivElement;
+                 const advanceTotalBadge = document.getElementById('swal-pay-advance-total-badge') as HTMLElement;
+                 const advanceDeductInput = document.getElementById('swal-pay-advance-deduct') as HTMLInputElement;
+                 const advanceList = document.getElementById('swal-pay-advance-list') as HTMLDivElement;
+                 const advanceAllBtn = document.getElementById('swal-pay-advance-all-btn') as HTMLButtonElement;
+                 const advanceZeroBtn = document.getElementById('swal-pay-advance-zero-btn') as HTMLButtonElement;
+
+                 currentPendingAdvances = [];
+                 let lastEmpSelectionKey = '';
                  
                  const formatNumber = (num: number) => {
                      return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -1216,6 +1701,41 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                          usernameInput.value = '';
                      }
 
+                     // Check pending salary advances for this employee
+                     const empSelectionKey = `${select.value}_${empName}_${userId}`;
+                     if (empSelectionKey !== lastEmpSelectionKey) {
+                         lastEmpSelectionKey = empSelectionKey;
+                         if (empName || userId) {
+                             currentPendingAdvances = salaryAdvances.filter(a => 
+                                 ((empName && a.employeeName === empName) || (userId && a.userId === userId)) &&
+                                 a.status === 'pending'
+                             );
+                         } else {
+                             currentPendingAdvances = [];
+                         }
+
+                         const totalPending = currentPendingAdvances.reduce((sum, a) => sum + (a.amount || 0), 0);
+                         if (totalPending > 0) {
+                             advanceSection?.classList.remove('hidden');
+                             if (advanceTotalBadge) advanceTotalBadge.innerText = `${formatNumber(totalPending)} บาท`;
+                             if (advanceDeductInput) advanceDeductInput.value = String(totalPending);
+                             if (advanceList) {
+                                 advanceList.innerHTML = currentPendingAdvances.map(a => `
+                                     <div class="flex justify-between items-center text-gray-300">
+                                         <span>• ${new Date(a.requestDate).toLocaleDateString('th-TH')} (${a.reason || 'เบิกเงินล่วงหน้า'})</span>
+                                         <span class="text-rose-400 font-semibold">${formatNumber(a.amount)} บ.</span>
+                                     </div>
+                                 `).join('');
+                             }
+                         } else {
+                             advanceSection?.classList.add('hidden');
+                             if (advanceDeductInput) advanceDeductInput.value = '0';
+                             if (advanceList) advanceList.innerHTML = '';
+                         }
+                     }
+
+                     const advanceToDeduct = Math.max(0, Number(advanceDeductInput?.value || 0));
+
                      if (salary && dateVal && userId) {
                          const payDate = new Date(dateVal);
                          const cycle = parseInt(cycleSelect.value) || 7;
@@ -1316,7 +1836,7 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
 
                              const baseSalary = potentialDays * dailyRate;
                              const deductions = unpaidLeaveDays * dailyRate;
-                             const netPay = actualPaidDays * dailyRate;
+                             const netPay = Math.max(0, (actualPaidDays * dailyRate) - advanceToDeduct);
 
                              let htmlContent = `
                                  <div class="mb-2 p-2 bg-blue-900/30 rounded border border-blue-500/50">
@@ -1348,6 +1868,7 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                              htmlContent += `
                                  <p>ค่าจ้างปกติ (${potentialDays} วัน x ${dailyRate} บาท): ${baseSalary.toLocaleString()} บาท</p>
                                  ${deductions > 0 ? `<p class="text-red-400">หักวันไม่ทำงานสะสม: -${deductions.toLocaleString()} บาท</p>` : ''}
+                                  ${advanceToDeduct > 0 ? `<p class="text-amber-400">หักเบิกเงินล่วงหน้า: -${advanceToDeduct.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท</p>` : ''}
                                  <p class="font-bold text-green-500 text-lg mt-1">ยอดจ่ายสุทธิ: ${(netPay || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท</p>
                              `;
 
@@ -1413,7 +1934,7 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                              const currentDeduction = dailyRate * currentDays;
                              const totalDeduction = retroactiveDeduction + currentDeduction;
                              
-                             const netPay = Math.max(0, baseForCycle - totalDeduction);
+                             const netPay = Math.max(0, baseForCycle - totalDeduction - advanceToDeduct);
 
                              let htmlContent = '';
 
@@ -1462,6 +1983,7 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                              htmlContent += `
                                  <p class="mt-2">เงินเดือนตามรอบจ่าย (${cycle} วัน): ${(baseForCycle || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท</p>
                                  ${totalDeduction > 0 ? `<p class="text-red-400">รวมหักทั้งหมด: -${(totalDeduction || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท</p>` : ''}
+                                  ${advanceToDeduct > 0 ? `<p class="text-amber-400">หักเบิกเงินล่วงหน้า: -${advanceToDeduct.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท</p>` : ''}
                                  <p class="font-bold text-green-500 text-lg mt-1">ยอดจ่ายสุทธิ: ${(netPay || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท</p>
                              `;
 
@@ -1475,7 +1997,9 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                          const cycleVal = parseInt(cycleSelect.value) || 7;
                          if (cycleVal === 14) cycleFactor = 2;
                          if (cycleVal === 30) cycleFactor = 4;
-                         baseInput.value = formatNumber((salary / 4) * cycleFactor);
+                         const rawBase = (salary / 4) * cycleFactor;
+                         const netPay = Math.max(0, rawBase - advanceToDeduct);
+                         baseInput.value = formatNumber(netPay);
                          infoDiv.classList.add('hidden');
                      }
                  };
@@ -1484,6 +2008,16 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                  dateInput.addEventListener('change', calculateDeductions);
                  cycleSelect.addEventListener('change', () => {
                      updateNextPaymentDate();
+                     calculateDeductions();
+                 });
+                 advanceDeductInput?.addEventListener('input', calculateDeductions);
+                 advanceAllBtn?.addEventListener('click', () => {
+                     const totalPending = currentPendingAdvances.reduce((sum, a) => sum + (a.amount || 0), 0);
+                     if (advanceDeductInput) advanceDeductInput.value = String(totalPending);
+                     calculateDeductions();
+                 });
+                 advanceZeroBtn?.addEventListener('click', () => {
+                     if (advanceDeductInput) advanceDeductInput.value = '0';
                      calculateDeductions();
                  });
                   probationCheckbox.addEventListener('change', () => {
@@ -1514,6 +2048,9 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                 const contractId = Number(select.value);
                 const contract = employmentContracts.find(c => c.id === contractId);
                 const isProbation = (document.getElementById('swal-pay-probation') as HTMLInputElement).checked;
+                const advanceDeductInput = document.getElementById('swal-pay-advance-deduct') as HTMLInputElement;
+                const advanceToDeduct = Math.max(0, Number(advanceDeductInput?.value || 0));
+                const advanceRecordIds = currentPendingAdvances.filter(a => a.status === 'pending').map(a => a.id);
                 const dailyRate = isProbation ? (Number((document.getElementById('swal-pay-daily-rate') as HTMLInputElement).value) || 350) : 0;
 
                 const baseSalaryAttr = contract ? contract.salary : 0;
@@ -1636,7 +2173,9 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                     nextPaymentDate: nextPaymentDate.getTime(),
                     paymentCycle: cycle as 7 | 14 | 30,
                     workedDays: finalWorkedDays,
-                    workedDates: finalWorkedDatesList
+                    workedDates: finalWorkedDatesList,
+                    advanceDeduction: advanceToDeduct,
+                    advanceRecordIds: advanceRecordIds
                 };
             }
         }).then((result) => {
@@ -1657,9 +2196,29 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                     nextPaymentDate: val.nextPaymentDate,
                     paymentCycle: val.paymentCycle,
                     workedDays: val.workedDays,
-                    workedDates: val.workedDates
+                    workedDates: val.workedDates,
+                    advanceDeduction: val.advanceDeduction,
+                    advanceRecordIds: val.advanceRecordIds
                 };
                 setPayrollRecords(prev => [...prev, newPayroll]);
+
+                if (val.advanceDeduction > 0 && val.advanceRecordIds && val.advanceRecordIds.length > 0) {
+                    let remaining = val.advanceDeduction;
+                    setSalaryAdvances(prev => prev.map(adv => {
+                        if (val.advanceRecordIds.includes(adv.id) && adv.status === 'pending') {
+                            if (remaining >= adv.amount) {
+                                remaining -= adv.amount;
+                                return {
+                                    ...adv,
+                                    status: 'deducted' as const,
+                                    payrollRecordId: newPayroll.id,
+                                    deductedDate: val.month
+                                };
+                            }
+                        }
+                        return adv;
+                    }));
+                }
                 Swal.fire('สำเร็จ', 'บันทึกเงินเดือนเรียบร้อย', 'success');
             }
         });
@@ -2448,6 +3007,12 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                         🗑️ ลบที่เลือก ({selectedItems.length})
                                     </button>
                                 )}
+                                <button onClick={handleRecordAdvance} className="bg-amber-600 hover:bg-amber-700 px-4 py-2 rounded-lg text-sm text-white font-medium flex items-center gap-1.5 shadow-sm">
+                                    💸 บันทึกเบิกเงิน
+                                </button>
+                                <button onClick={handleViewAdvanceHistory} className="bg-gray-700 hover:bg-gray-600 px-3.5 py-2 rounded-lg text-sm text-amber-300 font-medium border border-amber-500/40 flex items-center gap-1.5">
+                                    📋 ประวัติเบิกเงิน
+                                </button>
                                 <button onClick={handleAddPayroll} className="bg-yellow-600 hover:bg-yellow-700 px-4 py-2 rounded-lg text-sm text-black font-medium">
                                     💰 บันทึกเงินเดือน
                                 </button>
@@ -2486,6 +3051,7 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                                 </button>
                                             </div>
                                         </th>
+                                        <th className="p-3">เบิกเงินล่วงหน้า</th>
                                         <th className="p-3">สุทธิ</th>
                                         <th className="p-3">สถานะ</th>
                                         <th className="p-3">วันจ่ายครั้งถัดไป</th>
@@ -2494,7 +3060,7 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
 </thead>
                                 <tbody className="divide-y divide-gray-700">
                                     {sortedPayrollRecords.length === 0 ? (
-                                        <tr><td colSpan={isEditMode ? 6 : 5} className="p-4 text-center text-gray-500">ไม่พบข้อมูล</td></tr>
+                                        <tr><td colSpan={isEditMode ? 8 : 7} className="p-4 text-center text-gray-500">ไม่พบข้อมูล</td></tr>
                                     ) : (
                                         sortedPayrollRecords.map((p, index) => (
                                             <tr key={p.id || index} className="hover:bg-gray-700/50">
@@ -2535,6 +3101,20 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                                         (p.baseSalary || 0).toLocaleString()
                                                     ) : (
                                                         <span className="text-gray-500 font-medium">••••••</span>
+                                                    )}
+                                                </td>
+                                                <td className="p-3">
+                                                    {p.advanceDeduction && p.advanceDeduction > 0 ? (
+                                                        <button
+                                                            onClick={() => handleShowPayrollAdvanceDetails(p)}
+                                                            className="text-amber-400 hover:text-amber-300 font-semibold underline flex items-center gap-1 cursor-pointer"
+                                                            title="คลิกดูรายละเอียดการเบิกเงินล่วงหน้า"
+                                                        >
+                                                            <span>-{showSalaries ? p.advanceDeduction.toLocaleString() : '••••'}</span>
+                                                            <span className="text-[10px] bg-amber-500/20 px-1 py-0.5 rounded border border-amber-500/40">ดู</span>
+                                                        </button>
+                                                    ) : (
+                                                        <span className="text-gray-500">-</span>
                                                     )}
                                                 </td>
                                                 <td className="p-3 font-bold text-green-400">
