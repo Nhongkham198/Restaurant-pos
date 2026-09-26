@@ -286,10 +286,11 @@ export const LeaveCalendarView: React.FC<LeaveCalendarViewProps> = ({ leaveReque
     // --- Quota Calculation ---
     const remainingQuotas = useMemo(() => {
         if (!currentUser) return null;
-        const total = currentUser.leaveQuotas ?? { sick: 30, personal: 6 };
+        const total = currentUser.leaveQuotas ?? { sick: 30, personal: 6, vacation: 6 };
         return {
             sick: total.sick ?? 30,
-            personal: total.personal ?? 6
+            personal: total.personal ?? 6,
+            vacation: total.vacation ?? 6
         };
     }, [currentUser]);
 
@@ -398,7 +399,7 @@ export const LeaveCalendarView: React.FC<LeaveCalendarViewProps> = ({ leaveReque
 
                 {/* Leave Quota Summary for Staff */}
                 {remainingQuotas && (
-                    <div className="grid grid-cols-2 gap-4 mb-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
                         <div className="bg-white p-4 rounded-xl shadow-md border border-gray-100 flex items-center gap-4">
                             <div className="w-10 h-10 rounded-lg bg-red-50 flex items-center justify-center text-red-500">
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -419,6 +420,17 @@ export const LeaveCalendarView: React.FC<LeaveCalendarViewProps> = ({ leaveReque
                             <div>
                                 <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">ลากิจคงเหลือ</p>
                                 <p className="text-lg font-black text-gray-900">{remainingQuotas.personal} วัน</p>
+                            </div>
+                        </div>
+                        <div className="bg-white p-4 rounded-xl shadow-md border border-gray-100 flex items-center gap-4">
+                            <div className="w-10 h-10 rounded-lg bg-amber-50 flex items-center justify-center text-amber-500">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+                                </svg>
+                            </div>
+                            <div>
+                                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">ลาไม่รับเงินเดือนคงเหลือ</p>
+                                <p className="text-lg font-black text-gray-900">{remainingQuotas.vacation} วัน</p>
                             </div>
                         </div>
                     </div>

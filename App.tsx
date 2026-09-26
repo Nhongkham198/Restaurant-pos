@@ -1532,9 +1532,9 @@ export const App: React.FC = () => {
                 }
 
                 const newQuotas = { ...user.leaveQuotas };
-                const type = request.type as keyof typeof newQuotas;
-                if (['sick', 'personal', 'vacation'].includes(type)) {
-                    newQuotas[type] = newQuotas[type] + duration;
+                const quotaKey = (request.type === 'leave-without-pay' ? 'vacation' : request.type) as keyof typeof newQuotas;
+                if (['sick', 'personal', 'vacation'].includes(quotaKey)) {
+                    newQuotas[quotaKey] = newQuotas[quotaKey] + duration;
                     
                     // Update state using functional update to prevent stale closures
                     setUsers(prevUsers => prevUsers.map(u => u.id === user.id ? { ...u, leaveQuotas: newQuotas } : u));

@@ -657,6 +657,7 @@ exports.sendLeaveRequestNotification = functions.region('asia-southeast1').fires
 
         let remainingSick = 0;
         let remainingPersonal = 0;
+        let remainingVacation = 0;
         try {
             const usersDoc = await admin.firestore().collection('users').doc('data').get();
             const allUsers = usersDoc.data().value || [];
@@ -664,6 +665,7 @@ exports.sendLeaveRequestNotification = functions.region('asia-southeast1').fires
             if (user && user.leaveQuotas) {
                 remainingSick = user.leaveQuotas.sick || 0;
                 remainingPersonal = user.leaveQuotas.personal || 0;
+                remainingVacation = user.leaveQuotas.vacation || 0;
                 
                 // Note: Quota is already deducted in App.tsx when approved, 
                 // but here we are notifying about a NEW (pending) request.
@@ -672,6 +674,8 @@ exports.sendLeaveRequestNotification = functions.region('asia-southeast1').fires
                     remainingSick = Math.max(0, remainingSick - duration);
                 } else if (newRequest.type === 'personal') {
                     remainingPersonal = Math.max(0, remainingPersonal - duration);
+                } else if (newRequest.type === 'vacation' || newRequest.type === 'leave-without-pay') {
+                    remainingVacation = Math.max(0, remainingVacation - duration);
                 }
             }
         } catch (err) {
@@ -709,7 +713,8 @@ exports.sendLeaveRequestNotification = functions.region('asia-southeast1').fires
                                     `💬 เหตุผล: ${newRequest.reason}\n\n` +
                                     `📊 สรุปวันลาคงเหลือหากอนุมัติ:\n` +
                                     `🤒 ลาป่วยคงเหลือ: ${remainingSick} วัน\n` +
-                                    `💼 ลากิจคงเหลือ: ${remainingPersonal} วัน`;
+                                    `💼 ลากิจคงเหลือ: ${remainingPersonal} วัน\n` +
+                                    `🏖️ ลาไม่รับเงินเดือนคงเหลือ: ${remainingVacation} วัน`;
 
                 await sendLineMessage(lineToken, lineUserId, messageText);
             } else {
@@ -749,7 +754,8 @@ exports.sendLeaveRequestNotification = functions.region('asia-southeast1').fires
                                     `💬 เหตุผล: ${newRequest.reason}\n\n` +
                                     `<b>📊 สรุปวันลาคงเหลือหากอนุมัติ:</b>\n` +
                                     `🤒 ลาป่วยคงเหลือ: <b>${remainingSick} วัน</b>\n` +
-                                    `💼 ลากิจคงเหลือ: <b>${remainingPersonal} วัน</b>`;
+                                    `💼 ลากิจคงเหลือ: <b>${remainingPersonal} วัน</b>\n` +
+                                    `🏖️ ลาไม่รับเงินเดือนคงเหลือ: <b>${remainingVacation} วัน</b>`;
 
                 await sendTelegramMessage(telToken, telChatId, messageText);
             }

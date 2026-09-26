@@ -3252,6 +3252,7 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                             // Directly pull the remaining leave days mapped from the user's leaveQuotas (managed on the User Management page)
                                             const remainingSick = user?.leaveQuotas?.sick ?? 30;
                                             const remainingPersonal = user?.leaveQuotas?.personal ?? 6;
+                                            const remainingVacation = user?.leaveQuotas?.vacation ?? 6;
                                             const remainingTotalPaid = remainingSick + remainingPersonal;
 
                                             return (
@@ -3284,6 +3285,10 @@ const HRManagementView: React.FC<HRManagementViewProps> = ({ isEditMode = false,
                                                         <div className="bg-emerald-950/80 text-emerald-200 border border-emerald-900/50 px-2 py-1 rounded font-medium text-center min-w-[65px]">
                                                             <div className="text-[10px] text-emerald-300 font-normal leading-tight">กิจคงเหลือ</div>
                                                             <div className="text-xs font-bold text-emerald-400">{remainingPersonal} วัน</div>
+                                                        </div>
+                                                        <div className="bg-amber-950/80 text-amber-200 border border-amber-900/50 px-2 py-1 rounded font-medium text-center min-w-[65px]">
+                                                            <div className="text-[10px] text-amber-300 font-normal leading-tight">ไม่รับเงินเดือน</div>
+                                                            <div className="text-xs font-bold text-amber-400">{remainingVacation} วัน</div>
                                                         </div>
                                                     </div>
                                                 </td>
